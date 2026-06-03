@@ -1,4 +1,4 @@
-export type BranchKind = "main" | "develop" | "feature" | "fix" | "release" | "stash" | "remote";
+export type BranchKind = "main" | "develop" | "feature" | "fix" | "release" | "stash" | "topic" | "remote";
 
 export interface GraphLaneSegment {
   column: number;

@@ -170,11 +170,12 @@ function branchKindFromRefs(refs, index) {
   if (lowerRefs.includes("fix") || lowerRefs.includes("hotfix")) return "fix";
   if (lowerRefs.includes("main") || lowerRefs.includes("master")) return "main";
   if (lowerRefs.includes("feature") || lowerRefs.includes("feat")) return "feature";
+  if (refs.trim()) return "topic";
   return branchKindForIndex(index);
 }
 
 function branchKindForIndex(index) {
-  return ["main", "develop", "feature", "fix", "release", "remote"][index % 6];
+  return ["main", "develop", "feature", "fix", "release", "topic", "remote"][index % 7];
 }
 
 function parseRefs(refs) {
