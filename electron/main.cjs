@@ -384,7 +384,7 @@ function createWindow() {
     frame: false,
     transparent: true,
     backgroundColor: "#00000000",
-    hasShadow: true,
+    hasShadow: false,
     icon: appIcon,
     resizable: true,
     title: "Git Peek",
