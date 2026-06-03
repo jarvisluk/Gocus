@@ -119,7 +119,7 @@ function GraphCell({ graph }: { graph: CommitGraph }) {
             key={`through-${lane.column}-${lane.color}`}
           />
         ))}
-        <path className={joinClass("graph-line", graphToneClass(graph.currentColor))} d={`M ${nodeX} 0 L ${nodeX} ${nodeY}`} />
+        {graph.currentContinues ? <path className={joinClass("graph-line", graphToneClass(graph.currentColor))} d={`M ${nodeX} 0 L ${nodeX} ${nodeY}`} /> : null}
         {graph.parentStems.map((lane) => (
           <path
             className={joinClass("graph-line", graphToneClass(lane.color))}

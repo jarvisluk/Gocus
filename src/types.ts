@@ -1,4 +1,4 @@
-export type BranchKind = "main" | "develop" | "feature" | "fix" | "release" | "remote";
+export type BranchKind = "main" | "develop" | "feature" | "fix" | "release" | "stash" | "remote";
 
 export interface GraphLaneSegment {
   column: number;
@@ -15,6 +15,7 @@ export interface CommitGraph {
   column: number;
   laneCount: number;
   currentColor: BranchKind;
+  currentContinues: boolean;
   passThrough: GraphLaneSegment[];
   parentStems: GraphLaneSegment[];
   bridges: GraphBridge[];

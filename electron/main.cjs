@@ -164,6 +164,7 @@ function applyNumstat(files, output) {
 
 function branchKindFromRefs(refs, index) {
   const lowerRefs = refs.toLowerCase();
+  if (lowerRefs.includes("stash")) return "stash";
   if (lowerRefs.includes("release")) return "release";
   if (lowerRefs.includes("develop") || lowerRefs.includes("dev")) return "develop";
   if (lowerRefs.includes("fix") || lowerRefs.includes("hotfix")) return "fix";
@@ -199,6 +200,7 @@ function buildCommitGraph(commits) {
 
   return commits.map((commit, index) => {
     let column = activeLanes.findIndex((lane) => lane.hash === commit.fullHash);
+    const currentContinues = column !== -1;
     if (column === -1) {
       column = activeLanes.length;
       activeLanes.push({ hash: commit.fullHash, color: commit.lane });
@@ -228,7 +230,7 @@ function buildCommitGraph(commits) {
       if (existingFirstParent >= 0) {
         const color = after[existingFirstParent].color;
         parentEntries.push({ column: existingFirstParent, color });
-        bridges.push({ fromColumn: column, toColumn: existingFirstParent, color });
+        bridges.push({ fromColumn: column, toColumn: existingFirstParent, color: currentColor });
         after.splice(column, 1);
       } else {
         const color = colorForParent(firstParent, currentColor);
@@ -240,7 +242,8 @@ function buildCommitGraph(commits) {
         let parentColumn = after.findIndex((lane) => lane.hash === parentHash);
 
         if (parentColumn === -1) {
-          const color = colorForParent(parentHash, branchKindForIndex(index + parentIndex + 1));
+          const fallbackColor = commit.lane === "stash" ? currentColor : branchKindForIndex(index + parentIndex + 1);
+          const color = colorForParent(parentHash, fallbackColor);
           const insertAt = Math.min(after.length, column + parentIndex + 1);
           after.splice(insertAt, 0, { hash: parentHash, color });
           parentColumn = insertAt;
@@ -272,6 +275,7 @@ function buildCommitGraph(commits) {
         column,
         laneCount,
         currentColor,
+        currentContinues,
         passThrough: before
           .filter((lane) => lane.column !== column)
           .map((lane) => ({ column: lane.column, color: lane.color })),

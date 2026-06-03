@@ -19,6 +19,7 @@
   --feature: #25b7ba;
   --fix: #48ad62;
   --release: #9b66e8;
+  --stash: #b276ff;
   --remote: #4f8dde;
   --danger: #de3f3f;
   --success: #218a44;
@@ -27,6 +28,7 @@
   --chip-teal: #dff8f8;
   --chip-green: #e3f6e8;
   --chip-violet: #efe5ff;
+  --chip-stash: #f0e4ff;
   --radius: 8px;
   --panel-width: 342px;
   font-family:
@@ -56,6 +58,7 @@
   --feature: #35c8ca;
   --fix: #5bd27b;
   --release: #b482ff;
+  --stash: #c08aff;
   --remote: #79a7f7;
   --danger: #ff6b62;
   --success: #69d68b;
@@ -64,6 +67,7 @@
   --chip-teal: rgba(53, 200, 202, 0.15);
   --chip-green: rgba(91, 210, 123, 0.14);
   --chip-violet: rgba(180, 130, 255, 0.16);
+  --chip-stash: rgba(192, 138, 255, 0.16);
 }
 
 * {
@@ -555,6 +559,10 @@ button:disabled {
   stroke: var(--release);
 }
 
+.graph-line.stash {
+  stroke: var(--stash);
+}
+
 .graph-line.remote {
   stroke: var(--remote);
 }
@@ -593,6 +601,10 @@ button:disabled {
   border-color: var(--release);
 }
 
+.graph-node.stash {
+  border-color: var(--stash);
+}
+
 .graph-node.remote {
   border-color: var(--remote);
 }
@@ -622,6 +634,10 @@ button:disabled {
 
 .graph-node-core.release {
   background: var(--release);
+}
+
+.graph-node-core.stash {
+  background: var(--stash);
 }
 
 .graph-node-core.remote {
@@ -689,6 +705,11 @@ button:disabled {
 .ref-pill.release {
   background: var(--chip-violet);
   color: var(--release);
+}
+
+.ref-pill.stash {
+  background: var(--chip-stash);
+  color: var(--stash);
 }
 
 .ref-pill.remote {
