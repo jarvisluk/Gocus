@@ -5,6 +5,7 @@ export const defaultPreferences: UiPreferences = {
   density: "compact",
   fontFamily: "system",
   graphStyle: "solid",
+  zenMode: false,
 };
 
 const fontStacks: Record<UiPreferences["fontFamily"], string> = {
@@ -24,6 +25,7 @@ export function applyPreferences(preferences: UiPreferences) {
   const root = document.documentElement;
   root.dataset.density = preferences.density;
   root.dataset.graphStyle = preferences.graphStyle;
+  root.dataset.zenMode = preferences.zenMode ? "true" : "false";
   root.style.setProperty("--focus", preferences.accentColor);
   root.style.setProperty("--user-font", fontStacks[preferences.fontFamily]);
 }

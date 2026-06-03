@@ -40,7 +40,7 @@ export default function App() {
   const controller = useGitPeekController();
 
   return (
-    <main className={joinClass("app-viewport", controller.electron && "is-electron", controller.collapsed && "is-collapsed")}>
+    <main className={joinClass("app-viewport", controller.electron && "is-electron", controller.collapsed && "is-collapsed", controller.preferences.zenMode && "is-zen")}>
       {!controller.electron ? <EditorBackdrop /> : null}
 
       {controller.collapsed ? (
@@ -63,11 +63,20 @@ export default function App() {
             <SettingsPanel preferences={controller.preferences} onChange={controller.setPreferences} onReset={controller.resetPreferences} />
           ) : null}
 
-          {controller.snapshot ? <SummaryChips snapshot={controller.snapshot} activeFilter={controller.fileFilter} onFilter={controller.setFileFilter} /> : null}
+          {controller.snapshot && !controller.preferences.zenMode ? (
+            <SummaryChips snapshot={controller.snapshot} activeFilter={controller.fileFilter} onFilter={controller.setFileFilter} />
+          ) : null}
 
           {controller.snapshot ? (
             <>
-              <RepositoryControls snapshot={controller.snapshot} view={controller.commitView} onChangeView={controller.changeCommitView} />
+              {!controller.preferences.zenMode ? (
+                <RepositoryControls
+                  snapshot={controller.snapshot}
+                  view={controller.commitView}
+                  onChangeView={controller.changeCommitView}
+                  onCheckoutRef={controller.checkoutRef}
+                />
+              ) : null}
               <div className="scroll-region">
                 <RecentCommits
                   commits={controller.snapshot.commits}
@@ -77,7 +86,9 @@ export default function App() {
                 />
               </div>
 
-              <ChangedNow files={controller.snapshot.changedFiles} filter={controller.fileFilter} onClearFilter={() => controller.setFileFilter("all")} />
+              {!controller.preferences.zenMode ? (
+                <ChangedNow files={controller.snapshot.changedFiles} filter={controller.fileFilter} onClearFilter={() => controller.setFileFilter("all")} />
+              ) : null}
             </>
           ) : (
             <EmptyRepositoryState loading={controller.loading} notice={controller.notice} onOpen={controller.openRepository} />
@@ -87,12 +98,14 @@ export default function App() {
             {controller.notice}
           </div>
 
-          <Footer
-            onOpenRepo={controller.openRepository}
-            onOpenGraph={() => controller.setNotice("Full graph opens as a larger companion view in the next build slice.")}
-            onOpenWorkspace={controller.openWorkspace}
-            hasRepository={Boolean(controller.snapshot)}
-          />
+          {!controller.preferences.zenMode ? (
+            <Footer
+              onOpenRepo={controller.openRepository}
+              onOpenGraph={() => controller.setNotice("Full graph opens as a larger companion view in the next build slice.")}
+              onOpenWorkspace={controller.openWorkspace}
+              hasRepository={Boolean(controller.snapshot)}
+            />
+          ) : null}
         </section>
       )}
     </main>

@@ -573,6 +573,43 @@ button:disabled {
   height: 14px;
 }
 
+.settings-toggle {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 740;
+}
+
+.settings-toggle input {
+  width: 34px;
+  height: 20px;
+  appearance: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.settings-toggle input::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  display: block;
+  margin: 2px;
+  border-radius: 999px;
+  background: var(--text-faint);
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.settings-toggle input:checked::before {
+  background: var(--focus);
+  transform: translateX(14px);
+}
+
 .repo-controls {
   display: grid;
   gap: 8px;
@@ -582,8 +619,35 @@ button:disabled {
 
 .branch-view {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 118px;
+  grid-template-columns: minmax(0, 1fr) 116px 76px;
   gap: 8px;
+}
+
+.branch-checkout {
+  min-width: 0;
+  height: 31px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.branch-checkout:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.branch-checkout svg {
+  width: 13px;
+  height: 13px;
 }
 
 .worktree-list {
@@ -1088,6 +1152,51 @@ button:disabled {
 
 :root[data-density="comfortable"] .file-row {
   min-height: 42px;
+}
+
+.app-viewport.is-zen .peek-panel {
+  width: min(92px, calc(100vw - 24px));
+}
+
+.app-viewport.is-zen .peek-header {
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  padding: 0 10px;
+}
+
+.app-viewport.is-zen .repo-title span,
+.app-viewport.is-zen .branch-pill,
+.app-viewport.is-zen .header-actions .icon-button:nth-child(2),
+.app-viewport.is-zen .header-actions .icon-button:nth-child(3) {
+  display: none;
+}
+
+.app-viewport.is-zen .repo-title strong {
+  max-width: 34px;
+}
+
+.app-viewport.is-zen .commits-section {
+  padding: 4px 0 0;
+}
+
+.app-viewport.is-zen .section-heading,
+.app-viewport.is-zen .commit-content,
+.app-viewport.is-zen .notice-line {
+  display: none;
+}
+
+.app-viewport.is-zen .commit-list {
+  width: max-content;
+  margin: 0 auto;
+}
+
+.app-viewport.is-zen .commit-row,
+.app-viewport.is-zen .commit-row.is-selected {
+  grid-template-columns: var(--git-tree-rail-width);
+  min-height: 42px;
+}
+
+.app-viewport.is-zen .timeline-cell {
+  background-image: none;
 }
 
 .open-graph,

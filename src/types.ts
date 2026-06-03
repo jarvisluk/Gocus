@@ -15,6 +15,7 @@ export interface UiPreferences {
   density: "compact" | "comfortable";
   fontFamily: "system" | "inter" | "mono";
   graphStyle: "solid" | "soft";
+  zenMode: boolean;
 }
 
 export interface GraphLaneSegment {

@@ -27,10 +27,12 @@ export function RepositoryControls({
   snapshot,
   view,
   onChangeView,
+  onCheckoutRef,
 }: {
   snapshot: GitSnapshot;
   view: CommitViewSelection;
   onChangeView: (view: CommitViewSelection) => void;
+  onCheckoutRef: (ref: string) => void;
 }) {
   const selectedBranch = view.mode === "branch" ? view.ref ?? "" : "";
 
@@ -62,6 +64,10 @@ export function RepositoryControls({
             </option>
           ))}
         </select>
+        <button className="branch-checkout" type="button" onClick={() => selectedBranch && onCheckoutRef(selectedBranch)} disabled={!selectedBranch}>
+          <GitBranch aria-hidden="true" />
+          Checkout
+        </button>
       </div>
       <WorktreeList worktrees={snapshot.worktrees} />
     </section>

@@ -143,6 +143,17 @@ export function useGitPeekController() {
     await runAction(window.gitPeek.checkout(commit.fullHash, commitView), `Checked out ${commit.hash}.`);
   }
 
+  async function checkoutRef(ref: string) {
+    if (!window.gitPeek) {
+      setNotice("Electron mode is required for Git actions.");
+      return;
+    }
+
+    const confirmed = window.confirm(`Checkout ${ref}?`);
+    if (!confirmed) return;
+    await runAction(window.gitPeek.checkout(ref, { mode: "current" }), `Checked out ${ref}.`);
+  }
+
   async function openWorkspace(target: WorkspaceOpenTarget) {
     if (!window.gitPeek || !snapshot) {
       setNotice("Choose a working folder first.");
@@ -259,6 +270,7 @@ export function useGitPeekController() {
     dockCurrentState,
     selectCommit,
     handleCommitAction,
+    checkoutRef,
     openWorkspace,
     setPreferences,
     resetPreferences,

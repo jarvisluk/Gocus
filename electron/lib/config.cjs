@@ -6,6 +6,7 @@ const defaultPreferences = {
   density: "compact",
   fontFamily: "system",
   graphStyle: "solid",
+  zenMode: false,
 };
 
 function createConfigStore(app) {

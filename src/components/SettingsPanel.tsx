@@ -59,6 +59,10 @@ export function SettingsPanel({
           </button>
         </div>
       </div>
+      <label className="settings-toggle">
+        <span>Zen</span>
+        <input type="checkbox" checked={preferences.zenMode} onChange={(event) => onChange({ ...preferences, zenMode: event.target.checked })} />
+      </label>
       <button className="settings-reset" type="button" onClick={onReset}>
         <RotateCcw aria-hidden="true" />
         Reset
