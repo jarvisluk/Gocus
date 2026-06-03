@@ -2,11 +2,11 @@
  - [x] UI style customization
  - [x] Full Git function support (checkout/branch view switch(auto/specific branch/all branches))
  - [x] worktree support
- - [x] compact the unclick commit blocks
- - [x] icon to open the workspace folder (in finder/vscode/cursor etc.) (simliar to codex's design)
+ - [x] compact the unclicked commit blocks
+ - [x] icon to open the workspace folder (in finder/vscode/cursor etc.) (similar to codex's design)
  - [x] git tree color refinement
  - [x] more detailed Changed Now content
  - [x] git tree refinement, the current tree is broken and not consistent and smooth
  - [x] full commit message on hover
  - [x] ZEN mode only show git tree
- - [x] possbility for macOS widget?
+ - [x] possibility for macOS widget?

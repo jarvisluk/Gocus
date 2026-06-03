@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ActionDialogState } from "../components/ActionDialog";
 import { applyPreferences, defaultPreferences, mergePreferences } from "../lib/preferences";
 import type { ActionResponse, CommitItem, CommitViewSelection, FileFilter, GitSnapshot, SnapshotResponse, Theme, UiPreferences, WorkspaceOpenTarget } from "../types";
 
@@ -37,6 +38,7 @@ export function useGitPeekController() {
   const [notice, setNotice] = useState("No working folder selected.");
   const [commitView, setCommitViewState] = useState<CommitViewSelection>(defaultView);
   const [preferences, setPreferencesState] = useState<UiPreferences>(defaultPreferences);
+  const [actionDialog, setActionDialog] = useState<(ActionDialogState & { commit?: CommitItem; ref?: string }) | null>(null);
   const electron = isElectronRuntime();
 
   function selectedCommit() {
@@ -70,7 +72,7 @@ export function useGitPeekController() {
     if (!window.gitPeek) {
       window.setTimeout(() => {
         setRefreshing(false);
-        setNotice("Sample data refreshed.");
+        setNotice("Preview refreshed.");
       }, 400);
       return;
     }
@@ -132,15 +134,22 @@ export function useGitPeekController() {
     }
 
     if (action === "branch") {
-      const branchName = window.prompt("New branch name", `peek/${commit.hash}`);
-      if (!branchName) return;
-      await runAction(window.gitPeek.createBranch(branchName, commit.fullHash, commitView), `Created ${branchName}.`);
+      setActionDialog({
+        type: "createBranch",
+        title: "Create branch",
+        body: `Start a new branch from ${commit.hash}.`,
+        branchName: `peek/${commit.hash}`,
+        commit,
+      });
       return;
     }
 
-    const confirmed = window.confirm(`Checkout commit ${commit.hash}? This can detach HEAD.`);
-    if (!confirmed) return;
-    await runAction(window.gitPeek.checkout(commit.fullHash, commitView), `Checked out ${commit.hash}.`);
+    setActionDialog({
+      type: "checkout",
+      title: "Checkout commit",
+      body: `Checkout ${commit.hash}. This can detach HEAD.`,
+      ref: commit.fullHash,
+    });
   }
 
   async function checkoutRef(ref: string) {
@@ -149,9 +158,37 @@ export function useGitPeekController() {
       return;
     }
 
-    const confirmed = window.confirm(`Checkout ${ref}?`);
-    if (!confirmed) return;
-    await runAction(window.gitPeek.checkout(ref, { mode: "current" }), `Checked out ${ref}.`);
+    setActionDialog({
+      type: "checkout",
+      title: "Checkout branch",
+      body: `Switch the working folder to ${ref}.`,
+      ref,
+    });
+  }
+
+  function updateActionBranchName(branchName: string) {
+    setActionDialog((current) => (current?.type === "createBranch" ? { ...current, branchName } : current));
+  }
+
+  function cancelActionDialog() {
+    setActionDialog(null);
+  }
+
+  async function confirmActionDialog() {
+    if (!window.gitPeek || !actionDialog) return;
+    const currentDialog = actionDialog;
+    setActionDialog(null);
+
+    if (currentDialog.type === "createBranch" && currentDialog.commit) {
+      const branchName = currentDialog.branchName.trim();
+      if (!branchName) return;
+      await runAction(window.gitPeek.createBranch(branchName, currentDialog.commit.fullHash, commitView), `Created ${branchName}.`);
+      return;
+    }
+
+    if (currentDialog.type === "checkout" && currentDialog.ref) {
+      await runAction(window.gitPeek.checkout(currentDialog.ref, { mode: "current" }), "Checkout complete.");
+    }
   }
 
   async function openWorkspace(target: WorkspaceOpenTarget) {
@@ -259,6 +296,7 @@ export function useGitPeekController() {
     notice,
     commitView,
     preferences,
+    actionDialog,
     electron,
     setFileFilter,
     setSettingsOpen,
@@ -271,6 +309,9 @@ export function useGitPeekController() {
     selectCommit,
     handleCommitAction,
     checkoutRef,
+    updateActionBranchName,
+    cancelActionDialog,
+    confirmActionDialog,
     openWorkspace,
     setPreferences,
     resetPreferences,

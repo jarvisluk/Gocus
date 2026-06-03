@@ -1,3 +1,4 @@
+import { ActionDialog } from "./components/ActionDialog";
 import { ChangedNow } from "./components/ChangedNow";
 import { CollapsedRail } from "./components/CollapsedRail";
 import { EmptyRepositoryState } from "./components/EmptyRepositoryState";
@@ -59,6 +60,13 @@ export default function App() {
             onCollapse={() => controller.setCollapsedState(true)}
           />
 
+          <ActionDialog
+            dialog={controller.actionDialog}
+            onBranchNameChange={controller.updateActionBranchName}
+            onCancel={controller.cancelActionDialog}
+            onConfirm={controller.confirmActionDialog}
+          />
+
           {controller.settingsOpen ? (
             <SettingsPanel preferences={controller.preferences} onChange={controller.setPreferences} onReset={controller.resetPreferences} />
           ) : null}
@@ -101,7 +109,7 @@ export default function App() {
           {!controller.preferences.zenMode ? (
             <Footer
               onOpenRepo={controller.openRepository}
-              onOpenGraph={() => controller.setNotice("Full graph opens as a larger companion view in the next build slice.")}
+              onOpenGraph={() => controller.changeCommitView({ mode: "all" })}
               onOpenWorkspace={controller.openWorkspace}
               hasRepository={Boolean(controller.snapshot)}
             />

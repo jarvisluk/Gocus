@@ -16,7 +16,7 @@ export function Footer({
     <footer className="peek-footer">
       <button className="open-graph" type="button" onClick={hasRepository ? onOpenGraph : onOpenRepo}>
         <GitCommitHorizontal aria-hidden="true" />
-        {hasRepository ? "Open full graph" : "Open working folder"}
+        {hasRepository ? "Show full graph" : "Open working folder"}
       </button>
       <button className="footer-icon" type="button" aria-label="Open in Finder" title="Open in Finder" onClick={() => onOpenWorkspace("finder")} disabled={!hasRepository}>
         <FolderOpen aria-hidden="true" />
@@ -27,7 +27,7 @@ export function Footer({
       <button className="footer-icon" type="button" aria-label="Open in Cursor" title="Open in Cursor" onClick={() => onOpenWorkspace("cursor")} disabled={!hasRepository}>
         <MousePointer2 aria-hidden="true" />
       </button>
-      <button className="footer-icon" type="button" aria-label="Open graph in new window" title="Open graph in new window" onClick={onOpenGraph} disabled={!hasRepository}>
+      <button className="footer-icon" type="button" aria-label="Show all branches" title="Show all branches" onClick={onOpenGraph} disabled={!hasRepository}>
         <ExternalLink aria-hidden="true" />
       </button>
     </footer>

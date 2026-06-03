@@ -5,6 +5,7 @@
 /dist/
 /dist-electron/
 /artifacts/
+/output/
 /release/
 /out/
 
@@ -16,6 +17,7 @@
 # Test and coverage output
 /coverage/
 /playwright-report/
+/.playwright-cli/
 /test-results/
 
 # Logs
