@@ -1,0 +1,30 @@
+{
+  "name": "git-peek",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A compact side-floating Git tracking utility for desktop.",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && electron .\"",
+    "dev:web": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^5.1.1",
+    "electron": "^39.2.7",
+    "lucide-react": "^0.561.0",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "vite": "^7.2.7"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.16",
+    "@types/react-dom": "^19.2.3",
+    "concurrently": "^9.2.1",
+    "playwright": "^1.60.0",
+    "typescript": "^5.9.3",
+    "wait-on": "^9.0.3"
+  }
+}
