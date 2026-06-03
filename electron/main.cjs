@@ -165,6 +165,7 @@ function applyNumstat(files, output) {
 function branchKindFromRefs(refs, index) {
   const lowerRefs = refs.toLowerCase();
   if (lowerRefs.includes("release")) return "release";
+  if (lowerRefs.includes("develop") || lowerRefs.includes("dev")) return "develop";
   if (lowerRefs.includes("fix") || lowerRefs.includes("hotfix")) return "fix";
   if (lowerRefs.includes("main") || lowerRefs.includes("master")) return "main";
   if (lowerRefs.includes("feature") || lowerRefs.includes("feat")) return "feature";
@@ -172,7 +173,7 @@ function branchKindFromRefs(refs, index) {
 }
 
 function branchKindForIndex(index) {
-  return ["main", "feature", "fix", "release", "remote"][index % 5];
+  return ["main", "develop", "feature", "fix", "release", "remote"][index % 6];
 }
 
 function parseRefs(refs) {
@@ -210,9 +211,13 @@ function buildCommitGraph(commits) {
     }));
     const currentColor = activeLanes[column]?.color ?? commit.lane;
     const parents = commit.parents.filter(Boolean);
-    const parentColumns = [];
+    const parentEntries = [];
     const bridges = [];
     let after = activeLanes.slice();
+    const colorForParent = (parentHash, fallbackColor) => {
+      const parentCommit = commitsByHash.get(parentHash);
+      return parentCommit?.refs.length ? parentCommit.lane : fallbackColor;
+    };
 
     if (parents.length === 0) {
       after.splice(column, 1);
@@ -221,27 +226,29 @@ function buildCommitGraph(commits) {
       const existingFirstParent = after.findIndex((lane, laneIndex) => laneIndex !== column && lane.hash === firstParent);
 
       if (existingFirstParent >= 0) {
-        parentColumns.push(existingFirstParent);
-        bridges.push({ fromColumn: column, toColumn: existingFirstParent, color: after[existingFirstParent].color });
+        const color = after[existingFirstParent].color;
+        parentEntries.push({ column: existingFirstParent, color });
+        bridges.push({ fromColumn: column, toColumn: existingFirstParent, color });
         after.splice(column, 1);
       } else {
-        after[column] = { hash: firstParent, color: currentColor };
-        parentColumns.push(column);
+        const color = colorForParent(firstParent, currentColor);
+        after[column] = { hash: firstParent, color };
+        parentEntries.push({ column, color });
       }
 
       parents.slice(1).forEach((parentHash, parentIndex) => {
         let parentColumn = after.findIndex((lane) => lane.hash === parentHash);
 
         if (parentColumn === -1) {
-          const parentCommit = commitsByHash.get(parentHash);
-          const color = parentCommit?.lane ?? branchKindForIndex(index + parentIndex + 1);
+          const color = colorForParent(parentHash, branchKindForIndex(index + parentIndex + 1));
           const insertAt = Math.min(after.length, column + parentIndex + 1);
           after.splice(insertAt, 0, { hash: parentHash, color });
           parentColumn = insertAt;
         }
 
-        parentColumns.push(parentColumn);
-        bridges.push({ fromColumn: column, toColumn: parentColumn, color: after[parentColumn].color });
+        const color = after[parentColumn].color;
+        parentEntries.push({ column: parentColumn, color });
+        bridges.push({ fromColumn: column, toColumn: parentColumn, color });
       });
     }
 
@@ -250,11 +257,12 @@ function buildCommitGraph(commits) {
       hash: lane.hash,
       color: lane.color,
     }));
+    const parentColumns = parentEntries.map((parent) => parent.column);
     const maxParentColumn = parentColumns.length ? Math.max(...parentColumns) + 1 : 1;
     const laneCount = Math.max(1, before.length, afterSnapshot.length, column + 1, maxParentColumn);
-    const parentStems = parentColumns
-      .filter((parentColumn, parentIndex, columns) => parentColumn === column && columns.indexOf(parentColumn) === parentIndex)
-      .map((parentColumn) => ({ column: parentColumn, color: currentColor }));
+    const parentStems = parentEntries.filter((parent, parentIndex, entries) => {
+      return parent.column === column && entries.findIndex((entry) => entry.column === parent.column) === parentIndex;
+    });
 
     activeLanes = normalizeActiveLanes(after);
 
@@ -280,7 +288,6 @@ function parseLog(rawLog) {
     .split("\x1e")
     .map((block) => block.trim())
     .filter(Boolean)
-    .slice(0, 16)
     .map((block, index) => {
       const [header, ...statLines] = block.split("\n");
       const [fullHash, hash, parentsText = "", author, relativeTime, subject, refs = ""] = header.split("\x1f");
@@ -325,14 +332,12 @@ async function readGitSnapshot(repoPath) {
     runGit(root, ["diff", "--cached", "--numstat"]).catch(() => ""),
     runGit(root, [
       "log",
-      "-n",
-      "16",
       "--topo-order",
       "--all",
       "--date=relative",
       "--pretty=format:%x1e%H%x1f%h%x1f%P%x1f%an%x1f%ar%x1f%s%x1f%D",
       "--numstat",
-    ]).catch(() => ""),
+    ], { maxBuffer: 1024 * 1024 * 64 }).catch(() => ""),
   ]);
 
   applyNumstat(status.files, unstagedStats);

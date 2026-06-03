@@ -15,6 +15,7 @@
   --focus: #6aa8ff;
   --focus-soft: rgba(106, 168, 255, 0.16);
   --main: #f0a400;
+  --develop: #2f86d8;
   --feature: #25b7ba;
   --fix: #48ad62;
   --release: #9b66e8;
@@ -22,6 +23,7 @@
   --danger: #de3f3f;
   --success: #218a44;
   --chip-amber: #fff1c8;
+  --chip-blue: #e1efff;
   --chip-teal: #dff8f8;
   --chip-green: #e3f6e8;
   --chip-violet: #efe5ff;
@@ -50,6 +52,7 @@
   --focus: #7eb0ff;
   --focus-soft: rgba(126, 176, 255, 0.15);
   --main: #ffb21c;
+  --develop: #5bb8ff;
   --feature: #35c8ca;
   --fix: #5bd27b;
   --release: #b482ff;
@@ -57,6 +60,7 @@
   --danger: #ff6b62;
   --success: #69d68b;
   --chip-amber: rgba(255, 178, 28, 0.16);
+  --chip-blue: rgba(91, 184, 255, 0.15);
   --chip-teal: rgba(53, 200, 202, 0.15);
   --chip-green: rgba(91, 210, 123, 0.14);
   --chip-violet: rgba(180, 130, 255, 0.16);
@@ -539,6 +543,10 @@ button:disabled {
   stroke: var(--feature);
 }
 
+.graph-line.develop {
+  stroke: var(--develop);
+}
+
 .graph-line.fix {
   stroke: var(--fix);
 }
@@ -556,49 +564,68 @@ button:disabled {
 }
 
 .graph-node {
-  fill: var(--panel-solid);
-  stroke: var(--main);
-  stroke-width: 3;
+  position: absolute;
+  z-index: 1;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 3px solid var(--main);
+  border-radius: 999px;
+  background: var(--panel-solid);
+  box-shadow: 0 0 0 3px var(--panel-solid);
+  transform: translate(-50%, -50%);
 }
 
 .graph-node.feature {
-  stroke: var(--feature);
+  border-color: var(--feature);
+}
+
+.graph-node.develop {
+  border-color: var(--develop);
 }
 
 .graph-node.fix {
-  stroke: var(--fix);
+  border-color: var(--fix);
 }
 
 .graph-node.release {
-  stroke: var(--release);
+  border-color: var(--release);
 }
 
 .graph-node.remote {
-  stroke: var(--remote);
+  border-color: var(--remote);
 }
 
 .graph-node.is-merge {
-  stroke-width: 2.5;
+  border-width: 3px;
 }
 
 .graph-node-core {
-  fill: var(--main);
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--main);
 }
 
 .graph-node-core.feature {
-  fill: var(--feature);
+  background: var(--feature);
+}
+
+.graph-node-core.develop {
+  background: var(--develop);
 }
 
 .graph-node-core.fix {
-  fill: var(--fix);
+  background: var(--fix);
 }
 
 .graph-node-core.release {
-  fill: var(--release);
+  background: var(--release);
 }
 
 .graph-node-core.remote {
-  fill: var(--remote);
+  background: var(--remote);
 }
 
 .commit-content {
@@ -647,6 +674,11 @@ button:disabled {
 .ref-pill.feature {
   background: var(--chip-teal);
   color: var(--feature);
+}
+
+.ref-pill.develop {
+  background: var(--chip-blue);
+  color: var(--develop);
 }
 
 .ref-pill.fix {

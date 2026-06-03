@@ -100,6 +100,7 @@ function GraphCell({ graph }: { graph: CommitGraph }) {
   const graphWidth = Math.max(42, 18 + graph.laneCount * laneGap);
   const nodeY = 32;
   const nodeX = 9 + graph.column * laneGap;
+  const nodeLeft = `${(nodeX / graphWidth) * 100}%`;
   const xForColumn = (column: number) => 9 + column * laneGap;
   const bridgePath = (fromColumn: number, toColumn: number) => {
     const fromX = xForColumn(fromColumn);
@@ -135,9 +136,10 @@ function GraphCell({ graph }: { graph: CommitGraph }) {
               key={`bridge-${bridge.fromColumn}-${bridge.toColumn}-${bridge.color}`}
             />
           ))}
-        <circle className={joinClass("graph-node", graphToneClass(graph.currentColor), graph.isMerge && "is-merge")} cx={nodeX} cy={nodeY} r="7" />
-        {graph.isMerge ? <circle className={joinClass("graph-node-core", graphToneClass(graph.currentColor))} cx={nodeX} cy={nodeY} r="2.8" /> : null}
       </svg>
+      <span className={joinClass("graph-node", graphToneClass(graph.currentColor), graph.isMerge && "is-merge")} style={{ left: nodeLeft, top: `${nodeY}%` }}>
+        {graph.isMerge ? <span className={joinClass("graph-node-core", graphToneClass(graph.currentColor))} /> : null}
+      </span>
     </div>
   );
 }
@@ -314,7 +316,7 @@ function RecentCommits({
       <div className="section-heading">
         <h2>Recent commits</h2>
         <div className="heading-tools">
-          <span>Latest {commits.length}</span>
+          <span>All {commits.length}</span>
           <button type="button" aria-label="Filter commits">
             <Search aria-hidden="true" />
           </button>
