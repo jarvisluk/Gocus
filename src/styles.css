@@ -493,7 +493,7 @@ button:disabled {
 
 .commit-row {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
+  grid-template-columns: 58px minmax(0, 1fr);
   min-height: 82px;
   border-radius: var(--radius);
   cursor: pointer;
@@ -514,65 +514,91 @@ button:disabled {
 .timeline-cell {
   position: relative;
   min-height: 100%;
-  display: flex;
-  justify-content: center;
+  overflow: hidden;
   background-image: radial-gradient(var(--border) 0.8px, transparent 0.8px);
   background-position: center;
   background-size: 12px 12px;
 }
 
-.lane-line {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: calc(50% - 1.5px);
-  width: 3px;
-  border-radius: 999px;
-  background: var(--main);
+.graph-svg {
+  width: 100%;
+  height: 100%;
+  min-height: 82px;
+  overflow: visible;
 }
 
-.lane-line.feature {
-  background: var(--feature);
+.graph-line {
+  fill: none;
+  stroke: var(--main);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.lane-line.fix {
-  background: var(--fix);
+.graph-line.feature {
+  stroke: var(--feature);
 }
 
-.lane-line.release {
-  background: var(--release);
+.graph-line.fix {
+  stroke: var(--fix);
 }
 
-.lane-line.remote {
-  background: var(--remote);
+.graph-line.release {
+  stroke: var(--release);
 }
 
-.commit-node {
-  position: relative;
-  z-index: 1;
-  width: 18px;
-  height: 18px;
-  margin-top: 22px;
-  border: 3px solid var(--main);
-  border-radius: 999px;
-  background: var(--panel-solid);
-  box-shadow: 0 0 0 3px var(--panel-solid);
+.graph-line.remote {
+  stroke: var(--remote);
 }
 
-.commit-node.feature {
-  border-color: var(--feature);
+.graph-bridge {
+  stroke-width: 2.6;
 }
 
-.commit-node.fix {
-  border-color: var(--fix);
+.graph-node {
+  fill: var(--panel-solid);
+  stroke: var(--main);
+  stroke-width: 3;
 }
 
-.commit-node.release {
-  border-color: var(--release);
+.graph-node.feature {
+  stroke: var(--feature);
 }
 
-.commit-node.remote {
-  border-color: var(--remote);
+.graph-node.fix {
+  stroke: var(--fix);
+}
+
+.graph-node.release {
+  stroke: var(--release);
+}
+
+.graph-node.remote {
+  stroke: var(--remote);
+}
+
+.graph-node.is-merge {
+  stroke-width: 2.5;
+}
+
+.graph-node-core {
+  fill: var(--main);
+}
+
+.graph-node-core.feature {
+  fill: var(--feature);
+}
+
+.graph-node-core.fix {
+  fill: var(--fix);
+}
+
+.graph-node-core.release {
+  fill: var(--release);
+}
+
+.graph-node-core.remote {
+  fill: var(--remote);
 }
 
 .commit-content {
@@ -668,6 +694,20 @@ button:disabled {
   margin: 0 8px 2px 0;
   border-radius: 999px;
   background: currentColor;
+}
+
+.merge-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--text);
+  font-weight: 680;
+}
+
+.merge-indicator svg {
+  width: 13px;
+  height: 13px;
+  color: var(--text-muted);
 }
 
 .commit-stats {

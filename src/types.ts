@@ -1,5 +1,26 @@
 export type BranchKind = "main" | "feature" | "fix" | "release" | "remote";
 
+export interface GraphLaneSegment {
+  column: number;
+  color: BranchKind;
+}
+
+export interface GraphBridge {
+  fromColumn: number;
+  toColumn: number;
+  color: BranchKind;
+}
+
+export interface CommitGraph {
+  column: number;
+  laneCount: number;
+  currentColor: BranchKind;
+  passThrough: GraphLaneSegment[];
+  parentStems: GraphLaneSegment[];
+  bridges: GraphBridge[];
+  isMerge: boolean;
+}
+
 export interface GitBranchState {
   name: string;
   upstream: string;
@@ -16,6 +37,7 @@ export interface WorkingTreeCounts {
 
 export interface CommitItem {
   id: string;
+  fullHash: string;
   hash: string;
   title: string;
   author: string;
@@ -23,8 +45,10 @@ export interface CommitItem {
   additions: number;
   deletions: number;
   filesChanged: number;
+  parents: string[];
   refs: string[];
   lane: BranchKind;
+  graph: CommitGraph;
 }
 
 export interface ChangedFile {

@@ -168,7 +168,11 @@ function branchKindFromRefs(refs, index) {
   if (lowerRefs.includes("fix") || lowerRefs.includes("hotfix")) return "fix";
   if (lowerRefs.includes("main") || lowerRefs.includes("master")) return "main";
   if (lowerRefs.includes("feature") || lowerRefs.includes("feat")) return "feature";
-  return ["main", "feature", "feature", "fix", "release"][index % 5];
+  return branchKindForIndex(index);
+}
+
+function branchKindForIndex(index) {
+  return ["main", "feature", "fix", "release", "remote"][index % 5];
 }
 
 function parseRefs(refs) {
@@ -179,15 +183,107 @@ function parseRefs(refs) {
     .slice(0, 3);
 }
 
+function normalizeActiveLanes(lanes) {
+  const seen = new Set();
+  return lanes.filter((lane) => {
+    if (!lane?.hash || seen.has(lane.hash)) return false;
+    seen.add(lane.hash);
+    return true;
+  });
+}
+
+function buildCommitGraph(commits) {
+  const commitsByHash = new Map(commits.map((commit) => [commit.fullHash, commit]));
+  let activeLanes = [];
+
+  return commits.map((commit, index) => {
+    let column = activeLanes.findIndex((lane) => lane.hash === commit.fullHash);
+    if (column === -1) {
+      column = activeLanes.length;
+      activeLanes.push({ hash: commit.fullHash, color: commit.lane });
+    }
+
+    const before = activeLanes.map((lane, laneIndex) => ({
+      column: laneIndex,
+      hash: lane.hash,
+      color: lane.color,
+    }));
+    const currentColor = activeLanes[column]?.color ?? commit.lane;
+    const parents = commit.parents.filter(Boolean);
+    const parentColumns = [];
+    const bridges = [];
+    let after = activeLanes.slice();
+
+    if (parents.length === 0) {
+      after.splice(column, 1);
+    } else {
+      const firstParent = parents[0];
+      const existingFirstParent = after.findIndex((lane, laneIndex) => laneIndex !== column && lane.hash === firstParent);
+
+      if (existingFirstParent >= 0) {
+        parentColumns.push(existingFirstParent);
+        bridges.push({ fromColumn: column, toColumn: existingFirstParent, color: after[existingFirstParent].color });
+        after.splice(column, 1);
+      } else {
+        after[column] = { hash: firstParent, color: currentColor };
+        parentColumns.push(column);
+      }
+
+      parents.slice(1).forEach((parentHash, parentIndex) => {
+        let parentColumn = after.findIndex((lane) => lane.hash === parentHash);
+
+        if (parentColumn === -1) {
+          const parentCommit = commitsByHash.get(parentHash);
+          const color = parentCommit?.lane ?? branchKindForIndex(index + parentIndex + 1);
+          const insertAt = Math.min(after.length, column + parentIndex + 1);
+          after.splice(insertAt, 0, { hash: parentHash, color });
+          parentColumn = insertAt;
+        }
+
+        parentColumns.push(parentColumn);
+        bridges.push({ fromColumn: column, toColumn: parentColumn, color: after[parentColumn].color });
+      });
+    }
+
+    const afterSnapshot = after.map((lane, laneIndex) => ({
+      column: laneIndex,
+      hash: lane.hash,
+      color: lane.color,
+    }));
+    const maxParentColumn = parentColumns.length ? Math.max(...parentColumns) + 1 : 1;
+    const laneCount = Math.max(1, before.length, afterSnapshot.length, column + 1, maxParentColumn);
+    const parentStems = parentColumns
+      .filter((parentColumn, parentIndex, columns) => parentColumn === column && columns.indexOf(parentColumn) === parentIndex)
+      .map((parentColumn) => ({ column: parentColumn, color: currentColor }));
+
+    activeLanes = normalizeActiveLanes(after);
+
+    return {
+      ...commit,
+      graph: {
+        column,
+        laneCount,
+        currentColor,
+        passThrough: before
+          .filter((lane) => lane.column !== column)
+          .map((lane) => ({ column: lane.column, color: lane.color })),
+        parentStems,
+        bridges,
+        isMerge: parents.length > 1,
+      },
+    };
+  });
+}
+
 function parseLog(rawLog) {
-  return rawLog
+  const commits = rawLog
     .split("\x1e")
     .map((block) => block.trim())
     .filter(Boolean)
-    .slice(0, 8)
+    .slice(0, 16)
     .map((block, index) => {
       const [header, ...statLines] = block.split("\n");
-      const [hash, author, relativeTime, subject, refs = ""] = header.split("\x1f");
+      const [fullHash, hash, parentsText = "", author, relativeTime, subject, refs = ""] = header.split("\x1f");
       let additions = 0;
       let deletions = 0;
       let filesChanged = 0;
@@ -201,7 +297,8 @@ function parseLog(rawLog) {
       }
 
       return {
-        id: hash,
+        id: fullHash,
+        fullHash,
         hash,
         title: subject || "Untitled commit",
         author: author || "Unknown",
@@ -209,10 +306,13 @@ function parseLog(rawLog) {
         additions,
         deletions,
         filesChanged,
+        parents: parentsText.split(" ").filter(Boolean),
         refs: parseRefs(refs),
         lane: branchKindFromRefs(refs, index),
       };
     });
+
+  return buildCommitGraph(commits);
 }
 
 async function readGitSnapshot(repoPath) {
@@ -226,9 +326,11 @@ async function readGitSnapshot(repoPath) {
     runGit(root, [
       "log",
       "-n",
-      "8",
+      "16",
+      "--topo-order",
+      "--all",
       "--date=relative",
-      "--pretty=format:%x1e%h%x1f%an%x1f%ar%x1f%s%x1f%D",
+      "--pretty=format:%x1e%H%x1f%h%x1f%P%x1f%an%x1f%ar%x1f%s%x1f%D",
       "--numstat",
     ]).catch(() => ""),
   ]);

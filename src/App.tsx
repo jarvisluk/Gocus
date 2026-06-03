@@ -10,6 +10,7 @@ import {
   GitCommitHorizontal,
   GitCompareArrows,
   GitFork,
+  GitMerge,
   PanelRightClose,
   Pin,
   PinOff,
@@ -18,18 +19,10 @@ import {
   Search,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { BranchKind, ChangedFile, CommitItem, GitSnapshot, SnapshotResponse } from "./types";
+import type { BranchKind, ChangedFile, CommitGraph, CommitItem, GitSnapshot, SnapshotResponse } from "./types";
 
 type Theme = "light" | "dark";
 type FileFilter = "all" | "modified" | "staged" | "untracked";
-
-const branchLabels: Record<BranchKind, string> = {
-  main: "main",
-  feature: "feature",
-  fix: "fix",
-  release: "release",
-  remote: "remote",
-};
 
 const statusCopy: Record<FileFilter, string> = {
   all: "All changes",
@@ -95,6 +88,57 @@ function IconButton({
     >
       {children}
     </button>
+  );
+}
+
+function graphToneClass(color: BranchKind) {
+  return color;
+}
+
+function GraphCell({ graph }: { graph: CommitGraph }) {
+  const laneGap = 12;
+  const graphWidth = Math.max(42, 18 + graph.laneCount * laneGap);
+  const nodeY = 32;
+  const nodeX = 9 + graph.column * laneGap;
+  const xForColumn = (column: number) => 9 + column * laneGap;
+  const bridgePath = (fromColumn: number, toColumn: number) => {
+    const fromX = xForColumn(fromColumn);
+    const toX = xForColumn(toColumn);
+    const curveY = nodeY + 26;
+    return `M ${fromX} ${nodeY} C ${fromX} ${curveY}, ${toX} ${curveY}, ${toX} ${curveY + 12} L ${toX} 100`;
+  };
+
+  return (
+    <div className="timeline-cell" aria-hidden="true">
+      <svg className="graph-svg" viewBox={`0 0 ${graphWidth} 100`} preserveAspectRatio="none">
+        {graph.passThrough.map((lane) => (
+          <path
+            className={joinClass("graph-line", graphToneClass(lane.color))}
+            d={`M ${xForColumn(lane.column)} 0 L ${xForColumn(lane.column)} 100`}
+            key={`through-${lane.column}-${lane.color}`}
+          />
+        ))}
+        <path className={joinClass("graph-line", graphToneClass(graph.currentColor))} d={`M ${nodeX} 0 L ${nodeX} ${nodeY}`} />
+        {graph.parentStems.map((lane) => (
+          <path
+            className={joinClass("graph-line", graphToneClass(lane.color))}
+            d={`M ${xForColumn(lane.column)} ${nodeY} L ${xForColumn(lane.column)} 100`}
+            key={`stem-${lane.column}-${lane.color}`}
+          />
+        ))}
+        {graph.bridges
+          .filter((bridge) => bridge.fromColumn !== bridge.toColumn)
+          .map((bridge) => (
+            <path
+              className={joinClass("graph-line", "graph-bridge", graphToneClass(bridge.color))}
+              d={bridgePath(bridge.fromColumn, bridge.toColumn)}
+              key={`bridge-${bridge.fromColumn}-${bridge.toColumn}-${bridge.color}`}
+            />
+          ))}
+        <circle className={joinClass("graph-node", graphToneClass(graph.currentColor), graph.isMerge && "is-merge")} cx={nodeX} cy={nodeY} r="7" />
+        {graph.isMerge ? <circle className={joinClass("graph-node-core", graphToneClass(graph.currentColor))} cx={nodeX} cy={nodeY} r="2.8" /> : null}
+      </svg>
+    </div>
   );
 }
 
@@ -204,14 +248,11 @@ function CommitRow({
   onSelect: () => void;
   onAction: (action: string) => void;
 }) {
-  const ref = commit.refs[0] ?? branchLabels[commit.lane];
+  const ref = commit.refs[0];
 
   return (
     <article className={joinClass("commit-row", selected && "is-selected")} onClick={onSelect}>
-      <div className="timeline-cell" aria-hidden="true">
-        <span className={joinClass("lane-line", commit.lane)} />
-        <span className={joinClass("commit-node", commit.lane)} />
-      </div>
+      <GraphCell graph={commit.graph} />
       <div className="commit-content">
         <div className="commit-title-line">
           <h3>{commit.title}</h3>
@@ -221,6 +262,12 @@ function CommitRow({
           <code>{commit.hash}</code>
           <span>{commit.relativeTime}</span>
           <span>{commit.author}</span>
+          {commit.graph.isMerge ? (
+            <span className="merge-indicator" title={`${commit.parents.length} parent commits`}>
+              <GitMerge aria-hidden="true" />
+              merge
+            </span>
+          ) : null}
         </div>
         <div className="commit-stats">
           <span className="additions">+{commit.additions}</span>
@@ -267,14 +314,14 @@ function RecentCommits({
       <div className="section-heading">
         <h2>Recent commits</h2>
         <div className="heading-tools">
-          <span>Latest {Math.min(commits.length, 5)}</span>
+          <span>Latest {commits.length}</span>
           <button type="button" aria-label="Filter commits">
             <Search aria-hidden="true" />
           </button>
         </div>
       </div>
       <div className="commit-list">
-        {commits.slice(0, 5).map((commit) => (
+        {commits.map((commit) => (
           <CommitRow
             key={commit.id}
             commit={commit}
