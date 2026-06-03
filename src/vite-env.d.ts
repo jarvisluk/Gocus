@@ -1,14 +1,19 @@
 /// <reference types="vite/client" />
 
-import type { GitSnapshot, SnapshotResponse } from "./types";
+import type { ActionResponse, CommitViewSelection, SnapshotResponse, UiPreferences, WorkspaceOpenTarget } from "./types";
 
 declare global {
   interface Window {
     gitPeek?: {
-      openRepository: () => Promise<SnapshotResponse>;
-      refresh: () => Promise<SnapshotResponse>;
-      getSnapshot: () => Promise<SnapshotResponse>;
+      openRepository: (view?: CommitViewSelection) => Promise<SnapshotResponse>;
+      refresh: (view?: CommitViewSelection) => Promise<SnapshotResponse>;
+      getSnapshot: (view?: CommitViewSelection) => Promise<SnapshotResponse>;
       clearRepository: () => Promise<SnapshotResponse>;
+      createBranch: (branchName: string, startPoint: string, view?: CommitViewSelection) => Promise<ActionResponse>;
+      checkout: (ref: string, view?: CommitViewSelection) => Promise<ActionResponse>;
+      openWorkspace: (target: WorkspaceOpenTarget) => Promise<ActionResponse>;
+      getPreferences: () => Promise<UiPreferences>;
+      savePreferences: (preferences: UiPreferences) => Promise<void>;
       setCollapsed: (collapsed: boolean) => Promise<void>;
       setPinned: (pinned: boolean) => Promise<void>;
       dockToEdge: (collapsed: boolean) => Promise<void>;

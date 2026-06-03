@@ -1,10 +1,15 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("gitPeek", {
-  openRepository: () => ipcRenderer.invoke("git:openRepository"),
-  refresh: () => ipcRenderer.invoke("git:refresh"),
-  getSnapshot: () => ipcRenderer.invoke("git:getSnapshot"),
+  openRepository: (view) => ipcRenderer.invoke("git:openRepository", view),
+  refresh: (view) => ipcRenderer.invoke("git:refresh", view),
+  getSnapshot: (view) => ipcRenderer.invoke("git:getSnapshot", view),
   clearRepository: () => ipcRenderer.invoke("git:clearRepository"),
+  createBranch: (branchName, startPoint, view) => ipcRenderer.invoke("git:createBranch", branchName, startPoint, view),
+  checkout: (ref, view) => ipcRenderer.invoke("git:checkout", ref, view),
+  openWorkspace: (target) => ipcRenderer.invoke("workspace:open", target),
+  getPreferences: () => ipcRenderer.invoke("preferences:get"),
+  savePreferences: (preferences) => ipcRenderer.invoke("preferences:save", preferences),
   setCollapsed: (collapsed) => ipcRenderer.invoke("window:setCollapsed", collapsed),
   setPinned: (pinned) => ipcRenderer.invoke("window:setPinned", pinned),
   dockToEdge: (collapsed) => ipcRenderer.invoke("window:dockToEdge", collapsed),

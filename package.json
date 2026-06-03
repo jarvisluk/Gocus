@@ -5,11 +5,11 @@
   "description": "A compact side-floating Git tracking utility for desktop.",
   "main": "electron/main.cjs",
   "scripts": {
-    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && electron .\"",
-    "dev:web": "vite --host 127.0.0.1",
+    "dev": "node scripts/dev.cjs",
+    "dev:web": "vite --host 127.0.0.1 --port 43871",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "start": "electron ."
+    "start": "npm run build && electron ."
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.1",
