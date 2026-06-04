@@ -43,6 +43,7 @@ export function useGitPeekController() {
   const [commitView, setCommitViewState] = useState<CommitViewSelection>(defaultView);
   const [preferences, setPreferencesState] = useState<UiPreferences>(defaultPreferences);
   const [actionDialog, setActionDialog] = useState<(ActionDialogState & { commit?: CommitItem; ref?: string }) | null>(null);
+  const [repositoryDialogOpen, setRepositoryDialogOpen] = useState(false);
   const electron = isElectronRuntime();
   const theme = resolveTheme(preferences, systemTheme);
 
@@ -299,10 +300,12 @@ export function useGitPeekController() {
       setLoading(false);
     });
     const unsubscribeCollapsed = window.gitPeek.onCollapsedChanged(setCollapsed);
+    const unsubscribeRepositoryDialog = window.gitPeek.onRepositoryDialogOpenChanged(setRepositoryDialogOpen);
 
     return () => {
       unsubscribeSnapshot();
       unsubscribeCollapsed();
+      unsubscribeRepositoryDialog();
     };
   }, []);
 
@@ -321,6 +324,7 @@ export function useGitPeekController() {
     commitView,
     preferences,
     actionDialog,
+    repositoryDialogOpen,
     electron,
     setFileFilter,
     setSettingsOpen,

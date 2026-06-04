@@ -75,11 +75,41 @@ async function getSnapshotResponse(view = currentView) {
   }
 }
 
+async function showRepositoryDialog() {
+  const previousBounds = mainWindow && !mainWindow.isDestroyed() ? mainWindow.getBounds() : null;
+  const wasEnabled = mainWindow && !mainWindow.isDestroyed() ? mainWindow.isEnabled() : true;
+  const wasPinned = pinnedState;
+
+  sendRepositoryDialogOpen(true);
+  await waitForDialogBlockerFrame();
+
+  if (wasPinned) mainWindow?.setAlwaysOnTop(false);
+  mainWindow?.setEnabled(false);
+
+  try {
+    const options = {
+      title: "Open Working Folder",
+      properties: ["openDirectory"],
+    };
+
+    if (process.platform === "darwin") {
+      const filePaths = dialog.showOpenDialogSync(options) ?? [];
+      return { canceled: filePaths.length === 0, filePaths };
+    }
+
+    return dialog.showOpenDialog(mainWindow, options);
+  } finally {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (previousBounds) setWindowBounds(mainWindow, previousBounds, false);
+      mainWindow.setEnabled(wasEnabled);
+      if (wasPinned) mainWindow.setAlwaysOnTop(true, "floating");
+    }
+    sendRepositoryDialogOpen(false);
+  }
+}
+
 async function chooseRepository(view = currentView) {
-  const result = await dialog.showOpenDialog(mainWindow, {
-    title: "Open Working Folder",
-    properties: ["openDirectory"],
-  });
+  const result = await showRepositoryDialog();
 
   if (result.canceled || !result.filePaths[0]) {
     return { ok: false, canceled: true };
@@ -102,6 +132,14 @@ async function chooseRepository(view = currentView) {
 
 function sendSnapshotResponse(response) {
   mainWindow?.webContents.send("git:snapshotUpdated", response);
+}
+
+function sendRepositoryDialogOpen(open) {
+  mainWindow?.webContents.send("window:repositoryDialogOpenChanged", open);
+}
+
+function waitForDialogBlockerFrame() {
+  return new Promise((resolve) => setTimeout(resolve, 32));
 }
 
 function getSystemTheme() {

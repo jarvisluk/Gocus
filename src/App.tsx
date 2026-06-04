@@ -181,6 +181,7 @@ export default function App() {
           )}
         </section>
       )}
+      {controller.repositoryDialogOpen ? <div className="native-dialog-blocker" aria-hidden="true" /> : null}
     </main>
   );
 }

@@ -22,6 +22,7 @@ declare global {
       onThemeChanged: (callback: (theme: "light" | "dark") => void) => () => void;
       onSnapshotUpdated: (callback: (response: SnapshotResponse) => void) => () => void;
       onCollapsedChanged: (callback: (collapsed: boolean) => void) => () => void;
+      onRepositoryDialogOpenChanged: (callback: (open: boolean) => void) => () => void;
     };
   }
 }

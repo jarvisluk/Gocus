@@ -30,4 +30,9 @@ contextBridge.exposeInMainWorld("gitPeek", {
     ipcRenderer.on("window:collapsedChanged", handler);
     return () => ipcRenderer.removeListener("window:collapsedChanged", handler);
   },
+  onRepositoryDialogOpenChanged: (callback) => {
+    const handler = (_event, open) => callback(open);
+    ipcRenderer.on("window:repositoryDialogOpenChanged", handler);
+    return () => ipcRenderer.removeListener("window:repositoryDialogOpenChanged", handler);
+  },
 });
