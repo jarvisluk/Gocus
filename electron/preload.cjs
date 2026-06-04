@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("gitPeek", {
   clearRepository: () => ipcRenderer.invoke("git:clearRepository"),
   createBranch: (branchName, startPoint, view) => ipcRenderer.invoke("git:createBranch", branchName, startPoint, view),
   checkout: (ref, view) => ipcRenderer.invoke("git:checkout", ref, view),
+  openWorktree: (worktreePath, view) => ipcRenderer.invoke("git:openWorktree", worktreePath, view),
   openWorkspace: (target) => ipcRenderer.invoke("workspace:open", target),
   getPreferences: () => ipcRenderer.invoke("preferences:get"),
   savePreferences: (preferences) => ipcRenderer.invoke("preferences:save", preferences),

@@ -3,6 +3,7 @@ const path = require("node:path");
 
 const defaultPreferences = {
   accentColor: "#6aa8ff",
+  themeMode: "system",
   density: "compact",
   fontFamily: "system",
   graphStyle: "solid",
@@ -49,6 +50,28 @@ function createConfigStore(app) {
     },
     savePreferences(preferences) {
       writeConfig({ ...readConfig(), preferences: { ...defaultPreferences, ...(preferences ?? {}) } });
+    },
+    readExpandedWindowSize() {
+      const size = readConfig().expandedWindowSize;
+      if (!size || typeof size !== "object") return null;
+
+      const width = Number(size.width);
+      const height = Number(size.height);
+      if (!Number.isFinite(width) || !Number.isFinite(height)) return null;
+
+      return {
+        width: Math.round(width),
+        height: Math.round(height),
+      };
+    },
+    saveExpandedWindowSize(size) {
+      writeConfig({
+        ...readConfig(),
+        expandedWindowSize: {
+          width: Math.round(size.width),
+          height: Math.round(size.height),
+        },
+      });
     },
   };
 }

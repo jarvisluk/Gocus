@@ -14,6 +14,10 @@ function getSystemTheme(): Theme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
+function resolveTheme(preferences: UiPreferences, systemTheme: Theme): Theme {
+  return preferences.themeMode === "system" ? systemTheme : preferences.themeMode;
+}
+
 function sameView(left: CommitViewSelection, right: CommitViewSelection) {
   return left.mode === right.mode && (left.ref ?? "") === (right.ref ?? "");
 }
@@ -27,7 +31,7 @@ function viewLabel(view: CommitViewSelection) {
 
 export function useGitPeekController() {
   const [snapshot, setSnapshot] = useState<GitSnapshot | null>(null);
-  const [theme, setTheme] = useState<Theme>(getSystemTheme);
+  const [systemTheme, setSystemTheme] = useState<Theme>(getSystemTheme);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
   const [pinned, setPinned] = useState(false);
@@ -35,14 +39,20 @@ export function useGitPeekController() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [fileFilter, setFileFilter] = useState<FileFilter>("all");
   const [selectedCommitId, setSelectedCommitId] = useState("");
-  const [notice, setNotice] = useState("No working folder selected.");
+  const [notice, setNoticeState] = useState("No working folder selected.");
   const [commitView, setCommitViewState] = useState<CommitViewSelection>(defaultView);
   const [preferences, setPreferencesState] = useState<UiPreferences>(defaultPreferences);
   const [actionDialog, setActionDialog] = useState<(ActionDialogState & { commit?: CommitItem; ref?: string }) | null>(null);
   const electron = isElectronRuntime();
+  const theme = resolveTheme(preferences, systemTheme);
 
   function selectedCommit() {
     return snapshot?.commits.find((commit) => commit.id === selectedCommitId) ?? null;
+  }
+
+  function setNotice(message: string) {
+    if (message.trim()) console.info(`[Git Peek] ${message}`);
+    setNoticeState(message);
   }
 
   function applySnapshotResponse(response: SnapshotResponse, successNotice = "Live Git data connected.") {
@@ -166,6 +176,20 @@ export function useGitPeekController() {
     });
   }
 
+  async function openWorktree(worktreePath: string) {
+    if (!window.gitPeek) {
+      setNotice("Electron mode is required for Git actions.");
+      return;
+    }
+
+    setRefreshing(true);
+    try {
+      await runAction(window.gitPeek.openWorktree(worktreePath, { mode: "current" }), "Opened detached worktree.");
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   function updateActionBranchName(branchName: string) {
     setActionDialog((current) => (current?.type === "createBranch" ? { ...current, branchName } : current));
   }
@@ -246,13 +270,13 @@ export function useGitPeekController() {
 
   useEffect(() => {
     if (window.gitPeek) {
-      window.gitPeek.getSystemTheme().then(setTheme);
+      window.gitPeek.getSystemTheme().then(setSystemTheme);
       window.gitPeek.getPreferences().then((value) => setPreferencesState(mergePreferences(value)));
-      return window.gitPeek.onThemeChanged(setTheme);
+      return window.gitPeek.onThemeChanged(setSystemTheme);
     }
 
     const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const handleThemeChange = () => setTheme(media.matches ? "dark" : "light");
+    const handleThemeChange = () => setSystemTheme(media.matches ? "dark" : "light");
     handleThemeChange();
     media.addEventListener("change", handleThemeChange);
     return () => media.removeEventListener("change", handleThemeChange);
@@ -309,6 +333,7 @@ export function useGitPeekController() {
     selectCommit,
     handleCommitAction,
     checkoutRef,
+    openWorktree,
     updateActionBranchName,
     cancelActionDialog,
     confirmActionDialog,

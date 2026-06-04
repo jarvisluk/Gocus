@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "node scripts/dev.cjs",
     "dev:web": "vite --host 127.0.0.1 --port 43871",
+    "lint": "npm run lint:design",
+    "lint:design": "stylelint \"src/**/*.css\"",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "start": "npm run build && electron ."
@@ -24,6 +26,7 @@
     "@types/react-dom": "^19.2.3",
     "concurrently": "^9.2.1",
     "playwright": "^1.60.0",
+    "stylelint": "^17.12.0",
     "typescript": "^5.9.3",
     "wait-on": "^9.0.3"
   }

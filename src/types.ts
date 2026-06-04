@@ -1,8 +1,9 @@
 export type BranchKind = "main" | "develop" | "feature" | "fix" | "release" | "stash" | "topic" | "remote";
 export type BranchColor = string;
 export type Theme = "light" | "dark";
+export type ThemeMode = "system" | Theme;
 export type FileFilter = "all" | "modified" | "staged" | "untracked";
-export type WorkspaceOpenTarget = "finder" | "vscode" | "cursor";
+export type WorkspaceOpenTarget = "vscode" | "cursor" | "finder" | "terminal" | "xcode";
 export type CommitViewMode = "auto" | "current" | "all" | "branch";
 
 export interface CommitViewSelection {
@@ -12,6 +13,7 @@ export interface CommitViewSelection {
 
 export interface UiPreferences {
   accentColor: string;
+  themeMode: ThemeMode;
   density: "compact" | "comfortable";
   fontFamily: "system" | "inter" | "mono";
   graphStyle: "solid" | "soft";
@@ -21,6 +23,8 @@ export interface UiPreferences {
 export interface GraphLaneSegment {
   column: number;
   color: BranchColor;
+  from?: "top" | "node";
+  to?: "node" | "bottom";
 }
 
 export interface GraphBridge {

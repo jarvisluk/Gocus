@@ -43,6 +43,26 @@ async function openWorkspace(repositoryPath, target) {
       return { ok: true, message: "Opened workspace in Cursor." };
     }
 
+    if (target === "terminal") {
+      if (process.platform === "darwin") {
+        await execOpen("open", ["-a", "Terminal", repositoryPath]);
+      } else if (process.platform === "win32") {
+        await execOpen("cmd.exe", ["/c", "start", "", "cmd.exe", "/K", `cd /d "${repositoryPath}"`]);
+      } else {
+        await execOpen("x-terminal-emulator", ["--working-directory", repositoryPath]);
+      }
+      return { ok: true, message: "Opened workspace in Terminal." };
+    }
+
+    if (target === "xcode") {
+      if (process.platform !== "darwin") {
+        return { ok: false, reason: "action_failed", error: "Xcode is only available on macOS." };
+      }
+
+      await execOpen("open", ["-a", "Xcode", repositoryPath]);
+      return { ok: true, message: "Opened workspace in Xcode." };
+    }
+
     return { ok: false, reason: "action_failed", error: "Unknown workspace target." };
   } catch (error) {
     return {

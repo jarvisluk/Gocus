@@ -1,4 +1,5 @@
 const { execFile } = require("node:child_process");
+const fs = require("node:fs/promises");
 const path = require("node:path");
 
 const preferredBranchColors = new Map([
@@ -48,6 +49,14 @@ function runGit(repoPath, args, options = {}) {
 function safeInteger(value) {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+async function realPathForCompare(pathValue) {
+  try {
+    return await fs.realpath(pathValue);
+  } catch {
+    return path.resolve(pathValue);
+  }
 }
 
 function parseBranchLine(line) {
@@ -289,6 +298,7 @@ function buildCommitGraph(commits) {
     const parents = commit.parents.filter(Boolean);
     const parentEntries = [];
     const bridges = [];
+    const passThroughLimits = new Map();
     let after = activeLanes.slice();
     const colorForParent = (parentHash, fallbackColor) => {
       const parentCommit = commitsByHash.get(parentHash);
@@ -301,7 +311,14 @@ function buildCommitGraph(commits) {
       const firstParent = parents[0];
       const existingFirstParent = findLaneByHash(after, firstParent, column);
 
-      if (existingFirstParent >= 0) {
+      if (existingFirstParent > column) {
+        const color = after[existingFirstParent].color;
+        parentEntries.push({ column, color });
+        passThroughLimits.set(existingFirstParent, { to: "node" });
+        bridges.push({ fromColumn: existingFirstParent, toColumn: column, color });
+        after[column] = { hash: firstParent, color };
+        after[existingFirstParent] = null;
+      } else if (existingFirstParent >= 0) {
         const color = after[existingFirstParent].color;
         parentEntries.push({ column: existingFirstParent, color });
         bridges.push({ fromColumn: column, toColumn: existingFirstParent, color });
@@ -347,7 +364,7 @@ function buildCommitGraph(commits) {
         currentContinues,
         passThrough: before
           .filter((lane) => lane.column !== column)
-          .map((lane) => ({ column: lane.column, color: lane.color })),
+          .map((lane) => ({ column: lane.column, color: lane.color, ...(passThroughLimits.get(lane.column) ?? {}) })),
         parentStems,
         bridges,
         isMerge: parents.length > 1,
@@ -523,10 +540,35 @@ async function checkout(repoPath, ref, view) {
   return readGitSnapshot(root, view);
 }
 
+async function openWorktree(repoPath, worktreePath, view) {
+  if (typeof worktreePath !== "string" || !worktreePath.trim()) {
+    throw new Error("Worktree path is required.");
+  }
+
+  const root = await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
+  const worktreesRaw = await runGit(root, ["worktree", "list", "--porcelain"]);
+  const requestedPath = await realPathForCompare(worktreePath);
+  let worktree = null;
+
+  for (const candidate of parseWorktrees(worktreesRaw, root)) {
+    if ((await realPathForCompare(candidate.path)) === requestedPath) {
+      worktree = candidate;
+      break;
+    }
+  }
+
+  if (!worktree) {
+    throw new Error("Worktree is not part of the current repository.");
+  }
+
+  return readGitSnapshot(worktree.path, view);
+}
+
 module.exports = {
   checkout,
   createBranch,
   normalizeView,
+  openWorktree,
   readGitSnapshot,
   runGit,
 };

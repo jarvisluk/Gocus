@@ -11,6 +11,7 @@ declare global {
       clearRepository: () => Promise<SnapshotResponse>;
       createBranch: (branchName: string, startPoint: string, view?: CommitViewSelection) => Promise<ActionResponse>;
       checkout: (ref: string, view?: CommitViewSelection) => Promise<ActionResponse>;
+      openWorktree: (worktreePath: string, view?: CommitViewSelection) => Promise<ActionResponse>;
       openWorkspace: (target: WorkspaceOpenTarget) => Promise<ActionResponse>;
       getPreferences: () => Promise<UiPreferences>;
       savePreferences: (preferences: UiPreferences) => Promise<void>;

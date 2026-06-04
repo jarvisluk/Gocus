@@ -73,7 +73,9 @@ export function getGitTreeRailWidth(laneCount: number) {
 
 function segmentPath(segment: GraphLaneSegment, yStart: number, yEnd: number) {
   const x = laneX(segment.column);
-  return `M ${x} ${yStart} L ${x} ${yEnd}`;
+  const start = segment.from === "node" ? NODE_Y : yStart;
+  const end = segment.to === "node" ? NODE_Y : yEnd;
+  return `M ${x} ${start} L ${x} ${end}`;
 }
 
 export function buildGitTreeRenderModel(graph: CommitGraph, options: GitTreeRenderOptions = {}): GitTreeRenderModel {
@@ -82,7 +84,7 @@ export function buildGitTreeRenderModel(graph: CommitGraph, options: GitTreeRend
   const nodeX = laneX(graph.column);
   const paths: GitTreePath[] = [
     ...graph.passThrough.map((lane, index) => ({
-      id: `through-${index}-${lane.column}-${lane.color}`,
+      id: `through-${index}-${lane.column}-${lane.color}-${lane.from ?? "top"}-${lane.to ?? "bottom"}`,
       className: lineClass(),
       d: segmentPath(lane, 0, GRAPH_HEIGHT),
       color: lane.color,

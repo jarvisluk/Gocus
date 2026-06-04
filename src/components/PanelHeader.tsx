@@ -1,4 +1,4 @@
-import { ChevronLeft, GitBranch, Pin, PinOff, RefreshCw, Route, Settings } from "lucide-react";
+import { ChevronLeft, GitBranch, Pin, PinOff, RefreshCw, Route } from "lucide-react";
 import { IconButton } from "./IconButton";
 import type { GitSnapshot } from "../types";
 
@@ -6,21 +6,17 @@ export function PanelHeader({
   snapshot,
   pinned,
   refreshing,
-  settingsOpen,
   onOpen,
   onRefresh,
   onTogglePinned,
-  onToggleSettings,
   onCollapse,
 }: {
   snapshot: GitSnapshot | null;
   pinned: boolean;
   refreshing: boolean;
-  settingsOpen: boolean;
   onOpen: () => void;
   onRefresh: () => void;
   onTogglePinned: () => void;
-  onToggleSettings: () => void;
   onCollapse: () => void;
 }) {
   return (
@@ -39,9 +35,6 @@ export function PanelHeader({
         </span>
       ) : null}
       <div className="header-actions">
-        <IconButton label="Settings" active={settingsOpen} onClick={onToggleSettings}>
-          <Settings aria-hidden="true" />
-        </IconButton>
         <IconButton label={pinned ? "Unpin floating panel" : "Pin floating panel"} active={pinned} onClick={onTogglePinned}>
           {pinned ? <PinOff aria-hidden="true" /> : <Pin aria-hidden="true" />}
         </IconButton>

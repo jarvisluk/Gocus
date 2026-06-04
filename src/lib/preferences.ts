@@ -2,6 +2,7 @@ import type { UiPreferences } from "../types";
 
 export const defaultPreferences: UiPreferences = {
   accentColor: "#6aa8ff",
+  themeMode: "system",
   density: "compact",
   fontFamily: "system",
   graphStyle: "solid",

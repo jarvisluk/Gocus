@@ -1,10 +1,24 @@
-import { GitBranch, GitCommitHorizontal, GitFork } from "lucide-react";
+import { GitFork } from "lucide-react";
 import type { CommitViewSelection, GitBranchRef, GitSnapshot, GitWorktree } from "../types";
 
 function branchOptionLabel(branch: GitBranchRef) {
   if (branch.type === "remote") return `${branch.name} remote`;
   if (branch.type === "tag") return `${branch.name} tag`;
   return branch.name;
+}
+
+function shortHash(hash: string) {
+  return hash ? hash.slice(0, 7) : "unknown";
+}
+
+function pathName(pathValue: string) {
+  const trimmed = pathValue.replace(/[\\/]+$/, "");
+  return trimmed.split(/[\\/]/).pop() || pathValue;
+}
+
+function detachedWorktreeLabel(worktree: GitWorktree) {
+  const prefix = worktree.current ? "Current detached" : "Detached";
+  return `${prefix} @ ${shortHash(worktree.head)} - ${pathName(worktree.path)}`;
 }
 
 function WorktreeList({ worktrees }: { worktrees: GitWorktree[] }) {
@@ -27,47 +41,76 @@ export function RepositoryControls({
   snapshot,
   view,
   onChangeView,
-  onCheckoutRef,
+  onOpenWorktree,
 }: {
   snapshot: GitSnapshot;
   view: CommitViewSelection;
   onChangeView: (view: CommitViewSelection) => void;
-  onCheckoutRef: (ref: string) => void;
+  onOpenWorktree: (worktreePath: string) => void;
 }) {
   const selectedBranch = view.mode === "branch" ? view.ref ?? "" : "";
+  const selectedBranchIsAvailable = selectedBranch ? snapshot.branches.some((branch) => branch.name === selectedBranch) : true;
+  const detachedWorktrees = snapshot.worktrees.filter((worktree) => worktree.detached);
+  const currentDetachedWorktree = view.mode === "current" ? detachedWorktrees.find((worktree) => worktree.current) : undefined;
+  const selectedValue = currentDetachedWorktree ? `worktree:${currentDetachedWorktree.path}` : view.mode === "branch" ? `branch:${selectedBranch}` : `view:${view.mode}`;
+
+  function handleViewChange(value: string) {
+    if (value.startsWith("worktree:")) {
+      onOpenWorktree(value.slice("worktree:".length));
+      return;
+    }
+
+    if (value.startsWith("branch:")) {
+      const ref = value.slice("branch:".length);
+      onChangeView(ref ? { mode: "branch", ref } : { mode: "auto" });
+      return;
+    }
+
+    if (value === "view:current") {
+      onChangeView({ mode: "current" });
+      return;
+    }
+
+    if (value === "view:all") {
+      onChangeView({ mode: "all" });
+      return;
+    }
+
+    onChangeView({ mode: "auto" });
+  }
 
   return (
     <section className="repo-controls" aria-label="Repository view controls">
       <div className="branch-view">
-        <div className="segmented-control" aria-label="Commit view">
-          <button className={view.mode === "auto" ? "is-active" : ""} type="button" onClick={() => onChangeView({ mode: "auto" })}>
-            <GitCommitHorizontal aria-hidden="true" />
-            Auto
-          </button>
-          <button className={view.mode === "current" ? "is-active" : ""} type="button" onClick={() => onChangeView({ mode: "current" })}>
-            <GitBranch aria-hidden="true" />
-            Current
-          </button>
-          <button className={view.mode === "all" ? "is-active" : ""} type="button" onClick={() => onChangeView({ mode: "all" })}>
-            All
-          </button>
-        </div>
         <select
-          aria-label="Specific branch"
-          value={selectedBranch}
-          onChange={(event) => onChangeView(event.target.value ? { mode: "branch", ref: event.target.value } : { mode: "auto" })}
+          className="ui-select"
+          aria-label="Commit view"
+          value={selectedValue}
+          onChange={(event) => handleViewChange(event.target.value)}
         >
-          <option value="">Specific branch</option>
-          {snapshot.branches.map((branch) => (
-            <option value={branch.name} key={`${branch.type}-${branch.name}`}>
-              {branchOptionLabel(branch)}
-            </option>
-          ))}
+          <optgroup label="View">
+            <option value="view:auto">Auto</option>
+            <option value="view:current">Current</option>
+            <option value="view:all">All</option>
+          </optgroup>
+          <optgroup label="Specific branch">
+            {selectedBranch && !selectedBranchIsAvailable ? <option value={`branch:${selectedBranch}`}>{selectedBranch}</option> : null}
+            {snapshot.branches.map((branch) => (
+              <option value={`branch:${branch.name}`} key={`${branch.type}-${branch.name}`}>
+                {branchOptionLabel(branch)}
+              </option>
+            ))}
+          </optgroup>
+          {detachedWorktrees.length ? (
+            <optgroup label="Detached worktrees">
+              {detachedWorktrees.map((worktree) => (
+                <option value={`worktree:${worktree.path}`} key={worktree.path}>
+                  {detachedWorktreeLabel(worktree)}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
         </select>
-        <button className="branch-checkout" type="button" onClick={() => selectedBranch && onCheckoutRef(selectedBranch)} disabled={!selectedBranch}>
-          <GitBranch aria-hidden="true" />
-          Switch
-        </button>
       </div>
       <WorktreeList worktrees={snapshot.worktrees} />
     </section>

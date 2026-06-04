@@ -9,11 +9,13 @@ type CommitAction = "compare" | "branch" | "checkout";
 function CommitRow({
   commit,
   selected,
+  fullMessage,
   onSelect,
   onAction,
 }: {
   commit: CommitItem;
   selected: boolean;
+  fullMessage?: boolean;
   onSelect: () => void;
   onAction: (action: CommitAction, commit: CommitItem) => void;
 }) {
@@ -26,13 +28,14 @@ function CommitRow({
     "--branch-color": commit.refColors[0] ?? commit.branchColor,
   } as CSSProperties;
   const message = commit.message.trim() || commit.title;
+  const displayMessage = fullMessage ? message : commit.title;
 
   return (
     <article className={joinClass("commit-row", selected && "is-selected")} style={rowStyle} onClick={onSelect} title={message}>
       <GitTreeCell graph={commit.graph} laneCount={graphLaneCount} />
       <div className="commit-content">
         <div className="commit-title-line">
-          <h3>{commit.title}</h3>
+          <h3>{displayMessage}</h3>
           {ref ? (
             <span className="ref-pill" style={refStyle}>
               {ref}
@@ -85,11 +88,13 @@ function CommitRow({
 export function RecentCommits({
   commits,
   selectedId,
+  fullMessages = false,
   onSelect,
   onAction,
 }: {
   commits: CommitItem[];
   selectedId: string;
+  fullMessages?: boolean;
   onSelect: (id: string) => void;
   onAction: (action: CommitAction, commit: CommitItem) => void;
 }) {
@@ -110,6 +115,7 @@ export function RecentCommits({
             key={commit.id}
             commit={commit}
             selected={commit.id === selectedId}
+            fullMessage={fullMessages}
             onSelect={() => onSelect(commit.id)}
             onAction={onAction}
           />

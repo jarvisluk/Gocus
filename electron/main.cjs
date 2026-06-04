@@ -2,7 +2,7 @@ const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, nativeThem
 const path = require("node:path");
 const { createAssetLoader } = require("./lib/assets.cjs");
 const { createConfigStore } = require("./lib/config.cjs");
-const { checkout, createBranch, normalizeView, readGitSnapshot } = require("./lib/git.cjs");
+const { checkout, createBranch, normalizeView, openWorktree, readGitSnapshot } = require("./lib/git.cjs");
 const { openWorkspace } = require("./lib/workspace.cjs");
 
 let mainWindow;
@@ -11,8 +11,12 @@ let currentRepository = null;
 let collapsedState = false;
 let pinnedState = false;
 let currentView = { mode: "auto" };
+let applyingWindowBounds = false;
+let applyingWindowBoundsTimer = null;
+let expandedWindowSizeSaveTimer = null;
 
-const expandedSize = { width: 364, height: 780 };
+const expandedMinimumSize = { width: 320, height: 620 };
+const defaultExpandedSize = { width: expandedMinimumSize.width, height: 780 };
 const collapsedSize = { width: 38, height: 154 };
 const config = createConfigStore(app);
 const assets = createAssetLoader({
@@ -118,11 +122,46 @@ function repositoryPathForAction() {
   return currentRepository || readSavedRepositoryPath();
 }
 
+function clampExpandedSize(size, display) {
+  return {
+    width: Math.min(Math.max(Math.round(size.width), expandedMinimumSize.width), Math.max(expandedMinimumSize.width, display.width - 20)),
+    height: Math.min(Math.max(Math.round(size.height), expandedMinimumSize.height), Math.max(expandedMinimumSize.height, display.height - 16)),
+  };
+}
+
+function readExpandedSize(display) {
+  return clampExpandedSize(config.readExpandedWindowSize() ?? defaultExpandedSize, display);
+}
+
+function setWindowBounds(win, bounds, animated = true) {
+  applyingWindowBounds = true;
+  clearTimeout(applyingWindowBoundsTimer);
+  win.setBounds(bounds, animated);
+  applyingWindowBoundsTimer = setTimeout(() => {
+    applyingWindowBounds = false;
+  }, 250);
+}
+
+function saveCurrentExpandedWindowSize(win) {
+  if (!win || win.isDestroyed() || collapsedState || applyingWindowBounds) return;
+  const bounds = win.getBounds();
+  const display = screen.getDisplayMatching(bounds).workArea;
+  config.saveExpandedWindowSize(clampExpandedSize(bounds, display));
+}
+
+function scheduleExpandedWindowSizeSave(win) {
+  if (!win || win.isDestroyed() || collapsedState || applyingWindowBounds) return;
+  clearTimeout(expandedWindowSizeSaveTimer);
+  expandedWindowSizeSaveTimer = setTimeout(() => {
+    saveCurrentExpandedWindowSize(win);
+  }, 250);
+}
+
 function positionWindow(win, collapsed = false) {
   if (!win) return;
   const display = screen.getPrimaryDisplay().workArea;
-  const size = collapsed ? collapsedSize : expandedSize;
-  win.setMinimumSize(collapsed ? collapsedSize.width : 320, collapsed ? collapsedSize.height : 620);
+  const size = collapsed ? collapsedSize : readExpandedSize(display);
+  win.setMinimumSize(collapsed ? collapsedSize.width : expandedMinimumSize.width, collapsed ? collapsedSize.height : expandedMinimumSize.height);
   const current = win.getBounds();
   const edgeInset = collapsed ? 0 : 10;
   const x = display.x + display.width - size.width - edgeInset;
@@ -131,15 +170,23 @@ function positionWindow(win, collapsed = false) {
   const minY = display.y + 8;
   const maxY = display.y + display.height - size.height - 8;
   const y = Math.min(Math.max(requestedY, minY), Math.max(minY, maxY));
-  win.setBounds({ x, y, width: size.width, height: size.height }, true);
+  setWindowBounds(win, { x, y, width: size.width, height: size.height }, true);
 }
 
 function setCollapsedWindow(collapsed) {
   if (!mainWindow) return;
-  collapsedState = Boolean(collapsed);
+  const nextCollapsedState = Boolean(collapsed);
+  if (!collapsedState && nextCollapsedState) saveCurrentExpandedWindowSize(mainWindow);
+  collapsedState = nextCollapsedState;
   positionWindow(mainWindow, collapsedState);
   mainWindow.webContents.send("window:collapsedChanged", collapsedState);
   buildMenus();
+}
+
+function dockWindow(collapsed = collapsedState) {
+  if (!mainWindow) return;
+  if (!collapsed) saveCurrentExpandedWindowSize(mainWindow);
+  positionWindow(mainWindow, collapsed);
 }
 
 function setPinnedWindow(pinned) {
@@ -170,11 +217,12 @@ function toggleMainWindow() {
 
 function createWindow() {
   const appIcon = assets.loadImageAsset("app-icon.png");
+  const initialExpandedSize = readExpandedSize(screen.getPrimaryDisplay().workArea);
 
   mainWindow = new BrowserWindow({
-    ...expandedSize,
-    minWidth: 320,
-    minHeight: 620,
+    ...initialExpandedSize,
+    minWidth: expandedMinimumSize.width,
+    minHeight: expandedMinimumSize.height,
     show: false,
     frame: false,
     transparent: true,
@@ -193,7 +241,11 @@ function createWindow() {
 
   positionWindow(mainWindow);
   mainWindow.once("ready-to-show", () => mainWindow.show());
+  mainWindow.on("resize", () => scheduleExpandedWindowSizeSave(mainWindow));
+  mainWindow.on("close", () => saveCurrentExpandedWindowSize(mainWindow));
   mainWindow.on("closed", () => {
+    clearTimeout(applyingWindowBoundsTimer);
+    clearTimeout(expandedWindowSizeSaveTimer);
     mainWindow = null;
   });
 
@@ -268,7 +320,7 @@ function buildMenus() {
       submenu: [
         { label: "Expand Side Peek", accelerator: "CmdOrCtrl+Shift+E", enabled: collapsedState, click: () => setCollapsedWindow(false) },
         { label: "Collapse to Edge Tab", accelerator: "CmdOrCtrl+Shift+C", enabled: !collapsedState, click: () => setCollapsedWindow(true) },
-        { label: "Dock to Screen Edge", accelerator: "CmdOrCtrl+Shift+D", click: () => positionWindow(mainWindow, collapsedState) },
+        { label: "Dock to Screen Edge", accelerator: "CmdOrCtrl+Shift+D", click: () => dockWindow(collapsedState) },
         { type: "separator" },
         { label: "Always on Top", type: "checkbox", checked: pinnedState, click: (item) => setPinnedWindow(item.checked) },
         { label: "Follow System Appearance", type: "checkbox", checked: true, enabled: false },
@@ -306,7 +358,7 @@ function buildMenus() {
       Menu.buildFromTemplate([
         { label: "Show Git Peek", click: showMainWindow },
         { label: collapsedState ? "Expand Side Peek" : "Collapse to Edge Tab", click: () => setCollapsedWindow(!collapsedState) },
-        { label: "Dock to Screen Edge", click: () => positionWindow(mainWindow, collapsedState) },
+        { label: "Dock to Screen Edge", click: () => dockWindow(collapsedState) },
         { type: "separator" },
         { label: "Open Working Folder...", click: openFolderAction },
         { label: "Refresh Git Data", enabled: hasRepository, click: refreshAction },
@@ -386,6 +438,22 @@ ipcMain.handle("git:checkout", async (_event, ref, view) => {
   }
 });
 
+ipcMain.handle("git:openWorktree", async (_event, worktreePath, view) => {
+  const repositoryPath = repositoryPathForAction();
+  if (!repositoryPath) return noRepositoryResponse();
+
+  try {
+    const snapshot = await openWorktree(repositoryPath, worktreePath, normalizeView(view));
+    currentView = snapshot.view;
+    saveRepositoryPath(snapshot.repoPath);
+    buildMenus();
+    sendSnapshotResponse({ ok: true, snapshot });
+    return { ok: true, message: `Opened ${snapshot.branch.detached ? "detached worktree" : snapshot.repoName}.`, snapshot };
+  } catch (error) {
+    return errorResponse(error, "Unable to open worktree.");
+  }
+});
+
 ipcMain.handle("workspace:open", async (_event, target) => {
   return openWorkspace(repositoryPathForAction(), target);
 });
@@ -407,7 +475,7 @@ ipcMain.handle("window:setPinned", (_event, pinned) => {
 });
 
 ipcMain.handle("window:dockToEdge", (_event, collapsed) => {
-  positionWindow(mainWindow, Boolean(collapsed));
+  dockWindow(Boolean(collapsed));
 });
 
 ipcMain.handle("theme:getSystemTheme", () => getSystemTheme());
