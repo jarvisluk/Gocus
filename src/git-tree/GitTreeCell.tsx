@@ -1,13 +1,40 @@
-import type { CommitGraph } from "../types";
+import { GitFork } from "lucide-react";
 import { type CSSProperties } from "react";
+import type { CommitGraph, GitWorktree } from "../types";
 import { buildGitTreeRenderModel } from "./renderGraph";
 
 function joinClass(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
 }
 
-export function GitTreeCell({ graph, laneCount }: { graph: CommitGraph; laneCount?: number }) {
+function shortHash(hash: string) {
+  return hash.slice(0, 7);
+}
+
+function pathName(pathValue: string) {
+  const trimmed = pathValue.replace(/[\\/]+$/, "");
+  return trimmed.split(/[\\/]/).pop() || pathValue;
+}
+
+function worktreeMarkerLabel(worktree: GitWorktree) {
+  const location = pathName(worktree.path);
+  const checkout = worktree.detached ? `detached ${shortHash(worktree.head)}` : worktree.branch || "worktree";
+  return `${worktree.current ? "Current worktree" : "Worktree"}: ${checkout} - ${location}`;
+}
+
+export function GitTreeCell({
+  graph,
+  laneCount,
+  checkedOutWorktrees = [],
+}: {
+  graph: CommitGraph;
+  laneCount?: number;
+  checkedOutWorktrees?: GitWorktree[];
+}) {
   const model = buildGitTreeRenderModel(graph, { laneCount });
+  const hasCheckedOutWorktree = checkedOutWorktrees.length > 0;
+  const hasCurrentWorktree = checkedOutWorktrees.some((worktree) => worktree.current);
+  const worktreeTitle = checkedOutWorktrees.map(worktreeMarkerLabel).join("\n");
   const nodeStyle = {
     left: `${model.node.leftPercent}%`,
     top: `${model.node.topPercent}%`,
@@ -15,7 +42,7 @@ export function GitTreeCell({ graph, laneCount }: { graph: CommitGraph; laneCoun
   } as CSSProperties;
 
   return (
-    <div className="timeline-cell" aria-hidden="true">
+    <div className="timeline-cell" aria-hidden={hasCheckedOutWorktree ? undefined : "true"} aria-label={hasCheckedOutWorktree ? worktreeTitle : undefined}>
       <svg className="graph-svg" viewBox={model.viewBox} preserveAspectRatio="none">
         {model.paths.map((path) => (
           <path
@@ -27,9 +54,15 @@ export function GitTreeCell({ graph, laneCount }: { graph: CommitGraph; laneCoun
           />
         ))}
       </svg>
-      <span className={joinClass("graph-node", model.node.isMerge && "is-merge")} style={nodeStyle}>
+      <span className={joinClass("graph-node", model.node.isMerge && "is-merge", hasCheckedOutWorktree && "has-worktree")} style={nodeStyle}>
         {model.node.isMerge ? <span className="graph-node-core" /> : null}
       </span>
+      {hasCheckedOutWorktree ? (
+        <span className={joinClass("graph-worktree-marker", hasCurrentWorktree && "is-current")} style={nodeStyle} title={worktreeTitle}>
+          <GitFork aria-hidden="true" />
+          {checkedOutWorktrees.length > 1 ? <span className="graph-worktree-count">{checkedOutWorktrees.length}</span> : null}
+        </span>
+      ) : null}
     </div>
   );
 }

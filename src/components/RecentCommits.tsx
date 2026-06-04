@@ -32,7 +32,7 @@ function CommitRow({
 
   return (
     <article className={joinClass("commit-row", selected && "is-selected")} style={rowStyle} onClick={onSelect} title={message}>
-      <GitTreeCell graph={commit.graph} laneCount={graphLaneCount} />
+      <GitTreeCell graph={commit.graph} laneCount={graphLaneCount} checkedOutWorktrees={commit.checkedOutWorktrees} />
       <div className="commit-content">
         <div className="commit-title-line">
           <h3>{displayMessage}</h3>

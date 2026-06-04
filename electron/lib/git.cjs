@@ -59,6 +59,13 @@ async function realPathForCompare(pathValue) {
   }
 }
 
+async function gitCommonDirKey(root) {
+  const gitCommonDir = await runGit(root, ["rev-parse", "--git-common-dir"]).catch(() => "");
+  if (!gitCommonDir) return `path:${path.resolve(root)}`;
+  const absoluteGitCommonDir = path.isAbsolute(gitCommonDir) ? gitCommonDir : path.resolve(root, gitCommonDir);
+  return `git:${await realPathForCompare(absoluteGitCommonDir)}`;
+}
+
 function parseBranchLine(line) {
   const clean = line.replace(/^##\s*/, "");
   const result = {
@@ -300,6 +307,7 @@ function buildCommitGraph(commits) {
     const bridges = [];
     const passThroughLimits = new Map();
     let after = activeLanes.slice();
+    let secondaryParentStartColumn = column + 1;
     const colorForParent = (parentHash, fallbackColor) => {
       const parentCommit = commitsByHash.get(parentHash);
       return parentCommit?.refs.length ? parentCommit.branchColor : fallbackColor;
@@ -315,14 +323,15 @@ function buildCommitGraph(commits) {
         const color = after[existingFirstParent].color;
         parentEntries.push({ column, color });
         passThroughLimits.set(existingFirstParent, { to: "node" });
-        bridges.push({ fromColumn: existingFirstParent, toColumn: column, color });
+        bridges.push({ fromColumn: existingFirstParent, toColumn: column, color, to: "lane" });
         after[column] = { hash: firstParent, color };
         after[existingFirstParent] = null;
       } else if (existingFirstParent >= 0) {
         const color = after[existingFirstParent].color;
         parentEntries.push({ column: existingFirstParent, color });
-        bridges.push({ fromColumn: column, toColumn: existingFirstParent, color });
+        bridges.push({ fromColumn: column, toColumn: existingFirstParent, color, to: "lane" });
         after[column] = null;
+        secondaryParentStartColumn = column;
       } else {
         const color = colorForParent(firstParent, currentColor);
         after[column] = { hash: firstParent, color };
@@ -331,17 +340,18 @@ function buildCommitGraph(commits) {
 
       parents.slice(1).forEach((parentHash, parentIndex) => {
         let parentColumn = findLaneByHash(after, parentHash);
+        const parentAlreadyActive = parentColumn !== -1;
 
         if (parentColumn === -1) {
           const fallbackColor = commit.lane === "stash" ? currentColor : generatedBranchColor(index + parentIndex + 1);
           const color = colorForParent(parentHash, fallbackColor);
-          parentColumn = findOpenColumn(after, column + 1);
+          parentColumn = findOpenColumn(after, secondaryParentStartColumn);
           after[parentColumn] = { hash: parentHash, color };
         }
 
         const color = after[parentColumn].color;
         parentEntries.push({ column: parentColumn, color });
-        bridges.push({ fromColumn: column, toColumn: parentColumn, color });
+        bridges.push({ fromColumn: column, toColumn: parentColumn, color, ...(parentAlreadyActive ? { to: "lane" } : {}) });
       });
     }
 
@@ -421,10 +431,11 @@ function parseLog(rawLog) {
 }
 
 function normalizeView(view) {
-  if (!view || typeof view !== "object") return { mode: "auto" };
+  if (!view || typeof view !== "object") return { mode: "all" };
   if (view.mode === "branch" && typeof view.ref === "string" && view.ref) return { mode: "branch", ref: view.ref };
-  if (view.mode === "current" || view.mode === "all" || view.mode === "auto") return { mode: view.mode };
-  return { mode: "auto" };
+  if (view.mode === "current" || view.mode === "all") return { mode: view.mode };
+  if (view.mode === "auto") return { mode: "all" };
+  return { mode: "all" };
 }
 
 function logArgsForView(view) {
@@ -437,9 +448,24 @@ function logArgsForView(view) {
     "--numstat",
   ];
 
-  if (normalized.mode === "all" || normalized.mode === "auto") args.push("--all");
+  if (normalized.mode === "all") args.push("--all");
   if (normalized.mode === "branch" && normalized.ref) args.push(normalized.ref);
   return { args, view: normalized };
+}
+
+function logArgsForViewWithWorktrees(view, worktrees) {
+  const request = logArgsForView(view);
+  if (request.view.mode !== "all") return request;
+
+  const detachedHeads = [
+    ...new Set(
+      worktrees
+        .filter((worktree) => worktree.head && worktree.detached && !worktree.bare)
+        .map((worktree) => worktree.head),
+    ),
+  ];
+
+  return { ...request, args: [...request.args, ...detachedHeads] };
 }
 
 function parseBranches(output, currentBranchName) {
@@ -489,19 +515,40 @@ function parseWorktrees(output, currentRoot) {
     .filter((worktree) => worktree.path);
 }
 
-async function readGitSnapshot(repoPath, view = { mode: "auto" }) {
+function annotateCommitsWithWorktrees(commits, worktrees) {
+  const worktreesByHead = new Map();
+
+  for (const worktree of worktrees) {
+    if (!worktree.head || worktree.bare) continue;
+    const headWorktrees = worktreesByHead.get(worktree.head) ?? [];
+    headWorktrees.push(worktree);
+    worktreesByHead.set(worktree.head, headWorktrees);
+  }
+
+  return commits.map((commit) => ({
+    ...commit,
+    checkedOutWorktrees: (worktreesByHead.get(commit.fullHash) ?? []).slice().sort((left, right) => {
+      if (left.current !== right.current) return left.current ? -1 : 1;
+      return left.path.localeCompare(right.path);
+    }),
+  }));
+}
+
+async function readGitSnapshot(repoPath, view = { mode: "all" }) {
   const root = await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
   const shortStatus = await runGit(root, ["status", "--porcelain=v1", "-b"]);
   const status = parseStatus(shortStatus);
-  const logRequest = logArgsForView(view);
 
-  const [unstagedStats, stagedStats, logRaw, branchesRaw, worktreesRaw] = await Promise.all([
+  const [repositoryKey, unstagedStats, stagedStats, branchesRaw, worktreesRaw] = await Promise.all([
+    gitCommonDirKey(root),
     runGit(root, ["diff", "--numstat"]).catch(() => ""),
     runGit(root, ["diff", "--cached", "--numstat"]).catch(() => ""),
-    runGit(root, logRequest.args, { maxBuffer: 1024 * 1024 * 64 }).catch(() => ""),
     runGit(root, ["for-each-ref", "--format=%(refname:short)%00%(refname)%00%(upstream:short)%00%(HEAD)", "refs/heads", "refs/remotes", "refs/tags"]).catch(() => ""),
     runGit(root, ["worktree", "list", "--porcelain"]).catch(() => ""),
   ]);
+  const worktrees = parseWorktrees(worktreesRaw, root);
+  const logRequest = logArgsForViewWithWorktrees(view, worktrees);
+  const logRaw = await runGit(root, logRequest.args, { maxBuffer: 1024 * 1024 * 64 }).catch(() => "");
 
   applyNumstat(status.files, unstagedStats);
   applyNumstat(status.files, stagedStats);
@@ -511,12 +558,13 @@ async function readGitSnapshot(repoPath, view = { mode: "auto" }) {
   return {
     repoPath: root,
     repoName: rootName,
+    repositoryKey,
     branch: status.branch,
     branches: parseBranches(branchesRaw, status.branch.name),
-    worktrees: parseWorktrees(worktreesRaw, root),
+    worktrees,
     view: logRequest.view,
     counts: status.counts,
-    commits: parseLog(logRaw),
+    commits: annotateCommitsWithWorktrees(parseLog(logRaw), worktrees),
     changedFiles: status.files.slice(0, 24),
     lastFetchedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     isSample: false,

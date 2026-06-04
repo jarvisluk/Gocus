@@ -2,9 +2,17 @@ export type BranchKind = "main" | "develop" | "feature" | "fix" | "release" | "s
 export type BranchColor = string;
 export type Theme = "light" | "dark";
 export type ThemeMode = "system" | Theme;
+export type LightThemePreset = "paper" | "mist" | "pearl";
+export type DarkThemePreset = "graphite" | "cursor" | "matte";
 export type FileFilter = "all" | "modified" | "staged" | "untracked";
-export type WorkspaceOpenTarget = "vscode" | "cursor" | "finder" | "terminal" | "xcode";
-export type CommitViewMode = "auto" | "current" | "all" | "branch";
+export type WorkspaceOpenTarget = "vscode" | "cursor" | "codex" | "antigravity" | "finder" | "terminal" | "xcode";
+export type CommitViewMode = "current" | "all" | "branch";
+
+export interface RecentRepository {
+  path: string;
+  name: string;
+  repositoryKey?: string;
+}
 
 export interface CommitViewSelection {
   mode: CommitViewMode;
@@ -12,11 +20,15 @@ export interface CommitViewSelection {
 }
 
 export interface UiPreferences {
-  accentColor: string;
   themeMode: ThemeMode;
+  lightThemePreset: LightThemePreset;
+  darkThemePreset: DarkThemePreset;
   density: "compact" | "comfortable";
   fontFamily: "system" | "inter" | "mono";
   graphStyle: "solid" | "soft";
+  workspaceOpenTargets: WorkspaceOpenTarget[];
+  showZenEntry: boolean;
+  launchAtLogin: boolean;
   zenMode: boolean;
 }
 
@@ -31,6 +43,7 @@ export interface GraphBridge {
   fromColumn: number;
   toColumn: number;
   color: BranchColor;
+  to?: "lane" | "bottom";
 }
 
 export interface CommitGraph {
@@ -92,6 +105,7 @@ export interface CommitItem {
   branchColor: BranchColor;
   refColors: BranchColor[];
   graph: CommitGraph;
+  checkedOutWorktrees: GitWorktree[];
 }
 
 export interface ChangedFile {
@@ -108,6 +122,7 @@ export interface ChangedFile {
 export interface GitSnapshot {
   repoPath: string;
   repoName: string;
+  repositoryKey: string;
   branch: GitBranchState;
   branches: GitBranchRef[];
   worktrees: GitWorktree[];

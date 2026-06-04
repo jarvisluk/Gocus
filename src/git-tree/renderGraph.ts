@@ -48,8 +48,10 @@ function bridgePath(bridge: GraphBridge) {
   const fromX = laneX(bridge.fromColumn);
   const toX = laneX(bridge.toColumn);
   const curveY = NODE_Y + BRIDGE_CONTROL_OFFSET;
+  const joinY = curveY + BRIDGE_DROP;
+  const curve = `M ${fromX} ${NODE_Y} C ${fromX} ${curveY}, ${toX} ${curveY}, ${toX} ${joinY}`;
 
-  return `M ${fromX} ${NODE_Y} C ${fromX} ${curveY}, ${toX} ${curveY}, ${toX} ${curveY + BRIDGE_DROP} L ${toX} ${GRAPH_HEIGHT}`;
+  return bridge.to === "lane" ? curve : `${curve} L ${toX} ${GRAPH_HEIGHT}`;
 }
 
 function highestColumn(graph: CommitGraph) {
@@ -108,7 +110,7 @@ export function buildGitTreeRenderModel(graph: CommitGraph, options: GitTreeRend
     ...graph.bridges
       .filter((bridge) => bridge.fromColumn !== bridge.toColumn)
       .map((bridge, index) => ({
-        id: `bridge-${index}-${bridge.fromColumn}-${bridge.toColumn}-${bridge.color}`,
+        id: `bridge-${index}-${bridge.fromColumn}-${bridge.toColumn}-${bridge.color}-${bridge.to ?? "bottom"}`,
         className: lineClass("graph-bridge"),
         d: bridgePath(bridge),
         color: bridge.color,
