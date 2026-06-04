@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ActionDialog } from "./components/ActionDialog";
 import { ChangedNow } from "./components/ChangedNow";
 import { CollapsedRail } from "./components/CollapsedRail";
@@ -39,6 +40,7 @@ function EditorBackdrop() {
 
 export default function App() {
   const controller = useGitPeekController();
+  const [changedNowCollapsed, setChangedNowCollapsed] = useState(false);
 
   return (
     <main className={joinClass("app-viewport", controller.electron && "is-electron", controller.collapsed && "is-collapsed", controller.preferences.zenMode && "is-zen")}>
@@ -95,7 +97,12 @@ export default function App() {
               </div>
 
               {!controller.preferences.zenMode ? (
-                <ChangedNow files={controller.snapshot.changedFiles} filter={controller.fileFilter} onClearFilter={() => controller.setFileFilter("all")} />
+                <ChangedNow
+                  files={controller.snapshot.changedFiles}
+                  filter={controller.fileFilter}
+                  collapsed={changedNowCollapsed}
+                  onToggleCollapsed={() => setChangedNowCollapsed((current) => !current)}
+                />
               ) : null}
             </>
           ) : (

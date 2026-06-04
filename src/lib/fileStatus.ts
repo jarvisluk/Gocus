@@ -1,12 +1,5 @@
 import type { ChangedFile, FileFilter } from "../types";
 
-export const statusCopy: Record<FileFilter, string> = {
-  all: "All changes",
-  modified: "Modified",
-  staged: "Staged",
-  untracked: "Untracked",
-};
-
 export function fileKind(file: ChangedFile): FileFilter {
   if (file.status.includes("?")) return "untracked";
   if (file.indexStatus && file.indexStatus !== " ") return "staged";
