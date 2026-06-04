@@ -95,7 +95,7 @@ export default function App() {
                 onCancel={controller.cancelActionDialog}
                 onConfirm={controller.confirmActionDialog}
               />
-              <button className="zen-exit-button" type="button" aria-label="Exit Zen mode" title="Exit Zen mode" onClick={exitZenMode}>
+              <button className="ui-icon-button zen-exit-button" type="button" aria-label="Exit Zen mode" title="Exit Zen mode" onClick={exitZenMode}>
                 <Minimize2 aria-hidden="true" />
               </button>
               <div className="scroll-region zen-scroll-region">
@@ -111,6 +111,7 @@ export default function App() {
           ) : controller.settingsOpen ? (
             <SettingsPanel
               preferences={controller.preferences}
+              availableWorkspaceTargets={controller.availableWorkspaceTargets}
               onChange={updatePreferences}
               onBack={() => controller.setSettingsOpen(false)}
               onReset={controller.resetPreferences}
@@ -119,9 +120,11 @@ export default function App() {
             <>
               <PanelHeader
                 snapshot={controller.snapshot}
+                recentRepositories={controller.recentRepositories}
                 pinned={controller.pinned}
                 refreshing={controller.refreshing}
                 onOpen={controller.openRepository}
+                onSwitchRepository={controller.switchRepository}
                 onRefresh={() => controller.refreshSnapshot()}
                 onTogglePinned={controller.togglePinned}
                 onCollapse={() => controller.setCollapsedState(true)}
@@ -167,7 +170,13 @@ export default function App() {
                   ) : null}
                 </>
               ) : (
-                <EmptyRepositoryState loading={controller.loading} notice={controller.notice} onOpen={controller.openRepository} />
+                <EmptyRepositoryState
+                  loading={controller.loading}
+                  notice={controller.notice}
+                  recentRepositories={controller.recentRepositories}
+                  onOpen={controller.openRepository}
+                  onSwitchRepository={controller.switchRepository}
+                />
               )}
 
               <Footer
@@ -176,6 +185,9 @@ export default function App() {
                 onOpenSettings={() => controller.setSettingsOpen(true)}
                 onOpenWorkspace={controller.openWorkspace}
                 hasRepository={Boolean(controller.snapshot)}
+                preferences={controller.preferences}
+                availableWorkspaceTargets={controller.availableWorkspaceTargets}
+                showZenEntry={controller.preferences.showZenEntry}
               />
             </>
           )}

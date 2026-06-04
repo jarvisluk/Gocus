@@ -1,9 +1,21 @@
 import { useEffect, useState } from "react";
 import type { ActionDialogState } from "../components/ActionDialog";
-import { applyPreferences, defaultPreferences, mergePreferences } from "../lib/preferences";
-import type { ActionResponse, CommitItem, CommitViewSelection, FileFilter, GitSnapshot, SnapshotResponse, Theme, UiPreferences, WorkspaceOpenTarget } from "../types";
+import { applyPreferences, defaultPreferences, mergePreferences, resolveThemePreset } from "../lib/preferences";
+import { defaultWorkspaceOpenTargets, sanitizeWorkspaceOpenTargets } from "../lib/workspaceOpenTargets";
+import type {
+  ActionResponse,
+  CommitItem,
+  CommitViewSelection,
+  FileFilter,
+  GitSnapshot,
+  RecentRepository,
+  SnapshotResponse,
+  Theme,
+  UiPreferences,
+  WorkspaceOpenTarget,
+} from "../types";
 
-const defaultView: CommitViewSelection = { mode: "auto" };
+const defaultView: CommitViewSelection = { mode: "all" };
 
 function isElectronRuntime() {
   return Boolean(window.gitPeek);
@@ -25,8 +37,25 @@ function sameView(left: CommitViewSelection, right: CommitViewSelection) {
 function viewLabel(view: CommitViewSelection) {
   if (view.mode === "branch") return view.ref ? `branch ${view.ref}` : "specific branch";
   if (view.mode === "current") return "current branch";
-  if (view.mode === "all") return "all branches";
-  return "auto view";
+  return "all branches";
+}
+
+function pathName(pathValue: string) {
+  const trimmed = pathValue.replace(/[\\/]+$/, "");
+  return trimmed.split(/[\\/]/).pop() || pathValue;
+}
+
+function recentRepositoryFromSnapshot(snapshot: GitSnapshot): RecentRepository {
+  return {
+    path: snapshot.repoPath,
+    name: snapshot.repoName || pathName(snapshot.repoPath),
+    repositoryKey: snapshot.repositoryKey,
+  };
+}
+
+function upsertRecentRepository(repositories: RecentRepository[], repository: RecentRepository) {
+  const dedupeKey = repository.repositoryKey || repository.path;
+  return [repository, ...repositories.filter((entry) => (entry.repositoryKey || entry.path) !== dedupeKey)].slice(0, 8);
 }
 
 export function useGitPeekController() {
@@ -42,6 +71,8 @@ export function useGitPeekController() {
   const [notice, setNoticeState] = useState("No working folder selected.");
   const [commitView, setCommitViewState] = useState<CommitViewSelection>(defaultView);
   const [preferences, setPreferencesState] = useState<UiPreferences>(defaultPreferences);
+  const [availableWorkspaceTargets, setAvailableWorkspaceTargets] = useState<WorkspaceOpenTarget[]>(defaultWorkspaceOpenTargets);
+  const [recentRepositories, setRecentRepositories] = useState<RecentRepository[]>([]);
   const [actionDialog, setActionDialog] = useState<(ActionDialogState & { commit?: CommitItem; ref?: string }) | null>(null);
   const [repositoryDialogOpen, setRepositoryDialogOpen] = useState(false);
   const electron = isElectronRuntime();
@@ -59,6 +90,7 @@ export function useGitPeekController() {
   function applySnapshotResponse(response: SnapshotResponse, successNotice = "Live Git data connected.") {
     if (response.ok) {
       setSnapshot(response.snapshot);
+      setRecentRepositories((current) => upsertRecentRepository(current, recentRepositoryFromSnapshot(response.snapshot)));
       setCommitViewState(response.snapshot.view);
       setSelectedCommitId((current) => (current && response.snapshot.commits.some((commit) => commit.id === current) ? current : ""));
       setNotice(successNotice);
@@ -103,6 +135,23 @@ export function useGitPeekController() {
     const response = await window.gitPeek.openRepository(commitView);
     applySnapshotResponse(response, response.ok ? `Opened ${response.snapshot.repoName}.` : undefined);
     setLoading(false);
+  }
+
+  async function switchRepository(repositoryPath: string) {
+    if (!window.gitPeek) {
+      setNotice("Electron mode is required to switch local folders.");
+      return;
+    }
+
+    setRefreshing(true);
+    try {
+      const response = await window.gitPeek.switchRepository(repositoryPath, commitView);
+      applySnapshotResponse(response, response.ok ? `Switched to ${response.snapshot.repoName}.` : "Unable to switch repository.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Unable to switch repository.");
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   async function changeCommitView(nextView: CommitViewSelection) {
@@ -185,7 +234,7 @@ export function useGitPeekController() {
 
     setRefreshing(true);
     try {
-      await runAction(window.gitPeek.openWorktree(worktreePath, { mode: "current" }), "Opened detached worktree.");
+      await runAction(window.gitPeek.openWorktree(worktreePath, { mode: "current" }), "Opened worktree.");
     } finally {
       setRefreshing(false);
     }
@@ -263,7 +312,8 @@ export function useGitPeekController() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-  }, [theme]);
+    document.documentElement.dataset.themePreset = resolveThemePreset(preferences, theme);
+  }, [preferences.darkThemePreset, preferences.lightThemePreset, theme]);
 
   useEffect(() => {
     applyPreferences(preferences);
@@ -273,6 +323,7 @@ export function useGitPeekController() {
     if (window.gitPeek) {
       window.gitPeek.getSystemTheme().then(setSystemTheme);
       window.gitPeek.getPreferences().then((value) => setPreferencesState(mergePreferences(value)));
+      window.gitPeek.getAvailableWorkspaceTargets().then((targets) => setAvailableWorkspaceTargets(sanitizeWorkspaceOpenTargets(targets, [])));
       return window.gitPeek.onThemeChanged(setSystemTheme);
     }
 
@@ -294,6 +345,7 @@ export function useGitPeekController() {
       applySnapshotResponse(response);
       setLoading(false);
     });
+    window.gitPeek.getRecentRepositories().then(setRecentRepositories);
 
     const unsubscribeSnapshot = window.gitPeek.onSnapshotUpdated((response) => {
       applySnapshotResponse(response, response.ok ? "Git data updated from menu." : "Working folder cleared.");
@@ -323,12 +375,15 @@ export function useGitPeekController() {
     notice,
     commitView,
     preferences,
+    availableWorkspaceTargets,
+    recentRepositories,
     actionDialog,
     repositoryDialogOpen,
     electron,
     setFileFilter,
     setSettingsOpen,
     openRepository,
+    switchRepository,
     refreshSnapshot,
     changeCommitView,
     togglePinned,

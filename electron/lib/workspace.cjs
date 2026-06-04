@@ -1,5 +1,23 @@
 const { execFile } = require("node:child_process");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 const { shell } = require("electron");
+
+const workspaceOpenTargetOrder = ["vscode", "cursor", "codex", "antigravity", "finder", "terminal", "xcode"];
+const darwinAppNamesByTarget = {
+  vscode: ["Visual Studio Code"],
+  cursor: ["Cursor"],
+  codex: ["Codex"],
+  antigravity: ["Antigravity IDE", "Antigravity"],
+  finder: ["Finder"],
+  terminal: ["Terminal"],
+  xcode: ["Xcode"],
+};
+const darwinAppPathsByTarget = {
+  finder: ["/System/Library/CoreServices/Finder.app"],
+  terminal: ["/System/Applications/Utilities/Terminal.app", "/Applications/Utilities/Terminal.app"],
+};
 
 function execOpen(command, args) {
   return new Promise((resolve, reject) => {
@@ -11,6 +29,69 @@ function execOpen(command, args) {
       resolve();
     });
   });
+}
+
+function commandExists(command) {
+  return new Promise((resolve) => {
+    const lookupCommand = process.platform === "win32" ? "where" : "which";
+    execFile(lookupCommand, [command], (error) => {
+      resolve(!error);
+    });
+  });
+}
+
+function possibleDarwinAppPaths(appName) {
+  const bundleName = `${appName}.app`;
+  return [
+    path.join(os.homedir(), "Applications", bundleName),
+    path.join("/Applications", bundleName),
+    path.join("/System/Applications", bundleName),
+    path.join("/System/Applications/Utilities", bundleName),
+    path.join("/Applications/Utilities", bundleName),
+  ];
+}
+
+function darwinAppExists(target) {
+  const appNames = darwinAppNamesByTarget[target] ?? [];
+  const explicitPaths = darwinAppPathsByTarget[target] ?? [];
+  const candidatePaths = [...explicitPaths, ...appNames.flatMap(possibleDarwinAppPaths)];
+
+  return candidatePaths.some((candidatePath) => fs.existsSync(candidatePath));
+}
+
+async function openDarwinApp(appNames, repositoryPath) {
+  let lastError;
+
+  for (const appName of appNames) {
+    try {
+      await execOpen("open", ["-a", appName, repositoryPath]);
+      return;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError;
+}
+
+async function isWorkspaceTargetAvailable(target) {
+  if (process.platform === "darwin") return darwinAppExists(target);
+  if (target === "finder") return true;
+  if (target === "terminal") return process.platform === "win32" || commandExists("x-terminal-emulator");
+  if (target === "vscode") return commandExists("code");
+  if (target === "cursor") return commandExists("cursor");
+  return false;
+}
+
+async function getAvailableWorkspaceTargets() {
+  const availability = await Promise.all(
+    workspaceOpenTargetOrder.map(async (target) => ({
+      target,
+      available: await isWorkspaceTargetAvailable(target),
+    })),
+  );
+
+  return availability.filter((entry) => entry.available).map((entry) => entry.target);
 }
 
 async function openWorkspace(repositoryPath, target) {
@@ -36,11 +117,29 @@ async function openWorkspace(repositoryPath, target) {
 
     if (target === "cursor") {
       if (process.platform === "darwin") {
-        await execOpen("open", ["-a", "Cursor", repositoryPath]);
+        await openDarwinApp(["Cursor"], repositoryPath);
       } else {
         await execOpen("cursor", [repositoryPath]);
       }
       return { ok: true, message: "Opened workspace in Cursor." };
+    }
+
+    if (target === "codex") {
+      if (process.platform !== "darwin") {
+        return { ok: false, reason: "action_failed", error: "Codex is only available as a macOS app target here." };
+      }
+
+      await openDarwinApp(["Codex"], repositoryPath);
+      return { ok: true, message: "Opened workspace in Codex." };
+    }
+
+    if (target === "antigravity") {
+      if (process.platform !== "darwin") {
+        return { ok: false, reason: "action_failed", error: "Antigravity is only available as a macOS app target here." };
+      }
+
+      await openDarwinApp(["Antigravity IDE", "Antigravity"], repositoryPath);
+      return { ok: true, message: "Opened workspace in Antigravity IDE." };
     }
 
     if (target === "terminal") {
@@ -73,4 +172,4 @@ async function openWorkspace(repositoryPath, target) {
   }
 }
 
-module.exports = { openWorkspace };
+module.exports = { getAvailableWorkspaceTargets, openWorkspace };

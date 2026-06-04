@@ -3,21 +3,24 @@ const path = require("node:path");
 const { createAssetLoader } = require("./lib/assets.cjs");
 const { createConfigStore } = require("./lib/config.cjs");
 const { checkout, createBranch, normalizeView, openWorktree, readGitSnapshot } = require("./lib/git.cjs");
-const { openWorkspace } = require("./lib/workspace.cjs");
+const { getAvailableWorkspaceTargets, openWorkspace } = require("./lib/workspace.cjs");
 
 let mainWindow;
 let tray;
 let currentRepository = null;
 let collapsedState = false;
 let pinnedState = false;
-let currentView = { mode: "auto" };
+let currentView = { mode: "all" };
 let applyingWindowBounds = false;
 let applyingWindowBoundsTimer = null;
 let expandedWindowSizeSaveTimer = null;
+let realQuitRequested = false;
+let dockHiddenForMenuBarMode = false;
 
 const expandedMinimumSize = { width: 320, height: 620 };
 const defaultExpandedSize = { width: expandedMinimumSize.width, height: 780 };
 const collapsedSize = { width: 38, height: 154 };
+const hiddenLaunchArg = "--hidden";
 const config = createConfigStore(app);
 const assets = createAssetLoader({
   nativeImage,
@@ -25,8 +28,98 @@ const assets = createAssetLoader({
   electronDir: __dirname,
 });
 
-function saveRepositoryPath(repoPath) {
-  config.saveRepositoryPath(repoPath);
+function loginItemSettings(openAtLogin) {
+  const settings = { openAtLogin };
+  if (process.platform === "darwin") settings.openAsHidden = openAtLogin;
+  if (process.platform === "win32" && !app.isPackaged) {
+    settings.path = process.execPath;
+    settings.args = [app.getAppPath(), hiddenLaunchArg];
+  }
+  return settings;
+}
+
+function loginItemMatchOptions() {
+  if (process.platform === "win32" && !app.isPackaged) {
+    return {
+      path: process.execPath,
+      args: [app.getAppPath(), hiddenLaunchArg],
+    };
+  }
+
+  return {};
+}
+
+function readLaunchAtLoginEnabled(fallback = false) {
+  if (process.platform !== "darwin" && process.platform !== "win32") return false;
+
+  try {
+    return app.getLoginItemSettings(loginItemMatchOptions()).openAtLogin;
+  } catch (error) {
+    console.warn("[Git Peek] Unable to read launch-at-login state.", error);
+    return fallback;
+  }
+}
+
+function readPreferences() {
+  const preferences = config.readPreferences();
+  return {
+    ...preferences,
+    launchAtLogin: readLaunchAtLoginEnabled(Boolean(preferences.launchAtLogin)),
+  };
+}
+
+function syncLaunchAtLogin(preferences = config.readPreferences()) {
+  if (process.platform !== "darwin" && process.platform !== "win32") return;
+
+  try {
+    app.setLoginItemSettings(loginItemSettings(Boolean(preferences.launchAtLogin)));
+  } catch (error) {
+    console.warn("[Git Peek] Unable to update launch-at-login state.", error);
+  }
+}
+
+function shouldStartInMenuBar() {
+  const preferences = config.readPreferences();
+  if (!preferences.launchAtLogin && !process.argv.includes(hiddenLaunchArg)) return false;
+  if (process.argv.includes(hiddenLaunchArg)) return true;
+  if (process.platform !== "darwin") return false;
+
+  try {
+    const settings = app.getLoginItemSettings();
+    return settings.wasOpenedAtLogin || settings.wasOpenedAsHidden;
+  } catch {
+    return false;
+  }
+}
+
+function hideDockIcon() {
+  if (process.platform !== "darwin" || !app.dock) return;
+  app.dock.hide();
+  dockHiddenForMenuBarMode = true;
+}
+
+function showDockIcon() {
+  if (process.platform !== "darwin" || !app.dock || !dockHiddenForMenuBarMode) return;
+  app.dock.show();
+  app.dock.setIcon(assets.loadImageAsset("app-icon.png"));
+  dockHiddenForMenuBarMode = false;
+}
+
+function softQuitToMenuBar() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    saveCurrentExpandedWindowSize(mainWindow);
+    mainWindow.hide();
+  }
+  hideDockIcon();
+}
+
+function requestRealQuit() {
+  realQuitRequested = true;
+  app.quit();
+}
+
+function saveRepositoryPath(repoPath, repositoryKey) {
+  config.saveRepositoryPath(repoPath, repositoryKey);
   currentRepository = repoPath;
 }
 
@@ -37,6 +130,10 @@ function readSavedRepositoryPath() {
 function clearRepositoryPath() {
   config.clearRepositoryPath();
   currentRepository = null;
+}
+
+function readRecentRepositories() {
+  return config.readRecentRepositories();
 }
 
 function noRepositoryResponse() {
@@ -55,6 +152,30 @@ function errorResponse(error, fallback = "Unable to complete the action.") {
   };
 }
 
+async function openRepositoryPath(repositoryPath, view = currentView, invalidRepositoryMessage = "Unable to read the saved working folder.") {
+  if (typeof repositoryPath !== "string" || !repositoryPath.trim()) {
+    return {
+      ok: false,
+      reason: "invalid_repository",
+      error: "Choose a working folder to start tracking Git changes.",
+    };
+  }
+
+  try {
+    const snapshot = await readGitSnapshot(repositoryPath, normalizeView(view));
+    saveRepositoryPath(snapshot.repoPath, snapshot.repositoryKey);
+    currentView = snapshot.view;
+    buildMenus();
+    return { ok: true, snapshot };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: "invalid_repository",
+      error: error.stderr || error.message || invalidRepositoryMessage,
+    };
+  }
+}
+
 async function getSnapshotResponse(view = currentView) {
   const nextView = normalizeView(view);
   currentView = nextView;
@@ -63,7 +184,7 @@ async function getSnapshotResponse(view = currentView) {
 
   try {
     const snapshot = await readGitSnapshot(currentRepository, nextView);
-    saveRepositoryPath(snapshot.repoPath);
+    saveRepositoryPath(snapshot.repoPath, snapshot.repositoryKey);
     buildMenus();
     return { ok: true, snapshot };
   } catch (error) {
@@ -115,19 +236,7 @@ async function chooseRepository(view = currentView) {
     return { ok: false, canceled: true };
   }
 
-  try {
-    const snapshot = await readGitSnapshot(result.filePaths[0], view);
-    saveRepositoryPath(snapshot.repoPath);
-    currentView = snapshot.view;
-    buildMenus();
-    return { ok: true, snapshot };
-  } catch (error) {
-    return {
-      ok: false,
-      reason: "invalid_repository",
-      error: error.stderr || error.message || "The selected folder is not a readable Git repository.",
-    };
-  }
+  return openRepositoryPath(result.filePaths[0], view, "The selected folder is not a readable Git repository.");
 }
 
 function sendSnapshotResponse(response) {
@@ -158,6 +267,16 @@ async function refreshAndSendSnapshot() {
 
 function repositoryPathForAction() {
   return currentRepository || readSavedRepositoryPath();
+}
+
+function recentRepositoryMenuLabel(repository) {
+  const parentName = path.basename(path.dirname(repository.path));
+  return parentName ? `${repository.name} - ${parentName}` : repository.name;
+}
+
+function normalizeRepositorySwitchView(view) {
+  const normalized = normalizeView(view);
+  return normalized.mode === "branch" ? { mode: "all" } : normalized;
 }
 
 function clampExpandedSize(size, display) {
@@ -235,8 +354,9 @@ function setPinnedWindow(pinned) {
 }
 
 function showMainWindow() {
+  showDockIcon();
   if (!mainWindow || mainWindow.isDestroyed()) {
-    createWindow();
+    createWindow({ showOnReady: true });
     return;
   }
 
@@ -253,7 +373,7 @@ function toggleMainWindow() {
   mainWindow.hide();
 }
 
-function createWindow() {
+function createWindow({ showOnReady = true } = {}) {
   const appIcon = assets.loadImageAsset("app-icon.png");
   const initialExpandedSize = readExpandedSize(screen.getPrimaryDisplay().workArea);
 
@@ -278,9 +398,17 @@ function createWindow() {
   });
 
   positionWindow(mainWindow);
-  mainWindow.once("ready-to-show", () => mainWindow.show());
+  mainWindow.once("ready-to-show", () => {
+    if (showOnReady) mainWindow.show();
+  });
   mainWindow.on("resize", () => scheduleExpandedWindowSizeSave(mainWindow));
-  mainWindow.on("close", () => saveCurrentExpandedWindowSize(mainWindow));
+  mainWindow.on("close", (event) => {
+    saveCurrentExpandedWindowSize(mainWindow);
+    if (process.platform === "darwin" && !realQuitRequested) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
   mainWindow.on("closed", () => {
     clearTimeout(applyingWindowBoundsTimer);
     clearTimeout(expandedWindowSizeSaveTimer);
@@ -306,9 +434,14 @@ function createTray() {
 function buildMenus() {
   if (!app.isReady()) return;
 
-  const hasRepository = Boolean(repositoryPathForAction());
+  const activeRepository = repositoryPathForAction();
+  const hasRepository = Boolean(activeRepository);
+  const recentRepositories = readRecentRepositories();
   const openFolderAction = async () => sendSnapshotResponse(await chooseRepository());
   const refreshAction = async () => refreshAndSendSnapshot();
+  const openRecentAction = async (repositoryPath) => {
+    sendSnapshotResponse(await openRepositoryPath(repositoryPath, normalizeRepositorySwitchView(currentView), "Unable to open the recent working folder."));
+  };
   const revealAction = () => {
     const repositoryPath = repositoryPathForAction();
     if (repositoryPath) shell.openPath(repositoryPath);
@@ -318,6 +451,19 @@ function buildMenus() {
     sendSnapshotResponse(noRepositoryResponse());
     buildMenus();
   };
+  const buildRecentRepositorySubmenu = () =>
+    recentRepositories.length
+      ? recentRepositories.map((repository) => {
+          const isActive = repository.path === activeRepository;
+          const label = recentRepositoryMenuLabel(repository);
+
+          return {
+            label: isActive ? `${label} (Current)` : label,
+            enabled: !isActive,
+            click: () => openRecentAction(repository.path),
+          };
+        })
+      : [{ label: "No recent working folders", enabled: false }];
 
   const appMenu = process.platform === "darwin"
     ? [
@@ -335,7 +481,7 @@ function buildMenus() {
             { role: "hideOthers" },
             { role: "unhide" },
             { type: "separator" },
-            { role: "quit" },
+            { label: "Hide to Menu Bar", accelerator: "CmdOrCtrl+Q", click: softQuitToMenuBar },
           ],
         },
       ]
@@ -347,6 +493,7 @@ function buildMenus() {
       label: "File",
       submenu: [
         { label: "Open Working Folder...", accelerator: "CmdOrCtrl+O", click: openFolderAction },
+        { label: "Open Recent", submenu: buildRecentRepositorySubmenu() },
         { label: "Refresh Git Data", accelerator: "CmdOrCtrl+R", enabled: hasRepository, click: refreshAction },
         { label: "Reveal Working Folder", enabled: hasRepository, click: revealAction },
         { type: "separator" },
@@ -399,12 +546,13 @@ function buildMenus() {
         { label: "Dock to Screen Edge", click: () => dockWindow(collapsedState) },
         { type: "separator" },
         { label: "Open Working Folder...", click: openFolderAction },
+        { label: "Open Recent", submenu: buildRecentRepositorySubmenu() },
         { label: "Refresh Git Data", enabled: hasRepository, click: refreshAction },
         { label: "Reveal Working Folder", enabled: hasRepository, click: revealAction },
         { type: "separator" },
         { label: "Always on Top", type: "checkbox", checked: pinnedState, click: (item) => setPinnedWindow(item.checked) },
         { type: "separator" },
-        { label: "Quit Git Peek", role: "quit" },
+        { label: "Quit Git Peek", click: requestRealQuit },
       ]),
     );
   }
@@ -415,15 +563,25 @@ app.whenReady().then(() => {
   nativeTheme.themeSource = "system";
   nativeTheme.on("updated", sendSystemTheme);
   currentRepository = readSavedRepositoryPath();
+  const preferences = config.readPreferences();
+  if (preferences.launchAtLogin) syncLaunchAtLogin(preferences);
+  const startInMenuBar = shouldStartInMenuBar();
   if (process.platform === "darwin" && app.dock) {
     app.dock.setIcon(assets.loadImageAsset("app-icon.png"));
   }
   createTray();
-  createWindow();
+  if (startInMenuBar) hideDockIcon();
+  createWindow({ showOnReady: !startInMenuBar });
 
   app.on("activate", () => {
     showMainWindow();
   });
+});
+
+app.on("before-quit", (event) => {
+  if (process.platform !== "darwin" || realQuitRequested) return;
+  event.preventDefault();
+  softQuitToMenuBar();
 });
 
 app.on("window-all-closed", () => {
@@ -432,6 +590,14 @@ app.on("window-all-closed", () => {
 
 ipcMain.handle("git:openRepository", async (_event, view) => {
   return chooseRepository(normalizeView(view));
+});
+
+ipcMain.handle("git:switchRepository", async (_event, repositoryPath, view) => {
+  return openRepositoryPath(repositoryPath, normalizeRepositorySwitchView(view), "Unable to open the saved working folder.");
+});
+
+ipcMain.handle("git:getRecentRepositories", () => {
+  return readRecentRepositories();
 });
 
 ipcMain.handle("git:refresh", async (_event, view) => {
@@ -454,7 +620,7 @@ ipcMain.handle("git:createBranch", async (_event, branchName, startPoint, view) 
 
   try {
     const snapshot = await createBranch(repositoryPath, branchName, startPoint, normalizeView(view));
-    saveRepositoryPath(snapshot.repoPath);
+    saveRepositoryPath(snapshot.repoPath, snapshot.repositoryKey);
     sendSnapshotResponse({ ok: true, snapshot });
     return { ok: true, message: `Created branch ${branchName}.`, snapshot };
   } catch (error) {
@@ -468,7 +634,7 @@ ipcMain.handle("git:checkout", async (_event, ref, view) => {
 
   try {
     const snapshot = await checkout(repositoryPath, ref, normalizeView(view));
-    saveRepositoryPath(snapshot.repoPath);
+    saveRepositoryPath(snapshot.repoPath, snapshot.repositoryKey);
     sendSnapshotResponse({ ok: true, snapshot });
     return { ok: true, message: `Checked out ${snapshot.branch.name}.`, snapshot };
   } catch (error) {
@@ -483,10 +649,10 @@ ipcMain.handle("git:openWorktree", async (_event, worktreePath, view) => {
   try {
     const snapshot = await openWorktree(repositoryPath, worktreePath, normalizeView(view));
     currentView = snapshot.view;
-    saveRepositoryPath(snapshot.repoPath);
+    saveRepositoryPath(snapshot.repoPath, snapshot.repositoryKey);
     buildMenus();
     sendSnapshotResponse({ ok: true, snapshot });
-    return { ok: true, message: `Opened ${snapshot.branch.detached ? "detached worktree" : snapshot.repoName}.`, snapshot };
+    return { ok: true, message: `Opened ${snapshot.branch.detached ? "detached worktree" : `${snapshot.branch.name} worktree`}.`, snapshot };
   } catch (error) {
     return errorResponse(error, "Unable to open worktree.");
   }
@@ -496,12 +662,17 @@ ipcMain.handle("workspace:open", async (_event, target) => {
   return openWorkspace(repositoryPathForAction(), target);
 });
 
+ipcMain.handle("workspace:getAvailableTargets", () => {
+  return getAvailableWorkspaceTargets();
+});
+
 ipcMain.handle("preferences:get", () => {
-  return config.readPreferences();
+  return readPreferences();
 });
 
 ipcMain.handle("preferences:save", (_event, preferences) => {
   config.savePreferences(preferences);
+  syncLaunchAtLogin(config.readPreferences());
 });
 
 ipcMain.handle("window:setCollapsed", (_event, collapsed) => {

@@ -1,14 +1,128 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
+const maxRecentRepositories = 8;
+
 const defaultPreferences = {
-  accentColor: "#6aa8ff",
   themeMode: "system",
+  lightThemePreset: "paper",
+  darkThemePreset: "graphite",
   density: "compact",
   fontFamily: "system",
   graphStyle: "solid",
+  workspaceOpenTargets: ["vscode", "cursor", "codex", "antigravity", "finder", "terminal", "xcode"],
+  showZenEntry: true,
+  launchAtLogin: false,
   zenMode: false,
 };
+
+function normalizeRepositoryPath(repositoryPath) {
+  if (typeof repositoryPath !== "string") return "";
+  const trimmed = repositoryPath.trim();
+  return trimmed ? path.resolve(trimmed) : "";
+}
+
+function safeRealpath(pathValue) {
+  try {
+    return fs.realpathSync.native(pathValue);
+  } catch {
+    try {
+      return fs.realpathSync(pathValue);
+    } catch {
+      return path.resolve(pathValue);
+    }
+  }
+}
+
+function gitCommonDirForRepository(repositoryPath) {
+  const normalizedPath = normalizeRepositoryPath(repositoryPath);
+  if (!normalizedPath) return "";
+
+  const dotGitPath = path.join(normalizedPath, ".git");
+  try {
+    const stat = fs.statSync(dotGitPath);
+    if (stat.isDirectory()) return safeRealpath(dotGitPath);
+  } catch {
+    return "";
+  }
+
+  try {
+    const gitFile = fs.readFileSync(dotGitPath, "utf8");
+    const gitDirLine = gitFile
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.toLowerCase().startsWith("gitdir:"));
+    if (!gitDirLine) return "";
+
+    const rawGitDir = gitDirLine.slice("gitdir:".length).trim();
+    const gitDir = path.isAbsolute(rawGitDir) ? rawGitDir : path.resolve(normalizedPath, rawGitDir);
+    const commonDirFile = path.join(gitDir, "commondir");
+    const commonDir = fs.existsSync(commonDirFile) ? fs.readFileSync(commonDirFile, "utf8").trim() : ".";
+    return safeRealpath(path.resolve(gitDir, commonDir));
+  } catch {
+    return "";
+  }
+}
+
+function repositoryKeyForPath(repositoryPath, fallbackKey = "") {
+  const normalizedPath = normalizeRepositoryPath(repositoryPath);
+  if (!normalizedPath) return "";
+  const gitCommonDir = gitCommonDirForRepository(normalizedPath);
+  return gitCommonDir ? `git:${gitCommonDir}` : fallbackKey || `path:${normalizedPath}`;
+}
+
+function repositoryEntry(repositoryPath, repositoryKey = "") {
+  const normalizedPath = normalizeRepositoryPath(repositoryPath);
+  if (!normalizedPath) return null;
+  const normalizedRepositoryKey = repositoryKeyForPath(normalizedPath, repositoryKey);
+
+  return {
+    path: normalizedPath,
+    name: path.basename(normalizedPath) || normalizedPath,
+    repositoryKey: normalizedRepositoryKey,
+  };
+}
+
+function readRepositoryPathFromEntry(entry) {
+  if (typeof entry === "string") return entry;
+  if (entry && typeof entry === "object" && typeof entry.path === "string") return entry.path;
+  return "";
+}
+
+function sanitizeRecentRepositories(value) {
+  const entries = Array.isArray(value) ? value : [];
+  const seen = new Set();
+  const repositories = [];
+
+  for (const entry of entries) {
+    const repository = repositoryEntry(readRepositoryPathFromEntry(entry), entry?.repositoryKey);
+    const dedupeKey = repository?.repositoryKey || repository?.path;
+    if (!repository || seen.has(dedupeKey)) continue;
+
+    seen.add(dedupeKey);
+    repositories.push(repository);
+    if (repositories.length >= maxRecentRepositories) break;
+  }
+
+  return repositories;
+}
+
+function addRecentRepository(config, repositoryPath, repositoryKey = "") {
+  const repository = repositoryEntry(repositoryPath, repositoryKey);
+  if (!repository) return config;
+  const dedupeKey = repository.repositoryKey || repository.path;
+
+  const nextRecentRepositories = [
+    repository,
+    ...sanitizeRecentRepositories(config.recentRepositories).filter((entry) => (entry.repositoryKey || entry.path) !== dedupeKey),
+  ].slice(0, maxRecentRepositories);
+
+  return {
+    ...config,
+    repositoryPath: repository.path,
+    recentRepositories: nextRecentRepositories,
+  };
+}
 
 function createConfigStore(app) {
   function getConfigPath() {
@@ -36,13 +150,16 @@ function createConfigStore(app) {
       const repositoryPath = readConfig().repositoryPath;
       return typeof repositoryPath === "string" && repositoryPath ? repositoryPath : null;
     },
-    saveRepositoryPath(repositoryPath) {
-      writeConfig({ ...readConfig(), repositoryPath });
+    saveRepositoryPath(repositoryPath, repositoryKey) {
+      writeConfig(addRecentRepository(readConfig(), repositoryPath, repositoryKey));
     },
     clearRepositoryPath() {
       const config = readConfig();
       delete config.repositoryPath;
       writeConfig(config);
+    },
+    readRecentRepositories() {
+      return sanitizeRecentRepositories(readConfig().recentRepositories);
     },
     readPreferences() {
       const preferences = readConfig().preferences;
