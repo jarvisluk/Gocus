@@ -430,7 +430,7 @@ function parseBranches(output, currentBranchName) {
     .split("\n")
     .filter(Boolean)
     .map((line) => {
-      const [name, fullName, upstream = "", head = ""] = line.split("\x1f");
+      const [name = "", fullName = "", upstream = "", head = ""] = line.split("\0");
       const type = fullName.startsWith("refs/remotes/") ? "remote" : fullName.startsWith("refs/tags/") ? "tag" : "local";
       return {
         name,
@@ -482,7 +482,7 @@ async function readGitSnapshot(repoPath, view = { mode: "auto" }) {
     runGit(root, ["diff", "--numstat"]).catch(() => ""),
     runGit(root, ["diff", "--cached", "--numstat"]).catch(() => ""),
     runGit(root, logRequest.args, { maxBuffer: 1024 * 1024 * 64 }).catch(() => ""),
-    runGit(root, ["for-each-ref", "--format=%(refname:short)%x1f%(refname)%x1f%(upstream:short)%x1f%(HEAD)", "refs/heads", "refs/remotes", "refs/tags"]).catch(() => ""),
+    runGit(root, ["for-each-ref", "--format=%(refname:short)%00%(refname)%00%(upstream:short)%00%(HEAD)", "refs/heads", "refs/remotes", "refs/tags"]).catch(() => ""),
     runGit(root, ["worktree", "list", "--porcelain"]).catch(() => ""),
   ]);
 
