@@ -14,7 +14,7 @@ export function CollapsedRail({
 
   return (
     <aside className="collapsed-rail" aria-label="Collapsed Git Peek" title="Drag to move. Double-click to dock to the screen edge." onDoubleClick={onDock}>
-      <button className="rail-expand" type="button" aria-label="Expand Git Peek" onClick={onExpand}>
+      <button className="ui-icon-button rail-expand" type="button" aria-label="Expand Git Peek" onClick={onExpand}>
         <PanelRightClose aria-hidden="true" />
       </button>
       <div className="rail-branch">

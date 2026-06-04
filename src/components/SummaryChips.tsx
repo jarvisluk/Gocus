@@ -1,4 +1,3 @@
-import { CheckCircle2, CircleHelp, FileCode2 } from "lucide-react";
 import { joinClass } from "../lib/classNames";
 import type { FileFilter, GitSnapshot } from "../types";
 
@@ -16,19 +15,16 @@ export function SummaryChips({
       key: "modified" as const,
       label: "Changed",
       value: snapshot.counts.modified,
-      icon: <FileCode2 aria-hidden="true" />,
     },
     {
       key: "staged" as const,
       label: "Staged",
       value: snapshot.counts.staged,
-      icon: <CheckCircle2 aria-hidden="true" />,
     },
     {
       key: "untracked" as const,
       label: "New",
       value: snapshot.counts.untracked,
-      icon: <CircleHelp aria-hidden="true" />,
     },
   ];
 
@@ -41,7 +37,6 @@ export function SummaryChips({
           key={chip.key}
           onClick={() => onFilter(activeFilter === chip.key ? "all" : chip.key)}
         >
-          {chip.icon}
           <span>{chip.label}</span>
           <strong>{chip.value}</strong>
         </button>

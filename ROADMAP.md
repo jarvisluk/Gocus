@@ -9,4 +9,5 @@
  - [x] git tree refinement, the current tree is broken and not consistent and smooth
  - [x] full commit message on hover
  - [x] ZEN mode only show git tree
- - [x] possibility for macOS widget?
+ - [ ] macOS widget feasibility: possible via native WidgetKit companion target, not Electron-only
+ - [x] fast switch between repositories that opened before
