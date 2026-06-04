@@ -9,13 +9,13 @@ type CommitAction = "compare" | "branch" | "checkout";
 function CommitRow({
   commit,
   selected,
-  fullMessage,
+  expandSelectedMessage,
   onSelect,
   onAction,
 }: {
   commit: CommitItem;
   selected: boolean;
-  fullMessage?: boolean;
+  expandSelectedMessage?: boolean;
   onSelect: () => void;
   onAction: (action: CommitAction, commit: CommitItem) => void;
 }) {
@@ -28,7 +28,7 @@ function CommitRow({
     "--branch-color": commit.refColors[0] ?? commit.branchColor,
   } as CSSProperties;
   const message = commit.message.trim() || commit.title;
-  const displayMessage = fullMessage ? message : commit.title;
+  const displayMessage = expandSelectedMessage && selected ? message : commit.title;
 
   return (
     <article className={joinClass("commit-row", selected && "is-selected")} style={rowStyle} onClick={onSelect} title={message}>
@@ -88,13 +88,13 @@ function CommitRow({
 export function RecentCommits({
   commits,
   selectedId,
-  fullMessages = false,
+  expandSelectedMessage = false,
   onSelect,
   onAction,
 }: {
   commits: CommitItem[];
   selectedId: string;
-  fullMessages?: boolean;
+  expandSelectedMessage?: boolean;
   onSelect: (id: string) => void;
   onAction: (action: CommitAction, commit: CommitItem) => void;
 }) {
@@ -115,7 +115,7 @@ export function RecentCommits({
             key={commit.id}
             commit={commit}
             selected={commit.id === selectedId}
-            fullMessage={fullMessages}
+            expandSelectedMessage={expandSelectedMessage}
             onSelect={() => onSelect(commit.id)}
             onAction={onAction}
           />

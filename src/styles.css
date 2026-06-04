@@ -1466,9 +1466,17 @@ button:disabled {
   min-height: 52px;
 }
 
+.peek-panel.is-zen-panel .commit-content {
+  padding: 9px 0 7px 8px;
+  border: 0;
+  border-bottom: 1px solid var(--border-soft);
+  background: transparent;
+  box-shadow: none;
+}
+
 .peek-panel.is-zen-panel .commit-row:hover .commit-content,
 .peek-panel.is-zen-panel .commit-row.is-selected .commit-content {
-  padding: 9px 0 10px 8px;
+  padding: 9px 0 7px 8px;
   border: 0;
   border-bottom: 1px solid var(--border-soft);
   background: transparent;
@@ -1481,12 +1489,23 @@ button:disabled {
 }
 
 .peek-panel.is-zen-panel .commit-title-line h3 {
-  overflow: visible;
+  display: -webkit-box;
+  overflow: hidden;
   font-size: 13px;
   line-height: 1.32;
+  text-overflow: ellipsis;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.peek-panel.is-zen-panel .commit-row.is-selected .commit-title-line h3 {
+  display: block;
+  overflow: visible;
   text-overflow: clip;
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  -webkit-line-clamp: unset;
 }
 
 .peek-panel.is-zen-panel .ref-pill,

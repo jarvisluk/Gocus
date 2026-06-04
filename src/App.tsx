@@ -102,7 +102,7 @@ export default function App() {
                 <RecentCommits
                   commits={controller.snapshot!.commits}
                   selectedId={controller.selectedCommitId}
-                  fullMessages
+                  expandSelectedMessage
                   onSelect={controller.selectCommit}
                   onAction={controller.handleCommitAction}
                 />
