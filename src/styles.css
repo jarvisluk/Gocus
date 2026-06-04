@@ -969,23 +969,6 @@ button:disabled {
   color: var(--text);
 }
 
-.heading-tools .changed-toggle {
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--surface);
-}
-
-.heading-tools .changed-toggle:hover {
-  background: var(--surface-hover);
-}
-
 .heading-tools svg {
   width: 16px;
   height: 16px;
@@ -1293,12 +1276,6 @@ button:disabled {
 
 .changed-section.is-collapsed h2 {
   font-size: 13px;
-}
-
-.changed-section.is-collapsed .changed-toggle {
-  width: 26px;
-  min-width: 26px;
-  height: 26px;
 }
 
 .file-list {

@@ -22,7 +22,6 @@ export function ChangedNow({
         <h2>Changed now</h2>
         <div className="heading-tools">
           <button
-            className="changed-toggle"
             type="button"
             aria-label={collapsed ? "Show changed files" : "Hide changed files"}
             aria-expanded={!collapsed}
