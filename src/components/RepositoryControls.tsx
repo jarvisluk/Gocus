@@ -66,7 +66,7 @@ export function RepositoryControls({
         </select>
         <button className="branch-checkout" type="button" onClick={() => selectedBranch && onCheckoutRef(selectedBranch)} disabled={!selectedBranch}>
           <GitBranch aria-hidden="true" />
-          Checkout
+          Switch
         </button>
       </div>
       <WorktreeList worktrees={snapshot.worktrees} />

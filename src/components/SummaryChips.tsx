@@ -14,7 +14,7 @@ export function SummaryChips({
   const chips = [
     {
       key: "modified" as const,
-      label: "Modified",
+      label: "Changed",
       value: snapshot.counts.modified,
       icon: <FileCode2 aria-hidden="true" />,
     },
@@ -26,7 +26,7 @@ export function SummaryChips({
     },
     {
       key: "untracked" as const,
-      label: "Untracked",
+      label: "New",
       value: snapshot.counts.untracked,
       icon: <CircleHelp aria-hidden="true" />,
     },

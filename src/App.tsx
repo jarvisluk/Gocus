@@ -109,7 +109,6 @@ export default function App() {
           {!controller.preferences.zenMode ? (
             <Footer
               onOpenRepo={controller.openRepository}
-              onOpenGraph={() => controller.changeCommitView({ mode: "all" })}
               onOpenWorkspace={controller.openWorkspace}
               hasRepository={Boolean(controller.snapshot)}
             />

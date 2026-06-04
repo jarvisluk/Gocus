@@ -210,7 +210,7 @@ svg {
 .heading-tools button,
 .commit-actions button,
 .footer-icon,
-.open-graph,
+.footer-primary,
 .rail-expand,
 .rail-theme,
 .primary-action {
@@ -384,10 +384,10 @@ button:disabled {
   min-width: 0;
   height: 38px;
   display: grid;
-  grid-template-columns: 14px minmax(0, 1fr) 20px;
+  grid-template-columns: 15px minmax(0, 1fr) 22px;
   align-items: center;
-  gap: 4px;
-  padding: 0 4px;
+  gap: 5px;
+  padding: 0 6px;
   border-radius: 7px;
   background: var(--surface);
   color: var(--text-muted);
@@ -409,12 +409,12 @@ button:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
-  font-weight: 650;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .summary-chip strong {
-  min-width: 20px;
+  min-width: 22px;
   height: 20px;
   display: grid;
   place-items: center;
@@ -725,8 +725,12 @@ button:disabled {
 
 .branch-view {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 116px 76px;
+  grid-template-columns: minmax(0, 1fr) 74px;
   gap: 8px;
+}
+
+.branch-view .segmented-control {
+  grid-column: 1 / -1;
 }
 
 .branch-checkout {
@@ -736,13 +740,13 @@ button:disabled {
   align-items: center;
   justify-content: center;
   gap: 5px;
-  padding: 0 7px;
+  padding: 0 6px;
   border: 1px solid var(--border);
   border-radius: 7px;
   background: var(--surface);
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 720;
 }
 
@@ -1236,7 +1240,7 @@ button:disabled {
   height: 48px;
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) repeat(4, 34px);
+  grid-template-columns: minmax(0, 1fr) repeat(3, 34px);
   align-items: center;
   gap: 8px;
   padding: 0 12px;
@@ -1305,7 +1309,7 @@ button:disabled {
   background-image: none;
 }
 
-.open-graph,
+.footer-primary,
 .footer-icon {
   height: 34px;
   display: inline-flex;
@@ -1316,7 +1320,7 @@ button:disabled {
   color: var(--text-muted);
 }
 
-.open-graph {
+.footer-primary {
   justify-content: flex-start;
   gap: 9px;
   padding: 0 8px;
@@ -1325,13 +1329,13 @@ button:disabled {
   font-weight: 690;
 }
 
-.open-graph:hover,
+.footer-primary:hover,
 .footer-icon:hover {
   background: var(--surface-hover);
   color: var(--text);
 }
 
-.open-graph svg,
+.footer-primary svg,
 .footer-icon svg {
   width: 17px;
   height: 17px;
