@@ -11,3 +11,9 @@
  - [x] ZEN mode only show git tree
  - [ ] macOS widget feasibility: possible via native WidgetKit companion target, not Electron-only
  - [x] fast switch between repositories that opened before
+ - [x] Folder without Git support: help users initialize the folder as a Git repository and provide a starter `.gitignore`
+ - [ ] Git action prompts for checkout, new branch creation, and branch merge workflows (need to be refined)
+ - [ ] new window style: on the left side of the main window, out side it. for show temporary info. apply it to the Changed Now list.
+ - [ ] when create branch, provide prefix select: none/fix/feat/...
+ - [ ] hide commit author when the commit is not selected
+ - [ ] Auto refresh git tree with timer. can be set in settings. only do auto refresh for a long time without git action
