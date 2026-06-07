@@ -2,6 +2,41 @@ const { execFile } = require("node:child_process");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 
+const starterGitIgnore = [
+  "# Git Peek starter .gitignore",
+  "",
+  "# OS files",
+  ".DS_Store",
+  "Thumbs.db",
+  "",
+  "# Local environment",
+  ".env",
+  ".env.*",
+  "!.env.example",
+  ".venv/",
+  "venv/",
+  "",
+  "# Dependencies",
+  "node_modules/",
+  "",
+  "# Build and test output",
+  "dist/",
+  "build/",
+  "out/",
+  "coverage/",
+  "",
+  "# Logs",
+  "*.log",
+  "npm-debug.log*",
+  "yarn-debug.log*",
+  "pnpm-debug.log*",
+  "",
+  "# Python cache",
+  "__pycache__/",
+  "*.py[cod]",
+  "",
+].join("\n");
+
 const preferredBranchColors = new Map([
   ["main", "#f0a400"],
   ["master", "#f0a400"],
@@ -46,6 +81,11 @@ function runGit(repoPath, args, options = {}) {
   });
 }
 
+function isNotGitRepositoryError(error) {
+  const errorText = `${error?.stderr ?? ""}\n${error?.message ?? ""}`.toLowerCase();
+  return errorText.includes("not a git repository") || errorText.includes("not a git work tree");
+}
+
 function safeInteger(value) {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -66,6 +106,58 @@ async function gitCommonDirKey(root) {
   return `git:${await realPathForCompare(absoluteGitCommonDir)}`;
 }
 
+async function readFolderWithoutGit(folderPath) {
+  if (typeof folderPath !== "string" || !folderPath.trim()) {
+    throw new Error("Choose a folder before initializing Git.");
+  }
+
+  const resolvedPath = path.resolve(folderPath);
+  const stats = await fs.stat(resolvedPath);
+  if (!stats.isDirectory()) throw new Error("Choose a folder before initializing Git.");
+
+  let hasGitIgnore = false;
+  try {
+    hasGitIgnore = (await fs.stat(path.join(resolvedPath, ".gitignore"))).isFile();
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+
+  return {
+    path: resolvedPath,
+    name: path.basename(resolvedPath) || resolvedPath,
+    hasGitIgnore,
+  };
+}
+
+async function writeStarterGitIgnore(root) {
+  const gitIgnorePath = path.join(root, ".gitignore");
+
+  try {
+    const stats = await fs.stat(gitIgnorePath);
+    if (stats.isFile()) return { created: false };
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+
+  try {
+    await fs.writeFile(gitIgnorePath, starterGitIgnore, { flag: "wx" });
+    return { created: true };
+  } catch (error) {
+    if (error?.code === "EEXIST") return { created: false };
+    throw error;
+  }
+}
+
+async function initGitRepository(root) {
+  try {
+    await runGit(root, ["init", "-b", "main"]);
+  } catch (error) {
+    const errorText = `${error?.stderr ?? ""}\n${error?.message ?? ""}`.toLowerCase();
+    if (!errorText.includes("unknown switch") && !errorText.includes("unknown option")) throw error;
+    await runGit(root, ["init"]);
+  }
+}
+
 function parseBranchLine(line) {
   const clean = line.replace(/^##\s*/, "");
   const result = {
@@ -79,6 +171,12 @@ function parseBranchLine(line) {
   if (clean.startsWith("HEAD ")) {
     result.name = "detached";
     result.detached = true;
+    return result;
+  }
+
+  const unbornMatch = clean.match(/^No commits yet on (.+)$/);
+  if (unbornMatch) {
+    result.name = unbornMatch[1];
     return result;
   }
 
@@ -191,6 +289,32 @@ function normalizeBranchColorKey(ref) {
     .toLowerCase();
 }
 
+function normalizeBranchSet(branches = []) {
+  return new Set(branches.filter(Boolean).map(normalizeBranchColorKey));
+}
+
+function normalizeGraphContext(context = {}) {
+  return {
+    currentHead: context.currentHead || "",
+    currentBranch: context.currentBranch ? normalizeBranchColorKey(context.currentBranch) : "",
+    externalHeads: new Set((context.externalHeads ?? []).filter(Boolean)),
+    externalBranches: normalizeBranchSet(context.externalBranches),
+  };
+}
+
+function commitRefsIncludeBranch(commit, branchName) {
+  if (!branchName) return false;
+  return commit.refs.some((ref) => normalizeBranchColorKey(ref) === branchName);
+}
+
+function lineVariantForCommit(commit, context, fallback = "solid") {
+  if (context.currentHead && commit.fullHash === context.currentHead) return "solid";
+  if (commitRefsIncludeBranch(commit, context.currentBranch)) return "solid";
+  if (context.externalHeads.has(commit.fullHash)) return "dashed";
+  if (commit.refs.some((ref) => context.externalBranches.has(normalizeBranchColorKey(ref)))) return "dashed";
+  return fallback;
+}
+
 function generatedBranchColor(index) {
   if (index < branchColorSeeds.length) return branchColorSeeds[index];
 
@@ -262,7 +386,8 @@ function parseRefs(refs) {
     .slice(0, 3);
 }
 
-function buildCommitGraph(commits) {
+function buildCommitGraph(commits, graphContext = {}) {
+  const context = normalizeGraphContext(graphContext);
   const commitsByHash = new Map(commits.map((commit) => [commit.fullHash, commit]));
   let activeLanes = [];
   const laneSnapshots = (lanes) =>
@@ -273,6 +398,7 @@ function buildCommitGraph(commits) {
               column: laneIndex,
               hash: lane.hash,
               color: lane.color,
+              variant: lane.variant,
             },
           ]
         : [],
@@ -297,11 +423,12 @@ function buildCommitGraph(commits) {
     const currentContinues = column !== -1;
     if (column === -1) {
       column = findOpenColumn(activeLanes);
-      activeLanes[column] = { hash: commit.fullHash, color: commit.branchColor };
+      activeLanes[column] = { hash: commit.fullHash, color: commit.branchColor, variant: lineVariantForCommit(commit, context) };
     }
 
     const before = laneSnapshots(activeLanes);
     const currentColor = activeLanes[column]?.color ?? commit.branchColor;
+    const currentVariant = activeLanes[column]?.variant ?? lineVariantForCommit(commit, context);
     const parents = commit.parents.filter(Boolean);
     const parentEntries = [];
     const bridges = [];
@@ -312,6 +439,10 @@ function buildCommitGraph(commits) {
       const parentCommit = commitsByHash.get(parentHash);
       return parentCommit?.refs.length ? parentCommit.branchColor : fallbackColor;
     };
+    const variantForParent = (parentHash, fallbackVariant) => {
+      const parentCommit = commitsByHash.get(parentHash);
+      return parentCommit ? lineVariantForCommit(parentCommit, context, fallbackVariant) : fallbackVariant;
+    };
 
     if (parents.length === 0) {
       after[column] = null;
@@ -321,21 +452,24 @@ function buildCommitGraph(commits) {
 
       if (existingFirstParent > column) {
         const color = after[existingFirstParent].color;
-        parentEntries.push({ column, color });
+        const variant = after[existingFirstParent].variant;
+        parentEntries.push({ column, color, variant });
         passThroughLimits.set(existingFirstParent, { to: "node" });
-        bridges.push({ fromColumn: existingFirstParent, toColumn: column, color, to: "lane" });
-        after[column] = { hash: firstParent, color };
+        bridges.push({ fromColumn: existingFirstParent, toColumn: column, color, variant, to: "lane" });
+        after[column] = { hash: firstParent, color, variant };
         after[existingFirstParent] = null;
       } else if (existingFirstParent >= 0) {
         const color = after[existingFirstParent].color;
-        parentEntries.push({ column: existingFirstParent, color });
-        bridges.push({ fromColumn: column, toColumn: existingFirstParent, color, to: "lane" });
+        const variant = after[existingFirstParent].variant;
+        parentEntries.push({ column: existingFirstParent, color, variant });
+        bridges.push({ fromColumn: column, toColumn: existingFirstParent, color, variant: currentVariant, to: "lane" });
         after[column] = null;
         secondaryParentStartColumn = column;
       } else {
         const color = colorForParent(firstParent, currentColor);
-        after[column] = { hash: firstParent, color };
-        parentEntries.push({ column, color });
+        const variant = variantForParent(firstParent, currentVariant);
+        after[column] = { hash: firstParent, color, variant };
+        parentEntries.push({ column, color, variant });
       }
 
       parents.slice(1).forEach((parentHash, parentIndex) => {
@@ -345,13 +479,15 @@ function buildCommitGraph(commits) {
         if (parentColumn === -1) {
           const fallbackColor = commit.lane === "stash" ? currentColor : generatedBranchColor(index + parentIndex + 1);
           const color = colorForParent(parentHash, fallbackColor);
+          const variant = variantForParent(parentHash, currentVariant);
           parentColumn = findOpenColumn(after, secondaryParentStartColumn);
-          after[parentColumn] = { hash: parentHash, color };
+          after[parentColumn] = { hash: parentHash, color, variant };
         }
 
         const color = after[parentColumn].color;
-        parentEntries.push({ column: parentColumn, color });
-        bridges.push({ fromColumn: column, toColumn: parentColumn, color, ...(parentAlreadyActive ? { to: "lane" } : {}) });
+        const variant = after[parentColumn].variant;
+        parentEntries.push({ column: parentColumn, color, variant });
+        bridges.push({ fromColumn: column, toColumn: parentColumn, color, variant: currentVariant, ...(parentAlreadyActive ? { to: "lane" } : {}) });
       });
     }
 
@@ -371,10 +507,11 @@ function buildCommitGraph(commits) {
         column,
         laneCount,
         currentColor,
+        currentVariant,
         currentContinues,
         passThrough: before
           .filter((lane) => lane.column !== column)
-          .map((lane) => ({ column: lane.column, color: lane.color, ...(passThroughLimits.get(lane.column) ?? {}) })),
+          .map((lane) => ({ column: lane.column, color: lane.color, variant: lane.variant, ...(passThroughLimits.get(lane.column) ?? {}) })),
         parentStems,
         bridges,
         isMerge: parents.length > 1,
@@ -383,7 +520,7 @@ function buildCommitGraph(commits) {
   });
 }
 
-function parseLog(rawLog) {
+function parseLog(rawLog, graphContext = {}) {
   const commits = rawLog
     .split("\x1e")
     .map((block) => block.trim())
@@ -427,7 +564,7 @@ function parseLog(rawLog) {
       };
     });
 
-  return buildCommitGraph(assignBranchColors(commits));
+  return buildCommitGraph(assignBranchColors(commits), graphContext);
 }
 
 function normalizeView(view) {
@@ -494,9 +631,13 @@ function parseWorktrees(output, currentRoot) {
         path: "",
         branch: "",
         head: "",
+        headShortHash: "",
+        headTitle: "",
+        headRelativeTime: "",
         detached: false,
         bare: false,
         current: false,
+        counts: { modified: 0, staged: 0, untracked: 0 },
       };
 
       for (const line of block.split("\n").filter(Boolean)) {
@@ -513,6 +654,27 @@ function parseWorktrees(output, currentRoot) {
       return worktree;
     })
     .filter((worktree) => worktree.path);
+}
+
+async function enrichWorktree(worktree) {
+  if (worktree.bare || !worktree.path) return worktree;
+
+  const [headRaw, statusRaw] = await Promise.all([
+    worktree.head
+      ? runGit(worktree.path, ["show", "-s", "--date=relative", "--format=%h%x1f%s%x1f%cr", worktree.head]).catch(() => "")
+      : Promise.resolve(""),
+    runGit(worktree.path, ["status", "--porcelain=v1", "-b"]).catch(() => ""),
+  ]);
+  const [headShortHash = "", headTitle = "", headRelativeTime = ""] = headRaw.split("\x1f");
+  const status = statusRaw ? parseStatus(statusRaw) : null;
+
+  return {
+    ...worktree,
+    headShortHash: headShortHash || worktree.head.slice(0, 7),
+    headTitle: headTitle || "Unknown HEAD",
+    headRelativeTime,
+    counts: status?.counts ?? worktree.counts,
+  };
 }
 
 function annotateCommitsWithWorktrees(commits, worktrees) {
@@ -534,6 +696,18 @@ function annotateCommitsWithWorktrees(commits, worktrees) {
   }));
 }
 
+function graphContextForWorktrees(worktrees, status) {
+  const currentWorktree = worktrees.find((worktree) => worktree.current && !worktree.bare);
+  const externalWorktrees = worktrees.filter((worktree) => !worktree.current && !worktree.bare);
+
+  return {
+    currentHead: currentWorktree?.head ?? "",
+    currentBranch: currentWorktree?.branch || (status.branch.detached ? "" : status.branch.name),
+    externalHeads: externalWorktrees.map((worktree) => worktree.head),
+    externalBranches: externalWorktrees.filter((worktree) => !worktree.detached).map((worktree) => worktree.branch),
+  };
+}
+
 async function readGitSnapshot(repoPath, view = { mode: "all" }) {
   const root = await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
   const shortStatus = await runGit(root, ["status", "--porcelain=v1", "-b"]);
@@ -546,7 +720,8 @@ async function readGitSnapshot(repoPath, view = { mode: "all" }) {
     runGit(root, ["for-each-ref", "--format=%(refname:short)%00%(refname)%00%(upstream:short)%00%(HEAD)", "refs/heads", "refs/remotes", "refs/tags"]).catch(() => ""),
     runGit(root, ["worktree", "list", "--porcelain"]).catch(() => ""),
   ]);
-  const worktrees = parseWorktrees(worktreesRaw, root);
+  const worktrees = await Promise.all(parseWorktrees(worktreesRaw, root).map(enrichWorktree));
+  const graphContext = graphContextForWorktrees(worktrees, status);
   const logRequest = logArgsForViewWithWorktrees(view, worktrees);
   const logRaw = await runGit(root, logRequest.args, { maxBuffer: 1024 * 1024 * 64 }).catch(() => "");
 
@@ -564,7 +739,7 @@ async function readGitSnapshot(repoPath, view = { mode: "all" }) {
     worktrees,
     view: logRequest.view,
     counts: status.counts,
-    commits: annotateCommitsWithWorktrees(parseLog(logRaw), worktrees),
+    commits: annotateCommitsWithWorktrees(parseLog(logRaw, graphContext), worktrees),
     changedFiles: status.files.slice(0, 24),
     lastFetchedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     isSample: false,
@@ -612,11 +787,26 @@ async function openWorktree(repoPath, worktreePath, view) {
   return readGitSnapshot(worktree.path, view);
 }
 
+async function initializeRepository(folderPath, view) {
+  const folder = await readFolderWithoutGit(folderPath);
+  await initGitRepository(folder.path);
+  const gitIgnore = await writeStarterGitIgnore(folder.path);
+  const snapshot = await readGitSnapshot(folder.path, view);
+
+  return {
+    snapshot,
+    gitIgnoreCreated: gitIgnore.created,
+  };
+}
+
 module.exports = {
   checkout,
   createBranch,
+  initializeRepository,
+  isNotGitRepositoryError,
   normalizeView,
   openWorktree,
+  readFolderWithoutGit,
   readGitSnapshot,
   runGit,
 };

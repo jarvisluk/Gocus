@@ -1,4 +1,4 @@
-import type { BranchColor, CommitGraph, GraphBridge, GraphLaneSegment } from "../types";
+import type { BranchColor, CommitGraph, GraphBridge, GraphLaneSegment, GraphLineVariant } from "../types";
 
 const LANE_GAP = 12;
 const LANE_START_X = 9;
@@ -36,8 +36,8 @@ export interface GitTreeRenderOptions {
   laneCount?: number;
 }
 
-function lineClass(extraClass?: string) {
-  return ["graph-line", extraClass].filter(Boolean).join(" ");
+function lineClass(extraClass?: string, variant: GraphLineVariant = "solid") {
+  return ["graph-line", variant === "dashed" && "is-dashed", extraClass].filter(Boolean).join(" ");
 }
 
 function laneX(column: number) {
@@ -87,7 +87,7 @@ export function buildGitTreeRenderModel(graph: CommitGraph, options: GitTreeRend
   const paths: GitTreePath[] = [
     ...graph.passThrough.map((lane, index) => ({
       id: `through-${index}-${lane.column}-${lane.color}-${lane.from ?? "top"}-${lane.to ?? "bottom"}`,
-      className: lineClass(),
+      className: lineClass(undefined, lane.variant),
       d: segmentPath(lane, 0, GRAPH_HEIGHT),
       color: lane.color,
     })),
@@ -95,7 +95,7 @@ export function buildGitTreeRenderModel(graph: CommitGraph, options: GitTreeRend
       ? [
           {
             id: `current-${graph.column}-${graph.currentColor}`,
-            className: lineClass(),
+            className: lineClass(undefined, graph.currentVariant),
             d: `M ${nodeX} 0 L ${nodeX} ${NODE_Y}`,
             color: graph.currentColor,
           },
@@ -103,7 +103,7 @@ export function buildGitTreeRenderModel(graph: CommitGraph, options: GitTreeRend
       : []),
     ...graph.parentStems.map((lane, index) => ({
       id: `stem-${index}-${lane.column}-${lane.color}`,
-      className: lineClass(),
+      className: lineClass(undefined, lane.variant),
       d: segmentPath(lane, NODE_Y, GRAPH_HEIGHT),
       color: lane.color,
     })),
@@ -111,7 +111,7 @@ export function buildGitTreeRenderModel(graph: CommitGraph, options: GitTreeRend
       .filter((bridge) => bridge.fromColumn !== bridge.toColumn)
       .map((bridge, index) => ({
         id: `bridge-${index}-${bridge.fromColumn}-${bridge.toColumn}-${bridge.color}-${bridge.to ?? "bottom"}`,
-        className: lineClass("graph-bridge"),
+        className: lineClass("graph-bridge", bridge.variant),
         d: bridgePath(bridge),
         color: bridge.color,
       })),

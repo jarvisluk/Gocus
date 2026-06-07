@@ -7,11 +7,18 @@ export type DarkThemePreset = "graphite" | "cursor" | "matte";
 export type FileFilter = "all" | "modified" | "staged" | "untracked";
 export type WorkspaceOpenTarget = "vscode" | "cursor" | "codex" | "antigravity" | "finder" | "terminal" | "xcode";
 export type CommitViewMode = "current" | "all" | "branch";
+export type GraphLineVariant = "solid" | "dashed";
 
 export interface RecentRepository {
   path: string;
   name: string;
   repositoryKey?: string;
+}
+
+export interface FolderWithoutGit {
+  path: string;
+  name: string;
+  hasGitIgnore: boolean;
 }
 
 export interface CommitViewSelection {
@@ -35,6 +42,7 @@ export interface UiPreferences {
 export interface GraphLaneSegment {
   column: number;
   color: BranchColor;
+  variant?: GraphLineVariant;
   from?: "top" | "node";
   to?: "node" | "bottom";
 }
@@ -43,6 +51,7 @@ export interface GraphBridge {
   fromColumn: number;
   toColumn: number;
   color: BranchColor;
+  variant?: GraphLineVariant;
   to?: "lane" | "bottom";
 }
 
@@ -50,6 +59,7 @@ export interface CommitGraph {
   column: number;
   laneCount: number;
   currentColor: BranchColor;
+  currentVariant: GraphLineVariant;
   currentContinues: boolean;
   passThrough: GraphLaneSegment[];
   parentStems: GraphLaneSegment[];
@@ -77,9 +87,13 @@ export interface GitWorktree {
   path: string;
   branch: string;
   head: string;
+  headShortHash: string;
+  headTitle: string;
+  headRelativeTime: string;
   detached: boolean;
   bare: boolean;
   current: boolean;
+  counts: WorkingTreeCounts;
 }
 
 export interface WorkingTreeCounts {
@@ -136,6 +150,7 @@ export interface GitSnapshot {
 
 export type SnapshotResponse =
   | { ok: true; snapshot: GitSnapshot }
+  | { ok: false; reason: "not_git_repository"; error?: string; canceled?: boolean; folder: FolderWithoutGit }
   | { ok: false; error?: string; canceled?: boolean; reason?: "not_configured" | "invalid_repository" | "read_failed" };
 
 export type ActionResponse =

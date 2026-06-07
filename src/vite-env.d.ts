@@ -11,6 +11,7 @@ declare global {
       refresh: (view?: CommitViewSelection) => Promise<SnapshotResponse>;
       getSnapshot: (view?: CommitViewSelection) => Promise<SnapshotResponse>;
       clearRepository: () => Promise<SnapshotResponse>;
+      initializeRepository: (repositoryPath: string, view?: CommitViewSelection) => Promise<ActionResponse>;
       createBranch: (branchName: string, startPoint: string, view?: CommitViewSelection) => Promise<ActionResponse>;
       checkout: (ref: string, view?: CommitViewSelection) => Promise<ActionResponse>;
       openWorktree: (worktreePath: string, view?: CommitViewSelection) => Promise<ActionResponse>;

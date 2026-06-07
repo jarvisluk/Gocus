@@ -34,6 +34,7 @@ export function GitTreeCell({
   const model = buildGitTreeRenderModel(graph, { laneCount });
   const hasCheckedOutWorktree = checkedOutWorktrees.length > 0;
   const hasCurrentWorktree = checkedOutWorktrees.some((worktree) => worktree.current);
+  const hasExternalWorktree = checkedOutWorktrees.some((worktree) => !worktree.current);
   const worktreeTitle = checkedOutWorktrees.map(worktreeMarkerLabel).join("\n");
   const nodeStyle = {
     left: `${model.node.leftPercent}%`,
@@ -54,11 +55,11 @@ export function GitTreeCell({
           />
         ))}
       </svg>
-      <span className={joinClass("graph-node", model.node.isMerge && "is-merge", hasCheckedOutWorktree && "has-worktree")} style={nodeStyle}>
+      <span className={joinClass("graph-node", model.node.isMerge && "is-merge", hasCheckedOutWorktree && "has-worktree", graph.currentVariant === "dashed" && "is-dashed")} style={nodeStyle}>
         {model.node.isMerge ? <span className="graph-node-core" /> : null}
       </span>
       {hasCheckedOutWorktree ? (
-        <span className={joinClass("graph-worktree-marker", hasCurrentWorktree && "is-current")} style={nodeStyle} title={worktreeTitle}>
+        <span className={joinClass("graph-worktree-marker", hasCurrentWorktree && "is-current", !hasCurrentWorktree && hasExternalWorktree && "is-external")} style={nodeStyle} title={worktreeTitle}>
           <GitFork aria-hidden="true" />
           {checkedOutWorktrees.length > 1 ? <span className="graph-worktree-count">{checkedOutWorktrees.length}</span> : null}
         </span>

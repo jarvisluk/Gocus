@@ -7,6 +7,7 @@ import type {
   CommitItem,
   CommitViewSelection,
   FileFilter,
+  FolderWithoutGit,
   GitSnapshot,
   RecentRepository,
   SnapshotResponse,
@@ -69,6 +70,8 @@ export function useGitPeekController() {
   const [fileFilter, setFileFilter] = useState<FileFilter>("all");
   const [selectedCommitId, setSelectedCommitId] = useState("");
   const [notice, setNoticeState] = useState("No working folder selected.");
+  const [folderWithoutGit, setFolderWithoutGit] = useState<FolderWithoutGit | null>(null);
+  const [initializingRepository, setInitializingRepository] = useState(false);
   const [commitView, setCommitViewState] = useState<CommitViewSelection>(defaultView);
   const [preferences, setPreferencesState] = useState<UiPreferences>(defaultPreferences);
   const [availableWorkspaceTargets, setAvailableWorkspaceTargets] = useState<WorkspaceOpenTarget[]>(defaultWorkspaceOpenTargets);
@@ -90,6 +93,7 @@ export function useGitPeekController() {
   function applySnapshotResponse(response: SnapshotResponse, successNotice = "Live Git data connected.") {
     if (response.ok) {
       setSnapshot(response.snapshot);
+      setFolderWithoutGit(null);
       setRecentRepositories((current) => upsertRecentRepository(current, recentRepositoryFromSnapshot(response.snapshot)));
       setCommitViewState(response.snapshot.view);
       setSelectedCommitId((current) => (current && response.snapshot.commits.some((commit) => commit.id === current) ? current : ""));
@@ -100,6 +104,13 @@ export function useGitPeekController() {
     if (!response.canceled) {
       setSnapshot(null);
       setSelectedCommitId("");
+      if (response.reason === "not_git_repository" && response.folder) {
+        setFolderWithoutGit(response.folder);
+        setNotice(response.error ?? `${response.folder.name} does not have Git initialized yet.`);
+        return;
+      }
+
+      setFolderWithoutGit(null);
       setNotice(response.error ?? "Choose a working folder to start.");
     }
   }
@@ -151,6 +162,20 @@ export function useGitPeekController() {
       setNotice(error instanceof Error ? error.message : "Unable to switch repository.");
     } finally {
       setRefreshing(false);
+    }
+  }
+
+  async function initializeRepository() {
+    if (!window.gitPeek || !folderWithoutGit) {
+      setNotice("Choose a folder without Git first.");
+      return;
+    }
+
+    setInitializingRepository(true);
+    try {
+      await runAction(window.gitPeek.initializeRepository(folderWithoutGit.path, commitView), "Initialized Git repository.");
+    } finally {
+      setInitializingRepository(false);
     }
   }
 
@@ -373,6 +398,8 @@ export function useGitPeekController() {
     fileFilter,
     selectedCommitId,
     notice,
+    folderWithoutGit,
+    initializingRepository,
     commitView,
     preferences,
     availableWorkspaceTargets,
@@ -384,6 +411,7 @@ export function useGitPeekController() {
     setSettingsOpen,
     openRepository,
     switchRepository,
+    initializeRepository,
     refreshSnapshot,
     changeCommitView,
     togglePinned,

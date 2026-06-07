@@ -420,7 +420,8 @@ svg {
 .workspace-open-menu-toggle,
 .workspace-open-menu-item,
 .empty-recent-repos button,
-.primary-action {
+.primary-action,
+.secondary-action {
   border: 0;
   color: inherit;
   cursor: pointer;
@@ -1442,6 +1443,12 @@ button:disabled {
   stroke-linejoin: round;
 }
 
+.graph-line.is-dashed {
+  opacity: 0.78;
+  stroke-dasharray: 4 5;
+  stroke-linecap: round;
+}
+
 :root[data-graph-style="soft"] .graph-line {
   opacity: 0.5;
   stroke-width: 1.8;
@@ -1475,6 +1482,10 @@ button:disabled {
   box-shadow: 0 0 0 2px var(--panel-solid), 0 0 0 5px color-mix(in srgb, var(--git-tree-color, var(--main)) 20%, transparent);
 }
 
+.graph-node.is-dashed {
+  border-style: dashed;
+}
+
 .graph-node-core {
   width: 5px;
   height: 5px;
@@ -1500,6 +1511,11 @@ button:disabled {
 .graph-worktree-marker.is-current {
   background: var(--git-tree-color, var(--main));
   color: var(--panel-solid);
+}
+
+.graph-worktree-marker.is-external {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--panel-solid) 84%, var(--git-tree-color, var(--main)));
 }
 
 .graph-worktree-marker svg {
@@ -1698,6 +1714,16 @@ button:disabled {
 
 .commit-actions button:hover {
   background: var(--surface-hover);
+}
+
+.commit-actions button:disabled {
+  cursor: not-allowed;
+  color: var(--text-subtle);
+  background: color-mix(in srgb, var(--surface) 86%, var(--border));
+}
+
+.commit-actions button:disabled svg {
+  color: var(--text-subtle);
 }
 
 .commit-actions svg {
@@ -2179,10 +2205,43 @@ button:disabled {
   line-height: 1.45;
 }
 
+.empty-folder-path {
+  max-width: 100%;
+  display: block;
+  overflow: hidden;
+  padding: 5px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .empty-repository span {
   color: var(--text-faint);
   font-size: 11px;
   line-height: 1.35;
+}
+
+.empty-actions {
+  max-width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.empty-gitignore-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-faint);
+}
+
+.empty-gitignore-note svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 .empty-recent-repos {
@@ -2246,7 +2305,27 @@ button:disabled {
   font-weight: 720;
 }
 
-.primary-action:hover:not(:disabled) {
+.secondary-action {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.primary-action svg,
+.secondary-action svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.primary-action:hover:not(:disabled),
+.secondary-action:hover:not(:disabled) {
   filter: brightness(0.94);
 }
 

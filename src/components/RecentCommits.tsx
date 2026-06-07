@@ -29,6 +29,7 @@ function CommitRow({
   } as CSSProperties;
   const message = commit.message.trim() || commit.title;
   const displayMessage = expandSelectedMessage && selected ? message : commit.title;
+  const checkoutDisabled = commit.graph.currentVariant === "dashed";
 
   return (
     <article className={joinClass("commit-row", selected && "is-selected")} style={rowStyle} onClick={onSelect} title={message}>
@@ -74,7 +75,14 @@ function CommitRow({
               <GitFork aria-hidden="true" />
               Branch
             </button>
-            <button type="button" onClick={() => onAction("checkout", commit)}>
+            <button
+              type="button"
+              onClick={() => {
+                if (!checkoutDisabled) onAction("checkout", commit);
+              }}
+              disabled={checkoutDisabled}
+              title={checkoutDisabled ? "Open that worktree first to checkout there." : undefined}
+            >
               <GitBranch aria-hidden="true" />
               Checkout
             </button>

@@ -2,7 +2,7 @@ const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, nativeThem
 const path = require("node:path");
 const { createAssetLoader } = require("./lib/assets.cjs");
 const { createConfigStore } = require("./lib/config.cjs");
-const { checkout, createBranch, normalizeView, openWorktree, readGitSnapshot } = require("./lib/git.cjs");
+const { checkout, createBranch, initializeRepository, isNotGitRepositoryError, normalizeView, openWorktree, readFolderWithoutGit, readGitSnapshot } = require("./lib/git.cjs");
 const { getAvailableWorkspaceTargets, openWorkspace } = require("./lib/workspace.cjs");
 
 let mainWindow;
@@ -152,6 +152,26 @@ function errorResponse(error, fallback = "Unable to complete the action.") {
   };
 }
 
+async function folderWithoutGitResponse(repositoryPath) {
+  try {
+    const folder = await readFolderWithoutGit(repositoryPath);
+    currentRepository = folder.path;
+    buildMenus();
+    return {
+      ok: false,
+      reason: "not_git_repository",
+      error: "This folder does not have Git initialized yet.",
+      folder,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: "invalid_repository",
+      error: error?.stderr || error?.message || "Unable to read the selected folder.",
+    };
+  }
+}
+
 async function openRepositoryPath(repositoryPath, view = currentView, invalidRepositoryMessage = "Unable to read the saved working folder.") {
   if (typeof repositoryPath !== "string" || !repositoryPath.trim()) {
     return {
@@ -168,6 +188,7 @@ async function openRepositoryPath(repositoryPath, view = currentView, invalidRep
     buildMenus();
     return { ok: true, snapshot };
   } catch (error) {
+    if (isNotGitRepositoryError(error)) return folderWithoutGitResponse(repositoryPath);
     return {
       ok: false,
       reason: "invalid_repository",
@@ -188,6 +209,7 @@ async function getSnapshotResponse(view = currentView) {
     buildMenus();
     return { ok: true, snapshot };
   } catch (error) {
+    if (isNotGitRepositoryError(error)) return folderWithoutGitResponse(currentRepository);
     return {
       ok: false,
       reason: "invalid_repository",
@@ -606,6 +628,22 @@ ipcMain.handle("git:refresh", async (_event, view) => {
 
 ipcMain.handle("git:getSnapshot", async (_event, view) => {
   return getSnapshotResponse(normalizeView(view));
+});
+
+ipcMain.handle("git:initializeRepository", async (_event, repositoryPath, view) => {
+  try {
+    const result = await initializeRepository(repositoryPath, normalizeView(view));
+    saveRepositoryPath(result.snapshot.repoPath, result.snapshot.repositoryKey);
+    buildMenus();
+    sendSnapshotResponse({ ok: true, snapshot: result.snapshot });
+    return {
+      ok: true,
+      message: result.gitIgnoreCreated ? "Initialized Git and added a starter .gitignore." : "Initialized Git and kept the existing .gitignore.",
+      snapshot: result.snapshot,
+    };
+  } catch (error) {
+    return errorResponse(error, "Unable to initialize Git in this folder.");
+  }
 });
 
 ipcMain.handle("git:clearRepository", async () => {

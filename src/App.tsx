@@ -173,8 +173,11 @@ export default function App() {
                 <EmptyRepositoryState
                   loading={controller.loading}
                   notice={controller.notice}
+                  folderWithoutGit={controller.folderWithoutGit}
+                  initializingRepository={controller.initializingRepository}
                   recentRepositories={controller.recentRepositories}
                   onOpen={controller.openRepository}
+                  onInitializeRepository={controller.initializeRepository}
                   onSwitchRepository={controller.switchRepository}
                 />
               )}
