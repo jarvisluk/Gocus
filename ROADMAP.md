@@ -15,5 +15,5 @@
  - [ ] Git action prompts for checkout, new branch creation, and branch merge workflows (need to be refined)
  - [x] new window style: on the left side of the main window, out side it. for show temporary info. apply it to the Changed Now list.
  - [x] when create branch, provide prefix select: none/fix/feat/...
- - [ ] hide commit author when the commit is not selected
+ - [x] hide commit author when the commit is not selected
  - [x] Auto refresh git tree with timer. can be set in settings. only do auto refresh for a long time without git action

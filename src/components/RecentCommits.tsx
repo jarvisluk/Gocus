@@ -46,7 +46,7 @@ function CommitRow({
         <div className="commit-meta">
           <code>{commit.hash}</code>
           <span>{commit.relativeTime}</span>
-          <span>{commit.author}</span>
+          {selected ? <span>{commit.author}</span> : null}
           {commit.graph.isMerge ? (
             <span className="merge-indicator" title={`${commit.parents.length} parent commits`}>
               <GitMerge aria-hidden="true" />
