@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { ActionDialogState } from "../components/ActionDialog";
+import { branchNameWithPrefix, type ActionDialogState, type BranchPrefix } from "../components/ActionDialog";
 import { applyPreferences, defaultPreferences, mergePreferences, resolveThemePreset } from "../lib/preferences";
 import { defaultWorkspaceOpenTargets, sanitizeWorkspaceOpenTargets } from "../lib/workspaceOpenTargets";
 import type {
@@ -241,6 +241,7 @@ export function useGitPeekController() {
         type: "createBranch",
         title: "Create branch",
         body: `Start a new branch from ${commit.hash}.`,
+        branchPrefix: "none",
         branchName: `peek/${commit.hash}`,
         commit,
       });
@@ -287,6 +288,10 @@ export function useGitPeekController() {
     setActionDialog((current) => (current?.type === "createBranch" ? { ...current, branchName } : current));
   }
 
+  function updateActionBranchPrefix(branchPrefix: BranchPrefix) {
+    setActionDialog((current) => (current?.type === "createBranch" ? { ...current, branchPrefix } : current));
+  }
+
   function cancelActionDialog() {
     setActionDialog(null);
   }
@@ -297,7 +302,7 @@ export function useGitPeekController() {
     setActionDialog(null);
 
     if (currentDialog.type === "createBranch" && currentDialog.commit) {
-      const branchName = currentDialog.branchName.trim();
+      const branchName = branchNameWithPrefix(currentDialog.branchPrefix, currentDialog.branchName);
       if (!branchName) return;
       await runAction(window.gitPeek.createBranch(branchName, currentDialog.commit.fullHash, commitView), `Created ${branchName}.`);
       return;
@@ -467,6 +472,7 @@ export function useGitPeekController() {
     handleCommitAction,
     checkoutRef,
     openWorktree,
+    updateActionBranchPrefix,
     updateActionBranchName,
     cancelActionDialog,
     confirmActionDialog,

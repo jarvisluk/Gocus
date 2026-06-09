@@ -99,6 +99,7 @@ export default function App() {
             <>
               <ActionDialog
                 dialog={controller.actionDialog}
+                onBranchPrefixChange={controller.updateActionBranchPrefix}
                 onBranchNameChange={controller.updateActionBranchName}
                 onCancel={controller.cancelActionDialog}
                 onConfirm={controller.confirmActionDialog}
@@ -140,6 +141,7 @@ export default function App() {
 
               <ActionDialog
                 dialog={controller.actionDialog}
+                onBranchPrefixChange={controller.updateActionBranchPrefix}
                 onBranchNameChange={controller.updateActionBranchName}
                 onCancel={controller.cancelActionDialog}
                 onConfirm={controller.confirmActionDialog}
