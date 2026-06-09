@@ -10,6 +10,7 @@
     "lint": "npm run lint:design",
     "lint:design": "stylelint \"src/**/*.css\"",
     "build": "tsc --noEmit && vite build",
+    "package:mac": "./scripts/package-macos.sh",
     "preview": "vite preview --host 127.0.0.1",
     "start": "npm run build && electron ."
   },
