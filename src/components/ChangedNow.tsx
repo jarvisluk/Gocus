@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, X } from "lucide-react";
+import { X } from "lucide-react";
 import { joinClass } from "../lib/classNames";
 import { fileKind, formatPath, statusLetter } from "../lib/fileStatus";
 import type { ChangedFile, FileFilter } from "../types";
@@ -62,40 +62,42 @@ export function ChangedFileInfoPanel({ file, onClose }: { file: ChangedFile; onC
 export function ChangedNow({
   files,
   filter,
-  collapsed,
   selectedFileKey,
   externalized = false,
-  onToggleCollapsed,
+  onActivateExternal,
+  onClose,
   onSelectFile,
 }: {
   files: ChangedFile[];
   filter: FileFilter;
-  collapsed: boolean;
   selectedFileKey: string;
   externalized?: boolean;
-  onToggleCollapsed: () => void;
+  onActivateExternal?: () => void;
+  onClose?: () => void;
   onSelectFile: (fileKey: string) => void;
 }) {
   const filteredFiles = filter === "all" ? files : files.filter((file) => fileKind(file) === filter);
 
   return (
-    <section className={joinClass("changed-section", collapsed && "is-collapsed")} aria-label="Changed now">
+    <section className={joinClass("changed-section", externalized && "is-externalized")} aria-label="Changed now">
       <div className="section-heading compact">
-        <h2>Changed now</h2>
-        <div className="heading-tools">
-          <button
-            type="button"
-            aria-label={collapsed ? "Show changed files" : "Hide changed files"}
-            aria-expanded={!collapsed}
-            aria-controls="changed-now-file-list"
-            onClick={onToggleCollapsed}
-            title={collapsed ? "Show changed files" : "Hide changed files"}
-          >
-            {collapsed ? <ChevronDown aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}
+        {externalized && onActivateExternal ? (
+          <button className="changed-heading-trigger" type="button" onClick={onActivateExternal}>
+            <h2>Changed now</h2>
           </button>
+        ) : (
+          <h2>Changed now</h2>
+        )}
+        <div className="heading-tools">
+          <span>{filteredFiles.length}</span>
+          {onClose ? (
+            <button type="button" aria-label="Close changed files window" onClick={onClose}>
+              <X aria-hidden="true" />
+            </button>
+          ) : null}
         </div>
       </div>
-      {!collapsed && !externalized ? (
+      {!externalized ? (
         <div className="file-list" id="changed-now-file-list">
           {filteredFiles.length ? (
             filteredFiles.slice(0, 8).map((file) => {

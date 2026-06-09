@@ -41,12 +41,12 @@ function EditorBackdrop() {
 
 export default function App() {
   const controller = useGitPeekController();
-  const [changedNowCollapsed, setChangedNowCollapsed] = useState(false);
+  const [changedNowWindowOpen, setChangedNowWindowOpen] = useState(true);
   const [selectedChangedFileKey, setSelectedChangedFileKey] = useState("");
   const zenActive = Boolean(controller.snapshot && controller.preferences.zenMode);
   const temporaryInfoPayload = useMemo(
     () =>
-      controller.snapshot && !changedNowCollapsed && !controller.collapsed && !controller.settingsOpen && !zenActive
+      controller.snapshot && changedNowWindowOpen && !controller.collapsed && !controller.settingsOpen && !zenActive
         ? {
             kind: "changed-files" as const,
             files: controller.snapshot.changedFiles,
@@ -54,7 +54,7 @@ export default function App() {
             selectedFileKey: selectedChangedFileKey,
           }
         : null,
-    [changedNowCollapsed, controller.collapsed, controller.fileFilter, controller.settingsOpen, controller.snapshot, selectedChangedFileKey, zenActive],
+    [changedNowWindowOpen, controller.collapsed, controller.fileFilter, controller.settingsOpen, controller.snapshot, selectedChangedFileKey, zenActive],
   );
 
   const exitZenMode = useCallback(() => {
@@ -113,7 +113,7 @@ export default function App() {
     () =>
       window.gitPeek?.onTemporaryInfoPanelClosed(() => {
         setSelectedChangedFileKey("");
-        setChangedNowCollapsed(true);
+        setChangedNowWindowOpen(false);
       }),
     [],
   );
@@ -205,10 +205,9 @@ export default function App() {
                     <ChangedNow
                       files={controller.snapshot.changedFiles}
                       filter={controller.fileFilter}
-                      collapsed={changedNowCollapsed}
                       selectedFileKey={selectedChangedFileKey}
                       externalized={controller.electron}
-                      onToggleCollapsed={() => setChangedNowCollapsed((current) => !current)}
+                      onActivateExternal={() => setChangedNowWindowOpen(true)}
                       onSelectFile={setSelectedChangedFileKey}
                     />
                   ) : null}
