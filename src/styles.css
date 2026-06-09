@@ -415,6 +415,7 @@ svg {
 .summary-chip,
 .heading-tools button,
 .commit-actions button,
+.footer-changed-now,
 .footer-primary,
 .workspace-open-trigger,
 .workspace-open-menu-toggle,
@@ -1425,20 +1426,6 @@ button:disabled {
   height: 16px;
 }
 
-.changed-heading-trigger {
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  text-align: left;
-}
-
-.changed-heading-trigger:hover h2 {
-  color: var(--focus);
-}
-
 .commit-list {
   --git-tree-rail-width: 42px;
   padding-top: 6px;
@@ -2195,6 +2182,48 @@ button:disabled {
 .footer-primary svg {
   width: var(--icon-xl);
   height: var(--icon-xl);
+}
+
+.footer-changed-now {
+  justify-self: start;
+  min-width: 58px;
+  height: var(--control-lg);
+  display: inline-grid;
+  grid-template-columns: var(--icon-lg) minmax(18px, auto);
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 0 var(--space-md);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-strong);
+}
+
+.footer-changed-now:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.footer-changed-now:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.footer-changed-now svg {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+}
+
+.footer-changed-now span {
+  min-width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--surface-strong);
+  color: var(--text-muted);
+  line-height: 1;
 }
 
 .workspace-open-control {

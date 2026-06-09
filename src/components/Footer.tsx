@@ -1,24 +1,28 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Focus, FolderOpen, Settings } from "lucide-react";
+import { ChevronDown, FileDiff, Focus, FolderOpen, Settings } from "lucide-react";
 import { joinClass } from "../lib/classNames";
 import { workspaceOpenOptions } from "../lib/workspaceOpenOptions";
 import type { UiPreferences, WorkspaceOpenTarget } from "../types";
 
 export function Footer({
   onOpenRepo,
+  onOpenChangedNow,
   onEnterZen,
   onOpenSettings,
   onOpenWorkspace,
   hasRepository,
+  changedNowCount,
   preferences,
   availableWorkspaceTargets,
   showZenEntry,
 }: {
   onOpenRepo: () => void;
+  onOpenChangedNow: () => void;
   onEnterZen: () => void;
   onOpenSettings: () => void;
   onOpenWorkspace: (target: WorkspaceOpenTarget) => void;
   hasRepository: boolean;
+  changedNowCount: number;
   preferences: UiPreferences;
   availableWorkspaceTargets: WorkspaceOpenTarget[];
   showZenEntry: boolean;
@@ -89,7 +93,10 @@ export function Footer({
           Open folder
         </button>
       ) : (
-        <span aria-hidden="true" />
+        <button className="footer-changed-now" type="button" aria-label="Open Changed now" title="Changed now" onClick={onOpenChangedNow}>
+          <FileDiff aria-hidden="true" />
+          <span>{changedNowCount}</span>
+        </button>
       )}
       {activeOption ? (
         <div className="workspace-open-control" ref={workspaceControlRef}>

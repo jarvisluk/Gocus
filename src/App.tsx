@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Minimize2 } from "lucide-react";
 import { ActionDialog } from "./components/ActionDialog";
-import { ChangedNow, changedFileKey } from "./components/ChangedNow";
 import { CollapsedRail } from "./components/CollapsedRail";
 import { EmptyRepositoryState } from "./components/EmptyRepositoryState";
 import { Footer } from "./components/Footer";
@@ -12,6 +11,7 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { SummaryChips } from "./components/SummaryChips";
 import { useGitPeekController } from "./app/useGitPeekController";
 import { joinClass } from "./lib/classNames";
+import { fileKind } from "./lib/fileStatus";
 
 function EditorBackdrop() {
   return (
@@ -42,8 +42,12 @@ function EditorBackdrop() {
 export default function App() {
   const controller = useGitPeekController();
   const [changedNowWindowOpen, setChangedNowWindowOpen] = useState(true);
-  const [selectedChangedFileKey, setSelectedChangedFileKey] = useState("");
   const zenActive = Boolean(controller.snapshot && controller.preferences.zenMode);
+  const changedNowCount = useMemo(() => {
+    if (!controller.snapshot) return 0;
+    if (controller.fileFilter === "all") return controller.snapshot.changedFiles.length;
+    return controller.snapshot.changedFiles.filter((file) => fileKind(file) === controller.fileFilter).length;
+  }, [controller.fileFilter, controller.snapshot]);
   const temporaryInfoPayload = useMemo(
     () =>
       controller.snapshot && changedNowWindowOpen && !controller.collapsed && !controller.settingsOpen && !zenActive
@@ -51,10 +55,10 @@ export default function App() {
             kind: "changed-files" as const,
             files: controller.snapshot.changedFiles,
             filter: controller.fileFilter,
-            selectedFileKey: selectedChangedFileKey,
+            selectedFileKey: "",
           }
         : null,
-    [changedNowWindowOpen, controller.collapsed, controller.fileFilter, controller.settingsOpen, controller.snapshot, selectedChangedFileKey, zenActive],
+    [changedNowWindowOpen, controller.collapsed, controller.fileFilter, controller.settingsOpen, controller.snapshot, zenActive],
   );
 
   const exitZenMode = useCallback(() => {
@@ -65,6 +69,11 @@ export default function App() {
     controller.setPreferences(nextPreferences);
     if (nextPreferences.zenMode) controller.setSettingsOpen(false);
   }
+
+  const openChangedNowWindow = useCallback(() => {
+    setChangedNowWindowOpen(true);
+    if (temporaryInfoPayload) window.gitPeek?.setTemporaryInfoPanel(temporaryInfoPayload);
+  }, [temporaryInfoPayload]);
 
   useEffect(() => {
     if (!controller.settingsOpen || zenActive) return undefined;
@@ -93,12 +102,6 @@ export default function App() {
   }, [exitZenMode, zenActive]);
 
   useEffect(() => {
-    if (!selectedChangedFileKey) return;
-    const selectedFileStillExists = controller.snapshot?.changedFiles.some((file) => changedFileKey(file) === selectedChangedFileKey);
-    if (!selectedFileStillExists) setSelectedChangedFileKey("");
-  }, [controller.snapshot, selectedChangedFileKey]);
-
-  useEffect(() => {
     window.gitPeek?.setTemporaryInfoPanel(temporaryInfoPayload);
   }, [temporaryInfoPayload]);
 
@@ -112,7 +115,6 @@ export default function App() {
   useEffect(
     () =>
       window.gitPeek?.onTemporaryInfoPanelClosed(() => {
-        setSelectedChangedFileKey("");
         setChangedNowWindowOpen(false);
       }),
     [],
@@ -201,16 +203,6 @@ export default function App() {
                     />
                   </div>
 
-                  {!controller.preferences.zenMode ? (
-                    <ChangedNow
-                      files={controller.snapshot.changedFiles}
-                      filter={controller.fileFilter}
-                      selectedFileKey={selectedChangedFileKey}
-                      externalized={controller.electron}
-                      onActivateExternal={() => setChangedNowWindowOpen(true)}
-                      onSelectFile={setSelectedChangedFileKey}
-                    />
-                  ) : null}
                 </>
               ) : (
                 <EmptyRepositoryState
@@ -231,9 +223,11 @@ export default function App() {
                 onOpenSettings={() => controller.setSettingsOpen(true)}
                 onOpenWorkspace={controller.openWorkspace}
                 hasRepository={Boolean(controller.snapshot)}
+                changedNowCount={changedNowCount}
                 preferences={controller.preferences}
                 availableWorkspaceTargets={controller.availableWorkspaceTargets}
                 showZenEntry={controller.preferences.showZenEntry}
+                onOpenChangedNow={openChangedNowWindow}
               />
             </>
           )}
