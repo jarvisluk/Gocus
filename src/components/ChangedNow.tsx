@@ -64,6 +64,7 @@ export function ChangedNow({
   filter,
   collapsed,
   selectedFileKey,
+  externalized = false,
   onToggleCollapsed,
   onSelectFile,
 }: {
@@ -71,6 +72,7 @@ export function ChangedNow({
   filter: FileFilter;
   collapsed: boolean;
   selectedFileKey: string;
+  externalized?: boolean;
   onToggleCollapsed: () => void;
   onSelectFile: (fileKey: string) => void;
 }) {
@@ -93,7 +95,7 @@ export function ChangedNow({
           </button>
         </div>
       </div>
-      {!collapsed ? (
+      {!collapsed && !externalized ? (
         <div className="file-list" id="changed-now-file-list">
           {filteredFiles.length ? (
             filteredFiles.slice(0, 8).map((file) => {

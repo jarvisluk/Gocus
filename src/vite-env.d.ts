@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { ActionResponse, CommitViewSelection, RecentRepository, SnapshotResponse, UiPreferences, WorkspaceOpenTarget } from "./types";
+import type { ActionResponse, CommitViewSelection, RecentRepository, SnapshotResponse, TemporaryInfoPayload, UiPreferences, WorkspaceOpenTarget } from "./types";
 
 declare global {
   interface Window {
@@ -22,8 +22,11 @@ declare global {
       setCollapsed: (collapsed: boolean) => Promise<void>;
       setPinned: (pinned: boolean) => Promise<void>;
       dockToEdge: (collapsed: boolean) => Promise<void>;
-      setTemporaryInfoPanelOpen: (open: boolean) => Promise<void>;
+      getTemporaryInfoPayload: () => Promise<TemporaryInfoPayload>;
+      setTemporaryInfoPanel: (payload: TemporaryInfoPayload) => Promise<void>;
       getSystemTheme: () => Promise<"light" | "dark">;
+      onTemporaryInfoPayloadUpdated: (callback: (payload: TemporaryInfoPayload) => void) => () => void;
+      onTemporaryInfoPanelClosed: (callback: () => void) => () => void;
       onThemeChanged: (callback: (theme: "light" | "dark") => void) => () => void;
       onSnapshotUpdated: (callback: (response: SnapshotResponse) => void) => () => void;
       onCollapsedChanged: (callback: (collapsed: boolean) => void) => () => void;

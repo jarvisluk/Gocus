@@ -79,8 +79,6 @@
   --menu-row-height: 30px;
   --menu-width-sm: 156px;
   --workspace-open-width: 90px;
-  --temporary-info-width: 248px;
-  --temporary-info-gap: 16px;
   --surface-wash: color-mix(in srgb, var(--surface) 74%, transparent);
   --popover-surface: color-mix(in srgb, var(--surface-strong) 94%, transparent);
   --overlay-scrim: rgba(18, 18, 18, 0.2);
@@ -397,10 +395,6 @@ svg {
   border-radius: 0;
   border: 0;
   box-shadow: none;
-}
-
-.is-electron.has-temporary-info .peek-panel {
-  left: calc(var(--temporary-info-width) + var(--temporary-info-gap));
 }
 
 .peek-header {
@@ -1967,14 +1961,6 @@ button:disabled {
   font-weight: var(--font-weight-strong);
 }
 
-.is-electron .changed-side-panel {
-  left: 8px;
-  right: auto;
-  bottom: calc(var(--footer-height) + 8px);
-  width: var(--temporary-info-width);
-  max-width: var(--temporary-info-width);
-}
-
 @media (max-width: 620px) {
   .changed-side-panel {
     right: 8px;
@@ -1983,6 +1969,56 @@ button:disabled {
     width: auto;
     max-width: none;
   }
+}
+
+.temporary-info-viewport {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: transparent;
+}
+
+.temporary-info-viewport .changed-section {
+  position: absolute;
+  inset: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 14px 10px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(24px) saturate(1.18);
+}
+
+.temporary-info-viewport .file-list {
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.temporary-info-viewport .changed-side-panel {
+  inset: 8px;
+  width: auto;
+  max-width: none;
+  max-height: none;
+}
+
+.temporary-info-empty {
+  position: absolute;
+  inset: 8px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  color: var(--text-faint);
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-strong);
+  backdrop-filter: blur(24px) saturate(1.18);
 }
 
 .notice-line {

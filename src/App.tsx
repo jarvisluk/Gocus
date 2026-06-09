@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Minimize2 } from "lucide-react";
 import { ActionDialog } from "./components/ActionDialog";
-import { ChangedFileInfoPanel, ChangedNow, changedFileKey } from "./components/ChangedNow";
+import { ChangedNow, changedFileKey } from "./components/ChangedNow";
 import { CollapsedRail } from "./components/CollapsedRail";
 import { EmptyRepositoryState } from "./components/EmptyRepositoryState";
 import { Footer } from "./components/Footer";
@@ -44,8 +44,18 @@ export default function App() {
   const [changedNowCollapsed, setChangedNowCollapsed] = useState(false);
   const [selectedChangedFileKey, setSelectedChangedFileKey] = useState("");
   const zenActive = Boolean(controller.snapshot && controller.preferences.zenMode);
-  const selectedChangedFile = controller.snapshot?.changedFiles.find((file) => changedFileKey(file) === selectedChangedFileKey) ?? null;
-  const temporaryInfoOpen = Boolean(selectedChangedFile && !controller.collapsed && !controller.settingsOpen && !zenActive);
+  const temporaryInfoPayload = useMemo(
+    () =>
+      controller.snapshot && !changedNowCollapsed && !controller.collapsed && !controller.settingsOpen && !zenActive
+        ? {
+            kind: "changed-files" as const,
+            files: controller.snapshot.changedFiles,
+            filter: controller.fileFilter,
+            selectedFileKey: selectedChangedFileKey,
+          }
+        : null,
+    [changedNowCollapsed, controller.collapsed, controller.fileFilter, controller.settingsOpen, controller.snapshot, selectedChangedFileKey, zenActive],
+  );
 
   const exitZenMode = useCallback(() => {
     controller.setPreferences({ ...controller.preferences, zenMode: false });
@@ -89,14 +99,27 @@ export default function App() {
   }, [controller.snapshot, selectedChangedFileKey]);
 
   useEffect(() => {
-    window.gitPeek?.setTemporaryInfoPanelOpen(temporaryInfoOpen);
-    return () => {
-      window.gitPeek?.setTemporaryInfoPanelOpen(false);
-    };
-  }, [temporaryInfoOpen]);
+    window.gitPeek?.setTemporaryInfoPanel(temporaryInfoPayload);
+  }, [temporaryInfoPayload]);
+
+  useEffect(
+    () => () => {
+      window.gitPeek?.setTemporaryInfoPanel(null);
+    },
+    [],
+  );
+
+  useEffect(
+    () =>
+      window.gitPeek?.onTemporaryInfoPanelClosed(() => {
+        setSelectedChangedFileKey("");
+        setChangedNowCollapsed(true);
+      }),
+    [],
+  );
 
   return (
-    <main className={joinClass("app-viewport", controller.electron && "is-electron", controller.collapsed && "is-collapsed", zenActive && "is-zen", temporaryInfoOpen && "has-temporary-info")}>
+    <main className={joinClass("app-viewport", controller.electron && "is-electron", controller.collapsed && "is-collapsed", zenActive && "is-zen")}>
       {!controller.electron ? <EditorBackdrop /> : null}
 
       {controller.collapsed ? (
@@ -184,6 +207,7 @@ export default function App() {
                       filter={controller.fileFilter}
                       collapsed={changedNowCollapsed}
                       selectedFileKey={selectedChangedFileKey}
+                      externalized={controller.electron}
                       onToggleCollapsed={() => setChangedNowCollapsed((current) => !current)}
                       onSelectFile={setSelectedChangedFileKey}
                     />
@@ -216,9 +240,6 @@ export default function App() {
           )}
         </section>
       )}
-      {temporaryInfoOpen && selectedChangedFile ? (
-        <ChangedFileInfoPanel file={selectedChangedFile} onClose={() => setSelectedChangedFileKey("")} />
-      ) : null}
       {controller.repositoryDialogOpen ? <div className="native-dialog-blocker" aria-hidden="true" /> : null}
     </main>
   );

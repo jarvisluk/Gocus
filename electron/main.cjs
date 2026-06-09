@@ -16,12 +16,14 @@ let applyingWindowBoundsTimer = null;
 let expandedWindowSizeSaveTimer = null;
 let realQuitRequested = false;
 let dockHiddenForMenuBarMode = false;
-let temporaryInfoPanelOpen = false;
+let temporaryInfoWindow = null;
+let temporaryInfoPayload = null;
 
 const expandedMinimumSize = { width: 320, height: 620 };
 const defaultExpandedSize = { width: expandedMinimumSize.width, height: 780 };
 const collapsedSize = { width: 38, height: 154 };
-const temporaryInfoPanelExtraWidth = 264;
+const temporaryInfoWindowSize = { width: 280, height: 220 };
+const temporaryInfoWindowGap = 10;
 const hiddenLaunchArg = "--hidden";
 const config = createConfigStore(app);
 const assets = createAssetLoader({
@@ -108,6 +110,7 @@ function showDockIcon() {
 }
 
 function softQuitToMenuBar() {
+  closeTemporaryInfoWindow();
   if (mainWindow && !mainWindow.isDestroyed()) {
     saveCurrentExpandedWindowSize(mainWindow);
     mainWindow.hide();
@@ -271,6 +274,10 @@ function sendRepositoryDialogOpen(open) {
   mainWindow?.webContents.send("window:repositoryDialogOpenChanged", open);
 }
 
+function sendTemporaryInfoPanelClosed() {
+  mainWindow?.webContents.send("window:temporaryInfoPanelClosed");
+}
+
 function waitForDialogBlockerFrame() {
   return new Promise((resolve) => setTimeout(resolve, 32));
 }
@@ -303,23 +310,15 @@ function normalizeRepositorySwitchView(view) {
   return normalized.mode === "branch" ? { mode: "all" } : normalized;
 }
 
-function temporaryInfoExtraWidth() {
-  return temporaryInfoPanelOpen && !collapsedState ? temporaryInfoPanelExtraWidth : 0;
-}
-
-function clampExpandedSize(size, display, extraWidth = 0) {
-  const maxBaseWidth = Math.max(expandedMinimumSize.width, display.width - 20 - extraWidth);
-
+function clampExpandedSize(size, display) {
   return {
-    width: Math.min(Math.max(Math.round(size.width), expandedMinimumSize.width), maxBaseWidth),
+    width: Math.min(Math.max(Math.round(size.width), expandedMinimumSize.width), Math.max(expandedMinimumSize.width, display.width - 20)),
     height: Math.min(Math.max(Math.round(size.height), expandedMinimumSize.height), Math.max(expandedMinimumSize.height, display.height - 16)),
   };
 }
 
 function readExpandedSize(display) {
-  const extraWidth = temporaryInfoExtraWidth();
-  const baseSize = clampExpandedSize(config.readExpandedWindowSize() ?? defaultExpandedSize, display, extraWidth);
-  return { ...baseSize, width: baseSize.width + extraWidth };
+  return clampExpandedSize(config.readExpandedWindowSize() ?? defaultExpandedSize, display);
 }
 
 function setWindowBounds(win, bounds, animated = true) {
@@ -332,14 +331,14 @@ function setWindowBounds(win, bounds, animated = true) {
 }
 
 function saveCurrentExpandedWindowSize(win) {
-  if (!win || win.isDestroyed() || collapsedState || temporaryInfoPanelOpen || applyingWindowBounds) return;
+  if (!win || win.isDestroyed() || collapsedState || applyingWindowBounds) return;
   const bounds = win.getBounds();
   const display = screen.getDisplayMatching(bounds).workArea;
   config.saveExpandedWindowSize(clampExpandedSize(bounds, display));
 }
 
 function scheduleExpandedWindowSizeSave(win) {
-  if (!win || win.isDestroyed() || collapsedState || temporaryInfoPanelOpen || applyingWindowBounds) return;
+  if (!win || win.isDestroyed() || collapsedState || applyingWindowBounds) return;
   clearTimeout(expandedWindowSizeSaveTimer);
   expandedWindowSizeSaveTimer = setTimeout(() => {
     saveCurrentExpandedWindowSize(win);
@@ -350,8 +349,7 @@ function positionWindow(win, collapsed = false) {
   if (!win) return;
   const display = screen.getPrimaryDisplay().workArea;
   const size = collapsed ? collapsedSize : readExpandedSize(display);
-  const minimumWidth = collapsed ? collapsedSize.width : expandedMinimumSize.width + temporaryInfoExtraWidth();
-  win.setMinimumSize(minimumWidth, collapsed ? collapsedSize.height : expandedMinimumSize.height);
+  win.setMinimumSize(collapsed ? collapsedSize.width : expandedMinimumSize.width, collapsed ? collapsedSize.height : expandedMinimumSize.height);
   const current = win.getBounds();
   const edgeInset = collapsed ? 0 : 10;
   const x = display.x + display.width - size.width - edgeInset;
@@ -367,33 +365,139 @@ function setCollapsedWindow(collapsed) {
   if (!mainWindow) return;
   const nextCollapsedState = Boolean(collapsed);
   if (!collapsedState && nextCollapsedState) saveCurrentExpandedWindowSize(mainWindow);
-  if (nextCollapsedState) temporaryInfoPanelOpen = false;
+  if (nextCollapsedState) closeTemporaryInfoWindow();
   collapsedState = nextCollapsedState;
   positionWindow(mainWindow, collapsedState);
   mainWindow.webContents.send("window:collapsedChanged", collapsedState);
   buildMenus();
 }
 
-function setTemporaryInfoPanelOpen(open) {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  const nextTemporaryInfoPanelOpen = Boolean(open) && !collapsedState;
-  if (temporaryInfoPanelOpen === nextTemporaryInfoPanelOpen) return;
-
-  if (!temporaryInfoPanelOpen && nextTemporaryInfoPanelOpen) saveCurrentExpandedWindowSize(mainWindow);
-  temporaryInfoPanelOpen = nextTemporaryInfoPanelOpen;
-  positionWindow(mainWindow, collapsedState);
-}
-
 function dockWindow(collapsed = collapsedState) {
   if (!mainWindow) return;
   if (!collapsed) saveCurrentExpandedWindowSize(mainWindow);
   positionWindow(mainWindow, collapsed);
+  positionTemporaryInfoWindow();
+}
+
+function rendererWindowUrl(mode = "") {
+  if (process.env.GIT_PEEK_DEV_SERVER_URL) {
+    const url = new URL(process.env.GIT_PEEK_DEV_SERVER_URL);
+    if (mode) url.searchParams.set("window", mode);
+    return url.toString();
+  }
+
+  return null;
+}
+
+function loadRendererWindow(win, mode = "") {
+  const url = rendererWindowUrl(mode);
+  if (url) {
+    win.loadURL(url);
+    return;
+  }
+
+  win.loadFile(path.join(__dirname, "..", "dist", "index.html"), mode ? { query: { window: mode } } : undefined);
+}
+
+function temporaryInfoWindowBounds() {
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
+
+  const mainBounds = mainWindow.getBounds();
+  const display = screen.getDisplayMatching(mainBounds).workArea;
+  const width = temporaryInfoWindowSize.width;
+  const height = temporaryInfoWindowSize.height;
+  const preferredX = mainBounds.x - width - temporaryInfoWindowGap;
+  const fallbackX = mainBounds.x + temporaryInfoWindowGap;
+  const x = preferredX >= display.x + 8 ? preferredX : Math.min(fallbackX, display.x + display.width - width - 8);
+  const preferredY = mainBounds.y + mainBounds.height - height - 76;
+  const minY = display.y + 8;
+  const maxY = display.y + display.height - height - 8;
+  const y = Math.min(Math.max(preferredY, minY), Math.max(minY, maxY));
+
+  return { x, y, width, height };
+}
+
+function sendTemporaryInfoPayload() {
+  if (!temporaryInfoWindow || temporaryInfoWindow.isDestroyed()) return;
+  temporaryInfoWindow.webContents.send("window:temporaryInfoPayload", temporaryInfoPayload);
+}
+
+function positionTemporaryInfoWindow() {
+  if (!temporaryInfoWindow || temporaryInfoWindow.isDestroyed()) return;
+  const bounds = temporaryInfoWindowBounds();
+  if (bounds) temporaryInfoWindow.setBounds(bounds, true);
+}
+
+function closeTemporaryInfoWindow() {
+  temporaryInfoPayload = null;
+  if (!temporaryInfoWindow || temporaryInfoWindow.isDestroyed()) return;
+  const windowToClose = temporaryInfoWindow;
+  temporaryInfoWindow = null;
+  sendTemporaryInfoPanelClosed();
+  windowToClose.close();
+}
+
+function ensureTemporaryInfoWindow() {
+  if (collapsedState || !mainWindow || mainWindow.isDestroyed()) return null;
+  if (temporaryInfoWindow && !temporaryInfoWindow.isDestroyed()) return temporaryInfoWindow;
+
+  const bounds = temporaryInfoWindowBounds() ?? { ...temporaryInfoWindowSize };
+  temporaryInfoWindow = new BrowserWindow({
+    ...bounds,
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: "#00000000",
+    hasShadow: false,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    skipTaskbar: true,
+    title: "Git Peek Info",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  if (pinnedState) temporaryInfoWindow.setAlwaysOnTop(true, "floating");
+  temporaryInfoWindow.once("ready-to-show", () => {
+    positionTemporaryInfoWindow();
+    temporaryInfoWindow?.showInactive();
+    sendTemporaryInfoPayload();
+  });
+  temporaryInfoWindow.webContents.on("did-finish-load", sendTemporaryInfoPayload);
+  temporaryInfoWindow.on("closed", () => {
+    temporaryInfoWindow = null;
+    temporaryInfoPayload = null;
+    sendTemporaryInfoPanelClosed();
+  });
+  loadRendererWindow(temporaryInfoWindow, "temporary-info");
+
+  return temporaryInfoWindow;
+}
+
+function setTemporaryInfoPanel(payload) {
+  if (!payload || collapsedState) {
+    closeTemporaryInfoWindow();
+    return;
+  }
+
+  temporaryInfoPayload = payload;
+  const infoWindow = ensureTemporaryInfoWindow();
+  if (!infoWindow) return;
+  positionTemporaryInfoWindow();
+  sendTemporaryInfoPayload();
 }
 
 function setPinnedWindow(pinned) {
   if (!mainWindow) return;
   pinnedState = Boolean(pinned);
   mainWindow.setAlwaysOnTop(pinnedState, "floating");
+  if (temporaryInfoWindow && !temporaryInfoWindow.isDestroyed()) {
+    temporaryInfoWindow.setAlwaysOnTop(pinnedState, "floating");
+  }
   buildMenus();
 }
 
@@ -445,8 +549,14 @@ function createWindow({ showOnReady = true } = {}) {
   mainWindow.once("ready-to-show", () => {
     if (showOnReady) mainWindow.show();
   });
-  mainWindow.on("resize", () => scheduleExpandedWindowSizeSave(mainWindow));
+  mainWindow.on("move", positionTemporaryInfoWindow);
+  mainWindow.on("resize", () => {
+    scheduleExpandedWindowSizeSave(mainWindow);
+    positionTemporaryInfoWindow();
+  });
+  mainWindow.on("hide", closeTemporaryInfoWindow);
   mainWindow.on("close", (event) => {
+    closeTemporaryInfoWindow();
     saveCurrentExpandedWindowSize(mainWindow);
     if (process.platform === "darwin" && !realQuitRequested) {
       event.preventDefault();
@@ -454,16 +564,13 @@ function createWindow({ showOnReady = true } = {}) {
     }
   });
   mainWindow.on("closed", () => {
+    closeTemporaryInfoWindow();
     clearTimeout(applyingWindowBoundsTimer);
     clearTimeout(expandedWindowSizeSaveTimer);
     mainWindow = null;
   });
 
-  if (process.env.GIT_PEEK_DEV_SERVER_URL) {
-    mainWindow.loadURL(process.env.GIT_PEEK_DEV_SERVER_URL);
-  } else {
-    mainWindow.loadFile(path.join(__dirname, "..", "dist", "index.html"));
-  }
+  loadRendererWindow(mainWindow);
 }
 
 function createTray() {
@@ -747,8 +854,10 @@ ipcMain.handle("window:dockToEdge", (_event, collapsed) => {
   dockWindow(Boolean(collapsed));
 });
 
-ipcMain.handle("window:setTemporaryInfoPanelOpen", (_event, open) => {
-  setTemporaryInfoPanelOpen(Boolean(open));
+ipcMain.handle("window:getTemporaryInfoPayload", () => temporaryInfoPayload);
+
+ipcMain.handle("window:setTemporaryInfoPanel", (_event, payload) => {
+  setTemporaryInfoPanel(payload);
 });
 
 ipcMain.handle("theme:getSystemTheme", () => getSystemTheme());

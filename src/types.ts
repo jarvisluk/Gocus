@@ -135,6 +135,15 @@ export interface ChangedFile {
   deletions: number;
 }
 
+export type TemporaryInfoPayload =
+  | {
+      kind: "changed-files";
+      files: ChangedFile[];
+      filter: FileFilter;
+      selectedFileKey: string;
+    }
+  | null;
+
 export interface GitSnapshot {
   repoPath: string;
   repoName: string;

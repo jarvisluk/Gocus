@@ -18,8 +18,19 @@ contextBridge.exposeInMainWorld("gitPeek", {
   setCollapsed: (collapsed) => ipcRenderer.invoke("window:setCollapsed", collapsed),
   setPinned: (pinned) => ipcRenderer.invoke("window:setPinned", pinned),
   dockToEdge: (collapsed) => ipcRenderer.invoke("window:dockToEdge", collapsed),
-  setTemporaryInfoPanelOpen: (open) => ipcRenderer.invoke("window:setTemporaryInfoPanelOpen", open),
+  getTemporaryInfoPayload: () => ipcRenderer.invoke("window:getTemporaryInfoPayload"),
+  setTemporaryInfoPanel: (payload) => ipcRenderer.invoke("window:setTemporaryInfoPanel", payload),
   getSystemTheme: () => ipcRenderer.invoke("theme:getSystemTheme"),
+  onTemporaryInfoPayloadUpdated: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on("window:temporaryInfoPayload", handler);
+    return () => ipcRenderer.removeListener("window:temporaryInfoPayload", handler);
+  },
+  onTemporaryInfoPanelClosed: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on("window:temporaryInfoPanelClosed", handler);
+    return () => ipcRenderer.removeListener("window:temporaryInfoPanelClosed", handler);
+  },
   onThemeChanged: (callback) => {
     const handler = (_event, theme) => callback(theme);
     ipcRenderer.on("theme:changed", handler);
