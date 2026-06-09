@@ -16,10 +16,12 @@ let applyingWindowBoundsTimer = null;
 let expandedWindowSizeSaveTimer = null;
 let realQuitRequested = false;
 let dockHiddenForMenuBarMode = false;
+let temporaryInfoPanelOpen = false;
 
 const expandedMinimumSize = { width: 320, height: 620 };
 const defaultExpandedSize = { width: expandedMinimumSize.width, height: 780 };
 const collapsedSize = { width: 38, height: 154 };
+const temporaryInfoPanelExtraWidth = 264;
 const hiddenLaunchArg = "--hidden";
 const config = createConfigStore(app);
 const assets = createAssetLoader({
@@ -301,15 +303,23 @@ function normalizeRepositorySwitchView(view) {
   return normalized.mode === "branch" ? { mode: "all" } : normalized;
 }
 
-function clampExpandedSize(size, display) {
+function temporaryInfoExtraWidth() {
+  return temporaryInfoPanelOpen && !collapsedState ? temporaryInfoPanelExtraWidth : 0;
+}
+
+function clampExpandedSize(size, display, extraWidth = 0) {
+  const maxBaseWidth = Math.max(expandedMinimumSize.width, display.width - 20 - extraWidth);
+
   return {
-    width: Math.min(Math.max(Math.round(size.width), expandedMinimumSize.width), Math.max(expandedMinimumSize.width, display.width - 20)),
+    width: Math.min(Math.max(Math.round(size.width), expandedMinimumSize.width), maxBaseWidth),
     height: Math.min(Math.max(Math.round(size.height), expandedMinimumSize.height), Math.max(expandedMinimumSize.height, display.height - 16)),
   };
 }
 
 function readExpandedSize(display) {
-  return clampExpandedSize(config.readExpandedWindowSize() ?? defaultExpandedSize, display);
+  const extraWidth = temporaryInfoExtraWidth();
+  const baseSize = clampExpandedSize(config.readExpandedWindowSize() ?? defaultExpandedSize, display, extraWidth);
+  return { ...baseSize, width: baseSize.width + extraWidth };
 }
 
 function setWindowBounds(win, bounds, animated = true) {
@@ -322,14 +332,14 @@ function setWindowBounds(win, bounds, animated = true) {
 }
 
 function saveCurrentExpandedWindowSize(win) {
-  if (!win || win.isDestroyed() || collapsedState || applyingWindowBounds) return;
+  if (!win || win.isDestroyed() || collapsedState || temporaryInfoPanelOpen || applyingWindowBounds) return;
   const bounds = win.getBounds();
   const display = screen.getDisplayMatching(bounds).workArea;
   config.saveExpandedWindowSize(clampExpandedSize(bounds, display));
 }
 
 function scheduleExpandedWindowSizeSave(win) {
-  if (!win || win.isDestroyed() || collapsedState || applyingWindowBounds) return;
+  if (!win || win.isDestroyed() || collapsedState || temporaryInfoPanelOpen || applyingWindowBounds) return;
   clearTimeout(expandedWindowSizeSaveTimer);
   expandedWindowSizeSaveTimer = setTimeout(() => {
     saveCurrentExpandedWindowSize(win);
@@ -340,7 +350,8 @@ function positionWindow(win, collapsed = false) {
   if (!win) return;
   const display = screen.getPrimaryDisplay().workArea;
   const size = collapsed ? collapsedSize : readExpandedSize(display);
-  win.setMinimumSize(collapsed ? collapsedSize.width : expandedMinimumSize.width, collapsed ? collapsedSize.height : expandedMinimumSize.height);
+  const minimumWidth = collapsed ? collapsedSize.width : expandedMinimumSize.width + temporaryInfoExtraWidth();
+  win.setMinimumSize(minimumWidth, collapsed ? collapsedSize.height : expandedMinimumSize.height);
   const current = win.getBounds();
   const edgeInset = collapsed ? 0 : 10;
   const x = display.x + display.width - size.width - edgeInset;
@@ -356,10 +367,21 @@ function setCollapsedWindow(collapsed) {
   if (!mainWindow) return;
   const nextCollapsedState = Boolean(collapsed);
   if (!collapsedState && nextCollapsedState) saveCurrentExpandedWindowSize(mainWindow);
+  if (nextCollapsedState) temporaryInfoPanelOpen = false;
   collapsedState = nextCollapsedState;
   positionWindow(mainWindow, collapsedState);
   mainWindow.webContents.send("window:collapsedChanged", collapsedState);
   buildMenus();
+}
+
+function setTemporaryInfoPanelOpen(open) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const nextTemporaryInfoPanelOpen = Boolean(open) && !collapsedState;
+  if (temporaryInfoPanelOpen === nextTemporaryInfoPanelOpen) return;
+
+  if (!temporaryInfoPanelOpen && nextTemporaryInfoPanelOpen) saveCurrentExpandedWindowSize(mainWindow);
+  temporaryInfoPanelOpen = nextTemporaryInfoPanelOpen;
+  positionWindow(mainWindow, collapsedState);
 }
 
 function dockWindow(collapsed = collapsedState) {
@@ -723,6 +745,10 @@ ipcMain.handle("window:setPinned", (_event, pinned) => {
 
 ipcMain.handle("window:dockToEdge", (_event, collapsed) => {
   dockWindow(Boolean(collapsed));
+});
+
+ipcMain.handle("window:setTemporaryInfoPanelOpen", (_event, open) => {
+  setTemporaryInfoPanelOpen(Boolean(open));
 });
 
 ipcMain.handle("theme:getSystemTheme", () => getSystemTheme());

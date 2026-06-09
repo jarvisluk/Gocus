@@ -45,6 +45,7 @@ export default function App() {
   const [selectedChangedFileKey, setSelectedChangedFileKey] = useState("");
   const zenActive = Boolean(controller.snapshot && controller.preferences.zenMode);
   const selectedChangedFile = controller.snapshot?.changedFiles.find((file) => changedFileKey(file) === selectedChangedFileKey) ?? null;
+  const temporaryInfoOpen = Boolean(selectedChangedFile && !controller.collapsed && !controller.settingsOpen && !zenActive);
 
   const exitZenMode = useCallback(() => {
     controller.setPreferences({ ...controller.preferences, zenMode: false });
@@ -87,8 +88,15 @@ export default function App() {
     if (!selectedFileStillExists) setSelectedChangedFileKey("");
   }, [controller.snapshot, selectedChangedFileKey]);
 
+  useEffect(() => {
+    window.gitPeek?.setTemporaryInfoPanelOpen(temporaryInfoOpen);
+    return () => {
+      window.gitPeek?.setTemporaryInfoPanelOpen(false);
+    };
+  }, [temporaryInfoOpen]);
+
   return (
-    <main className={joinClass("app-viewport", controller.electron && "is-electron", controller.collapsed && "is-collapsed", zenActive && "is-zen")}>
+    <main className={joinClass("app-viewport", controller.electron && "is-electron", controller.collapsed && "is-collapsed", zenActive && "is-zen", temporaryInfoOpen && "has-temporary-info")}>
       {!controller.electron ? <EditorBackdrop /> : null}
 
       {controller.collapsed ? (
@@ -208,7 +216,7 @@ export default function App() {
           )}
         </section>
       )}
-      {!controller.collapsed && !controller.settingsOpen && !zenActive && selectedChangedFile ? (
+      {temporaryInfoOpen && selectedChangedFile ? (
         <ChangedFileInfoPanel file={selectedChangedFile} onClose={() => setSelectedChangedFileKey("")} />
       ) : null}
       {controller.repositoryDialogOpen ? <div className="native-dialog-blocker" aria-hidden="true" /> : null}

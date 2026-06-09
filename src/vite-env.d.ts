@@ -22,6 +22,7 @@ declare global {
       setCollapsed: (collapsed: boolean) => Promise<void>;
       setPinned: (pinned: boolean) => Promise<void>;
       dockToEdge: (collapsed: boolean) => Promise<void>;
+      setTemporaryInfoPanelOpen: (open: boolean) => Promise<void>;
       getSystemTheme: () => Promise<"light" | "dark">;
       onThemeChanged: (callback: (theme: "light" | "dark") => void) => () => void;
       onSnapshotUpdated: (callback: (response: SnapshotResponse) => void) => () => void;

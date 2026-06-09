@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld("gitPeek", {
   setCollapsed: (collapsed) => ipcRenderer.invoke("window:setCollapsed", collapsed),
   setPinned: (pinned) => ipcRenderer.invoke("window:setPinned", pinned),
   dockToEdge: (collapsed) => ipcRenderer.invoke("window:dockToEdge", collapsed),
+  setTemporaryInfoPanelOpen: (open) => ipcRenderer.invoke("window:setTemporaryInfoPanelOpen", open),
   getSystemTheme: () => ipcRenderer.invoke("theme:getSystemTheme"),
   onThemeChanged: (callback) => {
     const handler = (_event, theme) => callback(theme);
