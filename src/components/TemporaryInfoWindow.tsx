@@ -41,7 +41,7 @@ export function TemporaryInfoWindow() {
   }, [payload]);
 
   return (
-    <main className="temporary-info-viewport">
+    <main className="temporary-info-viewport is-electron">
       {payload?.kind === "changed-files" ? (
         <section className="peek-panel temporary-info-panel" aria-label="Changed files window">
           <ChangedNow

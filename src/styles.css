@@ -1980,9 +1980,12 @@ button:disabled {
 
 .temporary-info-panel {
   position: absolute;
-  inset: 8px;
+  inset: 0;
   width: auto;
   min-height: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .temporary-info-panel .changed-section {
@@ -1997,6 +2000,7 @@ button:disabled {
 
 .temporary-info-panel .section-heading {
   border-bottom: 1px solid var(--border-soft);
+  -webkit-app-region: drag;
 }
 
 .temporary-info-panel .file-list {
@@ -2004,6 +2008,10 @@ button:disabled {
   overflow: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
+}
+
+.temporary-info-panel .file-row {
+  -webkit-app-region: no-drag;
 }
 
 .temporary-info-panel .changed-side-panel {
@@ -2015,13 +2023,13 @@ button:disabled {
 
 .temporary-info-empty {
   position: absolute;
-  inset: 8px;
+  inset: 0;
   display: grid;
   place-items: center;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: 0;
+  border-radius: 0;
   background: var(--panel);
-  box-shadow: var(--shadow);
+  box-shadow: none;
   color: var(--text-faint);
   font-size: var(--font-sm);
   font-weight: var(--font-weight-strong);
