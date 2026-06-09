@@ -417,6 +417,7 @@ svg {
 .commit-actions button,
 .footer-changed-now,
 .footer-primary,
+.rail-count,
 .ui-disclosure-button,
 .workspace-open-trigger,
 .workspace-open-menu-toggle,
@@ -2469,11 +2470,22 @@ button:disabled {
   height: 24px;
   display: grid;
   place-items: center;
+  padding: 0;
   border-radius: 999px;
   background: var(--chip-amber);
   color: var(--main);
   font-size: 12px;
   font-weight: 800;
+  line-height: 1;
+}
+
+.rail-count:hover {
+  background: var(--main-soft);
+}
+
+.rail-count:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--main) 45%, transparent);
+  outline-offset: 2px;
 }
 
 .empty-repository {

@@ -4,13 +4,19 @@ import type { GitSnapshot } from "../types";
 export function CollapsedRail({
   snapshot,
   onExpand,
+  onOpenChangedNow,
   onDock,
 }: {
   snapshot: GitSnapshot | null;
   onExpand: () => void;
+  onOpenChangedNow: () => void;
   onDock: () => void;
 }) {
   const dirtyCount = snapshot ? snapshot.counts.modified + snapshot.counts.staged + snapshot.counts.untracked : 0;
+
+  function openChangedNow() {
+    onOpenChangedNow();
+  }
 
   return (
     <aside className="collapsed-rail" aria-label="Collapsed Git Peek" title="Drag to move. Double-click to dock to the screen edge." onDoubleClick={onDock}>
@@ -22,9 +28,9 @@ export function CollapsedRail({
         <span>{snapshot?.branch.name ?? "Open"}</span>
       </div>
       {snapshot ? (
-        <div className="rail-count" aria-label={`${dirtyCount} working tree changes`}>
+        <button className="rail-count" type="button" aria-label={`Open Changed now, ${dirtyCount} working tree changes`} title="Changed now" onClick={openChangedNow}>
           {dirtyCount}
-        </div>
+        </button>
       ) : null}
     </aside>
   );

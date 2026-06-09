@@ -75,6 +75,11 @@ export default function App() {
     if (temporaryInfoPayload) window.gitPeek?.setTemporaryInfoPanel(temporaryInfoPayload);
   }, [temporaryInfoPayload]);
 
+  const openChangedNowFromCollapsedRail = useCallback(() => {
+    setChangedNowWindowOpen(true);
+    controller.setCollapsedState(false);
+  }, [controller.setCollapsedState]);
+
   useEffect(() => {
     if (!controller.settingsOpen || zenActive) return undefined;
 
@@ -125,7 +130,12 @@ export default function App() {
       {!controller.electron ? <EditorBackdrop /> : null}
 
       {controller.collapsed ? (
-        <CollapsedRail snapshot={controller.snapshot} onExpand={() => controller.setCollapsedState(false)} onDock={controller.dockCurrentState} />
+        <CollapsedRail
+          snapshot={controller.snapshot}
+          onExpand={() => controller.setCollapsedState(false)}
+          onOpenChangedNow={openChangedNowFromCollapsedRail}
+          onDock={controller.dockCurrentState}
+        />
       ) : (
         <section className={joinClass("peek-panel", zenActive && "is-zen-panel")} aria-label={zenActive ? "Git Peek zen commit view" : "Git Peek side panel"}>
           {zenActive ? (
