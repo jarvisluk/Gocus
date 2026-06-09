@@ -471,6 +471,12 @@ function positionTemporaryInfoWindow() {
   if (bounds) temporaryInfoWindow.setBounds(bounds, true);
 }
 
+function syncTemporaryInfoWindowLevel() {
+  if (!temporaryInfoWindow || temporaryInfoWindow.isDestroyed()) return;
+  const mainFocused = Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused());
+  temporaryInfoWindow.setAlwaysOnTop(pinnedState || mainFocused, "floating");
+}
+
 function closeTemporaryInfoWindow() {
   temporaryInfoPayload = null;
   if (!temporaryInfoWindow || temporaryInfoWindow.isDestroyed()) return;
@@ -504,9 +510,10 @@ function ensureTemporaryInfoWindow() {
     },
   });
 
-  if (pinnedState) temporaryInfoWindow.setAlwaysOnTop(true, "floating");
+  syncTemporaryInfoWindowLevel();
   temporaryInfoWindow.once("ready-to-show", () => {
     positionTemporaryInfoWindow();
+    syncTemporaryInfoWindowLevel();
     temporaryInfoWindow?.showInactive();
     sendTemporaryInfoPayload();
   });
@@ -538,9 +545,7 @@ function setPinnedWindow(pinned) {
   if (!mainWindow) return;
   pinnedState = Boolean(pinned);
   mainWindow.setAlwaysOnTop(pinnedState, "floating");
-  if (temporaryInfoWindow && !temporaryInfoWindow.isDestroyed()) {
-    temporaryInfoWindow.setAlwaysOnTop(pinnedState, "floating");
-  }
+  syncTemporaryInfoWindowLevel();
   buildMenus();
 }
 
@@ -597,6 +602,8 @@ function createWindow({ showOnReady = true } = {}) {
     scheduleExpandedWindowSizeSave(mainWindow);
     positionTemporaryInfoWindow();
   });
+  mainWindow.on("focus", syncTemporaryInfoWindowLevel);
+  mainWindow.on("blur", syncTemporaryInfoWindowLevel);
   mainWindow.on("hide", closeTemporaryInfoWindow);
   mainWindow.on("close", (event) => {
     closeTemporaryInfoWindow();
