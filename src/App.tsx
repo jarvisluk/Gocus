@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Minimize2 } from "lucide-react";
 import { ActionDialog } from "./components/ActionDialog";
-import { ChangedNow } from "./components/ChangedNow";
+import { ChangedFileInfoPanel, ChangedNow, changedFileKey } from "./components/ChangedNow";
 import { CollapsedRail } from "./components/CollapsedRail";
 import { EmptyRepositoryState } from "./components/EmptyRepositoryState";
 import { Footer } from "./components/Footer";
@@ -42,7 +42,9 @@ function EditorBackdrop() {
 export default function App() {
   const controller = useGitPeekController();
   const [changedNowCollapsed, setChangedNowCollapsed] = useState(false);
+  const [selectedChangedFileKey, setSelectedChangedFileKey] = useState("");
   const zenActive = Boolean(controller.snapshot && controller.preferences.zenMode);
+  const selectedChangedFile = controller.snapshot?.changedFiles.find((file) => changedFileKey(file) === selectedChangedFileKey) ?? null;
 
   const exitZenMode = useCallback(() => {
     controller.setPreferences({ ...controller.preferences, zenMode: false });
@@ -78,6 +80,12 @@ export default function App() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [exitZenMode, zenActive]);
+
+  useEffect(() => {
+    if (!selectedChangedFileKey) return;
+    const selectedFileStillExists = controller.snapshot?.changedFiles.some((file) => changedFileKey(file) === selectedChangedFileKey);
+    if (!selectedFileStillExists) setSelectedChangedFileKey("");
+  }, [controller.snapshot, selectedChangedFileKey]);
 
   return (
     <main className={joinClass("app-viewport", controller.electron && "is-electron", controller.collapsed && "is-collapsed", zenActive && "is-zen")}>
@@ -165,7 +173,9 @@ export default function App() {
                       files={controller.snapshot.changedFiles}
                       filter={controller.fileFilter}
                       collapsed={changedNowCollapsed}
+                      selectedFileKey={selectedChangedFileKey}
                       onToggleCollapsed={() => setChangedNowCollapsed((current) => !current)}
+                      onSelectFile={setSelectedChangedFileKey}
                     />
                   ) : null}
                 </>
@@ -196,6 +206,9 @@ export default function App() {
           )}
         </section>
       )}
+      {!controller.collapsed && !controller.settingsOpen && !zenActive && selectedChangedFile ? (
+        <ChangedFileInfoPanel file={selectedChangedFile} onClose={() => setSelectedChangedFileKey("")} />
+      ) : null}
       {controller.repositoryDialogOpen ? <div className="native-dialog-blocker" aria-hidden="true" /> : null}
     </main>
   );
