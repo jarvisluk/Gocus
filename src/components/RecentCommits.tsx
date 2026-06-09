@@ -1,10 +1,10 @@
-import { FileCode2, GitBranch, GitCompareArrows, GitFork, GitMerge, Search } from "lucide-react";
+import { FileCode2, GitBranch, GitFork, GitMerge, Search } from "lucide-react";
 import type { CSSProperties } from "react";
 import { GitTreeCell, getGitTreeRailWidth, getGitTreeRequiredLaneCount } from "../git-tree";
 import { joinClass } from "../lib/classNames";
 import type { CommitItem } from "../types";
 
-type CommitAction = "compare" | "branch" | "checkout";
+type CommitAction = "branch" | "checkout";
 
 function CommitRow({
   commit,
@@ -67,10 +67,6 @@ function CommitRow({
         </div>
         {selected ? (
           <div className="commit-actions" onClick={(event) => event.stopPropagation()}>
-            <button type="button" onClick={() => onAction("compare", commit)}>
-              <GitCompareArrows aria-hidden="true" />
-              Compare
-            </button>
             <button type="button" onClick={() => onAction("branch", commit)}>
               <GitFork aria-hidden="true" />
               Branch

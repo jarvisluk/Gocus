@@ -24,7 +24,7 @@ let repositoryWatcher = null;
 const expandedMinimumSize = { width: 320, height: 620 };
 const defaultExpandedSize = { width: expandedMinimumSize.width, height: 780 };
 const collapsedSize = { width: 38, height: 154 };
-const temporaryInfoWindowSize = { width: 280, height: 238 };
+const temporaryInfoWindowSize = { width: 280, height: 252 };
 const temporaryInfoWindowGap = 10;
 const hiddenLaunchArg = "--hidden";
 const config = createConfigStore(app);
@@ -508,7 +508,7 @@ function closeTemporaryInfoWindow() {
 }
 
 function ensureTemporaryInfoWindow() {
-  if (collapsedState || !mainWindow || mainWindow.isDestroyed()) return null;
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
   if (temporaryInfoWindow && !temporaryInfoWindow.isDestroyed()) return temporaryInfoWindow;
 
   const bounds = temporaryInfoWindowBounds() ?? { ...temporaryInfoWindowSize };
@@ -552,7 +552,7 @@ function ensureTemporaryInfoWindow() {
 }
 
 function setTemporaryInfoPanel(payload) {
-  if (!payload || collapsedState) {
+  if (!payload) {
     closeTemporaryInfoWindow();
     return;
   }
@@ -581,15 +581,6 @@ function showMainWindow() {
 
   mainWindow.show();
   mainWindow.focus();
-}
-
-function toggleMainWindow() {
-  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible()) {
-    showMainWindow();
-    return;
-  }
-
-  mainWindow.hide();
 }
 
 function createWindow({ showOnReady = true } = {}) {
@@ -654,8 +645,26 @@ function createTray() {
 
   tray = new Tray(trayIcon);
   tray.setToolTip("Git Peek");
+  if (process.platform === "darwin" && process.env.GIT_PEEK_SHOW_TRAY_TITLE === "1") {
+    tray.setTitle("Git Peek");
+  }
+  if (process.env.GIT_PEEK_DEBUG_TRAY === "1") {
+    setTimeout(() => {
+      console.info(
+        "[tray]",
+        JSON.stringify({
+          empty: trayIcon.isEmpty(),
+          template: process.platform === "darwin" ? trayIcon.isTemplateImage() : false,
+          size1x: trayIcon.getSize(1),
+          size2x: trayIcon.getSize(2),
+          scales: trayIcon.getScaleFactors(),
+          bounds: tray.getBounds(),
+          title: process.platform === "darwin" ? tray.getTitle() : "",
+        }),
+      );
+    }, 1000);
+  }
   buildMenus();
-  tray.on("click", toggleMainWindow);
 }
 
 function buildMenus() {

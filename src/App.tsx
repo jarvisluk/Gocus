@@ -39,14 +39,15 @@ function EditorBackdrop() {
 
 export default function App() {
   const controller = useGitPeekController();
-  const [changedNowWindowOpen, setChangedNowWindowOpen] = useState(true);
+  const [changedNowWindowOpen, setChangedNowWindowOpen] = useState(false);
+  const [collapsedRailChangedNowOpen, setCollapsedRailChangedNowOpen] = useState(false);
   const zenActive = Boolean(controller.snapshot && controller.preferences.zenMode);
   const changedNowCount = useMemo(() => {
     return controller.snapshot?.changedFiles.length ?? 0;
   }, [controller.snapshot]);
   const temporaryInfoPayload = useMemo(
     () =>
-      controller.snapshot && changedNowWindowOpen && !controller.collapsed && !controller.settingsOpen && !zenActive
+      controller.snapshot && changedNowWindowOpen && (!controller.collapsed || collapsedRailChangedNowOpen) && !controller.settingsOpen && !zenActive
         ? {
             kind: "changed-files" as const,
             files: controller.snapshot.changedFiles,
@@ -54,7 +55,7 @@ export default function App() {
             selectedFileKey: "",
           }
         : null,
-    [changedNowWindowOpen, controller.collapsed, controller.settingsOpen, controller.snapshot, zenActive],
+    [changedNowWindowOpen, collapsedRailChangedNowOpen, controller.collapsed, controller.settingsOpen, controller.snapshot, zenActive],
   );
 
   const exitZenMode = useCallback(() => {
@@ -67,16 +68,18 @@ export default function App() {
   }
 
   const openChangedNowWindow = useCallback(() => {
+    setCollapsedRailChangedNowOpen(false);
     setChangedNowWindowOpen(true);
     if (temporaryInfoPayload) window.gitPeek?.setTemporaryInfoPanel(temporaryInfoPayload);
   }, [temporaryInfoPayload]);
 
   const openChangedNowFromCollapsedRail = useCallback(() => {
+    setCollapsedRailChangedNowOpen(true);
     setChangedNowWindowOpen(true);
-    controller.setCollapsedState(false);
-  }, [controller.setCollapsedState]);
+  }, []);
 
   const closeChangedNowWindow = useCallback(() => {
+    setCollapsedRailChangedNowOpen(false);
     setChangedNowWindowOpen(false);
     window.gitPeek?.setTemporaryInfoPanel(null);
   }, []);
@@ -116,13 +119,19 @@ export default function App() {
 
     function handlePointerDown(event: PointerEvent) {
       const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest(".footer-changed-now")) return;
+      if (target?.closest(".footer-changed-now, .rail-count")) return;
       closeChangedNowWindow();
     }
 
     window.addEventListener("pointerdown", handlePointerDown, true);
     return () => window.removeEventListener("pointerdown", handlePointerDown, true);
   }, [closeChangedNowWindow, temporaryInfoPayload]);
+
+  useEffect(() => {
+    if (!controller.collapsed && collapsedRailChangedNowOpen) {
+      setCollapsedRailChangedNowOpen(false);
+    }
+  }, [collapsedRailChangedNowOpen, controller.collapsed]);
 
   useEffect(
     () => () => {
@@ -134,6 +143,7 @@ export default function App() {
   useEffect(
     () =>
       window.gitPeek?.onTemporaryInfoPanelClosed(() => {
+        setCollapsedRailChangedNowOpen(false);
         setChangedNowWindowOpen(false);
       }),
     [],

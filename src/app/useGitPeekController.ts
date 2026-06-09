@@ -223,14 +223,9 @@ export function useGitPeekController() {
     if (!response.canceled) setNotice(response.error ?? "Action failed.");
   }
 
-  async function handleCommitAction(action: "compare" | "branch" | "checkout", commit: CommitItem) {
+  async function handleCommitAction(action: "branch" | "checkout", commit: CommitItem) {
     if (!window.gitPeek) {
       setNotice("Electron mode is required for Git actions.");
-      return;
-    }
-
-    if (action === "compare") {
-      setNotice(`${commit.hash} selected for compare. Full graph diff is next on the roadmap.`);
       return;
     }
 

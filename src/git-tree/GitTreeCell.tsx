@@ -10,7 +10,7 @@ export function GitTreeCell({ graph, laneCount }: { graph: CommitGraph; laneCoun
   const model = buildGitTreeRenderModel(graph, { laneCount });
   const nodeStyle = {
     left: `${model.node.leftPercent}%`,
-    top: `${model.node.topPercent}%`,
+    top: `var(--git-tree-node-y, ${model.node.topPercent}%)`,
     "--git-tree-color": model.node.color,
   } as CSSProperties;
 
