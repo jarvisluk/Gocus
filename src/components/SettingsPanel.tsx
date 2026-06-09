@@ -1,5 +1,5 @@
 import { ChevronLeft, Monitor, Moon, RotateCcw, Sun } from "lucide-react";
-import { darkThemePresetOptions, lightThemePresetOptions } from "../lib/preferences";
+import { autoRefreshIntervalOptions, darkThemePresetOptions, lightThemePresetOptions } from "../lib/preferences";
 import { workspaceOpenOptions } from "../lib/workspaceOpenOptions";
 import type { UiPreferences, WorkspaceOpenTarget } from "../types";
 
@@ -126,6 +126,23 @@ export function SettingsPanel({
             <button className={preferences.graphStyle === "soft" ? "is-active" : ""} type="button" onClick={() => onChange({ ...preferences, graphStyle: "soft" })}>
               Soft
             </button>
+          </div>
+        </div>
+        <div className="ui-form-row settings-row">
+          <span className="ui-label">Refresh</span>
+          <div className="ui-select-frame">
+            <select
+              className="ui-select"
+              value={preferences.autoRefreshInterval}
+              onChange={(event) => onChange({ ...preferences, autoRefreshInterval: event.target.value as UiPreferences["autoRefreshInterval"] })}
+              aria-label="Auto refresh interval"
+            >
+              {autoRefreshIntervalOptions.map((option) => (
+                <option value={option.value} key={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
         <div className="ui-form-row settings-row">

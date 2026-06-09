@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ActionDialogState } from "../components/ActionDialog";
 import { applyPreferences, defaultPreferences, mergePreferences, resolveThemePreset } from "../lib/preferences";
 import { defaultWorkspaceOpenTargets, sanitizeWorkspaceOpenTargets } from "../lib/workspaceOpenTargets";
@@ -17,6 +17,12 @@ import type {
 } from "../types";
 
 const defaultView: CommitViewSelection = { mode: "all" };
+const autoRefreshIntervals: Record<UiPreferences["autoRefreshInterval"], number> = {
+  off: 0,
+  "1m": 60_000,
+  "5m": 300_000,
+  "15m": 900_000,
+};
 
 function isElectronRuntime() {
   return Boolean(window.gitPeek);
@@ -78,6 +84,8 @@ export function useGitPeekController() {
   const [recentRepositories, setRecentRepositories] = useState<RecentRepository[]>([]);
   const [actionDialog, setActionDialog] = useState<(ActionDialogState & { commit?: CommitItem; ref?: string }) | null>(null);
   const [repositoryDialogOpen, setRepositoryDialogOpen] = useState(false);
+  const lastGitRequestAtRef = useRef(Date.now());
+  const autoRefreshInFlightRef = useRef(false);
   const electron = isElectronRuntime();
   const theme = resolveTheme(preferences, systemTheme);
 
@@ -90,14 +98,18 @@ export function useGitPeekController() {
     setNoticeState(message);
   }
 
-  function applySnapshotResponse(response: SnapshotResponse, successNotice = "Live Git data connected.") {
+  function markGitRequest() {
+    lastGitRequestAtRef.current = Date.now();
+  }
+
+  function applySnapshotResponse(response: SnapshotResponse, successNotice: string | null = "Live Git data connected.") {
     if (response.ok) {
       setSnapshot(response.snapshot);
       setFolderWithoutGit(null);
       setRecentRepositories((current) => upsertRecentRepository(current, recentRepositoryFromSnapshot(response.snapshot)));
       setCommitViewState(response.snapshot.view);
       setSelectedCommitId((current) => (current && response.snapshot.commits.some((commit) => commit.id === current) ? current : ""));
-      setNotice(successNotice);
+      if (successNotice) setNotice(successNotice);
       return;
     }
 
@@ -115,12 +127,13 @@ export function useGitPeekController() {
     }
   }
 
-  async function refreshSnapshot(view = commitView, successNotice = "Git status refreshed.") {
+  async function refreshSnapshot(view = commitView, successNotice = "Git status refreshed.", options: { silent?: boolean; markActivity?: boolean } = {}) {
     if (!snapshot && !window.gitPeek) {
       setNotice("Run the Electron app to choose a local working folder.");
       return;
     }
 
+    if (options.markActivity !== false) markGitRequest();
     setRefreshing(true);
 
     if (!window.gitPeek) {
@@ -133,7 +146,7 @@ export function useGitPeekController() {
 
     const response = await window.gitPeek.refresh(view);
     setRefreshing(false);
-    applySnapshotResponse(response, successNotice);
+    applySnapshotResponse(response, options.silent ? null : successNotice);
   }
 
   async function openRepository() {
@@ -142,6 +155,7 @@ export function useGitPeekController() {
       return;
     }
 
+    markGitRequest();
     setLoading(true);
     const response = await window.gitPeek.openRepository(commitView);
     applySnapshotResponse(response, response.ok ? `Opened ${response.snapshot.repoName}.` : undefined);
@@ -154,6 +168,7 @@ export function useGitPeekController() {
       return;
     }
 
+    markGitRequest();
     setRefreshing(true);
     try {
       const response = await window.gitPeek.switchRepository(repositoryPath, commitView);
@@ -171,6 +186,7 @@ export function useGitPeekController() {
       return;
     }
 
+    markGitRequest();
     setInitializingRepository(true);
     try {
       await runAction(window.gitPeek.initializeRepository(folderWithoutGit.path, commitView), "Initialized Git repository.");
@@ -187,6 +203,7 @@ export function useGitPeekController() {
       return;
     }
 
+    markGitRequest();
     setRefreshing(true);
     const response = await window.gitPeek.getSnapshot(nextView);
     setRefreshing(false);
@@ -194,6 +211,7 @@ export function useGitPeekController() {
   }
 
   async function runAction(responsePromise: Promise<ActionResponse>, fallbackNotice: string) {
+    markGitRequest();
     const response = await responsePromise;
     if (response.ok) {
       if (response.snapshot) {
@@ -373,6 +391,7 @@ export function useGitPeekController() {
     window.gitPeek.getRecentRepositories().then(setRecentRepositories);
 
     const unsubscribeSnapshot = window.gitPeek.onSnapshotUpdated((response) => {
+      markGitRequest();
       applySnapshotResponse(response, response.ok ? "Git data updated from menu." : "Working folder cleared.");
       setLoading(false);
     });
@@ -385,6 +404,33 @@ export function useGitPeekController() {
       unsubscribeRepositoryDialog();
     };
   }, []);
+
+  useEffect(() => {
+    const intervalMs = autoRefreshIntervals[preferences.autoRefreshInterval];
+    if (!intervalMs || !electron || !snapshot || actionDialog || repositoryDialogOpen) return undefined;
+
+    const tickMs = Math.min(intervalMs, 30_000);
+    const timer = window.setInterval(async () => {
+      if (!window.gitPeek || autoRefreshInFlightRef.current || refreshing) return;
+      if (Date.now() - lastGitRequestAtRef.current < intervalMs) return;
+
+      autoRefreshInFlightRef.current = true;
+      setRefreshing(true);
+
+      try {
+        const response = await window.gitPeek.refresh(commitView);
+        applySnapshotResponse(response, response.ok ? null : "Auto refresh failed.");
+      } catch (error) {
+        setNotice(error instanceof Error ? error.message : "Auto refresh failed.");
+      } finally {
+        setRefreshing(false);
+        markGitRequest();
+        autoRefreshInFlightRef.current = false;
+      }
+    }, tickMs);
+
+    return () => window.clearInterval(timer);
+  }, [actionDialog, commitView, electron, preferences.autoRefreshInterval, refreshing, repositoryDialogOpen, snapshot]);
 
   return {
     snapshot,

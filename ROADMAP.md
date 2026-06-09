@@ -16,4 +16,4 @@
  - [ ] new window style: on the left side of the main window, out side it. for show temporary info. apply it to the Changed Now list.
  - [ ] when create branch, provide prefix select: none/fix/feat/...
  - [ ] hide commit author when the commit is not selected
- - [ ] Auto refresh git tree with timer. can be set in settings. only do auto refresh for a long time without git action
+ - [x] Auto refresh git tree with timer. can be set in settings. only do auto refresh for a long time without git action

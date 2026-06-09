@@ -8,6 +8,7 @@ export type FileFilter = "all" | "modified" | "staged" | "untracked";
 export type WorkspaceOpenTarget = "vscode" | "cursor" | "codex" | "antigravity" | "finder" | "terminal" | "xcode";
 export type CommitViewMode = "current" | "all" | "branch";
 export type GraphLineVariant = "solid" | "dashed";
+export type AutoRefreshInterval = "off" | "1m" | "5m" | "15m";
 
 export interface RecentRepository {
   path: string;
@@ -37,6 +38,7 @@ export interface UiPreferences {
   showZenEntry: boolean;
   launchAtLogin: boolean;
   zenMode: boolean;
+  autoRefreshInterval: AutoRefreshInterval;
 }
 
 export interface GraphLaneSegment {

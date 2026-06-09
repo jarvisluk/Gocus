@@ -12,6 +12,7 @@ export const defaultPreferences: UiPreferences = {
   showZenEntry: true,
   launchAtLogin: false,
   zenMode: false,
+  autoRefreshInterval: "off",
 };
 
 export const lightThemePresetOptions: { value: LightThemePreset; label: string }[] = [
@@ -24,6 +25,13 @@ export const darkThemePresetOptions: { value: DarkThemePreset; label: string }[]
   { value: "graphite", label: "Graphite" },
   { value: "cursor", label: "Cursor" },
   { value: "matte", label: "Matte" },
+];
+
+export const autoRefreshIntervalOptions: { value: UiPreferences["autoRefreshInterval"]; label: string }[] = [
+  { value: "off", label: "Off" },
+  { value: "1m", label: "1 min" },
+  { value: "5m", label: "5 min" },
+  { value: "15m", label: "15 min" },
 ];
 
 const fontStacks: Record<UiPreferences["fontFamily"], string> = {
@@ -42,6 +50,7 @@ const darkPresetValues = darkThemePresetOptions.map((option) => option.value);
 const densityValues: UiPreferences["density"][] = ["compact", "comfortable"];
 const fontFamilyValues: UiPreferences["fontFamily"][] = ["system", "inter", "mono"];
 const graphStyleValues: UiPreferences["graphStyle"][] = ["solid", "soft"];
+const autoRefreshIntervalValues = autoRefreshIntervalOptions.map((option) => option.value);
 
 export function mergePreferences(value: Partial<UiPreferences> | null | undefined): UiPreferences {
   const candidate = value ?? {};
@@ -57,6 +66,7 @@ export function mergePreferences(value: Partial<UiPreferences> | null | undefine
     showZenEntry: typeof candidate.showZenEntry === "boolean" ? candidate.showZenEntry : defaultPreferences.showZenEntry,
     launchAtLogin: typeof candidate.launchAtLogin === "boolean" ? candidate.launchAtLogin : defaultPreferences.launchAtLogin,
     zenMode: typeof candidate.zenMode === "boolean" ? candidate.zenMode : defaultPreferences.zenMode,
+    autoRefreshInterval: includesValue(autoRefreshIntervalValues, candidate.autoRefreshInterval) ? candidate.autoRefreshInterval : defaultPreferences.autoRefreshInterval,
   };
 }
 

@@ -14,6 +14,7 @@ const defaultPreferences = {
   showZenEntry: true,
   launchAtLogin: false,
   zenMode: false,
+  autoRefreshInterval: "off",
 };
 
 function normalizeRepositoryPath(repositoryPath) {
