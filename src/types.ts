@@ -9,6 +9,7 @@ export type WorkspaceOpenTarget = "vscode" | "cursor" | "codex" | "antigravity" 
 export type CommitViewMode = "current" | "all" | "branch";
 export type GraphLineVariant = "solid" | "dashed";
 export type AutoRefreshInterval = "off" | "1m" | "5m" | "15m";
+export type PromptLanguage = "en" | "zh";
 
 export interface RecentRepository {
   path: string;
@@ -39,6 +40,7 @@ export interface UiPreferences {
   launchAtLogin: boolean;
   zenMode: boolean;
   autoRefreshInterval: AutoRefreshInterval;
+  promptLanguage: PromptLanguage;
 }
 
 export interface GraphLaneSegment {

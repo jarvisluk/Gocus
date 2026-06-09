@@ -24,10 +24,12 @@ declare global {
       dockToEdge: (collapsed: boolean) => Promise<void>;
       getTemporaryInfoPayload: () => Promise<TemporaryInfoPayload>;
       setTemporaryInfoPanel: (payload: TemporaryInfoPayload) => Promise<void>;
+      copyText: (text: string) => Promise<void>;
       getSystemTheme: () => Promise<"light" | "dark">;
       onTemporaryInfoPayloadUpdated: (callback: (payload: TemporaryInfoPayload) => void) => () => void;
       onTemporaryInfoPanelClosed: (callback: () => void) => () => void;
       onThemeChanged: (callback: (theme: "light" | "dark") => void) => () => void;
+      onPreferencesChanged: (callback: (preferences: UiPreferences) => void) => () => void;
       onSnapshotUpdated: (callback: (response: SnapshotResponse) => void) => () => void;
       onCollapsedChanged: (callback: (collapsed: boolean) => void) => () => void;
       onRepositoryDialogOpenChanged: (callback: (open: boolean) => void) => () => void;

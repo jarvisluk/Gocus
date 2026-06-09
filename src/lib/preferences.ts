@@ -13,6 +13,7 @@ export const defaultPreferences: UiPreferences = {
   launchAtLogin: false,
   zenMode: false,
   autoRefreshInterval: "off",
+  promptLanguage: "en",
 };
 
 export const lightThemePresetOptions: { value: LightThemePreset; label: string }[] = [
@@ -51,6 +52,7 @@ const densityValues: UiPreferences["density"][] = ["compact", "comfortable"];
 const fontFamilyValues: UiPreferences["fontFamily"][] = ["system", "inter", "mono"];
 const graphStyleValues: UiPreferences["graphStyle"][] = ["solid", "soft"];
 const autoRefreshIntervalValues = autoRefreshIntervalOptions.map((option) => option.value);
+const promptLanguageValues: UiPreferences["promptLanguage"][] = ["en", "zh"];
 
 export function mergePreferences(value: Partial<UiPreferences> | null | undefined): UiPreferences {
   const candidate = value ?? {};
@@ -67,6 +69,7 @@ export function mergePreferences(value: Partial<UiPreferences> | null | undefine
     launchAtLogin: typeof candidate.launchAtLogin === "boolean" ? candidate.launchAtLogin : defaultPreferences.launchAtLogin,
     zenMode: typeof candidate.zenMode === "boolean" ? candidate.zenMode : defaultPreferences.zenMode,
     autoRefreshInterval: includesValue(autoRefreshIntervalValues, candidate.autoRefreshInterval) ? candidate.autoRefreshInterval : defaultPreferences.autoRefreshInterval,
+    promptLanguage: includesValue(promptLanguageValues, candidate.promptLanguage) ? candidate.promptLanguage : defaultPreferences.promptLanguage,
   };
 }
 

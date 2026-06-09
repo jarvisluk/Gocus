@@ -235,6 +235,17 @@ export function SettingsPanel({
                 />
               </label>
             </div>
+            <div className="ui-form-row settings-row">
+              <span className="ui-label">Prompt</span>
+              <div className="ui-segmented segmented-control compact">
+                <button className={preferences.promptLanguage === "en" ? "is-active" : ""} type="button" onClick={() => onChange({ ...preferences, promptLanguage: "en" })}>
+                  English
+                </button>
+                <button className={preferences.promptLanguage === "zh" ? "is-active" : ""} type="button" onClick={() => onChange({ ...preferences, promptLanguage: "zh" })}>
+                  中文
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="ui-form-section" aria-labelledby="settings-workspace-title">

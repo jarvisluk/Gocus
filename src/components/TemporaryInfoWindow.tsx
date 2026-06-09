@@ -27,7 +27,12 @@ export function TemporaryInfoWindow() {
   useEffect(() => {
     window.gitPeek?.getPreferences().then((value) => setPreferences(mergePreferences(value)));
     window.gitPeek?.getSystemTheme().then(setSystemTheme);
-    return window.gitPeek?.onThemeChanged(setSystemTheme);
+    const unsubscribeTheme = window.gitPeek?.onThemeChanged(setSystemTheme);
+    const unsubscribePreferences = window.gitPeek?.onPreferencesChanged((value) => setPreferences(mergePreferences(value)));
+    return () => {
+      unsubscribeTheme?.();
+      unsubscribePreferences?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -47,6 +52,7 @@ export function TemporaryInfoWindow() {
           <ChangedNow
             files={payload.files}
             filter={payload.filter}
+            promptLanguage={preferences.promptLanguage}
             selectedFileKey={selectedFileKey}
             onClose={() => window.gitPeek?.setTemporaryInfoPanel(null)}
             onSelectFile={setSelectedFileKey}

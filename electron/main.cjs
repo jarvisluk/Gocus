@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, nativeTheme, screen, shell } = require("electron");
+const { app, BrowserWindow, Menu, Tray, clipboard, dialog, ipcMain, nativeImage, nativeTheme, screen, shell } = require("electron");
 const path = require("node:path");
 const { createAssetLoader } = require("./lib/assets.cjs");
 const { createConfigStore } = require("./lib/config.cjs");
@@ -310,15 +310,15 @@ async function chooseRepository(view = currentView) {
 }
 
 function sendSnapshotResponse(response) {
-  mainWindow?.webContents.send("git:snapshotUpdated", response);
+  sendToWindow(mainWindow, "git:snapshotUpdated", response);
 }
 
 function sendRepositoryDialogOpen(open) {
-  mainWindow?.webContents.send("window:repositoryDialogOpenChanged", open);
+  sendToWindow(mainWindow, "window:repositoryDialogOpenChanged", open);
 }
 
 function sendTemporaryInfoPanelClosed() {
-  mainWindow?.webContents.send("window:temporaryInfoPanelClosed");
+  sendToWindow(mainWindow, "window:temporaryInfoPanelClosed");
 }
 
 function waitForDialogBlockerFrame() {
@@ -329,8 +329,21 @@ function getSystemTheme() {
   return nativeTheme.shouldUseDarkColors ? "dark" : "light";
 }
 
+function sendToWindow(win, channel, ...args) {
+  if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return;
+  win.webContents.send(channel, ...args);
+}
+
 function sendSystemTheme() {
-  mainWindow?.webContents.send("theme:changed", getSystemTheme());
+  for (const win of [mainWindow, temporaryInfoWindow]) {
+    sendToWindow(win, "theme:changed", getSystemTheme());
+  }
+}
+
+function sendPreferences(preferences = readPreferences()) {
+  for (const win of [mainWindow, temporaryInfoWindow]) {
+    sendToWindow(win, "preferences:changed", preferences);
+  }
 }
 
 async function refreshAndSendSnapshot() {
@@ -499,6 +512,7 @@ function ensureTemporaryInfoWindow() {
     backgroundColor: "#00000000",
     hasShadow: false,
     resizable: false,
+    movable: false,
     minimizable: false,
     maximizable: false,
     skipTaskbar: true,
@@ -894,7 +908,9 @@ ipcMain.handle("preferences:get", () => {
 
 ipcMain.handle("preferences:save", (_event, preferences) => {
   config.savePreferences(preferences);
-  syncLaunchAtLogin(config.readPreferences());
+  const savedPreferences = readPreferences();
+  syncLaunchAtLogin(savedPreferences);
+  sendPreferences(savedPreferences);
 });
 
 ipcMain.handle("window:setCollapsed", (_event, collapsed) => {
@@ -913,6 +929,10 @@ ipcMain.handle("window:getTemporaryInfoPayload", () => temporaryInfoPayload);
 
 ipcMain.handle("window:setTemporaryInfoPanel", (_event, payload) => {
   setTemporaryInfoPanel(payload);
+});
+
+ipcMain.handle("clipboard:writeText", (_event, text) => {
+  clipboard.writeText(typeof text === "string" ? text : "");
 });
 
 ipcMain.handle("theme:getSystemTheme", () => getSystemTheme());

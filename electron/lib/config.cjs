@@ -15,6 +15,7 @@ const defaultPreferences = {
   launchAtLogin: false,
   zenMode: false,
   autoRefreshInterval: "off",
+  promptLanguage: "en",
 };
 
 function normalizeRepositoryPath(repositoryPath) {

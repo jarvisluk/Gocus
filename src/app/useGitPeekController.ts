@@ -372,7 +372,12 @@ export function useGitPeekController() {
       window.gitPeek.getSystemTheme().then(setSystemTheme);
       window.gitPeek.getPreferences().then((value) => setPreferencesState(mergePreferences(value)));
       window.gitPeek.getAvailableWorkspaceTargets().then((targets) => setAvailableWorkspaceTargets(sanitizeWorkspaceOpenTargets(targets, [])));
-      return window.gitPeek.onThemeChanged(setSystemTheme);
+      const unsubscribeTheme = window.gitPeek.onThemeChanged(setSystemTheme);
+      const unsubscribePreferences = window.gitPeek.onPreferencesChanged((value) => setPreferencesState(mergePreferences(value)));
+      return () => {
+        unsubscribeTheme();
+        unsubscribePreferences();
+      };
     }
 
     const media = window.matchMedia("(prefers-color-scheme: dark)");
