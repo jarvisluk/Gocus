@@ -409,7 +409,7 @@ function temporaryInfoWindowBounds() {
   const preferredX = mainBounds.x - width - temporaryInfoWindowGap;
   const fallbackX = mainBounds.x + temporaryInfoWindowGap;
   const x = preferredX >= display.x + 8 ? preferredX : Math.min(fallbackX, display.x + display.width - width - 8);
-  const preferredY = mainBounds.y + mainBounds.height - height - 76;
+  const preferredY = mainBounds.y + mainBounds.height - height;
   const minY = display.y + 8;
   const maxY = display.y + display.height - height - 8;
   const y = Math.min(Math.max(preferredY, minY), Math.max(minY, maxY));
