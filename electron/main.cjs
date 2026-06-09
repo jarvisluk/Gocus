@@ -3,6 +3,7 @@ const path = require("node:path");
 const { createAssetLoader } = require("./lib/assets.cjs");
 const { createConfigStore } = require("./lib/config.cjs");
 const { checkout, createBranch, initializeRepository, isNotGitRepositoryError, normalizeView, openWorktree, readFolderWithoutGit, readGitSnapshot } = require("./lib/git.cjs");
+const { createRepositoryWatcher } = require("./lib/gitWatcher.cjs");
 const { getAvailableWorkspaceTargets, openWorkspace } = require("./lib/workspace.cjs");
 
 let mainWindow;
@@ -18,6 +19,7 @@ let realQuitRequested = false;
 let dockHiddenForMenuBarMode = false;
 let temporaryInfoWindow = null;
 let temporaryInfoPayload = null;
+let repositoryWatcher = null;
 
 const expandedMinimumSize = { width: 320, height: 620 };
 const defaultExpandedSize = { width: expandedMinimumSize.width, height: 780 };
@@ -123,9 +125,48 @@ function requestRealQuit() {
   app.quit();
 }
 
+function stopRepositoryWatcher() {
+  if (!repositoryWatcher) return;
+  repositoryWatcher.close();
+  repositoryWatcher = null;
+}
+
+function startRepositoryWatcher(repoPath) {
+  if (!repoPath) {
+    stopRepositoryWatcher();
+    return;
+  }
+
+  const requestedPath = path.resolve(repoPath);
+  if (repositoryWatcher && path.resolve(repositoryWatcher.repositoryPath) === requestedPath) return;
+
+  stopRepositoryWatcher();
+
+  try {
+    let nextWatcher = null;
+    nextWatcher = createRepositoryWatcher(
+      repoPath,
+      async () => {
+        const activeRepository = repositoryPathForAction();
+        if (!activeRepository || !nextWatcher || path.resolve(activeRepository) !== path.resolve(nextWatcher.repositoryPath)) return;
+        const response = await getSnapshotResponse();
+        const latestRepository = repositoryPathForAction();
+        if (!latestRepository || path.resolve(latestRepository) !== path.resolve(nextWatcher.repositoryPath)) return;
+        sendSnapshotResponse(response);
+      },
+      { logger: console },
+    );
+    repositoryWatcher = nextWatcher;
+    console.info(`[Git Peek] Watching repository changes in ${repositoryWatcher.repositoryPath}.`);
+  } catch (error) {
+    console.warn("[Git Peek] Unable to start repository watcher.", error);
+  }
+}
+
 function saveRepositoryPath(repoPath, repositoryKey) {
   config.saveRepositoryPath(repoPath, repositoryKey);
   currentRepository = repoPath;
+  startRepositoryWatcher(repoPath);
 }
 
 function readSavedRepositoryPath() {
@@ -135,6 +176,7 @@ function readSavedRepositoryPath() {
 function clearRepositoryPath() {
   config.clearRepositoryPath();
   currentRepository = null;
+  stopRepositoryWatcher();
 }
 
 function readRecentRepositories() {
@@ -161,6 +203,7 @@ async function folderWithoutGitResponse(repositoryPath) {
   try {
     const folder = await readFolderWithoutGit(repositoryPath);
     currentRepository = folder.path;
+    stopRepositoryWatcher();
     buildMenus();
     return {
       ok: false,
@@ -723,6 +766,7 @@ app.whenReady().then(() => {
   createTray();
   if (startInMenuBar) hideDockIcon();
   createWindow({ showOnReady: !startInMenuBar });
+  if (currentRepository) startRepositoryWatcher(currentRepository);
 
   app.on("activate", () => {
     showMainWindow();
@@ -730,7 +774,11 @@ app.whenReady().then(() => {
 });
 
 app.on("before-quit", (event) => {
-  if (process.platform !== "darwin" || realQuitRequested) return;
+  if (process.platform !== "darwin" || realQuitRequested) {
+    stopRepositoryWatcher();
+    return;
+  }
+
   event.preventDefault();
   softQuitToMenuBar();
 });
