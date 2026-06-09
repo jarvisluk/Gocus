@@ -1760,6 +1760,7 @@ button:disabled {
 }
 
 .file-row {
+  width: 100%;
   min-height: 35px;
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr) auto;
