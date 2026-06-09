@@ -297,12 +297,20 @@ body {
   background: transparent;
   color: var(--text);
   font-family: var(--user-font);
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 button,
 input,
 select {
   font: inherit;
+}
+
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 svg {
@@ -412,7 +420,6 @@ svg {
 .icon-button,
 .repo-title-button,
 .repo-menu-item,
-.summary-chip,
 .heading-tools button,
 .commit-actions button,
 .footer-changed-now,
@@ -1104,69 +1111,6 @@ button:disabled {
   margin-top: 3px;
   font-size: 12px;
   font-weight: 760;
-}
-
-.summary-strip {
-  flex: 0 0 auto;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  padding: 10px 8px;
-  border-bottom: 1px solid var(--border-soft);
-}
-
-.summary-chip {
-  min-width: 0;
-  height: 38px;
-  display: grid;
-  grid-template-columns: minmax(max-content, 1fr) minmax(20px, max-content);
-  align-items: center;
-  gap: 5px;
-  padding: 0 8px;
-  border-radius: 7px;
-  background: var(--surface);
-  color: var(--text-muted);
-}
-
-.summary-chip:hover,
-.summary-chip.is-active {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
-.summary-chip span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.summary-chip strong {
-  justify-self: end;
-  min-width: 20px;
-  height: 20px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 780;
-}
-
-.summary-chip.modified strong {
-  background: var(--chip-amber);
-  color: var(--main);
-}
-
-.summary-chip.staged strong {
-  background: var(--chip-green);
-  color: var(--success);
-}
-
-.summary-chip.untracked strong {
-  background: var(--surface-strong);
-  color: var(--text-muted);
 }
 
 .repo-controls {

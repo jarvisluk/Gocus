@@ -490,6 +490,14 @@ function syncTemporaryInfoWindowLevel() {
   temporaryInfoWindow.setAlwaysOnTop(pinnedState || mainFocused, "floating");
 }
 
+function closeTemporaryInfoWindowIfAppInactive() {
+  setTimeout(() => {
+    const mainFocused = Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused());
+    const infoFocused = Boolean(temporaryInfoWindow && !temporaryInfoWindow.isDestroyed() && temporaryInfoWindow.isFocused());
+    if (!mainFocused && !infoFocused) closeTemporaryInfoWindow();
+  }, 80);
+}
+
 function closeTemporaryInfoWindow() {
   temporaryInfoPayload = null;
   if (!temporaryInfoWindow || temporaryInfoWindow.isDestroyed()) return;
@@ -532,6 +540,7 @@ function ensureTemporaryInfoWindow() {
     sendTemporaryInfoPayload();
   });
   temporaryInfoWindow.webContents.on("did-finish-load", sendTemporaryInfoPayload);
+  temporaryInfoWindow.on("blur", closeTemporaryInfoWindowIfAppInactive);
   temporaryInfoWindow.on("closed", () => {
     temporaryInfoWindow = null;
     temporaryInfoPayload = null;
@@ -617,7 +626,10 @@ function createWindow({ showOnReady = true } = {}) {
     positionTemporaryInfoWindow();
   });
   mainWindow.on("focus", syncTemporaryInfoWindowLevel);
-  mainWindow.on("blur", syncTemporaryInfoWindowLevel);
+  mainWindow.on("blur", () => {
+    syncTemporaryInfoWindowLevel();
+    closeTemporaryInfoWindowIfAppInactive();
+  });
   mainWindow.on("hide", closeTemporaryInfoWindow);
   mainWindow.on("close", (event) => {
     closeTemporaryInfoWindow();
@@ -792,6 +804,8 @@ app.whenReady().then(() => {
   app.on("activate", () => {
     showMainWindow();
   });
+  app.on("browser-window-blur", closeTemporaryInfoWindowIfAppInactive);
+  app.on("did-resign-active", closeTemporaryInfoWindow);
 });
 
 app.on("before-quit", (event) => {

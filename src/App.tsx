@@ -8,10 +8,8 @@ import { PanelHeader } from "./components/PanelHeader";
 import { RecentCommits } from "./components/RecentCommits";
 import { RepositoryControls } from "./components/RepositoryControls";
 import { SettingsPanel } from "./components/SettingsPanel";
-import { SummaryChips } from "./components/SummaryChips";
 import { useGitPeekController } from "./app/useGitPeekController";
 import { joinClass } from "./lib/classNames";
-import { fileKind } from "./lib/fileStatus";
 
 function EditorBackdrop() {
   return (
@@ -44,21 +42,19 @@ export default function App() {
   const [changedNowWindowOpen, setChangedNowWindowOpen] = useState(true);
   const zenActive = Boolean(controller.snapshot && controller.preferences.zenMode);
   const changedNowCount = useMemo(() => {
-    if (!controller.snapshot) return 0;
-    if (controller.fileFilter === "all") return controller.snapshot.changedFiles.length;
-    return controller.snapshot.changedFiles.filter((file) => fileKind(file) === controller.fileFilter).length;
-  }, [controller.fileFilter, controller.snapshot]);
+    return controller.snapshot?.changedFiles.length ?? 0;
+  }, [controller.snapshot]);
   const temporaryInfoPayload = useMemo(
     () =>
       controller.snapshot && changedNowWindowOpen && !controller.collapsed && !controller.settingsOpen && !zenActive
         ? {
             kind: "changed-files" as const,
             files: controller.snapshot.changedFiles,
-            filter: controller.fileFilter,
+            filter: "all" as const,
             selectedFileKey: "",
           }
         : null,
-    [changedNowWindowOpen, controller.collapsed, controller.fileFilter, controller.settingsOpen, controller.snapshot, zenActive],
+    [changedNowWindowOpen, controller.collapsed, controller.settingsOpen, controller.snapshot, zenActive],
   );
 
   const exitZenMode = useCallback(() => {
@@ -79,6 +75,11 @@ export default function App() {
     setChangedNowWindowOpen(true);
     controller.setCollapsedState(false);
   }, [controller.setCollapsedState]);
+
+  const closeChangedNowWindow = useCallback(() => {
+    setChangedNowWindowOpen(false);
+    window.gitPeek?.setTemporaryInfoPanel(null);
+  }, []);
 
   useEffect(() => {
     if (!controller.settingsOpen || zenActive) return undefined;
@@ -109,6 +110,19 @@ export default function App() {
   useEffect(() => {
     window.gitPeek?.setTemporaryInfoPanel(temporaryInfoPayload);
   }, [temporaryInfoPayload]);
+
+  useEffect(() => {
+    if (!temporaryInfoPayload) return undefined;
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest(".footer-changed-now")) return;
+      closeChangedNowWindow();
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown, true);
+    return () => window.removeEventListener("pointerdown", handlePointerDown, true);
+  }, [closeChangedNowWindow, temporaryInfoPayload]);
 
   useEffect(
     () => () => {
@@ -189,10 +203,6 @@ export default function App() {
                 onCancel={controller.cancelActionDialog}
                 onConfirm={controller.confirmActionDialog}
               />
-
-              {controller.snapshot && !controller.preferences.zenMode ? (
-                <SummaryChips snapshot={controller.snapshot} activeFilter={controller.fileFilter} onFilter={controller.setFileFilter} />
-              ) : null}
 
               {controller.snapshot ? (
                 <>

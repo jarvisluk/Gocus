@@ -6,7 +6,6 @@ import type {
   ActionResponse,
   CommitItem,
   CommitViewSelection,
-  FileFilter,
   FolderWithoutGit,
   GitSnapshot,
   RecentRepository,
@@ -73,7 +72,6 @@ export function useGitPeekController() {
   const [pinned, setPinned] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [fileFilter, setFileFilter] = useState<FileFilter>("all");
   const [selectedCommitId, setSelectedCommitId] = useState("");
   const [notice, setNoticeState] = useState("No working folder selected.");
   const [folderWithoutGit, setFolderWithoutGit] = useState<FolderWithoutGit | null>(null);
@@ -451,7 +449,6 @@ export function useGitPeekController() {
     pinned,
     refreshing,
     settingsOpen,
-    fileFilter,
     selectedCommitId,
     notice,
     folderWithoutGit,
@@ -463,7 +460,6 @@ export function useGitPeekController() {
     actionDialog,
     repositoryDialogOpen,
     electron,
-    setFileFilter,
     setSettingsOpen,
     openRepository,
     switchRepository,

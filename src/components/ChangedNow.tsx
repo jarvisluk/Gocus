@@ -35,9 +35,10 @@ function commitPrompt(files: ChangedFile[], filter: FileFilter, language: Prompt
 要求：
 1. 先运行或阅读必要的 git status / git diff，不要只依赖下面的文件列表。
 2. 用简洁中文概括变动意图、主要文件、风险和是否还有未完成点。
-3. 如果变动范围太大或混合了多个主题，建议用户分段 commit，并给出按主题或文件分组的分段 commit 方案。
-4. 最后自然地询问用户是否要现在 commit；如果建议 commit，请给出一个 commit message 草案；如果建议分段 commit，请给出每段的 commit message 草案。
-5. 在用户明确同意前不要执行 git commit。
+3. 你必须自己做取舍，最后只给出一个可执行方案：要么一个 commit，要么一组按顺序执行的分段 commits。不要列多个备选方案，不要让用户选择文件、策略或 commit message。
+4. 如果变动范围太大或混合了多个主题，你要自己决定最合理的分段 commit 顺序，并给出每一段会包含的文件和 commit message；这仍然只能是一个推荐方案。
+5. 最后只问一个 Yes/No 确认问题：用户回答 Yes 就按这个方案执行 commit，回答 No 就停止。不要再追问用户做其他决策。
+6. 在用户明确回答 Yes 前不要执行 git commit。
 
 Changed Now 当前列表（filter: ${filter}, files: ${files.length}）：
 ${fileLines}`;
@@ -48,9 +49,10 @@ ${fileLines}`;
 Requirements:
 1. Run or review the necessary git status / git diff; do not rely only on the file list below.
 2. Concisely summarize the change intent, key files, risks, and any unfinished work.
-3. If the changes are too broad or span multiple themes, recommend splitting them into staged commits and provide a concrete commit breakdown by theme or file group.
-4. End by naturally asking the user whether they want to commit now. If a commit seems appropriate, suggest a draft commit message; if split commits are recommended, suggest a draft commit message for each commit.
-5. Do not run git commit until the user explicitly confirms.
+3. You must make the tradeoff yourself and finish with exactly one executable plan: either one commit or one ordered sequence of split commits. Do not list alternative plans, and do not ask the user to choose files, strategy, or commit messages.
+4. If the changes are too broad or span multiple themes, decide the safest split-commit sequence yourself and state the files plus commit message for each commit; this still counts as one recommended plan.
+5. End with exactly one Yes/No confirmation question: if the user answers Yes, run the commit plan as stated; if the user answers No, stop. Do not ask the user for any further decisions.
+6. Do not run git commit until the user explicitly answers Yes.
 
 Current Changed Now list (filter: ${filter}, files: ${files.length}):
 ${fileLines}`;
