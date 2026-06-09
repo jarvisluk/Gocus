@@ -1478,10 +1478,6 @@ button:disabled {
   border-width: 2.5px;
 }
 
-.graph-node.has-worktree {
-  box-shadow: 0 0 0 2px var(--panel-solid), 0 0 0 5px color-mix(in srgb, var(--git-tree-color, var(--main)) 20%, transparent);
-}
-
 .graph-node.is-dashed {
   border-style: dashed;
 }
@@ -1491,54 +1487,6 @@ button:disabled {
   height: 5px;
   border-radius: 999px;
   background: var(--git-tree-color, var(--main));
-}
-
-.graph-worktree-marker {
-  position: absolute;
-  z-index: 2;
-  width: 16px;
-  height: 16px;
-  display: grid;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--git-tree-color, var(--main)) 68%, var(--panel-solid));
-  border-radius: 999px;
-  background: var(--panel-solid);
-  box-shadow: 0 0 0 2px var(--panel-solid);
-  color: var(--git-tree-color, var(--main));
-  transform: translate(2px, -20px);
-}
-
-.graph-worktree-marker.is-current {
-  background: var(--git-tree-color, var(--main));
-  color: var(--panel-solid);
-}
-
-.graph-worktree-marker.is-external {
-  border-style: dashed;
-  background: color-mix(in srgb, var(--panel-solid) 84%, var(--git-tree-color, var(--main)));
-}
-
-.graph-worktree-marker svg {
-  width: 10px;
-  height: 10px;
-  stroke-width: 2.6;
-}
-
-.graph-worktree-count {
-  position: absolute;
-  right: -6px;
-  bottom: -5px;
-  min-width: 11px;
-  height: 11px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--panel-solid);
-  border-radius: 999px;
-  background: var(--text);
-  color: var(--panel-solid);
-  font-size: 8px;
-  font-weight: 760;
-  line-height: 1;
 }
 
 :root[data-graph-style="soft"] .timeline-cell {
@@ -1552,10 +1500,6 @@ button:disabled {
   border-width: 2px;
   background: color-mix(in srgb, var(--panel-solid) 76%, var(--git-tree-color, var(--main)));
   box-shadow: 0 0 0 3px var(--panel-solid);
-}
-
-:root[data-graph-style="soft"] .graph-node.has-worktree {
-  box-shadow: 0 0 0 3px var(--panel-solid), 0 0 0 6px color-mix(in srgb, var(--git-tree-color, var(--main)) 18%, transparent);
 }
 
 :root[data-graph-style="soft"] .graph-node-core {
