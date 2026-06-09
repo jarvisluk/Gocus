@@ -2,7 +2,7 @@ import type { DarkThemePreset, LightThemePreset, Theme, ThemeMode, UiPreferences
 import { defaultWorkspaceOpenTargets, sanitizeWorkspaceOpenTargets } from "./workspaceOpenTargets";
 
 export const defaultPreferences: UiPreferences = {
-  themeMode: "system",
+  themeMode: "dark",
   lightThemePreset: "paper",
   darkThemePreset: "graphite",
   density: "compact",

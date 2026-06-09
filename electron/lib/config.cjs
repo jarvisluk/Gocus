@@ -4,7 +4,7 @@ const path = require("node:path");
 const maxRecentRepositories = 8;
 
 const defaultPreferences = {
-  themeMode: "system",
+  themeMode: "dark",
   lightThemePreset: "paper",
   darkThemePreset: "graphite",
   density: "compact",
