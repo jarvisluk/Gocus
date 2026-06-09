@@ -242,7 +242,7 @@ export function useGitPeekController() {
         title: "Create branch",
         body: `Start a new branch from ${commit.hash}.`,
         branchPrefix: "none",
-        branchName: `peek/${commit.hash}`,
+        branchName: commit.hash,
         commit,
       });
       return;
