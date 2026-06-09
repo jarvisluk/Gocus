@@ -30,29 +30,27 @@ function commitPrompt(files: ChangedFile[], filter: FileFilter, language: Prompt
   const fileLines = files.length ? files.map(filePromptLine).join("\n") : "- No files in the current Changed Now filter.";
 
   if (language === "zh") {
-    return `请查看当前仓库的 working tree，解释目前这些变动是什么，并帮我判断是否适合现在 commit。
+    return `请检查当前仓库的 working tree，并判断是否适合现在 commit。
 
 要求：
-1. 先运行或阅读必要的 git status / git diff，不要只依赖下面的文件列表。
-2. 用简洁中文概括变动意图、主要文件、风险和是否还有未完成点。
-3. 你必须自己做取舍，最后只给出一个可执行方案：要么一个 commit，要么一组按顺序执行的分段 commits。不要列多个备选方案，不要让用户选择文件、策略或 commit message。
-4. 如果变动范围太大或混合了多个主题，你要自己决定最合理的分段 commit 顺序，并给出每一段会包含的文件和 commit message；这仍然只能是一个推荐方案。
-5. 最后只问一个 Yes/No 确认问题：用户回答 Yes 就按这个方案执行 commit，回答 No 就停止。不要再追问用户做其他决策。
-6. 在用户明确回答 Yes 前不要执行 git commit。
+1. 先运行或阅读必要的 git status / git diff；下面的文件列表只作为线索。
+2. 简洁说明变动意图、主要文件、风险或未完成点，以及是否 ready。
+3. 只给出一个可执行 commit 方案：你自己决定是单个 commit，还是一组按顺序执行的分段 commits；如需分段，列出每段包含的文件和 commit message。不要给备选方案，也不要让用户选择文件、策略或 message。
+4. 生成 commit message 前，先检查仓库是否有明确记录的 commit message 规则；有就遵守仓库规则，否则使用 Conventional Commits。
+5. 最后只问一个 Yes/No 确认问题：用户回答 Yes 就按方案执行 commit，回答 No 就停止；在 Yes 前不要执行 git commit，也不要再追问其他决策。
 
 Changed Now 当前列表（filter: ${filter}, files: ${files.length}）：
 ${fileLines}`;
   }
 
-  return `Please inspect the current repository working tree, explain what the current changes are, and help decide whether they are ready to commit.
+  return `Please inspect the current repository working tree and decide whether it is ready to commit.
 
 Requirements:
-1. Run or review the necessary git status / git diff; do not rely only on the file list below.
-2. Concisely summarize the change intent, key files, risks, and any unfinished work.
-3. You must make the tradeoff yourself and finish with exactly one executable plan: either one commit or one ordered sequence of split commits. Do not list alternative plans, and do not ask the user to choose files, strategy, or commit messages.
-4. If the changes are too broad or span multiple themes, decide the safest split-commit sequence yourself and state the files plus commit message for each commit; this still counts as one recommended plan.
-5. End with exactly one Yes/No confirmation question: if the user answers Yes, run the commit plan as stated; if the user answers No, stop. Do not ask the user for any further decisions.
-6. Do not run git commit until the user explicitly answers Yes.
+1. Run or review the necessary git status / git diff; treat the file list below only as a clue.
+2. Briefly summarize the change intent, key files, risks or unfinished work, and whether it is ready.
+3. Provide exactly one executable commit plan: decide yourself whether it should be one commit or one ordered sequence of split commits; if split commits are needed, list the files and commit message for each. Do not give alternatives or ask the user to choose files, strategy, or messages.
+4. Before drafting commit messages, check whether the repository documents its own commit-message rules; follow those if present, otherwise use Conventional Commits.
+5. End with exactly one Yes/No confirmation question: if the user answers Yes, run the plan; if No, stop. Do not run git commit before Yes, and do not ask for any other decisions.
 
 Current Changed Now list (filter: ${filter}, files: ${files.length}):
 ${fileLines}`;
