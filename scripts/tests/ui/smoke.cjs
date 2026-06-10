@@ -1137,11 +1137,41 @@ async function testMergeFailureStaysInDialog(browser, baseUrl) {
     assert.match(copiedPrompt, /Target branch: main/);
     assert.match(copiedPrompt, /CONFLICT \(content\): Merge conflict in src\/App\.tsx/);
     assert.match(copiedPrompt, /keep unrelated worktree changes intact/);
+    assert.doesNotMatch(copiedPrompt, /No-fast-forward merges are enabled/);
 
     const mergeTargetButton = page.getByRole("button", { name: "Merge target branch" });
     await mergeTargetButton.click();
     await page.locator("#action-merge-target-menu").getByRole("menuitem", { name: "feature/footer-toggle" }).click();
     assert.equal(await page.locator("#action-dialog-error").count(), 0);
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
+async function testMergeFailurePromptHonorsNoFastForwardSetting(browser, baseUrl) {
+  const { page, errors } = await openMockedPage(browser, baseUrl, {
+    ...mergeFailureScenario(),
+    preferences: { createMergeCommit: true },
+  });
+  try {
+    await assertHealthyPage(page, errors);
+
+    await page.getByRole("button", { name: /Fix footer changed now toggle/ }).click();
+    await page.getByRole("button", { name: "Merge", exact: true }).click();
+    const mergeDialog = page.getByRole("dialog", { name: "Merge commit" });
+    await mergeDialog.waitFor();
+    await page.getByRole("button", { name: "Confirm" }).click();
+
+    await mergeDialog.waitFor();
+    await page.locator("#action-dialog-error").waitFor();
+    assert.deepEqual(await page.evaluate(() => window.__gitPeekActions), [expectedMergeAction("main", true)]);
+
+    await page.getByRole("button", { name: "Copy agent prompt" }).click();
+    await page.getByRole("button", { name: "Copied prompt" }).waitFor();
+    const copiedPrompt = await page.evaluate(() => window.__gitPeekCopiedText);
+    assert.match(copiedPrompt, /No-fast-forward merges are enabled in Settings/);
+    assert.match(copiedPrompt, /do not complete this as a fast-forward merge/);
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -1973,6 +2003,7 @@ async function main() {
     await testCommitSearch(browser, baseUrl);
     await testLargeCommitListVirtualizes(browser, baseUrl);
     await testMergeFailureStaysInDialog(browser, baseUrl);
+    await testMergeFailurePromptHonorsNoFastForwardSetting(browser, baseUrl);
     await testMergeStateSurvivesStartup(browser, baseUrl);
     await testTemporaryInfoCopyPrompt(browser, baseUrl);
     await testTemporaryInfoCopyFallback(browser, baseUrl);

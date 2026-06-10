@@ -109,6 +109,7 @@ export default function App() {
           {panelContent.mode === "zen" ? (
             <>
               <ActionDialog
+                createMergeCommit={controller.preferences.createMergeCommit}
                 dialog={controller.actionDialog}
                 onBranchPrefixChange={controller.updateActionBranchPrefix}
                 onBranchNameChange={controller.updateActionBranchName}
@@ -158,6 +159,7 @@ export default function App() {
               />
 
               <ActionDialog
+                createMergeCommit={controller.preferences.createMergeCommit}
                 dialog={controller.actionDialog}
                 onBranchPrefixChange={controller.updateActionBranchPrefix}
                 onBranchNameChange={controller.updateActionBranchName}

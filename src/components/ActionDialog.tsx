@@ -167,6 +167,7 @@ function copyPromptIcon(icon: ActionDialogCopyPromptIcon) {
 }
 
 export function ActionDialog({
+  createMergeCommit,
   dialog,
   onBranchPrefixChange,
   onBranchNameChange,
@@ -174,6 +175,7 @@ export function ActionDialog({
   onCancel,
   onConfirm,
 }: {
+  createMergeCommit: boolean;
   dialog: ActionDialogState | null;
   onBranchPrefixChange: (branchPrefix: BranchPrefix) => void;
   onBranchNameChange: (branchName: string) => void;
@@ -219,7 +221,7 @@ export function ActionDialog({
   );
 
   if (!dialog) return null;
-  const view = actionDialogView(dialog);
+  const view = actionDialogView(dialog, { createMergeCommit });
   const HeadingIcon = dialog.type === "merge" ? GitMerge : GitBranch;
   const copyPromptButton = view.showMergeFailurePrompt ? actionDialogCopyPromptButtonView(copyPromptState) : null;
 

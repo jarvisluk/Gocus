@@ -1638,6 +1638,25 @@ async function testActionDialogView(server) {
   assert.match(failedMergeView.mergeFailurePrompt, /Target branch: main/);
   assert.match(failedMergeView.mergeFailurePrompt, /CONFLICT \(content\): Merge conflict in src\/App\.tsx/);
   assert.match(failedMergeView.mergeFailurePrompt, /keep unrelated worktree changes intact/);
+  assert.doesNotMatch(failedMergeView.mergeFailurePrompt, /No-fast-forward merges are enabled/);
+  const failedNoFastForwardMergeView = actionDialogView(
+    {
+      ...mergeDialog,
+      error: "Auto-merging src/App.tsx\nCONFLICT (content): Merge conflict in src/App.tsx",
+    },
+    { createMergeCommit: true },
+  );
+  assert.equal(
+    failedNoFastForwardMergeView.mergeFailurePrompt,
+    mergeFailureAgentPrompt({
+      createMergeCommit: true,
+      error: "Auto-merging src/App.tsx\nCONFLICT (content): Merge conflict in src/App.tsx",
+      ref: "abc123400000000000000000000000000000000",
+      targetBranch: "main",
+    }),
+  );
+  assert.match(failedNoFastForwardMergeView.mergeFailurePrompt, /No-fast-forward merges are enabled in Settings/);
+  assert.match(failedNoFastForwardMergeView.mergeFailurePrompt, /do not complete this as a fast-forward merge/);
 }
 
 async function testCommitSearch(server) {

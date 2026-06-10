@@ -220,10 +220,12 @@ export function actionDialogAfterMergeError(dialog: ActionDialogState | null, er
 }
 
 export function mergeFailureAgentPrompt({
+  createMergeCommit,
   error,
   ref,
   targetBranch,
 }: {
+  createMergeCommit?: boolean;
   error: string;
   ref?: string;
   targetBranch: string;
@@ -231,6 +233,22 @@ export function mergeFailureAgentPrompt({
   const sourceRef = ref?.trim() || "unknown";
   const target = targetBranch.trim() || "unknown";
   const errorText = error.trim() || "No error output was captured.";
+  const mergeInstructions = [
+    [
+      "Please inspect the current repository state with git status, resolve the merge conflict or blocker,",
+      "keep unrelated worktree changes intact, run the relevant tests/build, and leave a concise summary of what changed.",
+      "If a merge is already in progress, continue from that state instead of starting over.",
+    ].join(" "),
+  ];
+
+  if (createMergeCommit) {
+    mergeInstructions.push(
+      [
+        "No-fast-forward merges are enabled in Settings, so do not complete this as a fast-forward merge;",
+        "preserve an explicit merge commit when retrying or finishing the merge.",
+      ].join(" "),
+    );
+  }
 
   return [
     "A Git merge failed in this repository. Please handle it end to end.",
@@ -244,11 +262,7 @@ export function mergeFailureAgentPrompt({
     errorText,
     "```",
     "",
-    [
-      "Please inspect the current repository state with git status, resolve the merge conflict or blocker,",
-      "keep unrelated worktree changes intact, run the relevant tests/build, and leave a concise summary of what changed.",
-      "If a merge is already in progress, continue from that state instead of starting over.",
-    ].join(" "),
+    ...mergeInstructions,
   ].join("\n");
 }
 
@@ -317,7 +331,7 @@ export function actionDialogConfirmation(dialog: ActionDialogState | null): Acti
   return null;
 }
 
-export function actionDialogView(dialog: ActionDialogState) {
+export function actionDialogView(dialog: ActionDialogState, { createMergeCommit = false }: { createMergeCommit?: boolean } = {}) {
   const isCreateBranch = dialog.type === "createBranch";
   const isMerge = dialog.type === "merge";
   const resolvedBranchName = isCreateBranch ? branchNameWithPrefix(dialog.branchPrefix, dialog.branchName) : "";
@@ -341,6 +355,7 @@ export function actionDialogView(dialog: ActionDialogState) {
   const mergeFailurePrompt =
     isMerge && actionErrorMessage
       ? mergeFailureAgentPrompt({
+          createMergeCommit,
           error: actionErrorMessage,
           ref: dialog.ref,
           targetBranch: dialog.targetBranch,
