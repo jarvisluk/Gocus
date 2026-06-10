@@ -8,9 +8,12 @@ import {
 import {
   actionDialogAfterBranchNameChange,
   actionDialogAfterBranchPrefixChange,
+  actionDialogAfterMergeError,
+  actionDialogAfterMergeTargetChange,
   actionDialogConfirmation,
   checkoutRefActionDialog,
   commitActionDialog,
+  mergeTargetBranchOptions,
   type ActionDialogState,
   type BranchPrefix,
   type CommitAction,
@@ -269,7 +272,11 @@ export function useGitPeekController() {
   async function handleCommitAction(action: CommitAction, commit: CommitItem) {
     if (blockGitActionWithoutBridge()) return;
 
-    setActionDialog(commitActionDialog(action, commit));
+    setActionDialog(
+      commitActionDialog(action, commit, {
+        targetBranches: mergeTargetBranchOptions(snapshot?.branches ?? [], snapshot?.branch.name ?? ""),
+      }),
+    );
   }
 
   async function checkoutRef(ref: string) {
@@ -285,7 +292,7 @@ export function useGitPeekController() {
     setRefreshing(true);
     try {
       await runAction(
-        () => bridge.openWorktree(worktreePath, { mode: "current" }),
+        () => bridge.openWorktree(worktreePath, commitView),
         "Opened worktree.",
         "Unable to open worktree.",
       );
@@ -302,6 +309,10 @@ export function useGitPeekController() {
     setActionDialog((current) => actionDialogAfterBranchPrefixChange(current, branchPrefix));
   }
 
+  function updateActionMergeTarget(targetBranch: string) {
+    setActionDialog((current) => actionDialogAfterMergeTargetChange(current, targetBranch));
+  }
+
   function cancelActionDialog() {
     setActionDialog(null);
   }
@@ -312,8 +323,8 @@ export function useGitPeekController() {
     const confirmation = actionDialogConfirmation(actionDialog);
     if (!confirmation) return;
 
-    setActionDialog(null);
     if (confirmation.type === "createBranch") {
+      setActionDialog(null);
       await runAction(
         () => bridge.createBranch(confirmation.branchName, confirmation.baseHash, commitView),
         confirmation.fallbackNotice,
@@ -322,6 +333,32 @@ export function useGitPeekController() {
       return;
     }
 
+    if (confirmation.type === "merge") {
+      markGitRequest();
+      try {
+        const response = await bridge.merge(confirmation.ref, confirmation.targetBranch, { mode: "current" });
+        const nextNotice = actionResponseNotice(response, confirmation.fallbackNotice, confirmation.failureNotice);
+        const nextSnapshot = actionResponseSnapshot(response);
+
+        if (response.ok) {
+          setActionDialog(null);
+          if (nextSnapshot) {
+            applySnapshotResponse({ ok: true, snapshot: nextSnapshot }, nextNotice);
+            return;
+          }
+          if (nextNotice !== null) setNotice(nextNotice);
+          return;
+        }
+
+        if (nextSnapshot) applySnapshotResponse({ ok: true, snapshot: nextSnapshot }, null);
+        setActionDialog((current) => actionDialogAfterMergeError(current, nextNotice ?? confirmation.failureNotice));
+      } catch (error) {
+        setActionDialog((current) => actionDialogAfterMergeError(current, errorMessage(error, confirmation.failureNotice)));
+      }
+      return;
+    }
+
+    setActionDialog(null);
     await runAction(
       () => bridge.checkout(confirmation.ref, { mode: "current" }),
       confirmation.fallbackNotice,
@@ -439,6 +476,7 @@ export function useGitPeekController() {
     openWorktree,
     updateActionBranchPrefix,
     updateActionBranchName,
+    updateActionMergeTarget,
     cancelActionDialog,
     confirmActionDialog,
     openWorkspace,

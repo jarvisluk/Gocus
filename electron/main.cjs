@@ -7,6 +7,8 @@ const { createLaunchAtLoginController } = require("./lib/launchAtLogin.cjs");
 const { installOutputErrorGuard } = require("./lib/outputGuard.cjs");
 const {
   collapsedSize,
+  commitInfoBounds,
+  commitInfoWindowSize,
   expandedMinimumSize,
   expandedSizeFromConfig,
   clampExpandedSize,
@@ -20,6 +22,7 @@ const {
   createBranch,
   initializeRepository,
   isNotGitRepositoryError,
+  merge,
   normalizeView,
   openWorktree,
   readFolderWithoutGit,
@@ -29,6 +32,8 @@ const { createRepositoryWatcher } = require("./lib/gitWatcher.cjs");
 const { getAvailableWorkspaceTargets, openWorkspace } = require("./lib/workspace.cjs");
 
 installOutputErrorGuard();
+
+const isDevRuntime = Boolean(process.env.GIT_PEEK_DEV_SERVER_URL);
 
 let mainWindow;
 let tray;
@@ -43,6 +48,8 @@ let realQuitRequested = false;
 let dockHiddenForMenuBarMode = false;
 let temporaryInfoWindow = null;
 let temporaryInfoPayload = null;
+let commitInfoWindow = null;
+let commitInfoPayload = null;
 let repositoryWatcher = null;
 
 const hiddenLaunchArg = "--hidden";
@@ -74,6 +81,10 @@ function shouldShowMenuBarIcon(preferences = config.readPreferences()) {
   return preferences.showMenuBarIcon !== false;
 }
 
+function shouldUseMenuBarResidency(preferences = config.readPreferences()) {
+  return !isDevRuntime && shouldShowMenuBarIcon(preferences);
+}
+
 function hideDockIcon() {
   if (process.platform !== "darwin" || !app.dock) return;
   app.dock.hide();
@@ -88,12 +99,13 @@ function showDockIcon() {
 }
 
 function softQuitToMenuBar() {
-  if (!shouldShowMenuBarIcon()) {
+  if (!shouldUseMenuBarResidency()) {
     requestRealQuit();
     return;
   }
 
   closeTemporaryInfoWindow();
+  closeCommitInfoWindow();
   if (mainWindow && !mainWindow.isDestroyed()) {
     saveCurrentExpandedWindowSize(mainWindow);
     mainWindow.hide();
@@ -310,6 +322,10 @@ function sendTemporaryInfoPanelClosed() {
   sendToWindow(mainWindow, "window:temporaryInfoPanelClosed");
 }
 
+function sendCommitInfoPanelClosed() {
+  sendToWindow(mainWindow, "window:commitInfoPanelClosed");
+}
+
 function waitForDialogBlockerFrame() {
   return new Promise((resolve) => setTimeout(resolve, 32));
 }
@@ -328,13 +344,13 @@ function sendToWindow(win, channel, ...args) {
 }
 
 function sendSystemTheme() {
-  for (const win of [mainWindow, temporaryInfoWindow]) {
+  for (const win of [mainWindow, temporaryInfoWindow, commitInfoWindow]) {
     sendToWindow(win, "theme:changed", getSystemTheme());
   }
 }
 
 function sendPreferences(preferences = readPreferences()) {
-  for (const win of [mainWindow, temporaryInfoWindow]) {
+  for (const win of [mainWindow, temporaryInfoWindow, commitInfoWindow]) {
     sendToWindow(win, "preferences:changed", preferences);
   }
 }
@@ -410,7 +426,10 @@ function setCollapsedWindow(collapsed) {
   if (!mainWindow) return;
   const nextCollapsedState = Boolean(collapsed);
   if (!collapsedState && nextCollapsedState) saveCurrentExpandedWindowSize(mainWindow);
-  if (nextCollapsedState) closeTemporaryInfoWindow();
+  if (nextCollapsedState) {
+    closeTemporaryInfoWindow();
+    closeCommitInfoWindow();
+  }
   collapsedState = nextCollapsedState;
   positionWindow(mainWindow, collapsedState);
   sendToWindow(mainWindow, "window:collapsedChanged", collapsedState);
@@ -422,6 +441,7 @@ function dockWindow(collapsed = collapsedState) {
   if (!collapsed) saveCurrentExpandedWindowSize(mainWindow);
   positionWindow(mainWindow, collapsed);
   positionTemporaryInfoWindow({ animated: true });
+  positionCommitInfoWindow({ animated: true });
 }
 
 function rendererWindowUrl(mode = "") {
@@ -479,7 +499,11 @@ function closeTemporaryInfoWindowIfAppInactive() {
   setTimeout(() => {
     const mainFocused = Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused());
     const infoFocused = Boolean(temporaryInfoWindow && !temporaryInfoWindow.isDestroyed() && temporaryInfoWindow.isFocused());
-    if (!mainFocused && !infoFocused) closeTemporaryInfoWindow();
+    const commitInfoFocused = Boolean(commitInfoWindow && !commitInfoWindow.isDestroyed() && commitInfoWindow.isFocused());
+    if (!mainFocused && !infoFocused && !commitInfoFocused) {
+      closeTemporaryInfoWindow();
+      closeCommitInfoWindow();
+    }
   }, 80);
 }
 
@@ -489,6 +513,7 @@ function closeTemporaryInfoWindow() {
   const windowToClose = temporaryInfoWindow;
   temporaryInfoWindow = null;
   sendTemporaryInfoPanelClosed();
+  positionCommitInfoWindow();
   windowToClose.close();
 }
 
@@ -547,6 +572,118 @@ function setTemporaryInfoPanel(payload) {
   if (!infoWindow) return;
   positionTemporaryInfoWindow();
   sendTemporaryInfoPayload();
+  positionCommitInfoWindow();
+}
+
+function commitInfoWindowBounds() {
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
+
+  const mainBounds = mainWindow.getBounds();
+  const display = screen.getDisplayMatching(mainBounds).workArea;
+  const avoidBounds = temporaryInfoWindow && !temporaryInfoWindow.isDestroyed() ? temporaryInfoWindow.getBounds() : null;
+  const anchorBounds = commitInfoPayload?.kind === "commit" ? commitInfoPayload.anchorBounds : null;
+  return commitInfoBounds({ mainBounds, display, alignTop: collapsedState, avoidBounds, anchorBounds });
+}
+
+function sendCommitInfoPayload() {
+  if (!commitInfoWindow || commitInfoWindow.isDestroyed()) return;
+  sendToWindow(commitInfoWindow, "window:commitInfoPayload", commitInfoPayload);
+}
+
+function setCommitInfoWindowBounds(bounds, animated = false) {
+  if (!commitInfoWindow || commitInfoWindow.isDestroyed()) return;
+  if (windowBoundsEqual(commitInfoWindow.getBounds(), bounds)) return;
+  commitInfoWindow.setBounds(bounds, animated);
+}
+
+function positionCommitInfoWindow({ animated = false } = {}) {
+  if (!commitInfoWindow || commitInfoWindow.isDestroyed()) return;
+  const bounds = commitInfoWindowBounds();
+  if (bounds) setCommitInfoWindowBounds(bounds, animated);
+}
+
+function syncCommitInfoWindowLevel() {
+  if (!commitInfoWindow || commitInfoWindow.isDestroyed()) return;
+  const mainFocused = Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused());
+  commitInfoWindow.setAlwaysOnTop(pinnedState || mainFocused, "floating");
+}
+
+function closeCommitInfoWindowIfAppInactive() {
+  setTimeout(() => {
+    const mainFocused = Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused());
+    const temporaryInfoFocused = Boolean(temporaryInfoWindow && !temporaryInfoWindow.isDestroyed() && temporaryInfoWindow.isFocused());
+    const commitInfoFocused = Boolean(commitInfoWindow && !commitInfoWindow.isDestroyed() && commitInfoWindow.isFocused());
+    if (!mainFocused && !temporaryInfoFocused && !commitInfoFocused) {
+      closeCommitInfoWindow();
+      closeTemporaryInfoWindow();
+    }
+  }, 80);
+}
+
+function closeCommitInfoWindow() {
+  commitInfoPayload = null;
+  if (!commitInfoWindow || commitInfoWindow.isDestroyed()) return;
+  const windowToClose = commitInfoWindow;
+  commitInfoWindow = null;
+  sendCommitInfoPanelClosed();
+  windowToClose.close();
+}
+
+function ensureCommitInfoWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
+  if (commitInfoWindow && !commitInfoWindow.isDestroyed()) return commitInfoWindow;
+
+  const bounds = commitInfoWindowBounds() ?? { ...commitInfoWindowSize };
+  commitInfoWindow = new BrowserWindow({
+    ...bounds,
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: "#00000000",
+    hasShadow: false,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    skipTaskbar: true,
+    title: "Git Peek Commit Info",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  syncCommitInfoWindowLevel();
+  commitInfoWindow.once("ready-to-show", () => {
+    positionCommitInfoWindow();
+    syncCommitInfoWindowLevel();
+    commitInfoWindow?.showInactive();
+    sendCommitInfoPayload();
+  });
+  commitInfoWindow.webContents.on("did-finish-load", sendCommitInfoPayload);
+  commitInfoWindow.on("blur", closeCommitInfoWindowIfAppInactive);
+  commitInfoWindow.on("closed", () => {
+    commitInfoWindow = null;
+    commitInfoPayload = null;
+    sendCommitInfoPanelClosed();
+  });
+  loadRendererWindow(commitInfoWindow, "commit-info");
+
+  return commitInfoWindow;
+}
+
+function setCommitInfoPanel(payload) {
+  if (!payload) {
+    closeCommitInfoWindow();
+    return;
+  }
+
+  commitInfoPayload = payload;
+  const infoWindow = ensureCommitInfoWindow();
+  if (!infoWindow) return;
+  positionCommitInfoWindow();
+  sendCommitInfoPayload();
 }
 
 function setPinnedWindow(pinned) {
@@ -554,6 +691,7 @@ function setPinnedWindow(pinned) {
   pinnedState = Boolean(pinned);
   mainWindow.setAlwaysOnTop(pinnedState, "floating");
   syncTemporaryInfoWindowLevel();
+  syncCommitInfoWindowLevel();
   sendPinnedChanged();
   buildMenus();
 }
@@ -599,27 +737,39 @@ function createWindow({ showOnReady = true } = {}) {
   });
   mainWindow.on("move", () => {
     positionTemporaryInfoWindow();
+    positionCommitInfoWindow();
   });
   mainWindow.on("resize", () => {
     scheduleExpandedWindowSizeSave(mainWindow);
     positionTemporaryInfoWindow();
+    positionCommitInfoWindow();
   });
-  mainWindow.on("focus", syncTemporaryInfoWindowLevel);
+  mainWindow.on("focus", () => {
+    syncTemporaryInfoWindowLevel();
+    syncCommitInfoWindowLevel();
+  });
   mainWindow.on("blur", () => {
     syncTemporaryInfoWindowLevel();
+    syncCommitInfoWindowLevel();
     closeTemporaryInfoWindowIfAppInactive();
+    closeCommitInfoWindowIfAppInactive();
   });
-  mainWindow.on("hide", closeTemporaryInfoWindow);
+  mainWindow.on("hide", () => {
+    closeTemporaryInfoWindow();
+    closeCommitInfoWindow();
+  });
   mainWindow.on("close", (event) => {
     closeTemporaryInfoWindow();
+    closeCommitInfoWindow();
     saveCurrentExpandedWindowSize(mainWindow);
-    if (process.platform === "darwin" && !realQuitRequested) {
+    if (process.platform === "darwin" && !realQuitRequested && shouldUseMenuBarResidency()) {
       event.preventDefault();
       mainWindow.hide();
     }
   });
   mainWindow.on("closed", () => {
     closeTemporaryInfoWindow();
+    closeCommitInfoWindow();
     clearTimeout(applyingWindowBoundsTimer);
     clearTimeout(expandedWindowSizeSaveTimer);
     mainWindow = null;
@@ -629,7 +779,7 @@ function createWindow({ showOnReady = true } = {}) {
 }
 
 function createTray() {
-  if (!shouldShowMenuBarIcon()) return;
+  if (!shouldUseMenuBarResidency()) return;
   if (tray) {
     buildMenus();
     return;
@@ -668,7 +818,7 @@ function destroyTray() {
 }
 
 function syncMenuBarIcon(preferences = config.readPreferences()) {
-  if (shouldShowMenuBarIcon(preferences)) {
+  if (shouldUseMenuBarResidency(preferences)) {
     createTray();
     return;
   }
@@ -704,7 +854,7 @@ function buildMenus() {
     sendSnapshotResponse(noRepositoryResponse());
     buildMenus();
   };
-  const menuBarModeEnabled = shouldShowMenuBarIcon();
+  const menuBarModeEnabled = shouldUseMenuBarResidency();
   const buildRecentRepositorySubmenu = () =>
     recentRepositories.length
       ? recentRepositories.map((repository) => {
@@ -825,7 +975,7 @@ app.whenReady().then(() => {
   nativeTheme.on("updated", sendSystemTheme);
   currentRepository = readSavedRepositoryPath();
   const preferences = config.readPreferences();
-  const menuBarModeEnabled = shouldShowMenuBarIcon(preferences);
+  const menuBarModeEnabled = shouldUseMenuBarResidency(preferences);
   const startInMenuBar = menuBarModeEnabled && shouldStartInMenuBar();
   if (process.platform === "darwin" && app.dock) {
     app.dock.setIcon(assets.loadImageAsset("app-icon.png"));
@@ -838,12 +988,18 @@ app.whenReady().then(() => {
   app.on("activate", () => {
     showMainWindow();
   });
-  app.on("browser-window-blur", closeTemporaryInfoWindowIfAppInactive);
-  app.on("did-resign-active", closeTemporaryInfoWindow);
+  app.on("browser-window-blur", () => {
+    closeTemporaryInfoWindowIfAppInactive();
+    closeCommitInfoWindowIfAppInactive();
+  });
+  app.on("did-resign-active", () => {
+    closeTemporaryInfoWindow();
+    closeCommitInfoWindow();
+  });
 });
 
 app.on("before-quit", (event) => {
-  if (process.platform !== "darwin" || realQuitRequested || !shouldShowMenuBarIcon()) {
+  if (process.platform !== "darwin" || realQuitRequested || !shouldUseMenuBarResidency()) {
     stopRepositoryWatcher();
     return;
   }
@@ -853,7 +1009,7 @@ app.on("before-quit", (event) => {
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+  if (process.platform !== "darwin" || !shouldUseMenuBarResidency()) app.quit();
 });
 
 registerIpcHandlers({
@@ -867,12 +1023,14 @@ registerIpcHandlers({
   dockWindow,
   errorResponse,
   getAvailableWorkspaceTargets,
+  getCommitInfoPayload: () => commitInfoPayload,
   getPinnedState: () => pinnedState,
   getSnapshotResponse,
   getSystemTheme,
   getTemporaryInfoPayload: () => temporaryInfoPayload,
   initializeRepository,
   ipcMain,
+  merge,
   noRepositoryResponse,
   normalizeRepositorySwitchView,
   normalizeView,
@@ -886,6 +1044,7 @@ registerIpcHandlers({
   sendPreferences,
   sendSnapshotResponse,
   setCollapsedWindow,
+  setCommitInfoPanel,
   setCurrentView: (view) => {
     currentView = view;
   },

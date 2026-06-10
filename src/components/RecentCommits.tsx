@@ -1,6 +1,5 @@
-import { Clock3, FileCode2, GitBranch, GitFork, GitMerge, Hash, Search, UserCircle, X } from "lucide-react";
+import { FileCode2, GitBranch, GitFork, GitMerge, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { createPortal } from "react-dom";
 import { GitTreeCell } from "../git-tree/GitTreeCell";
 import { getGitTreeRailWidth, getGitTreeRequiredLaneCount } from "../git-tree/renderGraph";
 import {
@@ -14,11 +13,13 @@ import {
   firstCommitId,
   type CommitSearchStateTransition,
 } from "../lib/commitListView";
-import { commitHoverPanelView, commitRowView, type CommitRowAction, type CommitRowActionIcon } from "../lib/commitRowView";
-import type { CommitItem } from "../types";
+import { runCommitInfoPanelBridgeSideEffect } from "../lib/commitInfoPanelBridge";
+import { commitRowView, type CommitRowAction, type CommitRowActionIcon } from "../lib/commitRowView";
+import type { CommitInfoAnchorBounds, CommitItem } from "../types";
 
 function commitActionIcon(icon: CommitRowActionIcon) {
   if (icon === "branch") return <GitFork aria-hidden="true" />;
+  if (icon === "merge") return <GitMerge aria-hidden="true" />;
   return <GitBranch aria-hidden="true" />;
 }
 
@@ -29,14 +30,18 @@ function CommitRow({
   onSelect,
   onAction,
   onPreview,
+  onDismissPreview,
 }: {
   commit: CommitItem;
   selected: boolean;
   expandSelectedMessage?: boolean;
   onSelect: () => void;
   onAction: (action: CommitRowAction, commit: CommitItem) => void;
-  onPreview: (commit: CommitItem, element: HTMLElement) => void;
+  onPreview: (commit: CommitItem, anchorBounds: CommitInfoAnchorBounds) => void;
+  onDismissPreview: () => void;
 }) {
+  const rowRef = useRef<HTMLElement>(null);
+  const previewFrameRef = useRef<number | null>(null);
   const graphLaneCount = getGitTreeRequiredLaneCount(commit.graph);
   const rowStyle: CSSProperties & { "--git-tree-rail-width": string } = {
     "--git-tree-rail-width": `${getGitTreeRailWidth(graphLaneCount)}px`,
@@ -46,16 +51,63 @@ function CommitRow({
     "--branch-color": view.refColor,
   } as CSSProperties;
 
+  function anchorBounds(): CommitInfoAnchorBounds {
+    const rect = rowRef.current?.getBoundingClientRect();
+    return {
+      top: rect?.top ?? 0,
+      height: rect?.height ?? 0,
+    };
+  }
+
+  function cancelScheduledPreview() {
+    if (previewFrameRef.current === null) return;
+    window.cancelAnimationFrame(previewFrameRef.current);
+    previewFrameRef.current = null;
+  }
+
+  function schedulePreviewAfterSelection() {
+    cancelScheduledPreview();
+    previewFrameRef.current = window.requestAnimationFrame(() => {
+      previewFrameRef.current = null;
+      onPreview(commit, anchorBounds());
+    });
+  }
+
+  function previewIfSelected() {
+    if (!selected) {
+      cancelScheduledPreview();
+      onDismissPreview();
+      return;
+    }
+
+    cancelScheduledPreview();
+    onPreview(commit, anchorBounds());
+  }
+
+  function selectCommit() {
+    onSelect();
+    if (selected) {
+      cancelScheduledPreview();
+      onDismissPreview();
+      return;
+    }
+
+    schedulePreviewAfterSelection();
+  }
+
+  useEffect(() => () => cancelScheduledPreview(), []);
+
   return (
     <article
+      ref={rowRef}
       className={view.className}
       style={rowStyle}
-      onFocus={(event) => onPreview(commit, event.currentTarget)}
-      onPointerEnter={(event) => onPreview(commit, event.currentTarget)}
+      onFocus={previewIfSelected}
+      onPointerEnter={previewIfSelected}
     >
       <GitTreeCell graph={commit.graph} laneCount={graphLaneCount} />
       <div className={view.contentClassName}>
-        <button className={view.selectButton.className} type="button" aria-pressed={view.selectButton.ariaPressed} onClick={onSelect}>
+        <button className={view.selectButton.className} type="button" aria-pressed={view.selectButton.ariaPressed} onClick={selectCommit}>
           <span className={view.titleLineClassName}>
             <span className={view.titleTextClassName}>{view.displayMessage}</span>
             {view.showRef ? (
@@ -98,6 +150,17 @@ function CommitRow({
             <button
               type="button"
               onClick={() => {
+                if (!view.mergeAction.disabled) onAction(view.mergeAction.action, commit);
+              }}
+              disabled={view.mergeAction.disabled}
+              title={view.mergeAction.title}
+            >
+              {commitActionIcon(view.mergeAction.icon)}
+              {view.mergeAction.label}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
                 if (!view.checkoutAction.disabled) onAction(view.checkoutAction.action, commit);
               }}
               disabled={view.checkoutAction.disabled}
@@ -110,65 +173,6 @@ function CommitRow({
         ) : null}
       </div>
     </article>
-  );
-}
-
-function commitPreviewTopFromElement(element: HTMLElement) {
-  const rowRect = element.getBoundingClientRect();
-  const minimumTop = 10;
-  const estimatedPanelHeight = 268;
-  const maximumTop = Math.max(minimumTop, window.innerHeight - estimatedPanelHeight - minimumTop);
-
-  return Math.min(Math.max(rowRect.top - 4, minimumTop), maximumTop);
-}
-
-function CommitHoverPanel({ commit, top }: { commit: CommitItem; top: number }) {
-  const view = commitHoverPanelView(commit);
-  const panelStyle = {
-    "--commit-hover-panel-top": `${top}px`,
-  } as CSSProperties;
-
-  if (typeof document === "undefined") return null;
-
-  return createPortal(
-    <aside className={view.panel.className} style={panelStyle} role={view.panel.role} aria-label={view.panel.ariaLabel}>
-      <div className={view.headerClassName}>
-        <UserCircle aria-hidden="true" />
-        <span className={view.authorClassName}>{view.author}</span>
-        {view.showRelativeTime ? (
-          <>
-            <Clock3 aria-hidden="true" />
-            <span className={view.timeClassName}>{view.relativeTime}</span>
-          </>
-        ) : null}
-      </div>
-      <p className={view.titleClassName}>{view.message}</p>
-      <div className={view.statsClassName}>
-        <span>{view.filesLabel}</span>
-        <span className="additions">, {view.insertionsLabel}</span>
-        <span className="deletions">, {view.deletionsLabel}</span>
-      </div>
-      {view.showRefs ? (
-        <div className={view.refsClassName}>
-          {view.refs.map((ref) => (
-            <span
-              key={ref.key}
-              className={view.refPillClassName}
-              style={{ "--branch-color": ref.color } as CSSProperties}
-              title={ref.label}
-            >
-              <GitBranch aria-hidden="true" />
-              <span>{ref.label}</span>
-            </span>
-          ))}
-        </div>
-      ) : null}
-      <div className={view.hashClassName}>
-        <Hash aria-hidden="true" />
-        <code>{view.hash}</code>
-      </div>
-    </aside>,
-    document.body,
   );
 }
 
@@ -187,7 +191,8 @@ export function RecentCommits({
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [previewState, setPreviewState] = useState<{ commitId: string; top: number } | null>(null);
+  const commitPreviewOpenRef = useRef(false);
+  const commitPreviewCommitIdRef = useRef("");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchToggleRef = useRef<HTMLButtonElement>(null);
   const {
@@ -209,10 +214,6 @@ export function RecentCommits({
     title,
     titleId,
   } = useMemo(() => commitListView(commits, searchQuery, searchOpen), [commits, searchOpen, searchQuery]);
-  const previewCommit = useMemo(
-    () => filteredCommits.find((commit) => commit.id === previewState?.commitId) ?? null,
-    [filteredCommits, previewState?.commitId],
-  );
 
   useEffect(() => {
     if (!searchOpen) return;
@@ -229,8 +230,15 @@ export function RecentCommits({
   }, [filteredCommits, onSelect, selectedId]);
 
   useEffect(() => {
-    if (previewState?.commitId && !commitSelectionVisible(filteredCommits, previewState.commitId)) setPreviewState(null);
-  }, [filteredCommits, previewState?.commitId]);
+    if (!selectedId || (commitPreviewCommitIdRef.current && commitPreviewCommitIdRef.current !== selectedId)) closeCommitPreview();
+  }, [selectedId]);
+
+  useEffect(
+    () => () => {
+      closeCommitPreview();
+    },
+    [],
+  );
 
   function applySearchState(nextState: CommitSearchStateTransition) {
     const application = commitSearchStateApplication(nextState);
@@ -249,15 +257,21 @@ export function RecentCommits({
     applySearchState(commitSearchStateAfterToggle({ searchOpen, searchQuery }, searchToggle));
   }
 
-  function previewCommitFromElement(commit: CommitItem, element: HTMLElement) {
-    setPreviewState({
-      commitId: commit.id,
-      top: commitPreviewTopFromElement(element),
-    });
+  function previewCommit(commit: CommitItem, anchorBounds: CommitInfoAnchorBounds) {
+    const opened = runCommitInfoPanelBridgeSideEffect(
+      "open",
+      (payload) => window.gitPeek?.setCommitInfoPanel(payload),
+      { kind: "commit", commit, anchorBounds },
+    );
+    commitPreviewOpenRef.current = opened;
+    commitPreviewCommitIdRef.current = opened ? commit.id : "";
   }
 
   function closeCommitPreview() {
-    setPreviewState(null);
+    if (!commitPreviewOpenRef.current) return;
+    commitPreviewOpenRef.current = false;
+    commitPreviewCommitIdRef.current = "";
+    runCommitInfoPanelBridgeSideEffect("close", (payload) => window.gitPeek?.setCommitInfoPanel(payload));
   }
 
   return (
@@ -349,7 +363,8 @@ export function RecentCommits({
               expandSelectedMessage={expandSelectedMessage}
               onSelect={() => onSelect(commit.id)}
               onAction={onAction}
-              onPreview={previewCommitFromElement}
+              onPreview={previewCommit}
+              onDismissPreview={closeCommitPreview}
             />
           ))
         ) : null}
@@ -359,7 +374,6 @@ export function RecentCommits({
           </div>
         ) : null}
       </div>
-      {previewCommit && previewState ? <CommitHoverPanel commit={previewCommit} top={previewState.top} /> : null}
     </section>
   );
 }

@@ -9,6 +9,7 @@ const messages = stylelint.utils.ruleMessages(ruleName, {
   privateSurfaceStyle: (selector, prop) =>
     `${selector} sets ${prop} directly. ` +
     "Use the shared ui-* form/dialog classes or root design tokens instead of private form/window styling.",
+  semanticFontSize: "Use semantic typography tokens for font-size, such as var(--type-body-size), or inherit.",
   globalFontSize: (size, max) =>
     `font-size ${size}px exceeds the global Git Peek ceiling of ${max}px. ` +
     "Large type is reserved for empty-state headings.",
@@ -102,6 +103,11 @@ const ruleFunction = (primary, secondaryOptions = {}) => {
 
       if (isPrivateSurfaceSelector(selector) && privateSurfaceProps.has(prop)) {
         report(result, decl, messages.privateSurfaceStyle(selector, prop));
+      }
+
+      if (prop === "font-size" && (size !== null || /var\(--font-/.test(value))) {
+        report(result, decl, messages.semanticFontSize);
+        return;
       }
 
       if (size === null) return;

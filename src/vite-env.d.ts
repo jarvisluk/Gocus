@@ -2,6 +2,7 @@
 
 import type {
   ActionResponse,
+  CommitInfoPayload,
   CommitViewSelection,
   RecentRepository,
   SnapshotResponse,
@@ -21,6 +22,7 @@ declare global {
       clearRepository: () => Promise<SnapshotResponse>;
       initializeRepository: (repositoryPath: string, view?: CommitViewSelection) => Promise<ActionResponse>;
       createBranch: (branchName: string, startPoint: string, view?: CommitViewSelection) => Promise<ActionResponse>;
+      merge: (ref: string, targetBranch: string, view?: CommitViewSelection) => Promise<ActionResponse>;
       checkout: (ref: string, view?: CommitViewSelection) => Promise<ActionResponse>;
       openWorktree: (worktreePath: string, view?: CommitViewSelection) => Promise<ActionResponse>;
       openWorkspace: (target: WorkspaceOpenTarget) => Promise<ActionResponse>;
@@ -33,10 +35,14 @@ declare global {
       dockToEdge: (collapsed: boolean) => Promise<void>;
       getTemporaryInfoPayload: () => Promise<TemporaryInfoPayload>;
       setTemporaryInfoPanel: (payload: TemporaryInfoPayload) => Promise<void>;
+      getCommitInfoPayload: () => Promise<CommitInfoPayload>;
+      setCommitInfoPanel: (payload: CommitInfoPayload) => Promise<void>;
       copyText: (text: string) => Promise<void>;
       getSystemTheme: () => Promise<"light" | "dark">;
       onTemporaryInfoPayloadUpdated: (callback: (payload: TemporaryInfoPayload) => void) => () => void;
       onTemporaryInfoPanelClosed: (callback: () => void) => () => void;
+      onCommitInfoPayloadUpdated: (callback: (payload: CommitInfoPayload) => void) => () => void;
+      onCommitInfoPanelClosed: (callback: () => void) => () => void;
       onThemeChanged: (callback: (theme: "light" | "dark") => void) => () => void;
       onPreferencesChanged: (callback: (preferences: UiPreferences) => void) => () => void;
       onSnapshotUpdated: (callback: (response: SnapshotResponse) => void) => () => void;

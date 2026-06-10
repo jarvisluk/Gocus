@@ -57,6 +57,8 @@ function normalizeGraphContext(context = {}) {
     currentBranch: context.currentBranch ? normalizeBranchColorKey(context.currentBranch) : "",
     externalHeads: new Set((context.externalHeads ?? []).filter(Boolean)),
     externalBranches: normalizeBranchSet(context.externalBranches),
+    currentReachable: new Set(),
+    externalOnlyReachable: new Set(),
   };
 }
 
@@ -65,11 +67,53 @@ function commitRefsIncludeBranch(commit, branchName) {
   return commit.refs.some((ref) => normalizeBranchColorKey(ref) === branchName);
 }
 
+function commitRefsIncludeAnyBranch(commit, branches) {
+  if (!branches.size) return false;
+  return commit.refs.some((ref) => branches.has(normalizeBranchColorKey(ref)));
+}
+
+function reachableHashesFrom(startHashes, commitsByHash) {
+  const reachable = new Set();
+  const stack = [...startHashes].filter((hash) => hash && commitsByHash.has(hash));
+
+  while (stack.length) {
+    const hash = stack.pop();
+    if (!hash || reachable.has(hash)) continue;
+
+    reachable.add(hash);
+    const commit = commitsByHash.get(hash);
+    if (!commit) continue;
+    stack.push(...commit.parents);
+  }
+
+  return reachable;
+}
+
+function graphContextWithReachability(context, commits, commitsByHash) {
+  const currentStarts = new Set(context.currentHead ? [context.currentHead] : []);
+  const externalStarts = new Set(context.externalHeads);
+
+  for (const commit of commits) {
+    if (commitRefsIncludeBranch(commit, context.currentBranch)) currentStarts.add(commit.fullHash);
+    if (commitRefsIncludeAnyBranch(commit, context.externalBranches)) externalStarts.add(commit.fullHash);
+  }
+
+  const currentReachable = reachableHashesFrom(currentStarts, commitsByHash);
+  const externalReachable = reachableHashesFrom(externalStarts, commitsByHash);
+  const externalOnlyReachable = new Set([...externalReachable].filter((hash) => !currentReachable.has(hash)));
+
+  return {
+    ...context,
+    currentReachable,
+    externalOnlyReachable,
+  };
+}
+
 function lineVariantForCommit(commit, context, fallback = "solid") {
   if (context.currentHead && commit.fullHash === context.currentHead) return "solid";
   if (commitRefsIncludeBranch(commit, context.currentBranch)) return "solid";
-  if (context.externalHeads.has(commit.fullHash)) return "dashed";
-  if (commit.refs.some((ref) => context.externalBranches.has(normalizeBranchColorKey(ref)))) return "dashed";
+  if (context.currentReachable.has(commit.fullHash)) return "solid";
+  if (context.externalOnlyReachable.has(commit.fullHash)) return "dashed";
   return fallback;
 }
 
@@ -145,8 +189,8 @@ function parseRefs(refs) {
 }
 
 function buildCommitGraph(commits, graphContext = {}) {
-  const context = normalizeGraphContext(graphContext);
   const commitsByHash = new Map(commits.map((commit) => [commit.fullHash, commit]));
+  const context = graphContextWithReachability(normalizeGraphContext(graphContext), commits, commitsByHash);
   let activeLanes = [];
   const laneSnapshots = (lanes) =>
     lanes.flatMap((lane, laneIndex) =>
@@ -182,12 +226,20 @@ function buildCommitGraph(commits, graphContext = {}) {
     const currentContinues = column !== -1;
     if (column === -1) {
       column = findOpenColumn(activeLanes);
-      activeLanes[column] = { hash: commit.fullHash, color: commit.branchColor, variant: lineVariantForCommit(commit, context) };
+      activeLanes[column] = {
+        hash: commit.fullHash,
+        color: commit.branchColor,
+        label: commit.refs[0] ?? "",
+        variant: lineVariantForCommit(commit, context),
+      };
     }
+
+    const currentVariant = lineVariantForCommit(commit, context, activeLanes[column]?.variant ?? "solid");
+    activeLanes[column] = { ...activeLanes[column], variant: currentVariant };
 
     const before = laneSnapshots(activeLanes);
     const currentColor = activeLanes[column]?.color ?? commit.branchColor;
-    const currentVariant = activeLanes[column]?.variant ?? lineVariantForCommit(commit, context);
+    const currentLabel = activeLanes[column]?.label ?? commit.refs[0] ?? "";
     const parents = commit.parents.filter(Boolean);
     const parentEntries = [];
     const bridges = [];
@@ -197,6 +249,10 @@ function buildCommitGraph(commits, graphContext = {}) {
     const colorForParent = (parentHash, fallbackColor) => {
       const parentCommit = commitsByHash.get(parentHash);
       return parentCommit?.refs.length ? parentCommit.branchColor : fallbackColor;
+    };
+    const labelForParent = (parentHash, fallbackLabel = "") => {
+      const parentCommit = commitsByHash.get(parentHash);
+      return parentCommit?.refs[0] ?? fallbackLabel;
     };
     const variantForParent = (parentHash, fallbackVariant) => {
       const parentCommit = commitsByHash.get(parentHash);
@@ -211,11 +267,12 @@ function buildCommitGraph(commits, graphContext = {}) {
 
       if (existingFirstParent > column) {
         const color = after[existingFirstParent].color;
+        const label = after[existingFirstParent].label;
         const variant = after[existingFirstParent].variant;
         parentEntries.push({ column, color, variant });
         passThroughLimits.set(existingFirstParent, { to: "node" });
         bridges.push({ fromColumn: existingFirstParent, toColumn: column, color, variant, to: "lane" });
-        after[column] = { hash: firstParent, color, variant };
+        after[column] = { hash: firstParent, color, label, variant };
         after[existingFirstParent] = null;
       } else if (existingFirstParent >= 0) {
         const color = after[existingFirstParent].color;
@@ -226,8 +283,9 @@ function buildCommitGraph(commits, graphContext = {}) {
         secondaryParentStartColumn = column;
       } else {
         const color = colorForParent(firstParent, currentColor);
+        const label = labelForParent(firstParent, currentLabel);
         const variant = variantForParent(firstParent, currentVariant);
-        after[column] = { hash: firstParent, color, variant };
+        after[column] = { hash: firstParent, color, label, variant };
         parentEntries.push({ column, color, variant });
       }
 
@@ -238,9 +296,10 @@ function buildCommitGraph(commits, graphContext = {}) {
         if (parentColumn === -1) {
           const fallbackColor = commit.lane === "stash" ? currentColor : generatedBranchColor(index + parentIndex + 1);
           const color = colorForParent(parentHash, fallbackColor);
+          const label = labelForParent(parentHash);
           const variant = variantForParent(parentHash, currentVariant);
           parentColumn = findOpenColumn(after, secondaryParentStartColumn);
-          after[parentColumn] = { hash: parentHash, color, variant };
+          after[parentColumn] = { hash: parentHash, color, label, variant };
         }
 
         const color = after[parentColumn].color;
@@ -272,6 +331,7 @@ function buildCommitGraph(commits, graphContext = {}) {
         column,
         laneCount,
         currentColor,
+        currentLabel,
         currentVariant,
         currentContinues,
         passThrough: before
@@ -303,7 +363,13 @@ function parseLog(rawLog, graphContext = {}) {
             const [legacyHeader = "", ...legacyStatLines] = block.split("\n");
             return [legacyHeader, legacyStatLines.join("\n")];
           })();
-      const [fullHash, hash, parentsText = "", author, relativeTime, subject, refs = "", ...messageParts] = metadataBlock.split("\x1f");
+      const metadata = metadataBlock.split("\x1f");
+      const [fullHash, hash, parentsText = "", author, relativeTime] = metadata;
+      const hasAuthoredAt = metadata.length >= 9;
+      const authoredAt = hasAuthoredAt ? metadata[5] : "";
+      const subject = hasAuthoredAt ? metadata[6] : metadata[5];
+      const refs = hasAuthoredAt ? metadata[7] ?? "" : metadata[6] ?? "";
+      const messageParts = metadata.slice(hasAuthoredAt ? 8 : 7);
       const message = messageParts.join("\x1f").trim() || subject || "Untitled commit";
       let additions = 0;
       let deletions = 0;
@@ -325,6 +391,7 @@ function parseLog(rawLog, graphContext = {}) {
         message,
         author: author || "Unknown",
         relativeTime: relativeTime || "",
+        authoredAt: authoredAt || "",
         additions,
         deletions,
         filesChanged,

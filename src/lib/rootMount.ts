@@ -1,8 +1,10 @@
-export type RootWindowMode = "main" | "temporary-info";
+export type RootWindowMode = "commit-info" | "main" | "temporary-info";
 
 export function rootWindowModeFromUrl(href: string): RootWindowMode {
   try {
-    return new URL(href).searchParams.get("window") === "temporary-info" ? "temporary-info" : "main";
+    const mode = new URL(href).searchParams.get("window");
+    if (mode === "commit-info") return "commit-info";
+    return mode === "temporary-info" ? "temporary-info" : "main";
   } catch {
     return "main";
   }

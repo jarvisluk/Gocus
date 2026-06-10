@@ -5,9 +5,17 @@ export type ThemeMode = "system" | Theme;
 export type LightThemePreset = "paper" | "mist" | "pearl";
 export type DarkThemePreset = "graphite" | "cursor" | "matte";
 export type FileFilter = "all" | "modified" | "staged" | "untracked";
-export type WorkspaceOpenTarget = "vscode" | "cursor" | "codex" | "antigravity" | "finder" | "terminal" | "xcode";
+export type WorkspaceOpenTarget =
+  | "vscode"
+  | "cursor"
+  | "codex"
+  | "antigravity"
+  | "antigravityApp"
+  | "finder"
+  | "terminal"
+  | "xcode";
 export type CommitViewMode = "current" | "all" | "branch";
-export type CommitAction = "branch" | "checkout";
+export type CommitAction = "branch" | "merge" | "checkout";
 export type GraphLineVariant = "solid" | "dashed";
 export type AutoRefreshInterval = "off" | "1m" | "5m" | "15m";
 export type PromptLanguage = "en" | "zh";
@@ -65,6 +73,7 @@ export interface CommitGraph {
   column: number;
   laneCount: number;
   currentColor: BranchColor;
+  currentLabel: string;
   currentVariant: GraphLineVariant;
   currentContinues: boolean;
   passThrough: GraphLaneSegment[];
@@ -116,6 +125,7 @@ export interface CommitItem {
   message: string;
   author: string;
   relativeTime: string;
+  authoredAt: string;
   additions: number;
   deletions: number;
   filesChanged: number;
@@ -139,14 +149,27 @@ export interface ChangedFile {
   deletions: number;
 }
 
-export type TemporaryInfoPayload =
+export type ChangedFilesTemporaryInfoPayload = {
+  kind: "changed-files";
+  files: ChangedFile[];
+  filter: FileFilter;
+  selectedFileKey: string;
+};
+
+export interface CommitInfoAnchorBounds {
+  top: number;
+  height: number;
+}
+
+export type CommitInfoPayload =
   | {
-      kind: "changed-files";
-      files: ChangedFile[];
-      filter: FileFilter;
-      selectedFileKey: string;
+      kind: "commit";
+      commit: CommitItem;
+      anchorBounds?: CommitInfoAnchorBounds;
     }
   | null;
+
+export type TemporaryInfoPayload = ChangedFilesTemporaryInfoPayload | null;
 
 export interface GitSnapshot {
   repoPath: string;
@@ -170,4 +193,10 @@ export type SnapshotResponse =
 
 export type ActionResponse =
   | { ok: true; message?: string; snapshot?: GitSnapshot }
-  | { ok: false; error?: string; canceled?: boolean; reason?: "not_configured" | "invalid_repository" | "action_failed" };
+  | {
+      ok: false;
+      error?: string;
+      canceled?: boolean;
+      reason?: "not_configured" | "invalid_repository" | "action_failed";
+      snapshot?: GitSnapshot;
+    };

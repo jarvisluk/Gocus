@@ -10,11 +10,13 @@ function registerIpcHandlers({
   errorResponse,
   getAvailableWorkspaceTargets,
   getPinnedState,
+  getCommitInfoPayload,
   getSnapshotResponse,
   getSystemTheme,
   getTemporaryInfoPayload,
   initializeRepository,
   ipcMain,
+  merge,
   noRepositoryResponse,
   normalizeRepositorySwitchView,
   normalizeView,
@@ -28,6 +30,7 @@ function registerIpcHandlers({
   sendPreferences,
   sendSnapshotResponse,
   setCollapsedWindow,
+  setCommitInfoPanel,
   setCurrentView,
   setPinnedWindow,
   setTemporaryInfoPanel,
@@ -89,6 +92,26 @@ function registerIpcHandlers({
       return { ok: true, message: `Created branch ${branchName}.`, snapshot };
     } catch (error) {
       return errorResponse(error, "Unable to create branch.");
+    }
+  });
+
+  ipcMain.handle("git:merge", async (_event, ref, targetBranch, view) => {
+    const repositoryPath = repositoryPathForAction();
+    if (!repositoryPath) return noRepositoryResponse();
+    const normalizedView = normalizeView(view);
+
+    try {
+      const snapshot = await merge(repositoryPath, ref, targetBranch, normalizedView);
+      saveRepositoryPath(snapshot.repoPath, snapshot.repositoryKey);
+      sendSnapshotResponse({ ok: true, snapshot });
+      return { ok: true, message: `Merged into ${targetBranch}.`, snapshot };
+    } catch (error) {
+      const response = errorResponse(error, "Unable to merge ref.");
+      const snapshotResponse = await getSnapshotResponse(normalizedView);
+      if (!snapshotResponse.ok) return response;
+
+      sendSnapshotResponse(snapshotResponse);
+      return { ...response, snapshot: snapshotResponse.snapshot };
     }
   });
 
@@ -174,6 +197,12 @@ function registerIpcHandlers({
 
   ipcMain.handle("window:setTemporaryInfoPanel", (_event, payload) => {
     setTemporaryInfoPanel(payload);
+  });
+
+  ipcMain.handle("window:getCommitInfoPayload", () => getCommitInfoPayload());
+
+  ipcMain.handle("window:setCommitInfoPanel", (_event, payload) => {
+    setCommitInfoPanel(payload);
   });
 
   ipcMain.handle("clipboard:writeText", (_event, text) => {

@@ -109,8 +109,7 @@ function logArgsForView(view) {
   const args = [
     "log",
     "--topo-order",
-    "--date=relative",
-    "--pretty=format:%x1e%H%x1f%h%x1f%P%x1f%an%x1f%ar%x1f%s%x1f%D%x1f%B%x1d%n",
+    "--pretty=format:%x1e%H%x1f%h%x1f%P%x1f%an%x1f%ar%x1f%aI%x1f%s%x1f%D%x1f%B%x1d%n",
     "--numstat",
   ];
 
@@ -225,15 +224,23 @@ function annotateCommitsWithWorktrees(commits, worktrees) {
   }));
 }
 
-function graphContextForWorktrees(worktrees, status) {
+function graphContextForWorktrees(worktrees, status, branches = []) {
   const currentWorktree = worktrees.find((worktree) => worktree.current && !worktree.bare);
   const externalWorktrees = worktrees.filter((worktree) => !worktree.current && !worktree.bare);
+  const nonCurrentLocalBranches = branches
+    .filter((branch) => branch.type === "local" && !branch.current)
+    .map((branch) => branch.name);
 
   return {
     currentHead: currentWorktree?.head ?? "",
     currentBranch: currentWorktree?.branch || (status.branch.detached ? "" : status.branch.name),
     externalHeads: externalWorktrees.map((worktree) => worktree.head),
-    externalBranches: externalWorktrees.filter((worktree) => !worktree.detached).map((worktree) => worktree.branch),
+    externalBranches: [
+      ...new Set([
+        ...externalWorktrees.filter((worktree) => !worktree.detached).map((worktree) => worktree.branch),
+        ...nonCurrentLocalBranches,
+      ]),
+    ],
   };
 }
 
@@ -256,7 +263,8 @@ async function readGitSnapshot(repoPath, view = { mode: "all" }) {
     runGit(root, ["worktree", "list", "--porcelain"]).catch(() => ""),
   ]);
   const worktrees = await Promise.all(parseWorktrees(worktreesRaw, root).map(enrichWorktree));
-  const graphContext = graphContextForWorktrees(worktrees, status);
+  const branches = parseBranches(branchesRaw, status.branch.name);
+  const graphContext = graphContextForWorktrees(worktrees, status, branches);
   const logRequest = logArgsForViewWithWorktrees(view, worktrees);
   const logRaw = await runGit(root, logRequest.args, { maxBuffer: 1024 * 1024 * 64 }).catch(() => "");
 
@@ -270,12 +278,12 @@ async function readGitSnapshot(repoPath, view = { mode: "all" }) {
     repoName: rootName,
     repositoryKey,
     branch: status.branch,
-    branches: parseBranches(branchesRaw, status.branch.name),
+    branches,
     worktrees,
     view: logRequest.view,
     counts: status.counts,
     commits: annotateCommitsWithWorktrees(parseLog(logRaw, graphContext), worktrees),
-    changedFiles: status.files.slice(0, 24),
+    changedFiles: status.files,
     lastFetchedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     isSample: false,
   };
@@ -283,6 +291,12 @@ async function readGitSnapshot(repoPath, view = { mode: "all" }) {
 
 async function assertBranchName(root, branchName) {
   await runGit(root, ["check-ref-format", "--branch", branchName]);
+}
+
+async function assertLocalBranch(root, branchName) {
+  if (typeof branchName !== "string" || !branchName.trim()) throw new Error("Choose a target branch.");
+  await assertBranchName(root, branchName);
+  await runGit(root, ["show-ref", "--verify", `refs/heads/${branchName}`]);
 }
 
 async function createBranch(repoPath, branchName, startPoint, view) {
@@ -295,6 +309,14 @@ async function createBranch(repoPath, branchName, startPoint, view) {
 async function checkout(repoPath, ref, view) {
   const root = await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
   await runGit(root, ["checkout", ref]);
+  return readGitSnapshot(root, view);
+}
+
+async function merge(repoPath, ref, targetBranch, view) {
+  const root = await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
+  await assertLocalBranch(root, targetBranch);
+  await runGit(root, ["checkout", targetBranch]);
+  await runGit(root, ["merge", "--no-edit", ref]);
   return readGitSnapshot(root, view);
 }
 
@@ -337,8 +359,10 @@ async function initializeRepository(folderPath, view) {
 module.exports = {
   checkout,
   createBranch,
+  graphContextForWorktrees,
   initializeRepository,
   isNotGitRepositoryError,
+  merge,
   normalizeView,
   openWorktree,
   readFolderWithoutGit,

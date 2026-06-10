@@ -16,10 +16,31 @@ function pluralize(count: number, singular: string, plural = `${singular}s`) {
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
+function formatCommitAbsoluteTime(value: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  })
+    .formatToParts(date)
+    .reduce<Record<string, string>>((result, part) => {
+      if (part.type !== "literal") result[part.type] = part.value;
+      return result;
+    }, {});
+
+  return `${parts.month} ${parts.day}, ${parts.year} at ${parts.hour}:${parts.minute} ${parts.dayPeriod}`;
+}
+
 export function commitRowView(commit: CommitItem, selected: boolean, expandSelectedMessage = false) {
   const message = commit.message.trim() || commit.title;
   const ref = commit.refs[0] ?? "";
-  const checkoutDisabled = commit.graph.currentVariant === "dashed";
+  const externalWorktreeActionDisabled = commit.graph.currentVariant === "dashed";
 
   return {
     className: joinClass("commit-row", selected && "is-selected"),
@@ -65,23 +86,42 @@ export function commitRowView(commit: CommitItem, selected: boolean, expandSelec
       disabled: false,
       title: undefined,
     } satisfies CommitRowActionView,
+    mergeAction: {
+      action: "merge",
+      label: "Merge",
+      icon: "merge",
+      disabled: externalWorktreeActionDisabled,
+      title: externalWorktreeActionDisabled ? "Open that worktree first to merge there." : undefined,
+    } satisfies CommitRowActionView,
     checkoutAction: {
       action: "checkout",
       label: "Checkout",
       icon: "checkout",
-      disabled: checkoutDisabled,
-      title: checkoutDisabled ? "Open that worktree first to checkout there." : undefined,
+      disabled: externalWorktreeActionDisabled,
+      title: externalWorktreeActionDisabled ? "Open that worktree first to checkout there." : undefined,
     } satisfies CommitRowActionView,
   };
 }
 
 export function commitHoverPanelView(commit: CommitItem) {
   const message = commit.message.trim() || commit.title;
-  const refPills = commit.refs.map((ref, index) => ({
-    key: `${ref}-${index}`,
-    label: ref,
-    color: commit.refColors[index] ?? commit.branchColor,
-  }));
+  const absoluteTime = formatCommitAbsoluteTime(commit.authoredAt);
+  const timeLabel = absoluteTime && commit.relativeTime ? `${commit.relativeTime} (${absoluteTime})` : commit.relativeTime || absoluteTime;
+  const refPills = commit.refs.length
+    ? commit.refs.map((ref, index) => ({
+        key: `${ref}-${index}`,
+        label: ref,
+        color: commit.refColors[index] ?? commit.branchColor,
+      }))
+    : commit.graph.currentLabel
+      ? [
+          {
+            key: `${commit.graph.currentLabel}-lane`,
+            label: commit.graph.currentLabel,
+            color: commit.graph.currentColor,
+          },
+        ]
+      : [];
 
   return {
     panel: {
@@ -89,19 +129,27 @@ export function commitHoverPanelView(commit: CommitItem) {
       role: "tooltip" as const,
       ariaLabel: `Commit ${commit.hash} details`,
     },
+    bodyClassName: "commit-hover-body",
+    primarySectionClassName: "commit-hover-section commit-hover-primary",
+    statsSectionClassName: "commit-hover-section commit-hover-stats-section",
+    refsSectionClassName: "commit-hover-section commit-hover-refs-section",
+    hashSectionClassName: "commit-hover-section commit-hover-hash-section",
     headerClassName: "commit-hover-header",
     authorClassName: "commit-hover-author",
     timeClassName: "commit-hover-time",
     titleClassName: "commit-hover-title",
     statsClassName: "commit-hover-stats",
     refsClassName: "commit-hover-refs",
-    refPillClassName: "commit-hover-ref-pill",
+    refPillClassName: "ref-pill commit-hover-ref-pill",
     hashClassName: "commit-hover-hash",
     author: commit.author || "Unknown",
     relativeTime: commit.relativeTime,
-    showRelativeTime: Boolean(commit.relativeTime),
+    absoluteTime,
+    timeLabel,
+    showTime: Boolean(timeLabel),
     message,
-    filesLabel: `${pluralize(commit.filesChanged, "file")} changed`,
+    filesLabel: `${commit.filesChanged}`,
+    filesChangedLabel: `${pluralize(commit.filesChanged, "file")} changed`,
     insertionsLabel: `${pluralize(commit.additions, "insertion")}(+)`,
     deletionsLabel: `${pluralize(commit.deletions, "deletion")}(-)`,
     refs: refPills,

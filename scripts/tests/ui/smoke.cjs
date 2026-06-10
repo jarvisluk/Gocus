@@ -26,11 +26,28 @@ function expectedCheckoutAction() {
   };
 }
 
+function expectedMergeAction(targetBranch = "main") {
+  return {
+    type: "merge",
+    ref: footerCommitFullHash,
+    targetBranch,
+    view: { mode: "current" },
+  };
+}
+
 function expectedInitializeRepositoryAction() {
   return {
     type: "initializeRepository",
     repositoryPath: "/Users/junrong/codespace/plain-folder",
     view: { mode: "all" },
+  };
+}
+
+function expectedOpenWorktreeAction(view = { mode: "all" }) {
+  return {
+    type: "openWorktree",
+    worktreePath: "/Users/junrong/codespace/git-tree-vis-linked",
+    view,
   };
 }
 
@@ -58,6 +75,7 @@ function commit(overrides) {
     message: overrides.message ?? overrides.title,
     author: "Codex",
     relativeTime: overrides.relativeTime ?? "2 minutes ago",
+    authoredAt: overrides.authoredAt ?? "2026-06-10T02:26:00+08:00",
     additions: overrides.additions ?? 8,
     deletions: overrides.deletions ?? 1,
     filesChanged: overrides.filesChanged ?? 2,
@@ -135,7 +153,7 @@ function snapshotForCommits(commits, overrides = {}) {
     repoPath: overrides.repoPath ?? "/Users/junrong/codespace/git-tree-vis",
     repoName: overrides.repoName ?? "git-tree-vis",
     repositoryKey: overrides.repositoryKey ?? "mock-git-tree-vis",
-    branch: { name: "main", upstream: "origin/main", ahead: 1, behind: 0, detached: false },
+    branch: overrides.branch ?? { name: "main", upstream: "origin/main", ahead: 1, behind: 0, detached: false },
     branches: overrides.branches ?? [],
     worktrees: overrides.worktrees ?? [],
     view: overrides.view ?? { mode: "all" },
@@ -159,7 +177,9 @@ function installGitPeekMock(config) {
   window.__gitPeekCopiedText = "";
   window.__gitPeekClipboardText = "";
   window.__gitPeekTemporaryInfoPayload = config.temporaryInfoPayload ?? null;
+  window.__gitPeekCommitInfoPayload = config.commitInfoPayload ?? null;
   window.__gitPeekTemporaryInfoListeners = [];
+  window.__gitPeekCommitInfoListeners = [];
   window.__gitPeekPreferencesListeners = [];
   window.__gitPeekPinnedListeners = [];
   window.__gitPeekPinnedState = Boolean(config.pinned);
@@ -221,17 +241,33 @@ function installGitPeekMock(config) {
       if (config.temporaryInfoPayloadError) throw new Error(config.temporaryInfoPayloadError);
       return window.__gitPeekTemporaryInfoPayload;
     },
+    getCommitInfoPayload: async () => {
+      if (config.commitInfoPayloadError) throw new Error(config.commitInfoPayloadError);
+      return window.__gitPeekCommitInfoPayload;
+    },
     onTemporaryInfoPayloadUpdated: (callback) => {
       window.__gitPeekTemporaryInfoListeners.push(callback);
       return () => {
         window.__gitPeekTemporaryInfoListeners = window.__gitPeekTemporaryInfoListeners.filter((listener) => listener !== callback);
       };
     },
+    onCommitInfoPayloadUpdated: (callback) => {
+      window.__gitPeekCommitInfoListeners.push(callback);
+      return () => {
+        window.__gitPeekCommitInfoListeners = window.__gitPeekCommitInfoListeners.filter((listener) => listener !== callback);
+      };
+    },
     onTemporaryInfoPanelClosed: () => () => {},
+    onCommitInfoPanelClosed: () => () => {},
     setTemporaryInfoPanel: async (payload) => {
       if (config.setTemporaryInfoPanelError) throw new Error(config.setTemporaryInfoPanelError);
       window.__gitPeekTemporaryInfoPayload = payload;
       window.__gitPeekTemporaryInfoListeners.forEach((callback) => callback(payload));
+    },
+    setCommitInfoPanel: async (payload) => {
+      if (config.setCommitInfoPanelError) throw new Error(config.setCommitInfoPanelError);
+      window.__gitPeekCommitInfoPayload = payload;
+      window.__gitPeekCommitInfoListeners.forEach((callback) => callback(payload));
     },
     savePreferences: async (preferences) => {
       window.__gitPeekSavedPreferences.push(preferences);
@@ -263,7 +299,15 @@ function installGitPeekMock(config) {
       window.__gitPeekActions.push({ type: "createBranch", name, base, view });
       return { ok: true, snapshot: actionSnapshot };
     },
-    openWorktree: async () => ({ ok: true, snapshot: actionSnapshot }),
+    merge: async (ref, targetBranch, view) => {
+      window.__gitPeekActions.push({ type: "merge", ref, targetBranch, view });
+      if (config.mergeError) return { ok: false, error: config.mergeError, snapshot: actionSnapshot };
+      return { ok: true, snapshot: { ...actionSnapshot, branch: { ...actionSnapshot.branch, name: targetBranch }, view } };
+    },
+    openWorktree: async (worktreePath, view) => {
+      window.__gitPeekActions.push({ type: "openWorktree", worktreePath, view });
+      return { ok: true, snapshot: { ...actionSnapshot, repoPath: worktreePath, view } };
+    },
     initializeRepository: async (repositoryPath, view) => {
       window.__gitPeekActions.push({ type: "initializeRepository", repositoryPath, view });
       return initializedResponse;
@@ -339,6 +383,34 @@ function branchViewScenario() {
       },
     ],
   });
+}
+
+function mergeFailureScenario() {
+  return {
+    ...mockedSnapshotScenario(mockCommits, {
+      branches: [
+        {
+          name: "main",
+          fullName: "refs/heads/main",
+          type: "local",
+          current: true,
+          upstream: "origin/main",
+        },
+        {
+          name: "feature/footer-toggle",
+          fullName: "refs/heads/feature/footer-toggle",
+          type: "local",
+          current: false,
+          upstream: "",
+        },
+      ],
+    }),
+    mergeError: [
+      "Auto-merging src/App.tsx",
+      "CONFLICT (content): Merge conflict in src/App.tsx",
+      "Automatic merge failed; fix conflicts and then commit the result.",
+    ].join("\n"),
+  };
 }
 
 function refreshFailureScenario() {
@@ -522,22 +594,73 @@ async function testCommitHoverPanel(browser, baseUrl) {
   try {
     await assertHealthyPage(page, errors);
 
-    await page.getByRole("button", { name: /Add commit search polish/ }).hover();
+    const firstCommitButton = page.getByRole("button", { name: /Add commit search polish/ });
+    const secondCommitButton = page.getByRole("button", { name: /Fix footer changed now toggle/ });
+
+    await firstCommitButton.hover();
+    await page.waitForFunction(() => window.__gitPeekCommitInfoPayload === null);
+    assert.equal(await page.locator(".commit-row.is-selected").count(), 0);
+
+    await firstCommitButton.click();
+    await page.waitForFunction(() => window.__gitPeekCommitInfoPayload?.kind === "commit");
+    assert.equal(await page.locator(".commit-hover-panel").count(), 0);
+    assert.equal(await page.evaluate(() => window.__gitPeekCommitInfoPayload?.commit?.hash), "a1b2c3d");
+    assert.deepEqual(
+      await page.evaluate(() => {
+        const anchor = window.__gitPeekCommitInfoPayload?.anchorBounds;
+        return {
+          topIsNumber: Number.isFinite(anchor?.top),
+          heightIsPositive: Number.isFinite(anchor?.height) && anchor.height > 0,
+        };
+      }),
+      { topIsNumber: true, heightIsPositive: true },
+    );
+    assert.equal(await page.evaluate(() => window.__gitPeekTemporaryInfoPayload), null);
+
+    await secondCommitButton.hover();
+    await page.waitForFunction(() => window.__gitPeekCommitInfoPayload === null);
+
+    await secondCommitButton.click();
+    await page.waitForFunction(() => window.__gitPeekCommitInfoPayload?.commit?.hash === "d4e5f6a");
+    const secondAnchorTop = await page.evaluate(() => window.__gitPeekCommitInfoPayload?.anchorBounds?.top);
+    const secondSelectedTop = await page.locator(".commit-row.is-selected").evaluate((node) => node.getBoundingClientRect().top);
+    assert.ok(
+      Math.abs(secondAnchorTop - secondSelectedTop) < 1,
+      `commit info anchor should use the post-selection row top: ${JSON.stringify({ secondAnchorTop, secondSelectedTop })}`,
+    );
+
+    await page.mouse.move(1, 1);
+    await page.waitForFunction(() => window.__gitPeekCommitInfoPayload === null);
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
+async function testCommitInfoPanel(browser, baseUrl) {
+  const { page, errors } = await openMockedPage(browser, `${baseUrl}?window=commit-info`, {
+    ...mockedSnapshotScenario(mockCommits),
+    commitInfoPayload: {
+      kind: "commit",
+      commit: mockCommits[0],
+    },
+  });
+  try {
+    assert.match(await page.title(), /Git Peek/);
     const hoverPanel = page.locator(".commit-hover-panel");
     await hoverPanel.waitFor();
+    assert.equal(await page.locator(".temporary-info-panel").evaluate((node) => node.classList.contains("is-commit")), true);
 
     const panelText = await hoverPanel.innerText();
     assert.match(panelText, /Codex/);
     assert.match(panelText, /2 minutes ago/);
+    assert.match(panelText, /June 10, 2026 at 2:26 AM/);
     assert.match(panelText, /Add commit search polish and keyboard selection/);
     assert.match(panelText, /2 files changed, 8 insertions\(\+\), 1 deletion\(-\)/);
     assert.match(panelText, /main/);
     assert.match(panelText, /a1b2c3d/);
-    await assertVisibleWithinViewport(page, hoverPanel, "commit hover panel");
-    await assertNoHorizontalOverflow(page, "commit hover panel");
-
-    await page.mouse.move(1, 1);
-    await hoverPanel.waitFor({ state: "detached" });
+    await assertVisibleWithinViewport(page, hoverPanel, "commit info panel");
+    await assertNoHorizontalOverflow(page, "commit info panel");
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -545,9 +668,31 @@ async function testCommitHoverPanel(browser, baseUrl) {
 }
 
 async function testCommitSearch(browser, baseUrl) {
-  const { page, errors } = await openMockedPage(browser, baseUrl, mockedSnapshotScenario(mockCommits));
+  const { page, errors } = await openMockedPage(
+    browser,
+    baseUrl,
+    mockedSnapshotScenario(mockCommits, {
+      branches: [
+        {
+          name: "main",
+          fullName: "refs/heads/main",
+          type: "local",
+          current: true,
+          upstream: "origin/main",
+        },
+        {
+          name: "feature/footer-toggle",
+          fullName: "refs/heads/feature/footer-toggle",
+          type: "local",
+          current: false,
+          upstream: "",
+        },
+      ],
+    }),
+  );
   try {
     const createdBranchAction = expectedCreateBranchAction("feat/d4e5f6a");
+    const mergeAction = expectedMergeAction("feature/footer-toggle");
     const checkoutAction = expectedCheckoutAction();
 
     await assertHealthyPage(page, errors);
@@ -627,7 +772,12 @@ async function testCommitSearch(browser, baseUrl) {
     await page.getByRole("button", { name: "Branch", exact: true }).click();
     await page.getByRole("dialog", { name: "Create branch" }).waitFor();
     const branchNameInput = page.getByRole("textbox", { name: "Branch name" });
-    await page.getByLabel("Branch prefix").selectOption("feat");
+    assert.equal(await page.locator("select[aria-label='Branch prefix']").count(), 0);
+    const branchPrefixButton = page.getByRole("button", { name: "Branch prefix" });
+    await branchPrefixButton.click();
+    assert.equal(await branchPrefixButton.getAttribute("aria-expanded"), "true");
+    await page.locator("#action-branch-prefix-menu").getByRole("menuitem", { name: "feat" }).click();
+    assert.equal(await branchPrefixButton.getAttribute("aria-expanded"), "false");
     assert.equal(await page.locator(".action-branch-preview").innerText(), "feat/d4e5f6a");
     await branchNameInput.fill("feat/ready");
     assert.equal(await page.locator(".action-branch-preview").innerText(), "feat/ready");
@@ -637,25 +787,60 @@ async function testCommitSearch(browser, baseUrl) {
     await page.getByRole("dialog", { name: "Create branch" }).waitFor({ state: "detached" });
     await assertGitActions(page, [createdBranchAction]);
 
+    await page.getByRole("button", { name: "Merge", exact: true }).click();
+    await page.getByRole("dialog", { name: "Merge commit" }).waitFor();
+    assert.equal(await page.locator("#action-dialog-title").innerText(), "Merge commit");
+    assert.equal(
+      await page.locator("#action-dialog-body").innerText(),
+      "Merge d4e5f6a into the selected target branch. The working folder will end on that branch.",
+    );
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), "Cancel");
+    const mergeTargetButton = page.getByRole("button", { name: "Merge target branch" });
+    assert.equal(await mergeTargetButton.innerText(), "main");
+    await mergeTargetButton.click();
+    assert.equal(await mergeTargetButton.getAttribute("aria-expanded"), "true");
+    const mergeMenuPlacement = await page.locator("#action-merge-target-menu").evaluate((menu) => {
+      const trigger = document.querySelector("#action-merge-target-trigger");
+      const menuRect = menu.getBoundingClientRect();
+      const triggerRect = trigger?.getBoundingClientRect();
+
+      return {
+        menuTop: menuRect.top,
+        menuBottom: menuRect.bottom,
+        triggerTop: triggerRect?.top ?? 0,
+        viewportHeight: window.innerHeight,
+      };
+    });
+    assert.ok(mergeMenuPlacement.menuTop >= 0, `merge target menu should stay within viewport: ${JSON.stringify(mergeMenuPlacement)}`);
+    assert.ok(
+      mergeMenuPlacement.menuBottom <= mergeMenuPlacement.triggerTop,
+      `merge target menu should open above the trigger: ${JSON.stringify(mergeMenuPlacement)}`,
+    );
+    await page.locator("#action-merge-target-menu").getByRole("menuitem", { name: "feature/footer-toggle" }).click();
+    assert.equal(await mergeTargetButton.innerText(), "feature/footer-toggle");
+    await page.getByRole("button", { name: "Confirm" }).click();
+    await page.getByRole("dialog", { name: "Merge commit" }).waitFor({ state: "detached" });
+    await assertGitActions(page, [createdBranchAction, mergeAction]);
+
     await page.getByRole("button", { name: "Checkout", exact: true }).click();
     await page.getByRole("dialog", { name: "Checkout commit" }).waitFor();
     assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), "Cancel");
     await page.keyboard.press("Enter");
     assert.equal(await page.getByRole("dialog", { name: "Checkout commit" }).count(), 0);
-    await assertGitActions(page, [createdBranchAction]);
+    await assertGitActions(page, [createdBranchAction, mergeAction]);
 
     await page.getByRole("button", { name: "Checkout", exact: true }).click();
     await page.getByRole("dialog", { name: "Checkout commit" }).waitFor();
     assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), "Cancel");
     await page.keyboard.press("Escape");
     assert.equal(await page.getByRole("dialog", { name: "Checkout commit" }).count(), 0);
-    await assertGitActions(page, [createdBranchAction]);
+    await assertGitActions(page, [createdBranchAction, mergeAction]);
 
     await page.getByRole("button", { name: "Checkout", exact: true }).click();
     await page.getByRole("dialog", { name: "Checkout commit" }).waitFor();
     await page.getByRole("button", { name: "Confirm" }).click();
     await page.getByRole("dialog", { name: "Checkout commit" }).waitFor({ state: "detached" });
-    await assertGitActions(page, [createdBranchAction, checkoutAction]);
+    await assertGitActions(page, [createdBranchAction, mergeAction, checkoutAction]);
 
     await page.getByRole("button", { name: "Search commits" }).click();
     await page.getByRole("searchbox", { name: "Search commits" }).fill("nothing-here");
@@ -680,6 +865,37 @@ async function testCommitSearch(browser, baseUrl) {
     assert.equal(await page.getByRole("button", { name: "Open Changed now" }).getAttribute("aria-pressed"), "false");
     assert.equal(await page.evaluate(() => window.__gitPeekTemporaryInfoPayload), null);
 
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
+async function testMergeFailureStaysInDialog(browser, baseUrl) {
+  const { page, errors } = await openMockedPage(browser, baseUrl, mergeFailureScenario());
+  try {
+    await assertHealthyPage(page, errors);
+
+    await page.getByRole("button", { name: /Fix footer changed now toggle/ }).click();
+    await page.getByRole("button", { name: "Merge", exact: true }).click();
+    const mergeDialog = page.getByRole("dialog", { name: "Merge commit" });
+    await mergeDialog.waitFor();
+    await page.getByRole("button", { name: "Confirm" }).click();
+
+    await mergeDialog.waitFor();
+    const error = page.locator("#action-dialog-error");
+    await error.waitFor();
+    assert.equal(await error.getAttribute("role"), "alert");
+    const errorText = await error.innerText();
+    assert.match(errorText, /Auto-merging src\/App\.tsx/);
+    assert.match(errorText, /CONFLICT \(content\): Merge conflict in src\/App\.tsx/);
+    assert.match(errorText, /Automatic merge failed/);
+    assert.deepEqual(await page.evaluate(() => window.__gitPeekActions), [expectedMergeAction("main")]);
+
+    const mergeTargetButton = page.getByRole("button", { name: "Merge target branch" });
+    await mergeTargetButton.click();
+    await page.locator("#action-merge-target-menu").getByRole("menuitem", { name: "feature/footer-toggle" }).click();
+    assert.equal(await page.locator("#action-dialog-error").count(), 0);
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -813,10 +1029,9 @@ async function testTemporaryInfoHiddenChangedFiles(browser, baseUrl) {
     assert.equal(await page.locator(".temporary-info-panel").evaluate((node) => node.classList.contains("has-detail")), false);
     const fileListBox = await page.locator(".file-list").boundingBox();
     assert.ok(fileListBox && fileListBox.height > 140, `temporary file list should fill the small window: ${JSON.stringify(fileListBox)}`);
-    assert.equal(await page.locator(".file-row").count(), 8);
-    assert.equal(await page.locator(".file-list-more").innerText(), "+2 more files");
-    assert.equal(await page.locator(".file-list-more").getAttribute("aria-live"), "polite");
-    await assertNoHorizontalOverflow(page, "temporary changed files overflow hint");
+    assert.equal(await page.locator(".file-row").count(), 10);
+    assert.equal(await page.locator(".file-list-more").count(), 0);
+    await assertNoHorizontalOverflow(page, "temporary changed files list");
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -884,11 +1099,82 @@ async function testResponsiveShell(browser, baseUrl) {
 }
 
 async function testCollapsedRailChangedNowToggle(browser, baseUrl) {
-  const { page, errors } = await openMockedPage(browser, baseUrl, mockedSnapshotScenario(mockCommits));
+  const branchName = "refactor/codebase-optimization";
+  const branchColor = "#25b7ba";
+  const collapsedRailCommits = [
+    commit({
+      hash: "b7c8d9e",
+      title: "Tune collapsed rail branch label",
+      refs: [branchName],
+      lane: "topic",
+      branchColor,
+      refColors: [branchColor],
+    }),
+    ...mockCommits,
+  ];
+  const { page, errors } = await openMockedPage(
+    browser,
+    baseUrl,
+    mockedSnapshotScenario(collapsedRailCommits, {
+      branch: { name: branchName, upstream: "origin/refactor/codebase-optimization", ahead: 1, behind: 0, detached: false },
+    }),
+  );
   try {
     await assertHealthyPage(page, errors);
+    const mainBranchColor = await page.evaluate((name) => {
+      const refPill = Array.from(document.querySelectorAll(".ref-pill")).find((node) => node.textContent?.trim() === name);
+      return refPill ? getComputedStyle(refPill).getPropertyValue("--branch-color").trim() : "";
+    }, branchName);
+    assert.equal(mainBranchColor, branchColor);
+
     await page.getByRole("button", { name: "Collapse side peek" }).click();
+    await page.setViewportSize({ width: 38, height: 268 });
     await page.getByLabel("Collapsed Git Peek").waitFor();
+    await assertNoHorizontalOverflow(page, "collapsed rail");
+
+    const branchLabel = page.getByLabel(`Current branch ${branchName}`);
+    await branchLabel.waitFor();
+    assert.equal(await branchLabel.locator("span").innerText(), branchName);
+    assert.equal(await branchLabel.getAttribute("title"), branchName);
+
+    const railMetrics = await page.locator(".collapsed-rail").evaluate((rail) => {
+      const branch = rail.querySelector(".rail-branch");
+      const count = rail.querySelector(".rail-count");
+      const label = branch?.querySelector("span");
+      const toPlainRect = (rect) => ({
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height,
+      });
+
+      return branch && count && label
+        ? {
+            rail: toPlainRect(rail.getBoundingClientRect()),
+            branch: toPlainRect(branch.getBoundingClientRect()),
+            count: toPlainRect(count.getBoundingClientRect()),
+            label: toPlainRect(label.getBoundingClientRect()),
+            whiteSpace: getComputedStyle(branch).whiteSpace,
+            branchColor: getComputedStyle(branch).getPropertyValue("--branch-color").trim(),
+            countColor: getComputedStyle(count).getPropertyValue("--branch-color").trim(),
+          }
+        : null;
+    });
+    assert.ok(railMetrics, "collapsed rail branch label should render");
+    assert.equal(railMetrics.branchColor, mainBranchColor);
+    assert.equal(railMetrics.countColor, mainBranchColor);
+    assert.equal(railMetrics.whiteSpace, "nowrap");
+    assert.ok(railMetrics.label.width <= 16, `label should stay in one vertical column: ${JSON.stringify(railMetrics)}`);
+    assert.ok(
+      railMetrics.count.top - railMetrics.branch.bottom >= 7,
+      `count should have breathing room below branch icon: ${JSON.stringify(railMetrics)}`,
+    );
+    assert.ok(railMetrics.branch.top >= railMetrics.rail.top - 1, `branch starts inside rail: ${JSON.stringify(railMetrics)}`);
+    assert.ok(railMetrics.branch.bottom <= railMetrics.rail.bottom + 1, `branch ends inside rail: ${JSON.stringify(railMetrics)}`);
+    assert.ok(railMetrics.label.top >= railMetrics.branch.top - 1, `label starts inside branch slot: ${JSON.stringify(railMetrics)}`);
+    assert.ok(railMetrics.label.bottom <= railMetrics.branch.bottom + 1, `label ends inside branch slot: ${JSON.stringify(railMetrics)}`);
 
     const openChangedNow = page.getByRole("button", { name: "Open Changed now, 2 working tree changes" });
     await openChangedNow.waitFor();
@@ -916,9 +1202,13 @@ async function testExternalWorktreeCheckoutDisabled(browser, baseUrl) {
     await assertHealthyPage(page, errors);
 
     await page.getByRole("button", { name: /External worktree head/ }).click();
+    const merge = page.getByRole("button", { name: "Merge", exact: true });
     const checkout = page.getByRole("button", { name: "Checkout", exact: true });
+    await merge.waitFor();
     await checkout.waitFor();
 
+    assert.equal(await merge.isDisabled(), true);
+    assert.equal(await merge.getAttribute("title"), "Open that worktree first to merge there.");
     assert.equal(await checkout.isDisabled(), true);
     assert.equal(await checkout.getAttribute("title"), "Open that worktree first to checkout there.");
     assert.equal(await page.getByRole("dialog", { name: "Checkout commit" }).count(), 0);
@@ -987,6 +1277,25 @@ async function testBranchViewDoesNotCheckout(browser, baseUrl) {
       ref: "feature/footer-toggle",
     });
     await assertGitActions(page, []);
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
+async function testOpenWorktreeKeepsCommitView(browser, baseUrl) {
+  const { page, errors } = await openMockedPage(browser, baseUrl, dismissableMenuScenario(), { viewport: desktopViewport });
+  try {
+    await assertHealthyPage(page, errors);
+
+    const allViewButton = page.getByRole("button", { name: "All" });
+    assert.equal(await allViewButton.getAttribute("aria-pressed"), "true");
+
+    await page.getByRole("button", { name: "Choose worktree" }).click();
+    await page.getByRole("menuitem", { name: "feature/footer-toggle - git-tree-vis-linked" }).click();
+    await page.waitForFunction(() => window.__gitPeekActions.length === 1);
+
+    await assertGitActions(page, [expectedOpenWorktreeAction({ mode: "all" })]);
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -1249,7 +1558,9 @@ async function main() {
   try {
     await testSelectedCommitGraphAnchor(browser, baseUrl);
     await testCommitHoverPanel(browser, baseUrl);
+    await testCommitInfoPanel(browser, baseUrl);
     await testCommitSearch(browser, baseUrl);
+    await testMergeFailureStaysInDialog(browser, baseUrl);
     await testTemporaryInfoCopyPrompt(browser, baseUrl);
     await testTemporaryInfoCopyFallback(browser, baseUrl);
     await testTemporaryInfoCopyFailure(browser, baseUrl);
@@ -1262,6 +1573,7 @@ async function main() {
     await testFolderWithoutGitInitialize(browser, baseUrl);
     await testEmptyRepositoryRecentOverflow(browser, baseUrl);
     await testBranchViewDoesNotCheckout(browser, baseUrl);
+    await testOpenWorktreeKeepsCommitView(browser, baseUrl);
     await testRefreshFailureRecovers(browser, baseUrl);
     await testPreviewRefreshWithoutBridge(browser, baseUrl);
     await testOptionalStartupFailuresDoNotBreakMainWindow(browser, baseUrl);

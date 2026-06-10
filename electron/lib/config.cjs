@@ -10,7 +10,7 @@ const defaultPreferences = {
   density: "compact",
   fontFamily: "system",
   graphStyle: "solid",
-  workspaceOpenTargets: ["vscode", "cursor", "codex", "antigravity", "finder", "terminal", "xcode"],
+  workspaceOpenTargets: ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"],
   showZenEntry: true,
   showMenuBarIcon: true,
   launchAtLogin: false,

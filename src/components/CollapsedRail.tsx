@@ -1,4 +1,5 @@
 import { FolderOpen, GitBranch, PanelRightClose } from "lucide-react";
+import type { CSSProperties } from "react";
 import { collapsedRailView, type CollapsedRailRepositoryIcon } from "../lib/collapsedRailView";
 import type { GitSnapshot } from "../types";
 
@@ -20,17 +21,18 @@ export function CollapsedRail({
   onDock: () => void;
 }) {
   const view = collapsedRailView(snapshot, changedNowOpen);
+  const railStyle = view.branch.color ? ({ "--branch-color": view.branch.color } as CSSProperties) : undefined;
 
   function openChangedNow() {
     onOpenChangedNow();
   }
 
   return (
-    <aside className={view.className} aria-label={view.ariaLabel} title={view.title} onDoubleClick={onDock}>
+    <aside className={view.className} aria-label={view.ariaLabel} title={view.title} style={railStyle} onDoubleClick={onDock}>
       <button className={view.expandButton.className} type="button" aria-label={view.expandButton.ariaLabel} onClick={onExpand}>
         <PanelRightClose aria-hidden="true" />
       </button>
-      <div className={view.branch.className}>
+      <div className={view.branch.className} title={view.branch.title} aria-label={view.branch.ariaLabel}>
         {collapsedRailRepositoryIcon(view.branch.icon)}
         <span>{view.branch.label}</span>
       </div>

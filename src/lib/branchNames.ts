@@ -1,6 +1,11 @@
 export const branchPrefixes = ["none", "feat", "fix", "chore", "docs", "refactor", "test"] as const;
+export const branchNameMaxLength = 30;
 
 export type BranchPrefix = (typeof branchPrefixes)[number];
+
+export function branchNameCharacterCount(branchName: string) {
+  return Array.from(branchName).length;
+}
 
 export function branchNameWithPrefix(prefix: BranchPrefix, branchName: string) {
   const trimmedName = branchName.trim().replace(/^\/+/, "");
@@ -8,9 +13,17 @@ export function branchNameWithPrefix(prefix: BranchPrefix, branchName: string) {
   return `${prefix}/${trimmedName}`;
 }
 
+export function branchDisplayName(branchName: string, maxLength = branchNameMaxLength) {
+  const characters = Array.from(branchName.trim());
+  if (characters.length <= maxLength) return characters.join("");
+  if (maxLength <= 3) return characters.slice(0, maxLength).join("");
+  return `${characters.slice(0, maxLength - 3).join("")}...`;
+}
+
 export function branchNameValidationMessage(branchName: string) {
   const trimmedName = branchName.trim();
   if (!trimmedName) return "Enter a branch name.";
+  if (branchNameCharacterCount(trimmedName) > branchNameMaxLength) return `Branch names cannot exceed ${branchNameMaxLength} characters.`;
   if (trimmedName.startsWith("-")) return "Branch names cannot start with a dash.";
   if (trimmedName === "HEAD") return "Branch names cannot be HEAD.";
   if (trimmedName.endsWith("/") || trimmedName.includes("//")) return "Branch names cannot contain empty path segments.";

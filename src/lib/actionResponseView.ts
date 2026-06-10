@@ -13,5 +13,5 @@ export function actionResponseNotice(
 }
 
 export function actionResponseSnapshot(response: ActionResponse): GitSnapshot | null {
-  return response.ok ? response.snapshot ?? null : null;
+  return response.snapshot ?? null;
 }

@@ -19,6 +19,16 @@ npm install
 npm run dev
 ```
 
+## Verify
+
+Run the full local quality gate before handing off changes:
+
+```bash
+npm run verify
+```
+
+This runs CSS linting, unit checks for shared logic, the Playwright UI smoke test, and the production build.
+
 ## Build
 
 ```bash

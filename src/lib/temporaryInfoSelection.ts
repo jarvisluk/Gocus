@@ -1,10 +1,8 @@
-import type { ChangedFile, FileFilter, TemporaryInfoPayload } from "../types";
+import type { ChangedFile, ChangedFilesTemporaryInfoPayload, FileFilter, TemporaryInfoPayload } from "../types";
 import { changedFileKey } from "./changedFileIdentity";
 import { filteredChangedFiles } from "./changedFilesView";
 import { joinClass } from "./classNames";
 import { politeStatusView } from "./statusView";
-
-type ChangedFilesTemporaryInfoPayload = NonNullable<TemporaryInfoPayload>;
 
 export function selectedChangedFile(files: readonly ChangedFile[], selectedFileKey: string, filter: FileFilter = "all") {
   if (!selectedFileKey) return null;
@@ -19,8 +17,7 @@ export function changedFilesSelectedFileKey(payload: TemporaryInfoPayload, curre
 }
 
 export function temporaryInfoWindowView(payload: TemporaryInfoPayload, selectedFileKey: string) {
-  const selectedFile =
-    payload?.kind === "changed-files" ? selectedChangedFile(payload.files, selectedFileKey, payload.filter) : null;
+  const selectedFile = payload ? selectedChangedFile(payload.files, selectedFileKey, payload.filter) : null;
   const chrome = {
     viewport: {
       className: "temporary-info-viewport is-electron",
@@ -36,7 +33,7 @@ export function temporaryInfoWindowView(payload: TemporaryInfoPayload, selectedF
     }),
   };
 
-  if (payload?.kind !== "changed-files") {
+  if (!payload) {
     return {
       ...chrome,
       changedFilesPayload: null,
