@@ -108,13 +108,21 @@ export function mergeTargetBranchOptions(
   branches: readonly Pick<GitBranchRef, "current" | "name" | "type">[],
   currentBranchName = "",
 ): MergeTargetBranchOption[] {
+  const priority = (branch: MergeTargetBranchOption) => {
+    if (branch.current) return 0;
+    if (branch.name === "main") return 1;
+    if (branch.name === "develop") return 2;
+    if (branch.name === "master") return 3;
+    return 4;
+  };
+
   return branches
     .filter((branch) => branch.type === "local" && branch.name)
     .map((branch) => ({
       name: branch.name,
       current: branch.current || branch.name === currentBranchName,
     }))
-    .sort((left, right) => Number(right.current) - Number(left.current) || left.name.localeCompare(right.name));
+    .sort((left, right) => priority(left) - priority(right) || left.name.localeCompare(right.name));
 }
 
 export function mergeCommitActionDialog(

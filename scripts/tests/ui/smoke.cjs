@@ -413,6 +413,57 @@ function branchViewScenario() {
   });
 }
 
+function crowdedMergeTargetScenario() {
+  const overflowBranches = Array.from({ length: 18 }, (_, index) => {
+    const number = String(index + 1).padStart(2, "0");
+    const name = `topic/menu-overflow-${number}`;
+
+    return {
+      name,
+      fullName: `refs/heads/${name}`,
+      type: "local",
+      current: false,
+      upstream: "",
+    };
+  });
+
+  return mockedSnapshotScenario(mockCommits, {
+    branch: { name: "feat/branch-swift", upstream: "", ahead: 0, behind: 0, detached: false },
+    branches: [
+      { name: "feat/branch-swift", fullName: "refs/heads/feat/branch-swift", type: "local", current: true, upstream: "" },
+      { name: "codex/worktree-graph-mode", fullName: "refs/heads/codex/worktree-graph-mode", type: "local", current: false, upstream: "" },
+      {
+        name: "feat/beautify-commit-card-layout",
+        fullName: "refs/heads/feat/beautify-commit-card-layout",
+        type: "local",
+        current: false,
+        upstream: "",
+      },
+      { name: "feat/commit-blocking-flow", fullName: "refs/heads/feat/commit-blocking-flow", type: "local", current: false, upstream: "" },
+      { name: "feat/worktree-graph-mode", fullName: "refs/heads/feat/worktree-graph-mode", type: "local", current: false, upstream: "" },
+      {
+        name: "fiery-comet-driven-cleanup",
+        fullName: "refs/heads/fiery-comet-driven-cleanup",
+        type: "local",
+        current: false,
+        upstream: "",
+      },
+      {
+        name: "feat/super-long-branch-name-that-should-wrap-and-still-be-readable-in-the-target-menu",
+        fullName: "refs/heads/feat/super-long-branch-name-that-should-wrap-and-still-be-readable-in-the-target-menu",
+        type: "local",
+        current: false,
+        upstream: "",
+      },
+      { name: "main", fullName: "refs/heads/main", type: "local", current: false, upstream: "origin/main" },
+      { name: "develop", fullName: "refs/heads/develop", type: "local", current: false, upstream: "" },
+      { name: "master", fullName: "refs/heads/master", type: "local", current: false, upstream: "" },
+      ...overflowBranches,
+      { name: "origin/main", fullName: "refs/remotes/origin/main", type: "remote", current: false, upstream: "" },
+    ],
+  });
+}
+
 function mergeFailureScenario() {
   return {
     ...mockedSnapshotScenario(mockCommits, {
@@ -1506,6 +1557,70 @@ async function testSwitchBranchFromBranchMenu(browser, baseUrl) {
   }
 }
 
+async function testMergeTargetDropdownShowsPriorityBranches(browser, baseUrl) {
+  const { page, errors } = await openMockedPage(browser, baseUrl, crowdedMergeTargetScenario(), { viewport: { width: 640, height: 720 } });
+  try {
+    await assertHealthyPage(page, errors);
+
+    await page.getByRole("button", { name: /Fix footer changed now toggle/ }).click();
+    await page.getByRole("button", { name: "Merge", exact: true }).click();
+    await page.getByRole("button", { name: "Merge target branch" }).click();
+    const menu = page.locator("#action-merge-target-menu");
+    await menu.waitFor();
+
+    const metrics = await menu.evaluate((element) => {
+      const menuRect = element.getBoundingClientRect();
+      const triggerRect = document.querySelector("#action-merge-target-trigger")?.getBoundingClientRect();
+      const labels = Array.from(element.querySelectorAll(".action-merge-target-menu-item span"));
+      const labelText = labels.map((label) => label.textContent?.trim() ?? "");
+      const mainLabel = labels.find((label) => label.textContent?.trim() === "main");
+      const longLabel = labels.find((label) => label.textContent?.includes("super-long-branch-name"));
+      const mainRect = mainLabel?.getBoundingClientRect();
+      const longStyle = longLabel ? getComputedStyle(longLabel) : null;
+      const menuStyle = getComputedStyle(element);
+
+      return {
+        width: menuRect.width,
+        triggerWidth: triggerRect?.width ?? 0,
+        left: menuRect.left,
+        triggerLeft: triggerRect?.left ?? 0,
+        clientHeight: element.clientHeight,
+        scrollHeight: element.scrollHeight,
+        labelText,
+        mainVisible:
+          Boolean(mainRect) &&
+          mainRect.top >= menuRect.top &&
+          mainRect.bottom <= menuRect.bottom &&
+          mainRect.left >= menuRect.left &&
+          mainRect.right <= menuRect.right,
+        longWhiteSpace: longStyle?.whiteSpace ?? "",
+        longOverflowWrap: longStyle?.overflowWrap ?? "",
+        longTextOverflow: longStyle?.textOverflow ?? "",
+        menuOverflowY: menuStyle.overflowY,
+        menuScrollbarGutter: menuStyle.scrollbarGutter,
+      };
+    });
+
+    assert.deepEqual(metrics.labelText.slice(0, 4), ["feat/branch-swift current", "main", "develop", "master"]);
+    assert.ok(metrics.mainVisible, `main should be visible without scrolling: ${JSON.stringify(metrics)}`);
+    assert.ok(Math.abs(metrics.width - metrics.triggerWidth) <= 1, `menu should match trigger width: ${JSON.stringify(metrics)}`);
+    assert.ok(Math.abs(metrics.left - metrics.triggerLeft) <= 1, `menu should align with trigger left edge: ${JSON.stringify(metrics)}`);
+    assert.ok(metrics.clientHeight > 184, `merge target menu should show more rows before scrolling: ${JSON.stringify(metrics)}`);
+    assert.ok(
+      metrics.scrollHeight > metrics.clientHeight,
+      `merge target menu should scroll when branches overflow: ${JSON.stringify(metrics)}`,
+    );
+    assert.equal(metrics.longWhiteSpace, "normal");
+    assert.match(metrics.longOverflowWrap, /anywhere|break-word/);
+    assert.equal(metrics.longTextOverflow, "clip");
+    assert.equal(metrics.menuOverflowY, "auto");
+    assert.match(metrics.menuScrollbarGutter, /stable/);
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
 async function testOpenWorktreeKeepsCommitView(browser, baseUrl) {
   const { page, errors } = await openMockedPage(browser, baseUrl, dismissableMenuScenario(), { viewport: desktopViewport });
   try {
@@ -1837,6 +1952,7 @@ async function main() {
     await testEmptyRepositoryRecentOverflow(browser, baseUrl);
     await testBranchViewDoesNotCheckout(browser, baseUrl);
     await testSwitchBranchFromBranchMenu(browser, baseUrl);
+    await testMergeTargetDropdownShowsPriorityBranches(browser, baseUrl);
     await testOpenWorktreeKeepsCommitView(browser, baseUrl);
     await testRefreshFailureRecovers(browser, baseUrl);
     await testPreviewRefreshWithoutBridge(browser, baseUrl);

@@ -1212,6 +1212,26 @@ async function testActionDialogView(server) {
     ),
     mergeTargets,
   );
+  assert.deepEqual(
+    mergeTargetBranchOptions(
+      [
+        { name: "feat/branch-swift", type: "local", current: true },
+        { name: "feat/commit-block", type: "local", current: false },
+        { name: "develop", type: "local", current: false },
+        { name: "main", type: "local", current: false },
+        { name: "master", type: "local", current: false },
+        { name: "origin/main", type: "remote", current: false },
+      ],
+      "feat/branch-swift",
+    ),
+    [
+      { name: "feat/branch-swift", current: true },
+      { name: "main", current: false },
+      { name: "develop", current: false },
+      { name: "master", current: false },
+      { name: "feat/commit-block", current: false },
+    ],
+  );
 
   assert.deepEqual(createBranchActionDialog(sampleCommit), {
     type: "createBranch",
