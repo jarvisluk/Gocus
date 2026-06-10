@@ -7,6 +7,7 @@ export type DarkThemePreset = "graphite" | "cursor" | "matte";
 export type FileFilter = "all" | "modified" | "staged" | "untracked";
 export type WorkspaceOpenTarget = "vscode" | "cursor" | "codex" | "antigravity" | "finder" | "terminal" | "xcode";
 export type CommitViewMode = "current" | "all" | "branch";
+export type CommitAction = "branch" | "checkout";
 export type GraphLineVariant = "solid" | "dashed";
 export type AutoRefreshInterval = "off" | "1m" | "5m" | "15m";
 export type PromptLanguage = "en" | "zh";
@@ -37,6 +38,7 @@ export interface UiPreferences {
   graphStyle: "solid" | "soft";
   workspaceOpenTargets: WorkspaceOpenTarget[];
   showZenEntry: boolean;
+  showMenuBarIcon: boolean;
   launchAtLogin: boolean;
   zenMode: boolean;
   autoRefreshInterval: AutoRefreshInterval;

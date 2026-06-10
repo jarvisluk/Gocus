@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback } from "react";
 import { Minimize2 } from "lucide-react";
 import { ActionDialog } from "./components/ActionDialog";
 import { CollapsedRail } from "./components/CollapsedRail";
@@ -9,160 +9,102 @@ import { RecentCommits } from "./components/RecentCommits";
 import { RepositoryControls } from "./components/RepositoryControls";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { useGitPeekController } from "./app/useGitPeekController";
-import { joinClass } from "./lib/classNames";
+import { useSettingsEscape, useZenEscape } from "./app/useAppKeyboardShortcuts";
+import { useChangedNowPanel } from "./app/useChangedNowPanel";
+import {
+  appEditorBackdropView,
+  appChangedNowCount,
+  appNativeDialogBlockerView,
+  appPanelContentView,
+  appPanelView,
+  appPreferencesWithZenMode,
+  appShouldCloseSettingsAfterPreferencesChange,
+  appScrollRegionView,
+  appShouldShowRepositoryControls,
+  appViewportView,
+  appZenExitButtonView,
+} from "./lib/appShellView";
 
 function EditorBackdrop() {
+  const backdrop = appEditorBackdropView();
+
   return (
-    <div className="editor-backdrop" aria-hidden="true">
-      <div className="editor-tabs">
-        <span>Menu.tsx</span>
-        <span>shortcuts.ts</span>
+    <div className={backdrop.className} aria-hidden={backdrop.ariaHidden}>
+      <div className={backdrop.tabs.className}>
+        {backdrop.tabs.labels.map((label) => (
+          <span key={label}>{label}</span>
+        ))}
       </div>
-      <pre>{`export function Menu({ items }) {
-  return (
-    <nav className="menu">
-      {items.map((item) => (
-        <button
-          key={item.id}
-          onClick={() => item.onClick()}
-          className="menu-item"
-        >
-          {item.label}
-        </button>
-      ))}
-    </nav>
-  )
-}`}</pre>
+      <pre>{backdrop.previewCode}</pre>
     </div>
   );
 }
 
 export default function App() {
   const controller = useGitPeekController();
-  const [changedNowWindowOpen, setChangedNowWindowOpen] = useState(false);
-  const [collapsedRailChangedNowOpen, setCollapsedRailChangedNowOpen] = useState(false);
-  const zenActive = Boolean(controller.snapshot && controller.preferences.zenMode);
-  const changedNowCount = useMemo(() => {
-    return controller.snapshot?.changedFiles.length ?? 0;
-  }, [controller.snapshot]);
-  const temporaryInfoPayload = useMemo(
-    () =>
-      controller.snapshot && changedNowWindowOpen && (!controller.collapsed || collapsedRailChangedNowOpen) && !controller.settingsOpen && !zenActive
-        ? {
-            kind: "changed-files" as const,
-            files: controller.snapshot.changedFiles,
-            filter: "all" as const,
-            selectedFileKey: "",
-          }
-        : null,
-    [changedNowWindowOpen, collapsedRailChangedNowOpen, controller.collapsed, controller.settingsOpen, controller.snapshot, zenActive],
-  );
+  const panelContent = appPanelContentView({
+    snapshot: controller.snapshot,
+    settingsOpen: controller.settingsOpen,
+    zenMode: controller.preferences.zenMode,
+  });
+  const zenActive = panelContent.mode === "zen";
+  const repositorySnapshot = panelContent.mode === "repository" ? panelContent.snapshot : null;
+  const viewportView = appViewportView({ electron: controller.electron, collapsed: controller.collapsed, zenActive });
+  const panelView = appPanelView(zenActive);
+  const zenExitButton = appZenExitButtonView();
+  const zenScrollRegion = appScrollRegionView(true);
+  const commitScrollRegion = appScrollRegionView(false);
+  const nativeDialogBlocker = appNativeDialogBlockerView();
+  const changedNowCount = appChangedNowCount(controller.snapshot);
+  const showRepositoryControls = appShouldShowRepositoryControls({ snapshot: repositorySnapshot, zenActive });
+  const {
+    changedNowWindowOpen,
+    collapsedRailChangedNowOpen,
+    toggleChangedNowWindow,
+    toggleChangedNowFromCollapsedRail,
+  } = useChangedNowPanel({
+    snapshot: controller.snapshot,
+    collapsed: controller.collapsed,
+    settingsOpen: controller.settingsOpen,
+    zenActive,
+  });
 
   const exitZenMode = useCallback(() => {
-    controller.setPreferences({ ...controller.preferences, zenMode: false });
+    controller.setPreferences(appPreferencesWithZenMode(controller.preferences, false));
   }, [controller.preferences, controller.setPreferences]);
+  const closeSettings = useCallback(() => {
+    controller.setSettingsOpen(false);
+  }, [controller.setSettingsOpen]);
+
+  useSettingsEscape({
+    settingsOpen: controller.settingsOpen,
+    zenActive,
+    onClose: closeSettings,
+  });
+  useZenEscape({ zenActive, onExit: exitZenMode });
 
   function updatePreferences(nextPreferences: typeof controller.preferences) {
     controller.setPreferences(nextPreferences);
-    if (nextPreferences.zenMode) controller.setSettingsOpen(false);
+    if (appShouldCloseSettingsAfterPreferencesChange({ settingsOpen: controller.settingsOpen, nextZenMode: nextPreferences.zenMode })) {
+      controller.setSettingsOpen(false);
+    }
   }
 
-  const openChangedNowWindow = useCallback(() => {
-    setCollapsedRailChangedNowOpen(false);
-    setChangedNowWindowOpen(true);
-    if (temporaryInfoPayload) window.gitPeek?.setTemporaryInfoPanel(temporaryInfoPayload);
-  }, [temporaryInfoPayload]);
-
-  const openChangedNowFromCollapsedRail = useCallback(() => {
-    setCollapsedRailChangedNowOpen(true);
-    setChangedNowWindowOpen(true);
-  }, []);
-
-  const closeChangedNowWindow = useCallback(() => {
-    setCollapsedRailChangedNowOpen(false);
-    setChangedNowWindowOpen(false);
-    window.gitPeek?.setTemporaryInfoPanel(null);
-  }, []);
-
-  useEffect(() => {
-    if (!controller.settingsOpen || zenActive) return undefined;
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        controller.setSettingsOpen(false);
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [controller.setSettingsOpen, controller.settingsOpen, zenActive]);
-
-  useEffect(() => {
-    if (!zenActive) return undefined;
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        exitZenMode();
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [exitZenMode, zenActive]);
-
-  useEffect(() => {
-    window.gitPeek?.setTemporaryInfoPanel(temporaryInfoPayload);
-  }, [temporaryInfoPayload]);
-
-  useEffect(() => {
-    if (!temporaryInfoPayload) return undefined;
-
-    function handlePointerDown(event: PointerEvent) {
-      const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest(".footer-changed-now, .rail-count")) return;
-      closeChangedNowWindow();
-    }
-
-    window.addEventListener("pointerdown", handlePointerDown, true);
-    return () => window.removeEventListener("pointerdown", handlePointerDown, true);
-  }, [closeChangedNowWindow, temporaryInfoPayload]);
-
-  useEffect(() => {
-    if (!controller.collapsed && collapsedRailChangedNowOpen) {
-      setCollapsedRailChangedNowOpen(false);
-    }
-  }, [collapsedRailChangedNowOpen, controller.collapsed]);
-
-  useEffect(
-    () => () => {
-      window.gitPeek?.setTemporaryInfoPanel(null);
-    },
-    [],
-  );
-
-  useEffect(
-    () =>
-      window.gitPeek?.onTemporaryInfoPanelClosed(() => {
-        setCollapsedRailChangedNowOpen(false);
-        setChangedNowWindowOpen(false);
-      }),
-    [],
-  );
-
   return (
-    <main className={joinClass("app-viewport", controller.electron && "is-electron", controller.collapsed && "is-collapsed", zenActive && "is-zen")}>
+    <main className={viewportView.className}>
       {!controller.electron ? <EditorBackdrop /> : null}
 
       {controller.collapsed ? (
         <CollapsedRail
           snapshot={controller.snapshot}
+          changedNowOpen={collapsedRailChangedNowOpen}
           onExpand={() => controller.setCollapsedState(false)}
-          onOpenChangedNow={openChangedNowFromCollapsedRail}
+          onOpenChangedNow={toggleChangedNowFromCollapsedRail}
           onDock={controller.dockCurrentState}
         />
       ) : (
-        <section className={joinClass("peek-panel", zenActive && "is-zen-panel")} aria-label={zenActive ? "Git Peek zen commit view" : "Git Peek side panel"}>
-          {zenActive ? (
+        <section className={panelView.className} aria-label={panelView.ariaLabel}>
+          {panelContent.mode === "zen" ? (
             <>
               <ActionDialog
                 dialog={controller.actionDialog}
@@ -171,12 +113,18 @@ export default function App() {
                 onCancel={controller.cancelActionDialog}
                 onConfirm={controller.confirmActionDialog}
               />
-              <button className="ui-icon-button zen-exit-button" type="button" aria-label="Exit Zen mode" title="Exit Zen mode" onClick={exitZenMode}>
+              <button
+                className={zenExitButton.className}
+                type="button"
+                aria-label={zenExitButton.ariaLabel}
+                title={zenExitButton.title}
+                onClick={exitZenMode}
+              >
                 <Minimize2 aria-hidden="true" />
               </button>
-              <div className="scroll-region zen-scroll-region">
+              <div className={zenScrollRegion.className}>
                 <RecentCommits
-                  commits={controller.snapshot!.commits}
+                  commits={panelContent.snapshot.commits}
                   selectedId={controller.selectedCommitId}
                   expandSelectedMessage
                   onSelect={controller.selectCommit}
@@ -184,7 +132,7 @@ export default function App() {
                 />
               </div>
             </>
-          ) : controller.settingsOpen ? (
+          ) : panelContent.mode === "settings" ? (
             <SettingsPanel
               preferences={controller.preferences}
               availableWorkspaceTargets={controller.availableWorkspaceTargets}
@@ -214,19 +162,19 @@ export default function App() {
                 onConfirm={controller.confirmActionDialog}
               />
 
-              {controller.snapshot ? (
+              {panelContent.mode === "repository" ? (
                 <>
-                  {!controller.preferences.zenMode ? (
+                  {showRepositoryControls ? (
                     <RepositoryControls
-                      snapshot={controller.snapshot}
+                      snapshot={panelContent.snapshot}
                       view={controller.commitView}
                       onChangeView={controller.changeCommitView}
                       onOpenWorktree={controller.openWorktree}
                     />
                   ) : null}
-                  <div className="scroll-region">
+                  <div className={commitScrollRegion.className}>
                     <RecentCommits
-                      commits={controller.snapshot.commits}
+                      commits={panelContent.snapshot.commits}
                       selectedId={controller.selectedCommitId}
                       onSelect={controller.selectCommit}
                       onAction={controller.handleCommitAction}
@@ -249,21 +197,25 @@ export default function App() {
 
               <Footer
                 onOpenRepo={controller.openRepository}
-                onEnterZen={() => updatePreferences({ ...controller.preferences, zenMode: true })}
+                onEnterZen={() => updatePreferences(appPreferencesWithZenMode(controller.preferences, true))}
                 onOpenSettings={() => controller.setSettingsOpen(true)}
                 onOpenWorkspace={controller.openWorkspace}
                 hasRepository={Boolean(controller.snapshot)}
+                changedNowOpen={changedNowWindowOpen}
                 changedNowCount={changedNowCount}
                 preferences={controller.preferences}
                 availableWorkspaceTargets={controller.availableWorkspaceTargets}
                 showZenEntry={controller.preferences.showZenEntry}
-                onOpenChangedNow={openChangedNowWindow}
+                notice={controller.notice}
+                onOpenChangedNow={toggleChangedNowWindow}
               />
             </>
           )}
         </section>
       )}
-      {controller.repositoryDialogOpen ? <div className="native-dialog-blocker" aria-hidden="true" /> : null}
+      {controller.repositoryDialogOpen ? (
+        <div className={nativeDialogBlocker.className} aria-hidden={nativeDialogBlocker.ariaHidden} />
+      ) : null}
     </main>
   );
 }

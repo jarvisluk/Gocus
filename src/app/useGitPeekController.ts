@@ -1,7 +1,50 @@
-import { useEffect, useRef, useState } from "react";
-import { branchNameWithPrefix, type ActionDialogState, type BranchPrefix } from "../components/ActionDialog";
-import { applyPreferences, defaultPreferences, mergePreferences, resolveThemePreset } from "../lib/preferences";
-import { defaultWorkspaceOpenTargets, sanitizeWorkspaceOpenTargets } from "../lib/workspaceOpenTargets";
+import { useRef, useState } from "react";
+import {
+  useAutoRefreshLoop,
+  useInitialGitData,
+  usePreferenceDomEffects,
+  useRuntimePreferenceBridge,
+} from "./useControllerEffects";
+import {
+  actionDialogAfterBranchNameChange,
+  actionDialogAfterBranchPrefixChange,
+  actionDialogConfirmation,
+  checkoutRefActionDialog,
+  commitActionDialog,
+  type ActionDialogState,
+  type BranchPrefix,
+  type CommitAction,
+} from "../lib/actionDialogView";
+import { actionResponseNotice, actionResponseSnapshot } from "../lib/actionResponseView";
+import {
+  gitActionBridgeNotice,
+  initializeRepositoryAvailabilityNotice,
+  localFolderBridgeNotice,
+  previewRefreshCompletion,
+  refreshSnapshotAvailability,
+  workspaceActionAvailabilityNotice,
+} from "../lib/bridgeAvailability";
+import { selectedCommitFromSnapshot, selectedCommitIdAfterToggle } from "../lib/commitListView";
+import { commitViewChangeDecision, defaultCommitView } from "../lib/commitView";
+import { errorMessage, runBridgeSideEffect } from "../lib/errorMessages";
+import { panelPinnedNotice, panelPinnedStateAfterToggle } from "../lib/panelHeaderView";
+import {
+  applyPreferences,
+  defaultPreferences,
+  mergePreferences,
+  preferencesDocumentThemeView,
+  systemThemeFallback,
+} from "../lib/preferences";
+import {
+  recentRepositoryFromSnapshot,
+  upsertRecentRepository,
+} from "../lib/recentRepositories";
+import {
+  folderWithoutGitAfterSnapshotResponse,
+  selectedCommitIdAfterSnapshotResponse,
+  snapshotResponseNotice,
+} from "../lib/snapshotResponseView";
+import { defaultWorkspaceOpenTargets } from "../lib/workspaceOpenTargets";
 import type {
   ActionResponse,
   CommitItem,
@@ -15,58 +58,13 @@ import type {
   WorkspaceOpenTarget,
 } from "../types";
 
-const defaultView: CommitViewSelection = { mode: "all" };
-const autoRefreshIntervals: Record<UiPreferences["autoRefreshInterval"], number> = {
-  off: 0,
-  "1m": 60_000,
-  "5m": 300_000,
-  "15m": 900_000,
-};
-
 function isElectronRuntime() {
   return Boolean(window.gitPeek);
 }
 
-function getSystemTheme(): Theme {
-  if (typeof window === "undefined") return "light";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
-function resolveTheme(preferences: UiPreferences, systemTheme: Theme): Theme {
-  return preferences.themeMode === "system" ? systemTheme : preferences.themeMode;
-}
-
-function sameView(left: CommitViewSelection, right: CommitViewSelection) {
-  return left.mode === right.mode && (left.ref ?? "") === (right.ref ?? "");
-}
-
-function viewLabel(view: CommitViewSelection) {
-  if (view.mode === "branch") return view.ref ? `branch ${view.ref}` : "specific branch";
-  if (view.mode === "current") return "current branch";
-  return "all branches";
-}
-
-function pathName(pathValue: string) {
-  const trimmed = pathValue.replace(/[\\/]+$/, "");
-  return trimmed.split(/[\\/]/).pop() || pathValue;
-}
-
-function recentRepositoryFromSnapshot(snapshot: GitSnapshot): RecentRepository {
-  return {
-    path: snapshot.repoPath,
-    name: snapshot.repoName || pathName(snapshot.repoPath),
-    repositoryKey: snapshot.repositoryKey,
-  };
-}
-
-function upsertRecentRepository(repositories: RecentRepository[], repository: RecentRepository) {
-  const dedupeKey = repository.repositoryKey || repository.path;
-  return [repository, ...repositories.filter((entry) => (entry.repositoryKey || entry.path) !== dedupeKey)].slice(0, 8);
-}
-
 export function useGitPeekController() {
   const [snapshot, setSnapshot] = useState<GitSnapshot | null>(null);
-  const [systemTheme, setSystemTheme] = useState<Theme>(getSystemTheme);
+  const [systemTheme, setSystemTheme] = useState<Theme>(systemThemeFallback);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
   const [pinned, setPinned] = useState(false);
@@ -76,19 +74,19 @@ export function useGitPeekController() {
   const [notice, setNoticeState] = useState("No working folder selected.");
   const [folderWithoutGit, setFolderWithoutGit] = useState<FolderWithoutGit | null>(null);
   const [initializingRepository, setInitializingRepository] = useState(false);
-  const [commitView, setCommitViewState] = useState<CommitViewSelection>(defaultView);
+  const [commitView, setCommitViewState] = useState<CommitViewSelection>(defaultCommitView);
   const [preferences, setPreferencesState] = useState<UiPreferences>(defaultPreferences);
   const [availableWorkspaceTargets, setAvailableWorkspaceTargets] = useState<WorkspaceOpenTarget[]>(defaultWorkspaceOpenTargets);
   const [recentRepositories, setRecentRepositories] = useState<RecentRepository[]>([]);
-  const [actionDialog, setActionDialog] = useState<(ActionDialogState & { commit?: CommitItem; ref?: string }) | null>(null);
+  const [actionDialog, setActionDialog] = useState<ActionDialogState | null>(null);
   const [repositoryDialogOpen, setRepositoryDialogOpen] = useState(false);
   const lastGitRequestAtRef = useRef(Date.now());
   const autoRefreshInFlightRef = useRef(false);
   const electron = isElectronRuntime();
-  const theme = resolveTheme(preferences, systemTheme);
+  const { theme, themePreset } = preferencesDocumentThemeView(preferences, systemTheme);
 
   function selectedCommit() {
-    return snapshot?.commits.find((commit) => commit.id === selectedCommitId) ?? null;
+    return selectedCommitFromSnapshot(snapshot, selectedCommitId);
   }
 
   function setNotice(message: string) {
@@ -101,188 +99,207 @@ export function useGitPeekController() {
   }
 
   function applySnapshotResponse(response: SnapshotResponse, successNotice: string | null = "Live Git data connected.") {
+    const nextNotice = snapshotResponseNotice(response, successNotice);
+
     if (response.ok) {
       setSnapshot(response.snapshot);
       setFolderWithoutGit(null);
       setRecentRepositories((current) => upsertRecentRepository(current, recentRepositoryFromSnapshot(response.snapshot)));
       setCommitViewState(response.snapshot.view);
-      setSelectedCommitId((current) => (current && response.snapshot.commits.some((commit) => commit.id === current) ? current : ""));
-      if (successNotice) setNotice(successNotice);
+      setSelectedCommitId((current) => selectedCommitIdAfterSnapshotResponse(response, current));
+      if (nextNotice) setNotice(nextNotice);
       return;
     }
 
-    if (!response.canceled) {
-      setSnapshot(null);
-      setSelectedCommitId("");
-      if (response.reason === "not_git_repository" && response.folder) {
-        setFolderWithoutGit(response.folder);
-        setNotice(response.error ?? `${response.folder.name} does not have Git initialized yet.`);
-        return;
-      }
+    const nextFolderWithoutGit = folderWithoutGitAfterSnapshotResponse(response);
+    if (nextFolderWithoutGit === undefined) return;
 
-      setFolderWithoutGit(null);
-      setNotice(response.error ?? "Choose a working folder to start.");
-    }
+    setSnapshot(null);
+    setSelectedCommitId((current) => selectedCommitIdAfterSnapshotResponse(response, current));
+    setFolderWithoutGit(nextFolderWithoutGit);
+    if (nextNotice) setNotice(nextNotice);
   }
 
-  async function refreshSnapshot(view = commitView, successNotice = "Git status refreshed.", options: { silent?: boolean; markActivity?: boolean } = {}) {
-    if (!snapshot && !window.gitPeek) {
-      setNotice("Run the Electron app to choose a local working folder.");
+  async function refreshSnapshot(
+    view = commitView,
+    successNotice = "Git status refreshed.",
+    options: { silent?: boolean; markActivity?: boolean } = {},
+  ) {
+    const bridge = window.gitPeek;
+    const availability = refreshSnapshotAvailability({
+      bridgeAvailable: Boolean(bridge),
+      hasSnapshot: Boolean(snapshot),
+    });
+
+    if (availability.kind === "blocked") {
+      setNotice(availability.notice);
       return;
     }
 
     if (options.markActivity !== false) markGitRequest();
     setRefreshing(true);
 
-    if (!window.gitPeek) {
+    if (availability.kind === "preview" || !bridge) {
+      const completion = previewRefreshCompletion();
       window.setTimeout(() => {
         setRefreshing(false);
-        setNotice("Preview refreshed.");
-      }, 400);
+        setNotice(completion.notice);
+      }, completion.delayMs);
       return;
     }
 
-    const response = await window.gitPeek.refresh(view);
-    setRefreshing(false);
-    applySnapshotResponse(response, options.silent ? null : successNotice);
+    try {
+      const response = await bridge.refresh(view);
+      applySnapshotResponse(response, options.silent ? null : successNotice);
+    } catch (error) {
+      setNotice(errorMessage(error, "Unable to refresh Git status."));
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  function blockWithNotice(nextNotice: string | null) {
+    if (!nextNotice) return false;
+
+    setNotice(nextNotice);
+    return true;
   }
 
   async function openRepository() {
-    if (!window.gitPeek) {
-      setNotice("Electron mode is required to open a local folder.");
-      return;
-    }
+    const bridge = window.gitPeek;
+    if (blockWithNotice(localFolderBridgeNotice("open", Boolean(bridge))) || !bridge) return;
 
     markGitRequest();
     setLoading(true);
-    const response = await window.gitPeek.openRepository(commitView);
-    applySnapshotResponse(response, response.ok ? `Opened ${response.snapshot.repoName}.` : undefined);
-    setLoading(false);
+    try {
+      const response = await bridge.openRepository(commitView);
+      applySnapshotResponse(response, response.ok ? `Opened ${response.snapshot.repoName}.` : undefined);
+    } catch (error) {
+      setNotice(errorMessage(error, "Unable to open repository."));
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function switchRepository(repositoryPath: string) {
-    if (!window.gitPeek) {
-      setNotice("Electron mode is required to switch local folders.");
-      return;
-    }
+    const bridge = window.gitPeek;
+    if (blockWithNotice(localFolderBridgeNotice("switch", Boolean(bridge))) || !bridge) return;
 
     markGitRequest();
     setRefreshing(true);
     try {
-      const response = await window.gitPeek.switchRepository(repositoryPath, commitView);
+      const response = await bridge.switchRepository(repositoryPath, commitView);
       applySnapshotResponse(response, response.ok ? `Switched to ${response.snapshot.repoName}.` : "Unable to switch repository.");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Unable to switch repository.");
+      setNotice(errorMessage(error, "Unable to switch repository."));
     } finally {
       setRefreshing(false);
     }
   }
 
   async function initializeRepository() {
-    if (!window.gitPeek || !folderWithoutGit) {
-      setNotice("Choose a folder without Git first.");
-      return;
-    }
+    const bridge = window.gitPeek;
+    const targetFolder = folderWithoutGit;
+    const availabilityNotice = initializeRepositoryAvailabilityNotice({
+      bridgeAvailable: Boolean(bridge),
+      hasFolderWithoutGit: Boolean(targetFolder),
+    });
+    if (blockWithNotice(availabilityNotice) || !bridge || !targetFolder) return;
 
     markGitRequest();
     setInitializingRepository(true);
     try {
-      await runAction(window.gitPeek.initializeRepository(folderWithoutGit.path, commitView), "Initialized Git repository.");
+      await runAction(() => bridge.initializeRepository(targetFolder.path, commitView), "Initialized Git repository.");
     } finally {
       setInitializingRepository(false);
     }
   }
 
   async function changeCommitView(nextView: CommitViewSelection) {
-    if (sameView(commitView, nextView)) return;
+    const bridge = window.gitPeek;
+    const decision = commitViewChangeDecision({
+      currentView: commitView,
+      nextView,
+      bridgeAvailable: Boolean(bridge),
+      hasSnapshot: Boolean(snapshot),
+    });
+
+    if (decision.kind === "unchanged") return;
+
     setCommitViewState(nextView);
-    if (!window.gitPeek || !snapshot) {
-      setNotice(`Commit view set to ${viewLabel(nextView)}.`);
+    if (decision.kind === "local" || !bridge) {
+      if (decision.kind === "local") setNotice(decision.notice);
       return;
     }
 
     markGitRequest();
     setRefreshing(true);
-    const response = await window.gitPeek.getSnapshot(nextView);
-    setRefreshing(false);
-    applySnapshotResponse(response, response.ok ? `Showing ${viewLabel(nextView)}.` : "Unable to change commit view.");
+    try {
+      const response = await bridge.getSnapshot(nextView);
+      applySnapshotResponse(response, response.ok ? decision.successNotice : "Unable to change commit view.");
+    } catch (error) {
+      setNotice(errorMessage(error, "Unable to change commit view."));
+    } finally {
+      setRefreshing(false);
+    }
   }
 
-  async function runAction(responsePromise: Promise<ActionResponse>, fallbackNotice: string) {
+  async function runAction(responseRequest: () => Promise<ActionResponse>, fallbackNotice: string, failureNotice = "Action failed.") {
     markGitRequest();
-    const response = await responsePromise;
-    if (response.ok) {
-      if (response.snapshot) {
-        applySnapshotResponse({ ok: true, snapshot: response.snapshot }, response.message ?? fallbackNotice);
-      } else {
-        setNotice(response.message ?? fallbackNotice);
-      }
-      return;
-    }
+    try {
+      const response = await responseRequest();
+      const nextNotice = actionResponseNotice(response, fallbackNotice, failureNotice);
+      const nextSnapshot = actionResponseSnapshot(response);
 
-    if (!response.canceled) setNotice(response.error ?? "Action failed.");
+      if (nextSnapshot) {
+        applySnapshotResponse({ ok: true, snapshot: nextSnapshot }, nextNotice);
+        return;
+      }
+
+      if (nextNotice !== null) setNotice(nextNotice);
+    } catch (error) {
+      setNotice(errorMessage(error, failureNotice));
+    }
   }
 
-  async function handleCommitAction(action: "branch" | "checkout", commit: CommitItem) {
-    if (!window.gitPeek) {
-      setNotice("Electron mode is required for Git actions.");
-      return;
-    }
+  function blockGitActionWithoutBridge(bridge = window.gitPeek) {
+    return blockWithNotice(gitActionBridgeNotice(Boolean(bridge)));
+  }
 
-    if (action === "branch") {
-      setActionDialog({
-        type: "createBranch",
-        title: "Create branch",
-        body: `Start a new branch from ${commit.hash}.`,
-        branchPrefix: "none",
-        branchName: commit.hash,
-        commit,
-      });
-      return;
-    }
+  async function handleCommitAction(action: CommitAction, commit: CommitItem) {
+    if (blockGitActionWithoutBridge()) return;
 
-    setActionDialog({
-      type: "checkout",
-      title: "Checkout commit",
-      body: `Checkout ${commit.hash}. This can detach HEAD.`,
-      ref: commit.fullHash,
-    });
+    setActionDialog(commitActionDialog(action, commit));
   }
 
   async function checkoutRef(ref: string) {
-    if (!window.gitPeek) {
-      setNotice("Electron mode is required for Git actions.");
-      return;
-    }
+    if (blockGitActionWithoutBridge()) return;
 
-    setActionDialog({
-      type: "checkout",
-      title: "Checkout branch",
-      body: `Switch the working folder to ${ref}.`,
-      ref,
-    });
+    setActionDialog(checkoutRefActionDialog(ref));
   }
 
   async function openWorktree(worktreePath: string) {
-    if (!window.gitPeek) {
-      setNotice("Electron mode is required for Git actions.");
-      return;
-    }
+    const bridge = window.gitPeek;
+    if (blockGitActionWithoutBridge(bridge) || !bridge) return;
 
     setRefreshing(true);
     try {
-      await runAction(window.gitPeek.openWorktree(worktreePath, { mode: "current" }), "Opened worktree.");
+      await runAction(
+        () => bridge.openWorktree(worktreePath, { mode: "current" }),
+        "Opened worktree.",
+        "Unable to open worktree.",
+      );
     } finally {
       setRefreshing(false);
     }
   }
 
   function updateActionBranchName(branchName: string) {
-    setActionDialog((current) => (current?.type === "createBranch" ? { ...current, branchName } : current));
+    setActionDialog((current) => actionDialogAfterBranchNameChange(current, branchName));
   }
 
   function updateActionBranchPrefix(branchPrefix: BranchPrefix) {
-    setActionDialog((current) => (current?.type === "createBranch" ? { ...current, branchPrefix } : current));
+    setActionDialog((current) => actionDialogAfterBranchPrefixChange(current, branchPrefix));
   }
 
   function cancelActionDialog() {
@@ -290,150 +307,102 @@ export function useGitPeekController() {
   }
 
   async function confirmActionDialog() {
-    if (!window.gitPeek || !actionDialog) return;
-    const currentDialog = actionDialog;
-    setActionDialog(null);
+    const bridge = window.gitPeek;
+    if (!bridge || !actionDialog) return;
+    const confirmation = actionDialogConfirmation(actionDialog);
+    if (!confirmation) return;
 
-    if (currentDialog.type === "createBranch" && currentDialog.commit) {
-      const branchName = branchNameWithPrefix(currentDialog.branchPrefix, currentDialog.branchName);
-      if (!branchName) return;
-      await runAction(window.gitPeek.createBranch(branchName, currentDialog.commit.fullHash, commitView), `Created ${branchName}.`);
+    setActionDialog(null);
+    if (confirmation.type === "createBranch") {
+      await runAction(
+        () => bridge.createBranch(confirmation.branchName, confirmation.baseHash, commitView),
+        confirmation.fallbackNotice,
+        confirmation.failureNotice,
+      );
       return;
     }
 
-    if (currentDialog.type === "checkout" && currentDialog.ref) {
-      await runAction(window.gitPeek.checkout(currentDialog.ref, { mode: "current" }), "Checkout complete.");
-    }
+    await runAction(
+      () => bridge.checkout(confirmation.ref, { mode: "current" }),
+      confirmation.fallbackNotice,
+      confirmation.failureNotice,
+    );
   }
 
   async function openWorkspace(target: WorkspaceOpenTarget) {
-    if (!window.gitPeek || !snapshot) {
-      setNotice("Choose a working folder first.");
-      return;
-    }
+    const bridge = window.gitPeek;
+    const availabilityNotice = workspaceActionAvailabilityNotice({
+      bridgeAvailable: Boolean(bridge),
+      hasSnapshot: Boolean(snapshot),
+    });
+    if (blockWithNotice(availabilityNotice) || !bridge || !snapshot) return;
 
-    const response = await window.gitPeek.openWorkspace(target);
-    if (response.ok) {
-      setNotice(response.message ?? "Workspace opened.");
-    } else {
-      setNotice(response.error ?? "Unable to open workspace.");
-    }
+    await runAction(() => bridge.openWorkspace(target), "Workspace opened.", "Unable to open workspace.");
   }
 
   function togglePinned() {
-    const next = !pinned;
+    const next = panelPinnedStateAfterToggle(pinned);
     setPinned(next);
-    window.gitPeek?.setPinned(next);
-    setNotice(next ? "Panel pinned above other windows." : "Panel unpinned.");
+    runBridgeSideEffect("Unable to update pinned state.", () => window.gitPeek?.setPinned(next));
+    setNotice(panelPinnedNotice(next));
   }
 
   function setCollapsedState(next: boolean) {
     setCollapsed(next);
-    window.gitPeek?.setCollapsed(next);
+    runBridgeSideEffect("Unable to update collapsed state.", () => window.gitPeek?.setCollapsed(next));
   }
 
   function dockCurrentState() {
-    window.gitPeek?.dockToEdge(collapsed);
+    runBridgeSideEffect("Unable to dock window.", () => window.gitPeek?.dockToEdge(collapsed));
   }
 
   function selectCommit(commitId: string) {
-    setSelectedCommitId((current) => (current === commitId ? "" : commitId));
+    setSelectedCommitId((current) => selectedCommitIdAfterToggle(current, commitId));
   }
 
   function setPreferences(nextPreferences: UiPreferences) {
     const normalized = mergePreferences(nextPreferences);
     setPreferencesState(normalized);
     applyPreferences(normalized);
-    window.gitPeek?.savePreferences(normalized);
+    runBridgeSideEffect("Unable to save preferences.", () => window.gitPeek?.savePreferences(normalized));
   }
 
   function resetPreferences() {
     setPreferences(defaultPreferences);
   }
 
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.dataset.themePreset = resolveThemePreset(preferences, theme);
-  }, [preferences.darkThemePreset, preferences.lightThemePreset, theme]);
-
-  useEffect(() => {
-    applyPreferences(preferences);
-  }, [preferences]);
-
-  useEffect(() => {
-    if (window.gitPeek) {
-      window.gitPeek.getSystemTheme().then(setSystemTheme);
-      window.gitPeek.getPreferences().then((value) => setPreferencesState(mergePreferences(value)));
-      window.gitPeek.getAvailableWorkspaceTargets().then((targets) => setAvailableWorkspaceTargets(sanitizeWorkspaceOpenTargets(targets, [])));
-      const unsubscribeTheme = window.gitPeek.onThemeChanged(setSystemTheme);
-      const unsubscribePreferences = window.gitPeek.onPreferencesChanged((value) => setPreferencesState(mergePreferences(value)));
-      return () => {
-        unsubscribeTheme();
-        unsubscribePreferences();
-      };
-    }
-
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const handleThemeChange = () => setSystemTheme(media.matches ? "dark" : "light");
-    handleThemeChange();
-    media.addEventListener("change", handleThemeChange);
-    return () => media.removeEventListener("change", handleThemeChange);
-  }, []);
-
-  useEffect(() => {
-    if (!window.gitPeek) {
-      setLoading(false);
-      setNotice("Run the Electron app to choose a local working folder.");
-      return;
-    }
-
-    window.gitPeek.getSnapshot(commitView).then((response) => {
-      applySnapshotResponse(response);
-      setLoading(false);
-    });
-    window.gitPeek.getRecentRepositories().then(setRecentRepositories);
-
-    const unsubscribeSnapshot = window.gitPeek.onSnapshotUpdated((response) => {
-      markGitRequest();
-      applySnapshotResponse(response, response.ok ? "Git data updated from menu." : "Working folder cleared.");
-      setLoading(false);
-    });
-    const unsubscribeCollapsed = window.gitPeek.onCollapsedChanged(setCollapsed);
-    const unsubscribeRepositoryDialog = window.gitPeek.onRepositoryDialogOpenChanged(setRepositoryDialogOpen);
-
-    return () => {
-      unsubscribeSnapshot();
-      unsubscribeCollapsed();
-      unsubscribeRepositoryDialog();
-    };
-  }, []);
-
-  useEffect(() => {
-    const intervalMs = autoRefreshIntervals[preferences.autoRefreshInterval];
-    if (!intervalMs || !electron || !snapshot || actionDialog || repositoryDialogOpen) return undefined;
-
-    const tickMs = Math.min(intervalMs, 30_000);
-    const timer = window.setInterval(async () => {
-      if (!window.gitPeek || autoRefreshInFlightRef.current || refreshing) return;
-      if (Date.now() - lastGitRequestAtRef.current < intervalMs) return;
-
-      autoRefreshInFlightRef.current = true;
-      setRefreshing(true);
-
-      try {
-        const response = await window.gitPeek.refresh(commitView);
-        applySnapshotResponse(response, response.ok ? null : "Auto refresh failed.");
-      } catch (error) {
-        setNotice(error instanceof Error ? error.message : "Auto refresh failed.");
-      } finally {
-        setRefreshing(false);
-        markGitRequest();
-        autoRefreshInFlightRef.current = false;
-      }
-    }, tickMs);
-
-    return () => window.clearInterval(timer);
-  }, [actionDialog, commitView, electron, preferences.autoRefreshInterval, refreshing, repositoryDialogOpen, snapshot]);
+  usePreferenceDomEffects({ preferences, theme, themePreset });
+  useRuntimePreferenceBridge({
+    setAvailableWorkspaceTargets,
+    setPinned,
+    setPreferencesState,
+    setSystemTheme,
+  });
+  useInitialGitData({
+    applySnapshotResponse,
+    commitView,
+    markGitRequest,
+    setCollapsed,
+    setLoading,
+    setNotice,
+    setRecentRepositories,
+    setRepositoryDialogOpen,
+  });
+  useAutoRefreshLoop({
+    actionDialog,
+    applySnapshotResponse,
+    autoRefreshInFlightRef,
+    commitView,
+    electron,
+    hasSnapshot: Boolean(snapshot),
+    lastGitRequestAtRef,
+    markGitRequest,
+    preferences,
+    refreshing,
+    repositoryDialogOpen,
+    setNotice,
+    setRefreshing,
+  });
 
   return {
     snapshot,

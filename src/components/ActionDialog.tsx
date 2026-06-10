@@ -1,36 +1,13 @@
 import { GitBranch, X } from "lucide-react";
-
-export type BranchPrefix = "none" | "feat" | "fix" | "chore" | "docs" | "refactor" | "test";
-
-const branchPrefixOptions: { value: BranchPrefix; label: string }[] = [
-  { value: "none", label: "None" },
-  { value: "feat", label: "feat" },
-  { value: "fix", label: "fix" },
-  { value: "chore", label: "chore" },
-  { value: "docs", label: "docs" },
-  { value: "refactor", label: "refactor" },
-  { value: "test", label: "test" },
-];
-
-export function branchNameWithPrefix(prefix: BranchPrefix, branchName: string) {
-  const trimmedName = branchName.trim().replace(/^\/+/, "");
-  if (!trimmedName || prefix === "none" || trimmedName.startsWith(`${prefix}/`)) return trimmedName;
-  return `${prefix}/${trimmedName}`;
-}
-
-export type ActionDialogState =
-  | {
-      type: "createBranch";
-      title: string;
-      body: string;
-      branchPrefix: BranchPrefix;
-      branchName: string;
-    }
-  | {
-      type: "checkout";
-      title: string;
-      body: string;
-    };
+import { useEffect } from "react";
+import {
+  actionDialogBranchNameKeyAction,
+  actionDialogGlobalKeyAction,
+  actionDialogView,
+  branchPrefixOptions,
+  type ActionDialogState,
+  type BranchPrefix,
+} from "../lib/actionDialogView";
 
 export function ActionDialog({
   dialog,
@@ -45,30 +22,52 @@ export function ActionDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  useEffect(() => {
+    if (!dialog) return undefined;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (actionDialogGlobalKeyAction(event.key) !== "cancel") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      onCancel();
+    }
+
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [dialog, onCancel]);
+
   if (!dialog) return null;
-  const resolvedBranchName = dialog.type === "createBranch" ? branchNameWithPrefix(dialog.branchPrefix, dialog.branchName) : "";
+  const view = actionDialogView(dialog);
 
   return (
-    <div className="ui-dialog-backdrop action-dialog-backdrop" role="presentation">
-      <section className="ui-dialog action-dialog" role="dialog" aria-modal="true" aria-label={dialog.title}>
-        <div className="ui-dialog-heading action-dialog-heading">
+    <div className={view.backdrop.className} role={view.backdrop.role}>
+      <section
+        className={view.dialog.className}
+        role={view.dialog.role}
+        aria-modal={view.dialog.ariaModal}
+        aria-labelledby={view.dialog.ariaLabelledBy}
+        aria-describedby={view.dialog.ariaDescribedBy}
+      >
+        <div className={view.heading.className}>
           <GitBranch aria-hidden="true" />
-          <h2>{dialog.title}</h2>
-          <button className="ui-icon-button" type="button" aria-label="Close dialog" onClick={onCancel}>
+          <h2 id={view.heading.id}>{dialog.title}</h2>
+          <button className={view.closeButton.className} type="button" aria-label={view.closeButton.ariaLabel} onClick={onCancel}>
             <X aria-hidden="true" />
           </button>
         </div>
-        <p className="ui-dialog-body">{dialog.body}</p>
-        {dialog.type === "createBranch" ? (
-          <div className="action-branch-fields">
-            <label className="action-branch-field">
-              <span>Prefix</span>
-              <div className="ui-select-frame">
+        <p className={view.body.className} id={view.body.id}>
+          {dialog.body}
+        </p>
+        {view.showBranchFields && dialog.type === "createBranch" ? (
+          <div className={view.branchFields.containerClassName}>
+            <label className={view.branchFields.fieldClassName}>
+              <span>{view.branchFields.prefixLabel}</span>
+              <div className={view.branchFields.selectFrameClassName}>
                 <select
-                  className="ui-select"
+                  className={view.branchFields.prefixSelectClassName}
                   value={dialog.branchPrefix}
                   onChange={(event) => onBranchPrefixChange(event.target.value as BranchPrefix)}
-                  aria-label="Branch prefix"
+                  aria-label={view.branchFields.prefixAriaLabel}
                 >
                   {branchPrefixOptions.map((option) => (
                     <option value={option.value} key={option.value}>
@@ -78,19 +77,42 @@ export function ActionDialog({
                 </select>
               </div>
             </label>
-            <label className="action-branch-field">
-              <span>Name</span>
-              <input className="ui-input" value={dialog.branchName} onChange={(event) => onBranchNameChange(event.target.value)} autoFocus aria-label="Branch name" />
+            <label className={view.branchFields.fieldClassName}>
+              <span>{view.branchFields.nameLabel}</span>
+              <input
+                className={view.branchFields.nameInputClassName}
+                value={dialog.branchName}
+                onChange={(event) => onBranchNameChange(event.target.value)}
+                onKeyDown={(event) => {
+                  const keyAction = actionDialogBranchNameKeyAction(event.key, view.confirmDisabled);
+                  if (keyAction === "ignore") return;
+                  event.preventDefault();
+                  if (keyAction === "confirm") onConfirm();
+                }}
+                autoFocus
+                aria-label={view.branchFields.nameAriaLabel}
+                aria-invalid={view.branchInputAriaInvalid}
+                aria-describedby={view.branchInputDescribedBy}
+              />
             </label>
-            {resolvedBranchName ? <code className="action-branch-preview">{resolvedBranchName}</code> : null}
+            {view.showResolvedBranchName ? (
+              <code className={view.branchFields.previewClassName} id={view.branchFields.previewId}>
+                {view.resolvedBranchName}
+              </code>
+            ) : null}
+            {view.showBranchValidationMessage ? (
+              <p className={view.branchFields.errorClassName} id={view.branchErrorId} role="alert">
+                {view.branchValidationMessage}
+              </p>
+            ) : null}
           </div>
         ) : null}
-        <div className="ui-dialog-actions action-dialog-actions">
-          <button className="ui-button" type="button" onClick={onCancel}>
-            Cancel
+        <div className={view.actions.className}>
+          <button className={view.cancelButton.className} type="button" onClick={onCancel} autoFocus={view.cancelButton.autoFocus}>
+            {view.cancelButton.label}
           </button>
-          <button className="ui-button primary" type="button" onClick={onConfirm} disabled={dialog.type === "createBranch" && !resolvedBranchName}>
-            Confirm
+          <button className={view.confirmButton.className} type="button" onClick={onConfirm} disabled={view.confirmButton.disabled}>
+            {view.confirmButton.label}
           </button>
         </div>
       </section>

@@ -1,32 +1,39 @@
 import { useEffect, useState } from "react";
-import { applyPreferences, defaultPreferences, mergePreferences, resolveThemePreset } from "../lib/preferences";
+import { logBridgeWarning } from "../lib/errorMessages";
+import {
+  applyPreferences,
+  defaultPreferences,
+  mergePreferences,
+  preferencesDocumentThemeView,
+  systemThemeFallback,
+} from "../lib/preferences";
+import { runTemporaryInfoPanelBridgeSideEffect } from "../lib/temporaryInfoPanelBridge";
+import { changedFilesSelectedFileKey, temporaryInfoWindowView } from "../lib/temporaryInfoSelection";
 import type { TemporaryInfoPayload, Theme, UiPreferences } from "../types";
-import { ChangedNow } from "./ChangedNow";
-
-function systemThemeFallback(): Theme {
-  if (typeof window === "undefined") return "light";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
-function resolveTheme(preferences: UiPreferences, systemTheme: Theme): Theme {
-  return preferences.themeMode === "system" ? systemTheme : preferences.themeMode;
-}
+import { ChangedFileInfoPanel, ChangedNow } from "./ChangedNow";
 
 export function TemporaryInfoWindow() {
   const [payload, setPayload] = useState<TemporaryInfoPayload>(null);
   const [selectedFileKey, setSelectedFileKey] = useState("");
   const [preferences, setPreferences] = useState<UiPreferences>(defaultPreferences);
   const [systemTheme, setSystemTheme] = useState<Theme>(systemThemeFallback);
-  const theme = resolveTheme(preferences, systemTheme);
+  const { theme, themePreset } = preferencesDocumentThemeView(preferences, systemTheme);
+  const view = temporaryInfoWindowView(payload, selectedFileKey);
 
   useEffect(() => {
-    window.gitPeek?.getTemporaryInfoPayload().then(setPayload);
+    window.gitPeek
+      ?.getTemporaryInfoPayload()
+      .then(setPayload)
+      .catch((error) => logBridgeWarning("Unable to load temporary info payload.", error));
     return window.gitPeek?.onTemporaryInfoPayloadUpdated(setPayload);
   }, []);
 
   useEffect(() => {
-    window.gitPeek?.getPreferences().then((value) => setPreferences(mergePreferences(value)));
-    window.gitPeek?.getSystemTheme().then(setSystemTheme);
+    window.gitPeek
+      ?.getPreferences()
+      .then((value) => setPreferences(mergePreferences(value)))
+      .catch((error) => logBridgeWarning("Unable to load preferences.", error));
+    window.gitPeek?.getSystemTheme().then(setSystemTheme).catch((error) => logBridgeWarning("Unable to load system theme.", error));
     const unsubscribeTheme = window.gitPeek?.onThemeChanged(setSystemTheme);
     const unsubscribePreferences = window.gitPeek?.onPreferencesChanged((value) => setPreferences(mergePreferences(value)));
     return () => {
@@ -38,29 +45,39 @@ export function TemporaryInfoWindow() {
   useEffect(() => {
     applyPreferences(preferences);
     document.documentElement.dataset.theme = theme;
-    document.documentElement.dataset.themePreset = resolveThemePreset(preferences, theme);
-  }, [preferences, theme]);
+    document.documentElement.dataset.themePreset = themePreset;
+  }, [preferences, theme, themePreset]);
 
   useEffect(() => {
-    if (payload?.kind === "changed-files") setSelectedFileKey(payload.selectedFileKey);
+    setSelectedFileKey((current) => changedFilesSelectedFileKey(payload, current));
   }, [payload]);
 
+  function closeTemporaryInfoPanel() {
+    runTemporaryInfoPanelBridgeSideEffect("close", (nextPayload) => window.gitPeek?.setTemporaryInfoPanel(nextPayload));
+  }
+
   return (
-    <main className="temporary-info-viewport is-electron">
-      {payload?.kind === "changed-files" ? (
-        <section className="peek-panel temporary-info-panel" aria-label="Changed files window">
+    <main className={view.viewport.className}>
+      {view.changedFilesPayload ? (
+        <section className={view.panel.className} aria-label={view.panel.ariaLabel}>
           <ChangedNow
-            files={payload.files}
-            filter={payload.filter}
+            files={view.changedFilesPayload.files}
+            filter={view.changedFilesPayload.filter}
             promptLanguage={preferences.promptLanguage}
             selectedFileKey={selectedFileKey}
-            onClose={() => window.gitPeek?.setTemporaryInfoPanel(null)}
+            onClose={closeTemporaryInfoPanel}
             onSelectFile={setSelectedFileKey}
           />
+          {view.selectedFile ? <ChangedFileInfoPanel file={view.selectedFile} onClose={() => setSelectedFileKey("")} /> : null}
         </section>
       ) : (
-        <section className="temporary-info-empty" aria-label="Temporary information">
-          No file selected.
+        <section
+          className={view.emptyState.className}
+          aria-label={view.emptyState.ariaLabel}
+          role={view.emptyState.role}
+          aria-live={view.emptyState.ariaLive}
+        >
+          {view.emptyState.message}
         </section>
       )}
     </main>

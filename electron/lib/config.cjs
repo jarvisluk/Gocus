@@ -12,6 +12,7 @@ const defaultPreferences = {
   graphStyle: "solid",
   workspaceOpenTargets: ["vscode", "cursor", "codex", "antigravity", "finder", "terminal", "xcode"],
   showZenEntry: true,
+  showMenuBarIcon: true,
   launchAtLogin: false,
   zenMode: false,
   autoRefreshInterval: "off",

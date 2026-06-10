@@ -1,6 +1,14 @@
 /// <reference types="vite/client" />
 
-import type { ActionResponse, CommitViewSelection, RecentRepository, SnapshotResponse, TemporaryInfoPayload, UiPreferences, WorkspaceOpenTarget } from "./types";
+import type {
+  ActionResponse,
+  CommitViewSelection,
+  RecentRepository,
+  SnapshotResponse,
+  TemporaryInfoPayload,
+  UiPreferences,
+  WorkspaceOpenTarget,
+} from "./types";
 
 declare global {
   interface Window {
@@ -20,6 +28,7 @@ declare global {
       getPreferences: () => Promise<UiPreferences>;
       savePreferences: (preferences: UiPreferences) => Promise<void>;
       setCollapsed: (collapsed: boolean) => Promise<void>;
+      getPinned: () => Promise<boolean>;
       setPinned: (pinned: boolean) => Promise<void>;
       dockToEdge: (collapsed: boolean) => Promise<void>;
       getTemporaryInfoPayload: () => Promise<TemporaryInfoPayload>;
@@ -32,6 +41,7 @@ declare global {
       onPreferencesChanged: (callback: (preferences: UiPreferences) => void) => () => void;
       onSnapshotUpdated: (callback: (response: SnapshotResponse) => void) => () => void;
       onCollapsedChanged: (callback: (collapsed: boolean) => void) => () => void;
+      onPinnedChanged: (callback: (pinned: boolean) => void) => () => void;
       onRepositoryDialogOpenChanged: (callback: (open: boolean) => void) => () => void;
     };
   }

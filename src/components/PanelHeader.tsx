@@ -1,22 +1,31 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Check, ChevronDown, ChevronLeft, GitBranch, Pin, PinOff, RefreshCw, Route } from "lucide-react";
 import { IconButton } from "./IconButton";
-import { joinClass } from "../lib/classNames";
-import { recentRepositoryLabel } from "../lib/pathLabels";
+import {
+  panelHeaderActionsView,
+  panelHeaderOpenRepositoryButtonView,
+  panelHeaderView,
+  panelRepositoryMenuOpenAfterToggle,
+  panelRepositoryMenuItemView,
+  panelRepositorySelection,
+  panelRepositoryMenuView,
+  panelRepositoryTriggerView,
+  type PanelHeaderActionIcon,
+  type PanelHeaderBranchPillIcon,
+} from "../lib/panelHeaderView";
+import { useDismissableLayer } from "../lib/useDismissableLayer";
 import type { GitSnapshot, RecentRepository } from "../types";
 
-function repositoryDedupeKey(repository: RecentRepository) {
-  return repository.repositoryKey || repository.path;
+function panelHeaderActionIcon(icon: PanelHeaderActionIcon, className = "") {
+  if (icon === "pin-off") return <PinOff aria-hidden="true" />;
+  if (icon === "pin") return <Pin aria-hidden="true" />;
+  if (icon === "refresh") return <RefreshCw className={className} aria-hidden="true" />;
+  return <ChevronLeft aria-hidden="true" />;
 }
 
-function dedupeRecentRepositories(repositories: RecentRepository[]) {
-  const seen = new Set<string>();
-  return repositories.filter((repository) => {
-    const key = repositoryDedupeKey(repository);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+function panelHeaderBranchPillIcon(icon: PanelHeaderBranchPillIcon) {
+  if (icon === "branch") return <GitBranch aria-hidden="true" />;
+  return null;
 }
 
 export function PanelHeader({
@@ -42,86 +51,82 @@ export function PanelHeader({
 }) {
   const [repoMenuOpen, setRepoMenuOpen] = useState(false);
   const repoSwitcherRef = useRef<HTMLDivElement>(null);
-  const recentRepositoryOptions = dedupeRecentRepositories(
-    snapshot ? [{ path: snapshot.repoPath, name: snapshot.repoName, repositoryKey: snapshot.repositoryKey }, ...recentRepositories] : recentRepositories,
-  );
-  const canSwitchRepository = Boolean(snapshot && recentRepositoryOptions.length > 1);
+  const panelView = panelHeaderView(snapshot, recentRepositories);
+  const {
+    branchPill,
+    currentRepository,
+    recentRepositoryOptions,
+    canSwitchRepository,
+    repositoryPathLabel,
+    repositoryTitle,
+  } = panelView;
+  const openRepositoryButton = panelHeaderOpenRepositoryButtonView();
+  const repositoryTrigger = panelRepositoryTriggerView({ canSwitchRepository, repoMenuOpen, repositoryPath: snapshot?.repoPath ?? "" });
+  const repositoryMenu = panelRepositoryMenuView();
+  const actionsView = panelHeaderActionsView({ pinned, refreshing, hasRepository: Boolean(snapshot) });
 
-  useEffect(() => {
-    if (!repoMenuOpen) return undefined;
-
-    function handlePointerDown(event: PointerEvent) {
-      if (repoSwitcherRef.current?.contains(event.target as Node)) return;
-      setRepoMenuOpen(false);
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setRepoMenuOpen(false);
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [repoMenuOpen]);
+  useDismissableLayer({ active: repoMenuOpen, refs: [repoSwitcherRef], onDismiss: () => setRepoMenuOpen(false) });
 
   function switchRepository(repositoryPath: string) {
-    setRepoMenuOpen(false);
-    if (!snapshot || repositoryPath === snapshot.repoPath) return;
-    onSwitchRepository(repositoryPath);
+    const selection = panelRepositorySelection(snapshot, repositoryPath);
+    setRepoMenuOpen(selection.menuOpen);
+    if (selection.switchRepositoryPath) onSwitchRepository(selection.switchRepositoryPath);
   }
 
   return (
-    <header className="peek-header">
-      <IconButton label="Open repository" onClick={onOpen}>
+    <header className={panelView.header.className}>
+      <IconButton label={openRepositoryButton.label} onClick={onOpen}>
         <Route aria-hidden="true" />
       </IconButton>
-      <div className="header-repo-switcher" ref={repoSwitcherRef}>
+      <div className={panelView.repoSwitcher.className} ref={repoSwitcherRef}>
         {canSwitchRepository ? (
           <button
-            className={joinClass("repo-title", "repo-title-button", repoMenuOpen && "is-open")}
+            id={repositoryTrigger.id}
+            className={repositoryTrigger.className}
             type="button"
-            aria-label="Switch recent repository"
-            aria-haspopup="menu"
-            aria-expanded={repoMenuOpen}
-            aria-controls="repo-switch-menu"
-            title={snapshot?.repoPath}
-            onClick={() => setRepoMenuOpen((current) => !current)}
+            aria-label={repositoryTrigger.ariaLabel}
+            aria-haspopup={repositoryTrigger.ariaHasPopup}
+            aria-expanded={repositoryTrigger.ariaExpanded}
+            aria-controls={repositoryTrigger.ariaControls}
+            title={repositoryTrigger.title}
+            onClick={() => setRepoMenuOpen((current) => panelRepositoryMenuOpenAfterToggle(current, canSwitchRepository))}
           >
-            <span className="repo-title-copy">
-              <strong>{snapshot?.repoName ?? "Git Peek"}</strong>
-              <span>{snapshot?.repoPath ?? "No working folder"}</span>
+            <span className={panelView.repositoryTitleCopy.className}>
+              <strong>{repositoryTitle}</strong>
+              <span>{repositoryPathLabel}</span>
             </span>
             <ChevronDown aria-hidden="true" />
           </button>
         ) : (
-          <div className="repo-title">
-            <strong>{snapshot?.repoName ?? "Git Peek"}</strong>
-            <span>{snapshot?.repoPath ?? "No working folder"}</span>
+          <div className={panelView.staticRepositoryTitle.className}>
+            <strong>{repositoryTitle}</strong>
+            <span>{repositoryPathLabel}</span>
           </div>
         )}
         {repoMenuOpen && snapshot ? (
-          <div className="ui-menu repo-switch-menu" id="repo-switch-menu" role="menu">
+          <div
+            className={repositoryMenu.className}
+            id={repositoryMenu.id}
+            role={repositoryMenu.role}
+            aria-labelledby={repositoryMenu.ariaLabelledBy}
+          >
             {recentRepositoryOptions.map((repository) => {
-              const active = repositoryDedupeKey(repository) === snapshot.repositoryKey;
+              const itemView = panelRepositoryMenuItemView(repository, currentRepository);
 
               return (
                 <button
-                  className={joinClass("ui-menu-item", "repo-menu-item", active && "is-active")}
+                  className={itemView.className}
                   type="button"
-                  role="menuitem"
-                  aria-current={active ? "true" : undefined}
-                  title={repository.path}
-                  key={repository.path}
-                  onClick={() => switchRepository(repository.path)}
+                  role={itemView.role}
+                  aria-current={itemView.ariaCurrent}
+                  title={itemView.title}
+                  key={itemView.key}
+                  onClick={() => switchRepository(itemView.path)}
                 >
-                  <span className="repo-menu-check">{active ? <Check aria-hidden="true" /> : null}</span>
-                  <span className="repo-menu-text">
-                    <strong>{recentRepositoryLabel(repository)}</strong>
-                    <code>{repository.path}</code>
+                  <span className={itemView.checkClassName}>{itemView.showCheck ? <Check aria-hidden="true" /> : null}</span>
+                  <span className={itemView.textClassName}>
+                    <strong>{itemView.label}</strong>
+                    <code>{itemView.path}</code>
                   </span>
                 </button>
               );
@@ -129,21 +134,26 @@ export function PanelHeader({
           </div>
         ) : null}
       </div>
-      {snapshot ? (
-        <span className="branch-pill" title={snapshot.branch.upstream || snapshot.branch.name}>
-          <GitBranch aria-hidden="true" />
-          {snapshot.branch.name}
+      {branchPill ? (
+        <span className={branchPill.className} title={branchPill.title}>
+          {panelHeaderBranchPillIcon(branchPill.icon)}
+          {branchPill.label}
         </span>
       ) : null}
-      <div className="header-actions">
-        <IconButton label={pinned ? "Unpin floating panel" : "Pin floating panel"} active={pinned} onClick={onTogglePinned}>
-          {pinned ? <PinOff aria-hidden="true" /> : <Pin aria-hidden="true" />}
+      <div className={actionsView.className}>
+        <IconButton label={actionsView.pinButton.label} active={actionsView.pinButton.active} onClick={onTogglePinned}>
+          {panelHeaderActionIcon(actionsView.pinButton.icon)}
         </IconButton>
-        <IconButton label="Refresh Git status" onClick={onRefresh} disabled={!snapshot}>
-          <RefreshCw className={refreshing ? "is-spinning" : ""} aria-hidden="true" />
+        <IconButton
+          label={actionsView.refreshButton.label}
+          busy={actionsView.refreshButton.busy}
+          onClick={onRefresh}
+          disabled={actionsView.refreshButton.disabled}
+        >
+          {panelHeaderActionIcon(actionsView.refreshButton.icon, actionsView.refreshButton.iconClassName)}
         </IconButton>
-        <IconButton label="Collapse side peek" onClick={onCollapse}>
-          <ChevronLeft aria-hidden="true" />
+        <IconButton label={actionsView.collapseButton.label} onClick={onCollapse}>
+          {panelHeaderActionIcon(actionsView.collapseButton.icon)}
         </IconButton>
       </div>
     </header>

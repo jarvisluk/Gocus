@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld("gitPeek", {
   getPreferences: () => ipcRenderer.invoke("preferences:get"),
   savePreferences: (preferences) => ipcRenderer.invoke("preferences:save", preferences),
   setCollapsed: (collapsed) => ipcRenderer.invoke("window:setCollapsed", collapsed),
+  getPinned: () => ipcRenderer.invoke("window:getPinned"),
   setPinned: (pinned) => ipcRenderer.invoke("window:setPinned", pinned),
   dockToEdge: (collapsed) => ipcRenderer.invoke("window:dockToEdge", collapsed),
   getTemporaryInfoPayload: () => ipcRenderer.invoke("window:getTemporaryInfoPayload"),
@@ -51,6 +52,11 @@ contextBridge.exposeInMainWorld("gitPeek", {
     const handler = (_event, collapsed) => callback(collapsed);
     ipcRenderer.on("window:collapsedChanged", handler);
     return () => ipcRenderer.removeListener("window:collapsedChanged", handler);
+  },
+  onPinnedChanged: (callback) => {
+    const handler = (_event, pinned) => callback(pinned);
+    ipcRenderer.on("window:pinnedChanged", handler);
+    return () => ipcRenderer.removeListener("window:pinnedChanged", handler);
   },
   onRepositoryDialogOpenChanged: (callback) => {
     const handler = (_event, open) => callback(open);
