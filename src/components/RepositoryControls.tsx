@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Check, ChevronDown, GitBranch, GitFork } from "lucide-react";
+import { ArrowRightLeft, Check, ChevronDown, GitBranch, GitFork } from "lucide-react";
 import {
   closedRepositoryControlsMenus,
   repositoryBranchMenuItemView,
@@ -22,6 +22,7 @@ import type { CommitViewSelection, GitSnapshot } from "../types";
 
 function repositoryControlIcon(icon: RepositoryControlIcon) {
   if (icon === "check") return <Check aria-hidden="true" />;
+  if (icon === "switch") return <ArrowRightLeft aria-hidden="true" />;
   if (icon === "worktree") return <GitFork aria-hidden="true" />;
   return <GitBranch aria-hidden="true" />;
 }
@@ -30,11 +31,13 @@ export function RepositoryControls({
   snapshot,
   view,
   onChangeView,
+  onSwitchBranch,
   onOpenWorktree,
 }: {
   snapshot: GitSnapshot;
   view: CommitViewSelection;
   onChangeView: (view: CommitViewSelection) => void;
+  onSwitchBranch: (branchName: string) => void;
   onOpenWorktree: (worktreePath: string) => void;
 }) {
   const [menuState, setMenuState] = useState(closedRepositoryControlsMenus);
@@ -45,6 +48,7 @@ export function RepositoryControls({
     branches: snapshot.branches,
     currentBranchName: snapshot.branch.name,
     view,
+    worktrees: snapshot.worktrees,
   });
   const selectedBranchSummary = branchMenu.selectedBranchSummary;
   const controlsChrome = repositoryControlsChromeView();
@@ -71,6 +75,11 @@ export function RepositoryControls({
   function selectBranch(ref: string) {
     setMenuState((current) => repositoryControlsMenuState(current, "closeBranch"));
     onChangeView({ mode: "branch", ref });
+  }
+
+  function switchBranch(branchName: string) {
+    setMenuState((current) => repositoryControlsMenuState(current, "closeBranch"));
+    onSwitchBranch(branchName);
   }
 
   function openWorktree(worktreePath: string) {
@@ -139,22 +148,36 @@ export function RepositoryControls({
                   <span>{retainedBranchItem.label}</span>
                 </button>
               ) : null}
-              {branchMenu.branchItems.map(({ active, branch }) => {
-                const itemView = repositoryBranchMenuItemView(active, branch);
+              {branchMenu.branchItems.map(({ active, branch, switchAction }) => {
+                const itemView = repositoryBranchMenuItemView(active, branch, switchAction);
 
                 return (
-                  <button
-                    className={itemView.className}
-                    type="button"
-                    role={itemView.role}
-                    aria-current={itemView.ariaCurrent}
-                    title={itemView.title}
-                    key={itemView.key}
-                    onClick={() => selectBranch(branch.name)}
-                  >
-                    {repositoryControlIcon(itemView.icon)}
-                    <span>{itemView.label}</span>
-                  </button>
+                  <div className={itemView.rowClassName} role="none" key={itemView.key}>
+                    <button
+                      className={itemView.className}
+                      type="button"
+                      role={itemView.role}
+                      aria-current={itemView.ariaCurrent}
+                      title={itemView.title}
+                      onClick={() => selectBranch(branch.name)}
+                    >
+                      {repositoryControlIcon(itemView.icon)}
+                      <span>{itemView.label}</span>
+                    </button>
+                    {itemView.switchAction.show ? (
+                      <button
+                        className={itemView.switchAction.className}
+                        type="button"
+                        role="menuitem"
+                        aria-label={itemView.switchAction.ariaLabel}
+                        title={itemView.switchAction.title}
+                        disabled={itemView.switchAction.disabled}
+                        onClick={() => switchBranch(itemView.switchAction.branchName)}
+                      >
+                        {repositoryControlIcon(itemView.switchAction.icon)}
+                      </button>
+                    ) : null}
+                  </div>
                 );
               })}
             </div>

@@ -26,6 +26,14 @@ function expectedCheckoutAction() {
   };
 }
 
+function expectedSwitchBranchAction(branchName = "feature/footer-toggle") {
+  return {
+    type: "checkout",
+    ref: branchName,
+    view: { mode: "current" },
+  };
+}
+
 function expectedMergeAction(targetBranch = "main", createMergeCommit = true) {
   return {
     type: "merge",
@@ -1461,7 +1469,7 @@ async function testBranchViewDoesNotCheckout(browser, baseUrl) {
     assert.equal(await branchViewButton.getAttribute("aria-pressed"), "false");
 
     await branchViewButton.click();
-    await page.getByRole("menuitem", { name: "feature/footer-toggle" }).click();
+    await page.getByRole("menuitem", { name: "feature/footer-toggle", exact: true }).click();
     await page.getByLabel("Viewing branch feature/footer-toggle").waitFor();
     assert.equal(await allViewButton.getAttribute("aria-pressed"), "false");
     assert.equal(await branchViewButton.getAttribute("aria-pressed"), "true");
@@ -1471,6 +1479,27 @@ async function testBranchViewDoesNotCheckout(browser, baseUrl) {
       ref: "feature/footer-toggle",
     });
     await assertGitActions(page, []);
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
+async function testSwitchBranchFromBranchMenu(browser, baseUrl) {
+  const { page, errors } = await openMockedPage(browser, baseUrl, branchViewScenario());
+  try {
+    await assertHealthyPage(page, errors);
+
+    await page.getByRole("button", { name: "Choose branch view" }).click();
+    await page.getByRole("menuitem", { name: "Switch to feature/footer-toggle", exact: true }).click();
+    const switchDialog = page.getByRole("dialog", { name: "Switch branch" });
+    await switchDialog.waitFor();
+    assert.equal(await page.locator("#action-dialog-body").innerText(), "Switch the working folder to feature/footer-toggle.");
+    await assertGitActions(page, []);
+
+    await page.getByRole("button", { name: "Confirm" }).click();
+    await switchDialog.waitFor({ state: "detached" });
+    await assertGitActions(page, [expectedSwitchBranchAction()]);
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -1807,6 +1836,7 @@ async function main() {
     await testFolderWithoutGitInitialize(browser, baseUrl);
     await testEmptyRepositoryRecentOverflow(browser, baseUrl);
     await testBranchViewDoesNotCheckout(browser, baseUrl);
+    await testSwitchBranchFromBranchMenu(browser, baseUrl);
     await testOpenWorktreeKeepsCommitView(browser, baseUrl);
     await testRefreshFailureRecovers(browser, baseUrl);
     await testPreviewRefreshWithoutBridge(browser, baseUrl);

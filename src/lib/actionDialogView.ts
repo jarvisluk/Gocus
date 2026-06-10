@@ -68,6 +68,8 @@ export type ActionDialogState =
       title: string;
       body: string;
       ref?: string;
+      fallbackNotice?: string;
+      failureNotice?: string;
     }
   | {
       type: "merge";
@@ -145,9 +147,11 @@ export function commitActionDialog(
 export function checkoutRefActionDialog(ref: string): ActionDialogState {
   return {
     type: "checkout",
-    title: "Checkout branch",
+    title: "Switch branch",
     body: `Switch the working folder to ${ref}.`,
     ref,
+    fallbackNotice: `Switched to ${ref}.`,
+    failureNotice: "Unable to switch branch.",
   };
 }
 
@@ -225,8 +229,8 @@ export function actionDialogConfirmation(dialog: ActionDialogState | null): Acti
     return {
       type: "checkout",
       ref: dialog.ref,
-      fallbackNotice: "Checkout complete.",
-      failureNotice: "Unable to checkout ref.",
+      fallbackNotice: dialog.fallbackNotice ?? "Checkout complete.",
+      failureNotice: dialog.failureNotice ?? "Unable to checkout ref.",
     };
   }
 

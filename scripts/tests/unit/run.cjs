@@ -1252,11 +1252,14 @@ async function testActionDialogView(server) {
     commitActionDialog("merge", sampleCommit, { targetBranches: mergeTargets }),
     mergeCommitActionDialog(sampleCommit, { targetBranches: mergeTargets }),
   );
-  assert.deepEqual(checkoutRefActionDialog("feature/worktree-safety"), {
+  const switchBranchDialog = checkoutRefActionDialog("feature/worktree-safety");
+  assert.deepEqual(switchBranchDialog, {
     type: "checkout",
-    title: "Checkout branch",
+    title: "Switch branch",
     body: "Switch the working folder to feature/worktree-safety.",
     ref: "feature/worktree-safety",
+    fallbackNotice: "Switched to feature/worktree-safety.",
+    failureNotice: "Unable to switch branch.",
   });
   assert.equal(actionDialogGlobalKeyAction("Escape"), "cancel");
   assert.equal(actionDialogGlobalKeyAction("Enter"), "ignore");
@@ -1315,6 +1318,12 @@ async function testActionDialogView(server) {
     ref: "abc123400000000000000000000000000000000",
     fallbackNotice: "Checkout complete.",
     failureNotice: "Unable to checkout ref.",
+  });
+  assert.deepEqual(actionDialogConfirmation(switchBranchDialog), {
+    type: "checkout",
+    ref: "feature/worktree-safety",
+    fallbackNotice: "Switched to feature/worktree-safety.",
+    failureNotice: "Unable to switch branch.",
   });
   assert.deepEqual(actionDialogConfirmation(mergeDialog), {
     type: "merge",
@@ -4544,6 +4553,7 @@ async function testRepositoryControlsView(server) {
     repositoryBranchMenuItemView,
     repositoryBranchMenuView,
     repositoryBranchMenuChromeView,
+    repositoryBranchSwitchActionView,
     repositoryBranchTriggerView,
     repositoryControlsChromeView,
     repositoryControlsMenuState,
@@ -4628,20 +4638,58 @@ async function testRepositoryControlsView(server) {
     ariaLabelledBy: "branch-ref-trigger",
   });
   assert.deepEqual(repositoryRetainedBranchMenuItemView("missing"), {
+    rowClassName: "branch-ref-menu-row",
     className: "ui-menu-item branch-ref-menu-item is-active",
     role: "menuitem",
     ariaCurrent: "true",
     icon: "check",
     label: "missing",
   });
+  assert.deepEqual(repositoryBranchSwitchActionView(branches[0], "main", [current]), {
+    show: false,
+    disabled: false,
+    branchName: "main",
+    className: "branch-switch-button",
+    icon: "switch",
+    ariaLabel: "Switch to main",
+    title: "Switch to main",
+  });
+  assert.deepEqual(repositoryBranchSwitchActionView(branches[1], "main", [current]), {
+    show: true,
+    disabled: false,
+    branchName: "feature/worktree-menu",
+    className: "branch-switch-button",
+    icon: "switch",
+    ariaLabel: "Switch to feature/worktree-menu",
+    title: "Switch to feature/worktree-menu",
+  });
+  assert.deepEqual(repositoryBranchSwitchActionView(branches[1], "main", [linked]), {
+    show: true,
+    disabled: true,
+    branchName: "feature/worktree-menu",
+    className: "branch-switch-button",
+    icon: "switch",
+    ariaLabel: "Switch to feature/worktree-menu",
+    title: "This branch is checked out in another worktree.",
+  });
   assert.deepEqual(repositoryBranchMenuItemView(true, branches[0]), {
-    className: "ui-menu-item branch-ref-menu-item is-active",
+    rowClassName: "branch-ref-menu-row",
+    className: "ui-menu-item branch-ref-menu-item branch-ref-view-button is-active",
     role: "menuitem",
     ariaCurrent: "true",
     icon: "check",
     label: "main",
     title: "refs/heads/main",
     key: "local-main",
+    switchAction: {
+      show: false,
+      disabled: false,
+      branchName: "main",
+      className: "branch-switch-button",
+      icon: "switch",
+      ariaLabel: "Switch to main",
+      title: "Switch to main",
+    },
   });
   assert.deepEqual(
     repositoryBranchMenuItemView(false, {
@@ -4652,13 +4700,23 @@ async function testRepositoryControlsView(server) {
       upstream: "",
     }),
     {
-      className: "ui-menu-item branch-ref-menu-item",
+      rowClassName: "branch-ref-menu-row",
+      className: "ui-menu-item branch-ref-menu-item branch-ref-view-button",
       role: "menuitem",
       ariaCurrent: undefined,
       icon: "branch",
       label: "origin/main remote",
       title: "refs/remotes/origin/main",
       key: "remote-origin/main",
+      switchAction: {
+        show: false,
+        disabled: false,
+        branchName: "origin/main",
+        className: "branch-switch-button",
+        icon: "switch",
+        ariaLabel: "Switch to origin/main",
+        title: "Switch to origin/main",
+      },
     },
   );
   assert.deepEqual(repositoryBranchMenuView({ branches, currentBranchName: "main", view: { mode: "all" } }), {
@@ -4678,8 +4736,32 @@ async function testRepositoryControlsView(server) {
       ariaLabel: undefined,
     },
     branchItems: [
-      { branch: branches[0], active: false },
-      { branch: branches[1], active: false },
+      {
+        branch: branches[0],
+        active: false,
+        switchAction: {
+          show: false,
+          disabled: false,
+          branchName: "main",
+          className: "branch-switch-button",
+          icon: "switch",
+          ariaLabel: "Switch to main",
+          title: "Switch to main",
+        },
+      },
+      {
+        branch: branches[1],
+        active: false,
+        switchAction: {
+          show: true,
+          disabled: false,
+          branchName: "feature/worktree-menu",
+          className: "branch-switch-button",
+          icon: "switch",
+          ariaLabel: "Switch to feature/worktree-menu",
+          title: "Switch to feature/worktree-menu",
+        },
+      },
     ],
   });
   assert.deepEqual(
@@ -4705,8 +4787,32 @@ async function testRepositoryControlsView(server) {
         ariaLabel: "Viewing branch feature/worktree-menu",
       },
       branchItems: [
-        { branch: branches[0], active: false },
-        { branch: branches[1], active: true },
+        {
+          branch: branches[0],
+          active: false,
+          switchAction: {
+            show: false,
+            disabled: false,
+            branchName: "main",
+            className: "branch-switch-button",
+            icon: "switch",
+            ariaLabel: "Switch to main",
+            title: "Switch to main",
+          },
+        },
+        {
+          branch: branches[1],
+          active: true,
+          switchAction: {
+            show: true,
+            disabled: false,
+            branchName: "feature/worktree-menu",
+            className: "branch-switch-button",
+            icon: "switch",
+            ariaLabel: "Switch to feature/worktree-menu",
+            title: "Switch to feature/worktree-menu",
+          },
+        },
       ],
     },
   );

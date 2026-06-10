@@ -2,7 +2,7 @@ import { joinClass } from "./classNames";
 import type { CommitViewSelection, GitBranchRef, GitWorktree } from "../types";
 import { branchOptionLabel, worktreeChipLabel, worktreeMenuLabel } from "./repositoryControlLabels";
 
-export type RepositoryControlIcon = "branch" | "check" | "worktree";
+export type RepositoryControlIcon = "branch" | "check" | "switch" | "worktree";
 
 export type RepositoryControlsMenuState = {
   branchMenuOpen: boolean;
@@ -14,6 +14,16 @@ export type RepositoryControlsMenuAction = "toggleBranch" | "toggleWorktree" | "
 export interface RepositoryWorktreeSelection {
   menuAction: RepositoryControlsMenuAction;
   openWorktreePath: string;
+}
+
+export interface RepositoryBranchSwitchActionView {
+  show: boolean;
+  disabled: boolean;
+  branchName: string;
+  className: string;
+  icon: RepositoryControlIcon;
+  ariaLabel: string;
+  title: string;
 }
 
 const branchTriggerId = "branch-ref-trigger";
@@ -122,6 +132,7 @@ export function repositoryBranchMenuChromeView() {
 
 export function repositoryRetainedBranchMenuItemView(branchName: string) {
   return {
+    rowClassName: "branch-ref-menu-row",
     className: "ui-menu-item branch-ref-menu-item is-active",
     role: "menuitem" as const,
     ariaCurrent: "true" as const,
@@ -130,15 +141,45 @@ export function repositoryRetainedBranchMenuItemView(branchName: string) {
   };
 }
 
-export function repositoryBranchMenuItemView(active: boolean, branch: GitBranchRef) {
+export function repositoryBranchSwitchActionView(
+  branch: GitBranchRef,
+  currentBranchName: string,
+  worktrees: readonly GitWorktree[] = [],
+): RepositoryBranchSwitchActionView {
+  const externalWorktree = worktrees.find(
+    (worktree) => !worktree.current && !worktree.bare && !worktree.detached && worktree.branch === branch.name,
+  );
+  const current = branch.current || branch.name === currentBranchName;
+  const show = branch.type === "local" && Boolean(branch.name) && !current;
+  const disabled = Boolean(externalWorktree);
+  const title = disabled ? "This branch is checked out in another worktree." : `Switch to ${branch.name}`;
+
   return {
-    className: joinClass("ui-menu-item", "branch-ref-menu-item", active && "is-active"),
+    show,
+    disabled,
+    branchName: branch.name,
+    className: "branch-switch-button",
+    icon: "switch",
+    ariaLabel: `Switch to ${branch.name}`,
+    title,
+  };
+}
+
+export function repositoryBranchMenuItemView(
+  active: boolean,
+  branch: GitBranchRef,
+  switchAction: RepositoryBranchSwitchActionView = repositoryBranchSwitchActionView(branch, ""),
+) {
+  return {
+    rowClassName: joinClass("branch-ref-menu-row", switchAction.show && "has-switch"),
+    className: joinClass("ui-menu-item", "branch-ref-menu-item", "branch-ref-view-button", active && "is-active"),
     role: "menuitem" as const,
     ariaCurrent: active ? ("true" as const) : undefined,
     icon: active ? ("check" as const) : ("branch" as const),
     label: branchOptionLabel(branch),
     title: branch.fullName,
     key: `${branch.type}-${branch.name}`,
+    switchAction,
   };
 }
 
@@ -161,10 +202,12 @@ export function repositoryBranchMenuView({
   branches,
   currentBranchName,
   view,
+  worktrees = [],
 }: {
   branches: readonly GitBranchRef[];
   currentBranchName: string;
   view: CommitViewSelection;
+  worktrees?: readonly GitWorktree[];
 }) {
   const selectedBranch = selectedBranchName(view);
   const selectedBranchIsAvailable = selectedBranchAvailable(selectedBranch, branches);
@@ -181,6 +224,7 @@ export function repositoryBranchMenuView({
     branchItems: branches.map((branch) => ({
       branch,
       active: view.mode === "branch" && branch.name === selectedBranch,
+      switchAction: repositoryBranchSwitchActionView(branch, currentBranchName, worktrees),
     })),
   };
 }

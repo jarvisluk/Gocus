@@ -173,6 +173,7 @@ export default function App() {
                       snapshot={panelContent.snapshot}
                       view={controller.commitView}
                       onChangeView={controller.changeCommitView}
+                      onSwitchBranch={controller.switchBranch}
                       onOpenWorktree={controller.openWorktree}
                     />
                   ) : null}

@@ -1601,9 +1601,47 @@ button:disabled {
   top: calc(100% + 8px);
 }
 
+.branch-ref-menu-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 3px;
+}
+
+.branch-ref-menu-row.has-switch {
+  grid-template-columns: minmax(0, 1fr) 28px;
+}
+
 .branch-ref-menu-item,
 .worktree-menu-item {
   grid-template-columns: 18px minmax(0, 1fr);
+}
+
+.branch-switch-button {
+  width: 28px;
+  min-height: var(--menu-row-height);
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.branch-switch-button:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.branch-switch-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.branch-switch-button svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
 }
 
 .worktree-compact {
