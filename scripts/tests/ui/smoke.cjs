@@ -122,6 +122,19 @@ const mockCommits = [
   }),
 ];
 
+function numberedCommits(count) {
+  return Array.from({ length: count }, (_, index) => {
+    const number = String(index + 1).padStart(3, "0");
+    return commit({
+      hash: (index + 1).toString(16).padStart(7, "0"),
+      title: `Virtualized commit ${number}`,
+      message: `Virtualized commit ${number} keeps the list bounded`,
+      refs: index === 0 ? ["main"] : [],
+      relativeTime: `${index + 1} minutes ago`,
+    });
+  });
+}
+
 const externalWorktreeCommits = [
   commit({
     hash: "e7f8a9b",
@@ -1121,6 +1134,27 @@ async function testTemporaryInfoEmptyChangedFiles(browser, baseUrl) {
   }
 }
 
+async function testLargeCommitListVirtualizes(browser, baseUrl) {
+  const largeCommits = numberedCommits(160);
+  const { page, errors } = await openMockedPage(browser, baseUrl, mockedSnapshotScenario(largeCommits));
+  try {
+    await assertHealthyPage(page, errors);
+    assert.equal(await page.locator(".commit-count").innerText(), "Showing 160");
+    assert.ok(await page.locator(".commit-list-spacer").count(), "large lists should include virtual spacers");
+    assert.ok((await page.locator(".commit-row").count()) < 80, "large lists should not render every commit row");
+
+    await page.locator(".scroll-region").first().evaluate((node) => {
+      node.scrollTop = node.scrollHeight;
+      node.dispatchEvent(new Event("scroll", { bubbles: true }));
+    });
+    await page.getByRole("button", { name: /Virtualized commit 160/ }).waitFor();
+    assert.ok((await page.locator(".commit-row").count()) < 80, "scrolled large lists should stay virtualized");
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
 async function testEmptyCommitState(browser, baseUrl) {
   const { page, errors } = await openMockedPage(browser, baseUrl, mockedSnapshotScenario([]));
   try {
@@ -1659,6 +1693,7 @@ async function main() {
     await testCommitHoverPanel(browser, baseUrl);
     await testCommitInfoPanel(browser, baseUrl);
     await testCommitSearch(browser, baseUrl);
+    await testLargeCommitListVirtualizes(browser, baseUrl);
     await testMergeFailureStaysInDialog(browser, baseUrl);
     await testMergeStateSurvivesStartup(browser, baseUrl);
     await testTemporaryInfoCopyPrompt(browser, baseUrl);

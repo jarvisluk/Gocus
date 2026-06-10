@@ -1809,6 +1809,10 @@ button:disabled {
   padding-top: 6px;
 }
 
+.commit-list-spacer {
+  pointer-events: none;
+}
+
 .commit-empty-state {
   min-height: 72px;
   display: grid;

@@ -44,6 +44,15 @@ const starterGitIgnore = [
   "",
 ].join("\n");
 
+const defaultCommitLogLimit = 300;
+const maxCommitLogLimit = 2000;
+
+function normalizeCommitLogLimit(value = process.env.GIT_PEEK_COMMIT_LOG_LIMIT) {
+  const parsed = Number.parseInt(`${value ?? ""}`, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return defaultCommitLogLimit;
+  return Math.min(parsed, maxCommitLogLimit);
+}
+
 async function readFolderWithoutGit(folderPath) {
   if (typeof folderPath !== "string" || !folderPath.trim()) {
     throw new Error("Choose a folder before initializing Git.");
@@ -106,9 +115,11 @@ function normalizeView(view) {
 
 function logArgsForView(view) {
   const normalized = normalizeView(view);
+  const commitLimit = normalizeCommitLogLimit();
   const args = [
     "log",
     "--topo-order",
+    `--max-count=${commitLimit}`,
     "--pretty=format:%x1e%H%x1f%h%x1f%P%x1f%an%x1f%ar%x1f%aI%x1f%s%x1f%D%x1f%B%x1d%n",
     "--numstat",
   ];
@@ -430,11 +441,14 @@ async function initializeRepository(folderPath, view) {
 module.exports = {
   checkout,
   createBranch,
+  defaultCommitLogLimit,
   graphContextForWorktrees,
   initializeRepository,
   isNotGitRepositoryError,
+  logArgsForView,
   merge,
   mergeArgs,
+  normalizeCommitLogLimit,
   normalizeView,
   openWorktree,
   readFolderWithoutGit,

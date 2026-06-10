@@ -529,9 +529,21 @@ function testGitStatusModule() {
 }
 
 async function testGitModule() {
-  const { mergeArgs, repositoryStateForGit } = require(path.join(projectRoot, "electron/lib/git.cjs"));
+  const {
+    defaultCommitLogLimit,
+    logArgsForView,
+    mergeArgs,
+    normalizeCommitLogLimit,
+    repositoryStateForGit,
+  } = require(path.join(projectRoot, "electron/lib/git.cjs"));
   const { parseStatus } = require(path.join(projectRoot, "electron/lib/gitStatus.cjs"));
 
+  assert.equal(normalizeCommitLogLimit(), defaultCommitLogLimit);
+  assert.equal(normalizeCommitLogLimit("42"), 42);
+  assert.equal(normalizeCommitLogLimit("9999"), 2000);
+  assert.equal(normalizeCommitLogLimit("0"), defaultCommitLogLimit);
+  assert.ok(logArgsForView({ mode: "all" }).args.includes(`--max-count=${defaultCommitLogLimit}`));
+  assert.deepEqual(logArgsForView({ mode: "branch", ref: "main" }).args.slice(-1), ["main"]);
   assert.deepEqual(mergeArgs("feature/footer-toggle"), ["merge", "--no-ff", "--no-edit", "feature/footer-toggle"]);
   assert.deepEqual(mergeArgs("feature/footer-toggle", { createMergeCommit: true }), [
     "merge",
@@ -578,10 +590,20 @@ async function testGitModule() {
 }
 
 function testGitGraphModule() {
-  const { buildCommitGraph, parseLog } = require(path.join(projectRoot, "electron/lib/gitGraph.cjs"));
+  const {
+    buildCommitGraph,
+    commitMessageMaxLength,
+    normalizeCommitMessage,
+    parseLog,
+  } = require(path.join(projectRoot, "electron/lib/gitGraph.cjs"));
   const { graphContextForWorktrees } = require(path.join(projectRoot, "electron/lib/git.cjs"));
   const firstHash = "a".repeat(40);
   const secondHash = "b".repeat(40);
+  const longCommitMessage = "x".repeat(commitMessageMaxLength + 20);
+
+  assert.equal(normalizeCommitMessage("", "Fallback"), "Fallback");
+  assert.equal(normalizeCommitMessage(longCommitMessage, "").length, commitMessageMaxLength);
+  assert.ok(normalizeCommitMessage(longCommitMessage, "").endsWith("..."));
   const rawLog = [
     "\x1e",
     [
@@ -1455,6 +1477,10 @@ async function testCommitListView(server) {
     commitSearchStateAfterToggle,
     commitSearchToggleView,
     commitSelectionVisible,
+    commitVirtualRowOffset,
+    commitVirtualTotalHeight,
+    commitVirtualWindow,
+    commitVirtualizationThreshold,
     firstCommitId,
     recentCommitsTitleId,
     selectedCommitFromSnapshot,
@@ -1694,6 +1720,57 @@ async function testCommitListView(server) {
     title: "No commits to search",
     tooltip: undefined,
   });
+  assert.deepEqual(
+    commitVirtualWindow({
+      itemCount: 2,
+      selectedIndex: -1,
+      scrollTop: 1000,
+      viewportHeight: 256,
+    }),
+    {
+      startIndex: 0,
+      endIndex: 2,
+      topPadding: 0,
+      bottomPadding: 0,
+      totalHeight: 128,
+      virtualized: false,
+    },
+  );
+  assert.deepEqual(
+    commitVirtualWindow({
+      itemCount: commitVirtualizationThreshold + 80,
+      selectedIndex: -1,
+      scrollTop: 0,
+      viewportHeight: 256,
+    }),
+    {
+      startIndex: 0,
+      endIndex: 13,
+      topPadding: 0,
+      bottomPadding: 11968,
+      totalHeight: 12800,
+      virtualized: true,
+    },
+  );
+  assert.equal(commitVirtualTotalHeight(200, 10), 12848);
+  assert.equal(commitVirtualRowOffset(11, 200, 10), 752);
+  assert.deepEqual(
+    commitVirtualWindow({
+      itemCount: 200,
+      selectedIndex: 10,
+      scrollTop: 640,
+      viewportHeight: 64,
+      overscanRows: 0,
+    }),
+    {
+      startIndex: 10,
+      endIndex: 11,
+      topPadding: 640,
+      bottomPadding: 12096,
+      totalHeight: 12848,
+      virtualized: true,
+    },
+  );
 }
 
 async function testCommitRowView(server) {

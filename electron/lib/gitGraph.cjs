@@ -23,6 +23,14 @@ const branchColorSeeds = [
   "#36a7d8",
 ];
 
+const commitMessageMaxLength = 4000;
+
+function normalizeCommitMessage(message, fallback) {
+  const cleanMessage = (message || fallback || "Untitled commit").trim();
+  if (cleanMessage.length <= commitMessageMaxLength) return cleanMessage;
+  return `${cleanMessage.slice(0, commitMessageMaxLength - 3)}...`;
+}
+
 function branchKindFromRefs(refs, index) {
   const lowerRefs = refs.toLowerCase();
   if (lowerRefs.includes("stash")) return "stash";
@@ -372,7 +380,7 @@ function parseLog(rawLog, graphContext = {}) {
       const subject = hasAuthoredAt ? metadata[6] : metadata[5];
       const refs = hasAuthoredAt ? metadata[7] ?? "" : metadata[6] ?? "";
       const messageParts = metadata.slice(hasAuthoredAt ? 8 : 7);
-      const message = messageParts.join("\x1f").trim() || subject || "Untitled commit";
+      const message = normalizeCommitMessage(messageParts.join("\x1f"), subject);
       let additions = 0;
       let deletions = 0;
       let filesChanged = 0;
@@ -410,7 +418,9 @@ module.exports = {
   assignBranchColors,
   branchKindFromRefs,
   buildCommitGraph,
+  commitMessageMaxLength,
   generatedBranchColor,
+  normalizeCommitMessage,
   normalizeBranchColorKey,
   parseLog,
   parseRefs,
