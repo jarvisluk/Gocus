@@ -517,6 +517,33 @@ async function testSelectedCommitGraphAnchor(browser, baseUrl) {
   }
 }
 
+async function testCommitHoverPanel(browser, baseUrl) {
+  const { page, errors } = await openMockedPage(browser, baseUrl, mockedSnapshotScenario(mockCommits));
+  try {
+    await assertHealthyPage(page, errors);
+
+    await page.getByRole("button", { name: /Add commit search polish/ }).hover();
+    const hoverPanel = page.locator(".commit-hover-panel");
+    await hoverPanel.waitFor();
+
+    const panelText = await hoverPanel.innerText();
+    assert.match(panelText, /Codex/);
+    assert.match(panelText, /2 minutes ago/);
+    assert.match(panelText, /Add commit search polish and keyboard selection/);
+    assert.match(panelText, /2 files changed, 8 insertions\(\+\), 1 deletion\(-\)/);
+    assert.match(panelText, /main/);
+    assert.match(panelText, /a1b2c3d/);
+    await assertVisibleWithinViewport(page, hoverPanel, "commit hover panel");
+    await assertNoHorizontalOverflow(page, "commit hover panel");
+
+    await page.mouse.move(1, 1);
+    await hoverPanel.waitFor({ state: "detached" });
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
 async function testCommitSearch(browser, baseUrl) {
   const { page, errors } = await openMockedPage(browser, baseUrl, mockedSnapshotScenario(mockCommits));
   try {
@@ -1221,6 +1248,7 @@ async function main() {
 
   try {
     await testSelectedCommitGraphAnchor(browser, baseUrl);
+    await testCommitHoverPanel(browser, baseUrl);
     await testCommitSearch(browser, baseUrl);
     await testTemporaryInfoCopyPrompt(browser, baseUrl);
     await testTemporaryInfoCopyFallback(browser, baseUrl);
