@@ -13,6 +13,7 @@ const {
   mainWindowBounds,
   temporaryInfoBounds,
   temporaryInfoWindowSize,
+  windowBoundsEqual,
 } = require("./lib/windowGeometry.cjs");
 const {
   checkout,
@@ -420,7 +421,7 @@ function dockWindow(collapsed = collapsedState) {
   if (!mainWindow) return;
   if (!collapsed) saveCurrentExpandedWindowSize(mainWindow);
   positionWindow(mainWindow, collapsed);
-  positionTemporaryInfoWindow();
+  positionTemporaryInfoWindow({ animated: true });
 }
 
 function rendererWindowUrl(mode = "") {
@@ -456,10 +457,16 @@ function sendTemporaryInfoPayload() {
   sendToWindow(temporaryInfoWindow, "window:temporaryInfoPayload", temporaryInfoPayload);
 }
 
-function positionTemporaryInfoWindow() {
+function setTemporaryInfoWindowBounds(bounds, animated = false) {
+  if (!temporaryInfoWindow || temporaryInfoWindow.isDestroyed()) return;
+  if (windowBoundsEqual(temporaryInfoWindow.getBounds(), bounds)) return;
+  temporaryInfoWindow.setBounds(bounds, animated);
+}
+
+function positionTemporaryInfoWindow({ animated = false } = {}) {
   if (!temporaryInfoWindow || temporaryInfoWindow.isDestroyed()) return;
   const bounds = temporaryInfoWindowBounds();
-  if (bounds) temporaryInfoWindow.setBounds(bounds, true);
+  if (bounds) setTemporaryInfoWindowBounds(bounds, animated);
 }
 
 function syncTemporaryInfoWindowLevel() {
@@ -590,7 +597,9 @@ function createWindow({ showOnReady = true } = {}) {
   mainWindow.once("ready-to-show", () => {
     if (showOnReady) mainWindow.show();
   });
-  mainWindow.on("move", positionTemporaryInfoWindow);
+  mainWindow.on("move", () => {
+    positionTemporaryInfoWindow();
+  });
   mainWindow.on("resize", () => {
     scheduleExpandedWindowSizeSave(mainWindow);
     positionTemporaryInfoWindow();

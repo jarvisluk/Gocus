@@ -45,6 +45,17 @@ function temporaryInfoBounds({ mainBounds, display, alignTop = false }) {
   return { x, y, width, height };
 }
 
+function windowBoundsEqual(left, right) {
+  return (
+    Boolean(left) &&
+    Boolean(right) &&
+    left.x === right.x &&
+    left.y === right.y &&
+    left.width === right.width &&
+    left.height === right.height
+  );
+}
+
 module.exports = {
   collapsedSize,
   defaultExpandedSize,
@@ -54,4 +65,5 @@ module.exports = {
   mainWindowBounds,
   temporaryInfoBounds,
   temporaryInfoWindowSize,
+  windowBoundsEqual,
 };

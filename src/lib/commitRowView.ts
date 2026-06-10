@@ -12,6 +12,10 @@ interface CommitRowActionView {
   title?: string;
 }
 
+function pluralize(count: number, singular: string, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
 export function commitRowView(commit: CommitItem, selected: boolean, expandSelectedMessage = false) {
   const message = commit.message.trim() || commit.title;
   const ref = commit.refs[0] ?? "";
@@ -68,5 +72,40 @@ export function commitRowView(commit: CommitItem, selected: boolean, expandSelec
       disabled: checkoutDisabled,
       title: checkoutDisabled ? "Open that worktree first to checkout there." : undefined,
     } satisfies CommitRowActionView,
+  };
+}
+
+export function commitHoverPanelView(commit: CommitItem) {
+  const message = commit.message.trim() || commit.title;
+  const refPills = commit.refs.map((ref, index) => ({
+    key: `${ref}-${index}`,
+    label: ref,
+    color: commit.refColors[index] ?? commit.branchColor,
+  }));
+
+  return {
+    panel: {
+      className: "commit-hover-panel changed-side-panel",
+      role: "tooltip" as const,
+      ariaLabel: `Commit ${commit.hash} details`,
+    },
+    headerClassName: "commit-hover-header",
+    authorClassName: "commit-hover-author",
+    timeClassName: "commit-hover-time",
+    titleClassName: "commit-hover-title",
+    statsClassName: "commit-hover-stats",
+    refsClassName: "commit-hover-refs",
+    refPillClassName: "commit-hover-ref-pill",
+    hashClassName: "commit-hover-hash",
+    author: commit.author || "Unknown",
+    relativeTime: commit.relativeTime,
+    showRelativeTime: Boolean(commit.relativeTime),
+    message,
+    filesLabel: `${pluralize(commit.filesChanged, "file")} changed`,
+    insertionsLabel: `${pluralize(commit.additions, "insertion")}(+)`,
+    deletionsLabel: `${pluralize(commit.deletions, "deletion")}(-)`,
+    refs: refPills,
+    showRefs: refPills.length > 0,
+    hash: commit.hash,
   };
 }
