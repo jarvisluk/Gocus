@@ -1919,6 +1919,148 @@ button:disabled {
   transform: translateY(0);
 }
 
+.commit-hover-panel.changed-side-panel {
+  position: fixed;
+  z-index: 18;
+  top: var(--commit-hover-panel-top, 88px);
+  right: calc(var(--panel-width) + 28px);
+  bottom: auto;
+  width: min(356px, calc(100vw - var(--panel-width) - 48px));
+  max-width: 356px;
+  max-height: min(320px, calc(100vh - 20px));
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
+  pointer-events: none;
+  animation: commit-hover-panel-in 140ms ease both;
+}
+
+.commit-hover-header {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: var(--icon-md) minmax(0, auto) var(--icon-md) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 10px var(--space-xl) 8px;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-strong);
+}
+
+.commit-hover-header svg,
+.commit-hover-refs svg,
+.commit-hover-hash svg {
+  width: var(--icon-md);
+  height: var(--icon-md);
+  flex: 0 0 auto;
+}
+
+.commit-hover-author,
+.commit-hover-time,
+.commit-hover-ref-pill span,
+.commit-hover-hash code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-hover-author {
+  color: var(--develop);
+  font-weight: var(--font-weight-title);
+}
+
+.commit-hover-time {
+  color: var(--text);
+}
+
+.commit-hover-title {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  padding: 8px var(--space-xl) 10px;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--text);
+  font-size: var(--font-md);
+  font-weight: var(--font-weight-title);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.commit-hover-stats {
+  padding: 9px var(--space-xl);
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--text);
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-strong);
+  line-height: 1.35;
+}
+
+.commit-hover-refs {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding: 9px var(--space-xl);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.commit-hover-ref-pill {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 4px 9px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--branch-color, var(--main)) 20%, var(--surface));
+  color: var(--branch-color, var(--main));
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-control);
+}
+
+.commit-hover-hash {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 9px var(--space-xl) 10px;
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  font-weight: var(--font-weight-strong);
+}
+
+.commit-hover-hash code {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: var(--font-sm);
+}
+
+@keyframes commit-hover-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (max-width: 760px) {
+  .commit-hover-panel.changed-side-panel {
+    right: auto;
+    left: 10px;
+    width: min(336px, calc(100vw - 20px));
+    max-width: calc(100vw - 20px);
+  }
+}
+
 .changed-section {
   flex: 0 0 auto;
   padding-bottom: 8px;

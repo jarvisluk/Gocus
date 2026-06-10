@@ -364,6 +364,7 @@ function testWindowGeometryModule() {
     clampExpandedSize,
     mainWindowBounds,
     temporaryInfoBounds,
+    windowBoundsEqual,
   } = require(path.join(projectRoot, "electron/lib/windowGeometry.cjs"));
   const display = { x: 0, y: 24, width: 1440, height: 876 };
 
@@ -403,6 +404,9 @@ function testWindowGeometryModule() {
     }),
     { x: 780, y: 200, width: 280, height: 252 },
   );
+  assert.equal(windowBoundsEqual({ x: 1, y: 2, width: 3, height: 4 }, { x: 1, y: 2, width: 3, height: 4 }), true);
+  assert.equal(windowBoundsEqual({ x: 1, y: 2, width: 3, height: 4 }, { x: 1, y: 3, width: 3, height: 4 }), false);
+  assert.equal(windowBoundsEqual(null, { x: 1, y: 2, width: 3, height: 4 }), false);
 }
 
 function testIpcHandlersModule() {
@@ -1202,7 +1206,7 @@ async function testCommitListView(server) {
 }
 
 async function testCommitRowView(server) {
-  const { commitRowView } = await loadTsModule(server, "src/lib/commitRowView.ts");
+  const { commitHoverPanelView, commitRowView } = await loadTsModule(server, "src/lib/commitRowView.ts");
   const selectedMerge = commit({
     message: "Merge branch 'feature/details'\n\nKeep the full body available.",
     refs: ["main", "tag:v1"],
@@ -1304,6 +1308,22 @@ async function testCommitRowView(server) {
     disabled: true,
     title: "Open that worktree first to checkout there.",
   });
+
+  const hoverPanel = commitHoverPanelView(selectedMerge);
+  assert.equal(hoverPanel.panel.className, "commit-hover-panel changed-side-panel");
+  assert.equal(hoverPanel.panel.role, "tooltip");
+  assert.equal(hoverPanel.panel.ariaLabel, "Commit a1b2c3d details");
+  assert.equal(hoverPanel.author, "Codex");
+  assert.equal(hoverPanel.relativeTime, "2 minutes ago");
+  assert.equal(hoverPanel.message, "Merge branch 'feature/details'\n\nKeep the full body available.");
+  assert.equal(hoverPanel.filesLabel, "2 files changed");
+  assert.equal(hoverPanel.insertionsLabel, "8 insertions(+)");
+  assert.equal(hoverPanel.deletionsLabel, "1 deletion(-)");
+  assert.deepEqual(hoverPanel.refs, [
+    { key: "main-0", label: "main", color: "#123456" },
+    { key: "tag:v1-1", label: "tag:v1", color: "#2f80ed" },
+  ]);
+  assert.equal(hoverPanel.hash, "a1b2c3d");
 }
 
 async function testCommitView(server) {
