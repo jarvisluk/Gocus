@@ -7,6 +7,7 @@ import { Footer } from "./components/Footer";
 import { PanelHeader } from "./components/PanelHeader";
 import { RecentCommits } from "./components/RecentCommits";
 import { RepositoryControls } from "./components/RepositoryControls";
+import { RepositoryStateBanner } from "./components/RepositoryStateBanner";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { useGitPeekController } from "./app/useGitPeekController";
 import { useSettingsEscape, useZenEscape } from "./app/useAppKeyboardShortcuts";
@@ -166,6 +167,7 @@ export default function App() {
 
               {panelContent.mode === "repository" ? (
                 <>
+                  <RepositoryStateBanner state={panelContent.snapshot.repositoryState} />
                   {showRepositoryControls ? (
                     <RepositoryControls
                       snapshot={panelContent.snapshot}

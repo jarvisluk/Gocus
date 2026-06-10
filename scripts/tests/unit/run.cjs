@@ -13,6 +13,21 @@ function gitAcceptsBranchName(branchName) {
   return spawnSync("git", ["check-ref-format", "--branch", branchName], { stdio: "ignore" }).status === 0;
 }
 
+function runGitFixture(cwd, args, options = {}) {
+  const result = spawnSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    ...options,
+  });
+
+  if (options.allowFailure) return result;
+  if (result.status !== 0) {
+    throw new Error(`git ${args.join(" ")} failed: ${result.stderr || result.stdout}`);
+  }
+
+  return result.stdout.trim();
+}
+
 function commit(overrides = {}) {
   return {
     id: "a1b2c3d",
@@ -60,6 +75,7 @@ function gitSnapshot(overrides = {}) {
     counts: { modified: 0, staged: 0, untracked: 0 },
     commits: [commit({ id: "keep" }), commit({ id: "other" })],
     changedFiles: [],
+    repositoryState: { operation: "none", operationLabel: "Ready", hasConflicts: false, conflictedFiles: [] },
     lastFetchedAt: "2026-06-10T00:00:00.000Z",
     isSample: false,
     ...overrides,
@@ -487,8 +503,8 @@ function testIpcHandlersModule() {
 }
 
 function testGitStatusModule() {
-  const { applyNumstat, parseStatus } = require(path.join(projectRoot, "electron/lib/gitStatus.cjs"));
-  const status = parseStatus("## main...origin/main [ahead 2, behind 1]\n M src/App.tsx\nA  README.md\n?? notes.txt\n");
+  const { applyNumstat, isConflictedStatus, parseStatus } = require(path.join(projectRoot, "electron/lib/gitStatus.cjs"));
+  const status = parseStatus("## main...origin/main [ahead 2, behind 1]\n M src/App.tsx\nA  README.md\n?? notes.txt\nUU src/conflict.ts\n");
 
   assert.deepEqual(status.branch, {
     name: "main",
@@ -497,10 +513,13 @@ function testGitStatusModule() {
     behind: 1,
     detached: false,
   });
-  assert.deepEqual(status.counts, { modified: 1, staged: 1, untracked: 1 });
+  assert.deepEqual(status.counts, { modified: 2, staged: 2, untracked: 1 });
   assert.equal(status.files[0].statusLabel, "Modified");
   assert.equal(status.files[1].statusLabel, "Added");
   assert.equal(status.files[2].statusLabel, "Untracked");
+  assert.equal(status.files[3].statusLabel, "Conflicted");
+  assert.equal(isConflictedStatus("UU"), true);
+  assert.equal(isConflictedStatus(" M"), false);
 
   applyNumstat(status.files, "12\t2\tsrc/App.tsx\n-\t-\tnotes.txt\n");
   assert.equal(status.files[0].additions, 12);
@@ -509,8 +528,9 @@ function testGitStatusModule() {
   assert.equal(status.files[2].deletions, 0);
 }
 
-function testGitModule() {
-  const { mergeArgs } = require(path.join(projectRoot, "electron/lib/git.cjs"));
+async function testGitModule() {
+  const { mergeArgs, repositoryStateForGit } = require(path.join(projectRoot, "electron/lib/git.cjs"));
+  const { parseStatus } = require(path.join(projectRoot, "electron/lib/gitStatus.cjs"));
 
   assert.deepEqual(mergeArgs("feature/footer-toggle"), ["merge", "--no-ff", "--no-edit", "feature/footer-toggle"]);
   assert.deepEqual(mergeArgs("feature/footer-toggle", { createMergeCommit: true }), [
@@ -524,6 +544,37 @@ function testGitModule() {
     "--no-edit",
     "feature/footer-toggle",
   ]);
+
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-merge-state-"));
+  try {
+    runGitFixture(tempDir, ["init"]);
+    runGitFixture(tempDir, ["checkout", "-b", "main"]);
+    runGitFixture(tempDir, ["config", "user.name", "Git Peek Test"]);
+    runGitFixture(tempDir, ["config", "user.email", "git-peek@example.com"]);
+    fs.writeFileSync(path.join(tempDir, "file.txt"), "base\n", "utf8");
+    runGitFixture(tempDir, ["add", "file.txt"]);
+    runGitFixture(tempDir, ["commit", "-m", "base"]);
+    runGitFixture(tempDir, ["checkout", "-b", "feature"]);
+    fs.writeFileSync(path.join(tempDir, "file.txt"), "feature\n", "utf8");
+    runGitFixture(tempDir, ["commit", "-am", "feature"]);
+    runGitFixture(tempDir, ["checkout", "main"]);
+    fs.writeFileSync(path.join(tempDir, "file.txt"), "main\n", "utf8");
+    runGitFixture(tempDir, ["commit", "-am", "main"]);
+
+    const mergeResult = runGitFixture(tempDir, ["merge", "feature"], { allowFailure: true });
+    assert.notEqual(mergeResult.status, 0);
+
+    const shortStatus = runGitFixture(tempDir, ["status", "--porcelain=v1", "-b"]);
+    const repositoryState = await repositoryStateForGit(tempDir, parseStatus(shortStatus));
+    assert.deepEqual(repositoryState, {
+      operation: "merge",
+      operationLabel: "Merge",
+      hasConflicts: true,
+      conflictedFiles: ["file.txt"],
+    });
+  } finally {
+    fs.rmSync(tempDir, { force: true, recursive: true });
+  }
 }
 
 function testGitGraphModule() {
@@ -1913,6 +1964,17 @@ async function testSnapshotResponseView(server) {
     ok: true,
     snapshot: gitSnapshot(),
   };
+  const mergeResponse = {
+    ok: true,
+    snapshot: gitSnapshot({
+      repositoryState: {
+        operation: "merge",
+        operationLabel: "Merge",
+        hasConflicts: true,
+        conflictedFiles: ["src/App.tsx", "src/styles.css"],
+      },
+    }),
+  };
   const canceledResponse = { ok: false, reason: "read_failed", error: "Stopped.", canceled: true };
   const notGitResponse = { ok: false, reason: "not_git_repository", folder };
   const notGitErrorResponse = {
@@ -1930,6 +1992,8 @@ async function testSnapshotResponseView(server) {
 
   assert.equal(snapshotResponseNotice(okResponse, "Loaded."), "Loaded.");
   assert.equal(snapshotResponseNotice(okResponse, null), null);
+  assert.equal(snapshotResponseNotice(mergeResponse, "Loaded."), "Merge in progress: 2 conflicted files.");
+  assert.equal(snapshotResponseNotice(mergeResponse, null), null);
   assert.equal(snapshotResponseNotice(canceledResponse), null);
   assert.equal(snapshotResponseNotice(notGitResponse), "no-git does not have Git initialized yet.");
   assert.equal(snapshotResponseNotice(notGitErrorResponse), "Git is unavailable here.");
@@ -1946,6 +2010,35 @@ async function testSnapshotResponseView(server) {
   assert.equal(folderWithoutGitAfterSnapshotResponse(canceledResponse), undefined);
   assert.deepEqual(folderWithoutGitAfterSnapshotResponse(notGitResponse), folder);
   assert.equal(folderWithoutGitAfterSnapshotResponse(readFailedResponse), null);
+}
+
+async function testRepositoryStateView(server) {
+  const {
+    repositoryStateActive,
+    repositoryStateBannerView,
+    repositoryStateNotice,
+  } = await loadTsModule(server, "src/lib/repositoryStateView.ts");
+  const ready = { operation: "none", operationLabel: "Ready", hasConflicts: false, conflictedFiles: [] };
+  const merge = {
+    operation: "merge",
+    operationLabel: "Merge",
+    hasConflicts: true,
+    conflictedFiles: ["src/App.tsx"],
+  };
+  const rebase = { operation: "rebase", operationLabel: "Rebase", hasConflicts: false, conflictedFiles: [] };
+
+  assert.equal(repositoryStateActive(ready), false);
+  assert.equal(repositoryStateActive(merge), true);
+  assert.equal(repositoryStateNotice(ready), "");
+  assert.equal(repositoryStateNotice(merge), "Merge in progress: 1 conflicted file.");
+  assert.equal(repositoryStateNotice(rebase), "Rebase in progress.");
+  assert.deepEqual(repositoryStateBannerView(merge), {
+    className: "repository-state-banner",
+    role: "status",
+    ariaLive: "polite",
+    title: "Merge in progress",
+    detail: "1 conflicted file",
+  });
 }
 
 async function testActionResponseView(server) {
@@ -2971,8 +3064,23 @@ async function testPathAndFileStatus(server) {
     "untracked",
   );
   assert.equal(
+    fileKind({
+      path: "src/conflict.ts",
+      status: "UU",
+      indexStatus: "U",
+      workingTreeStatus: "U",
+      additions: 0,
+      deletions: 0,
+    }),
+    "modified",
+  );
+  assert.equal(
     statusLetter({ path: "README.md", status: "R ", indexStatus: "R", workingTreeStatus: " ", additions: 1, deletions: 1 }),
     "R",
+  );
+  assert.equal(
+    statusLetter({ path: "src/conflict.ts", status: "UU", indexStatus: "U", workingTreeStatus: "U", additions: 0, deletions: 0 }),
+    "!",
   );
   assert.equal(
     statusLetter({
@@ -3022,6 +3130,15 @@ async function testCommitPrompt(server) {
   const zeroDelta = changedFile({
     path: "README.md",
     statusLabel: "Touched",
+    additions: 0,
+    deletions: 0,
+  });
+  const conflicted = changedFile({
+    path: "src/conflict.ts",
+    status: "UU",
+    indexStatus: "U",
+    workingTreeStatus: "U",
+    statusLabel: "Conflicted",
     additions: 0,
     deletions: 0,
   });
@@ -3300,6 +3417,15 @@ async function testChangedFileView(server) {
     additions: 0,
     deletions: 0,
   });
+  const conflicted = changedFile({
+    path: "src/conflict.ts",
+    status: "UU",
+    indexStatus: "U",
+    workingTreeStatus: "U",
+    statusLabel: "Conflicted",
+    additions: 0,
+    deletions: 0,
+  });
 
   assert.deepEqual(changedFileDeltaView(modified), {
     additionsLabel: "+12",
@@ -3333,6 +3459,8 @@ async function testChangedFileView(server) {
   });
   assert.equal(changedFileView(zeroDelta).gitStatus, "?");
   assert.equal(changedFileView(zeroDelta).statusDetail, "Touched");
+  assert.equal(changedFileView(conflicted).statusLetter, "!");
+  assert.equal(changedFileView(conflicted).statusDetail, "Conflicted");
 
   const modifiedView = changedFileView(modified);
   const selectedRow = changedFileRowView(modified, modifiedView.key);
@@ -4693,7 +4821,7 @@ async function main() {
   testWindowGeometryModule();
   testIpcHandlersModule();
   testGitStatusModule();
-  testGitModule();
+  await testGitModule();
   testGitGraphModule();
 
   const { createServer } = await import("vite");
@@ -4719,6 +4847,7 @@ async function main() {
     await testCommitView(server);
     await testCommitInfoSelection(server);
     await testSnapshotResponseView(server);
+    await testRepositoryStateView(server);
     await testActionResponseView(server);
     await testAutoRefresh(server);
     await testPreferences(server);

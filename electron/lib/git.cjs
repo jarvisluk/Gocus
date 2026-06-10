@@ -7,7 +7,7 @@ const {
   runGit,
 } = require("./gitCore.cjs");
 const { parseLog } = require("./gitGraph.cjs");
-const { applyNumstat, parseStatus } = require("./gitStatus.cjs");
+const { applyNumstat, isConflictedStatus, parseStatus } = require("./gitStatus.cjs");
 
 const starterGitIgnore = [
   "# Git Peek starter .gitignore",
@@ -184,6 +184,63 @@ function parseWorktrees(output, currentRoot) {
     .filter((worktree) => worktree.path);
 }
 
+async function gitPathExists(root, gitPath) {
+  const resolvedGitPath = await runGit(root, ["rev-parse", "--git-path", gitPath]).catch(() => "");
+  if (!resolvedGitPath) return false;
+  const absoluteGitPath = path.isAbsolute(resolvedGitPath) ? resolvedGitPath : path.join(root, resolvedGitPath);
+
+  try {
+    await fs.stat(absoluteGitPath);
+    return true;
+  } catch (error) {
+    if (error?.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+function repositoryOperationLabel(operation) {
+  if (operation === "merge") return "Merge";
+  if (operation === "rebase") return "Rebase";
+  if (operation === "cherry-pick") return "Cherry-pick";
+  if (operation === "revert") return "Revert";
+  if (operation === "bisect") return "Bisect";
+  return "Ready";
+}
+
+function conflictedFilesFromStatus(status) {
+  return status.files.filter((file) => isConflictedStatus(file.status)).map((file) => file.path);
+}
+
+async function repositoryStateForGit(root, status) {
+  const [merge, rebaseMerge, rebaseApply, cherryPick, revert, bisect] = await Promise.all([
+    gitPathExists(root, "MERGE_HEAD"),
+    gitPathExists(root, "rebase-merge"),
+    gitPathExists(root, "rebase-apply"),
+    gitPathExists(root, "CHERRY_PICK_HEAD"),
+    gitPathExists(root, "REVERT_HEAD"),
+    gitPathExists(root, "BISECT_LOG"),
+  ]);
+  const operation = merge
+    ? "merge"
+    : rebaseMerge || rebaseApply
+      ? "rebase"
+      : cherryPick
+        ? "cherry-pick"
+        : revert
+          ? "revert"
+          : bisect
+            ? "bisect"
+            : "none";
+  const conflictedFiles = conflictedFilesFromStatus(status);
+
+  return {
+    operation,
+    operationLabel: repositoryOperationLabel(operation),
+    hasConflicts: conflictedFiles.length > 0,
+    conflictedFiles,
+  };
+}
+
 async function enrichWorktree(worktree) {
   if (worktree.bare || !worktree.path) return worktree;
 
@@ -248,6 +305,7 @@ async function readGitSnapshot(repoPath, view = { mode: "all" }) {
   const root = await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
   const shortStatus = await runGit(root, ["status", "--porcelain=v1", "-b"]);
   const status = parseStatus(shortStatus);
+  const repositoryState = await repositoryStateForGit(root, status);
 
   const [repositoryKey, unstagedStats, stagedStats, branchesRaw, worktreesRaw] = await Promise.all([
     gitCommonDirKey(root),
@@ -284,6 +342,7 @@ async function readGitSnapshot(repoPath, view = { mode: "all" }) {
     counts: status.counts,
     commits: annotateCommitsWithWorktrees(parseLog(logRaw, graphContext), worktrees),
     changedFiles: status.files,
+    repositoryState,
     lastFetchedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     isSample: false,
   };
@@ -380,5 +439,6 @@ module.exports = {
   openWorktree,
   readFolderWithoutGit,
   readGitSnapshot,
+  repositoryStateForGit,
   runGit,
 };

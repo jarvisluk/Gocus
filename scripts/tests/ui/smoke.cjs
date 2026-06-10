@@ -158,12 +158,18 @@ function snapshotForCommits(commits, overrides = {}) {
     branches: overrides.branches ?? [],
     worktrees: overrides.worktrees ?? [],
     view: overrides.view ?? { mode: "all" },
-    counts: { modified: 1, staged: 0, untracked: 1 },
+    counts: overrides.counts ?? { modified: 1, staged: 0, untracked: 1 },
     commits,
-    changedFiles: [
+    changedFiles: overrides.changedFiles ?? [
       changedFile("src/components/RecentCommits.tsx"),
       changedFile("src/styles.css", { additions: 6, deletions: 0 }),
     ],
+    repositoryState: overrides.repositoryState ?? {
+      operation: "none",
+      operationLabel: "Ready",
+      hasConflicts: false,
+      conflictedFiles: [],
+    },
     lastFetchedAt: new Date().toISOString(),
     isSample: false,
   };
@@ -412,6 +418,36 @@ function mergeFailureScenario() {
       "Automatic merge failed; fix conflicts and then commit the result.",
     ].join("\n"),
   };
+}
+
+function mergeInProgressScenario() {
+  return mockedSnapshotScenario(mockCommits, {
+    counts: { modified: 2, staged: 2, untracked: 0 },
+    changedFiles: [
+      changedFile("src/App.tsx", {
+        status: "UU",
+        indexStatus: "U",
+        workingTreeStatus: "U",
+        statusLabel: "Conflicted",
+        additions: 0,
+        deletions: 0,
+      }),
+      changedFile("src/styles.css", {
+        status: "AA",
+        indexStatus: "A",
+        workingTreeStatus: "A",
+        statusLabel: "Conflicted",
+        additions: 0,
+        deletions: 0,
+      }),
+    ],
+    repositoryState: {
+      operation: "merge",
+      operationLabel: "Merge",
+      hasConflicts: true,
+      conflictedFiles: ["src/App.tsx", "src/styles.css"],
+    },
+  });
 }
 
 function refreshFailureScenario() {
@@ -900,6 +936,27 @@ async function testMergeFailureStaysInDialog(browser, baseUrl) {
     await mergeTargetButton.click();
     await page.locator("#action-merge-target-menu").getByRole("menuitem", { name: "feature/footer-toggle" }).click();
     assert.equal(await page.locator("#action-dialog-error").count(), 0);
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
+async function testMergeStateSurvivesStartup(browser, baseUrl) {
+  const { page, errors } = await openMockedPage(browser, baseUrl, mergeInProgressScenario());
+  try {
+    await assertHealthyPage(page, errors);
+
+    await page.locator(".repository-state-banner").filter({ hasText: "Merge in progress" }).waitFor();
+    await page.locator(".repository-state-banner").filter({ hasText: "2 conflicted files" }).waitFor();
+    await page.getByText("Merge in progress: 2 conflicted files.").waitFor();
+
+    await page.getByRole("button", { name: "Open Changed now" }).click();
+    await page.waitForFunction(() => window.__gitPeekTemporaryInfoPayload?.files?.length === 2);
+    assert.deepEqual(
+      await page.evaluate(() => window.__gitPeekTemporaryInfoPayload?.files.map((file) => file.statusLabel)),
+      ["Conflicted", "Conflicted"],
+    );
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -1603,6 +1660,7 @@ async function main() {
     await testCommitInfoPanel(browser, baseUrl);
     await testCommitSearch(browser, baseUrl);
     await testMergeFailureStaysInDialog(browser, baseUrl);
+    await testMergeStateSurvivesStartup(browser, baseUrl);
     await testTemporaryInfoCopyPrompt(browser, baseUrl);
     await testTemporaryInfoCopyFallback(browser, baseUrl);
     await testTemporaryInfoCopyFailure(browser, baseUrl);

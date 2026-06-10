@@ -19,6 +19,7 @@ export type CommitAction = "branch" | "merge" | "checkout";
 export type GraphLineVariant = "solid" | "dashed";
 export type AutoRefreshInterval = "off" | "1m" | "5m" | "15m";
 export type PromptLanguage = "en" | "zh";
+export type GitRepositoryOperation = "none" | "merge" | "rebase" | "cherry-pick" | "revert" | "bisect";
 
 export interface RecentRepository {
   path: string;
@@ -154,6 +155,13 @@ export interface ChangedFile {
   deletions: number;
 }
 
+export interface GitRepositoryState {
+  operation: GitRepositoryOperation;
+  operationLabel: string;
+  hasConflicts: boolean;
+  conflictedFiles: string[];
+}
+
 export type ChangedFilesTemporaryInfoPayload = {
   kind: "changed-files";
   files: ChangedFile[];
@@ -187,6 +195,7 @@ export interface GitSnapshot {
   counts: WorkingTreeCounts;
   commits: CommitItem[];
   changedFiles: ChangedFile[];
+  repositoryState: GitRepositoryState;
   lastFetchedAt: string;
   isSample: boolean;
 }

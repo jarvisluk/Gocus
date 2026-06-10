@@ -1,5 +1,11 @@
 const { safeInteger } = require("./gitCore.cjs");
 
+const conflictedStatusCodes = new Set(["DD", "AU", "UD", "UA", "DU", "AA", "UU"]);
+
+function isConflictedStatus(code) {
+  return conflictedStatusCodes.has(code);
+}
+
 function parseBranchLine(line) {
   const clean = line.replace(/^##\s*/, "");
   const result = {
@@ -46,6 +52,7 @@ function splitStatusPath(pathText) {
 }
 
 function statusLabel(code) {
+  if (isConflictedStatus(code)) return "Conflicted";
   if (code === "??") return "Untracked";
   if (code.includes("R")) return "Renamed";
   if (code.includes("C")) return "Copied";
@@ -109,6 +116,7 @@ function applyNumstat(files, output) {
 
 module.exports = {
   applyNumstat,
+  isConflictedStatus,
   parseBranchLine,
   parseStatus,
   splitStatusPath,
