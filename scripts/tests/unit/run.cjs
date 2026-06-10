@@ -1718,7 +1718,7 @@ async function testCommitListView(server) {
     className: "section-heading",
   });
   assert.equal(commitListView(commits, "").titleId, "recent-commits-title");
-  assert.equal(commitListView(commits, "").title, "Recent commits");
+  assert.equal(commitListView(commits, "").title, "Commits");
   assert.equal(commitListView(commits, "").filteredCount, 2);
   assert.equal(commitListView(commits, "").showCommits, true);
   assert.equal(commitListView(commits, "").showEmptyState, false);
@@ -4694,6 +4694,9 @@ async function testRepositoryControlsView(server) {
     repositorySelectedBranchSummaryView,
     repositoryViewChipView,
     repositoryWorktreeMenuChromeView,
+    repositoryWorktreeContextMenuChromeView,
+    repositoryWorktreeContextTriggerView,
+    repositoryWorktreeContextView,
     repositoryWorktreeMenuItemView,
     repositoryWorktreeMenuView,
     repositoryWorktreeSelection,
@@ -5015,6 +5018,48 @@ async function testRepositoryControlsView(server) {
     showWorktreeControl: false,
     worktreeItems: [],
   });
+  const worktreeContext = repositoryWorktreeContextView([bare, linked, current]);
+  assert.equal(worktreeContext.show, true);
+  assert.equal(worktreeContext.className, "worktree-context");
+  assert.equal(worktreeContext.staticClassName, "worktree-context-static");
+  assert.equal(worktreeContext.copyClassName, "worktree-context-copy");
+  assert.equal(worktreeContext.badgeClassName, "worktree-context-count");
+  assert.equal(worktreeContext.eyebrow, "Current worktree");
+  assert.equal(worktreeContext.label, "main");
+  assert.equal(worktreeContext.path, current.path);
+  assert.equal(worktreeContext.countLabel, "2 worktrees");
+  assert.equal(worktreeContext.title, current.path);
+  assert.equal(worktreeContext.ariaLabel, `Current worktree main at ${current.path}`);
+  assert.equal(worktreeContext.canSwitch, true);
+  assert.equal(worktreeContext.currentWorktree, current);
+  assert.deepEqual(worktreeContext.menu.worktreeItems, [
+    { worktree: linked, active: false },
+    { worktree: current, active: true },
+  ]);
+  assert.deepEqual(repositoryWorktreeContextView([current]), {
+    show: true,
+    className: "worktree-context",
+    staticClassName: "worktree-context-static",
+    copyClassName: "worktree-context-copy",
+    badgeClassName: "worktree-context-count",
+    eyebrow: "Current worktree",
+    label: "main",
+    path: current.path,
+    countLabel: "1 worktree",
+    title: current.path,
+    ariaLabel: `Current worktree main at ${current.path}`,
+    canSwitch: false,
+    currentWorktree: current,
+    menu: {
+      controlClassName: "worktree-compact",
+      switchableWorktrees: [current],
+      switchableWorktreeCount: 1,
+      currentWorktree: current,
+      showWorktreeControl: false,
+      worktreeItems: [{ worktree: current, active: true }],
+    },
+  });
+  assert.equal(repositoryWorktreeContextView([bare]).show, false);
   assert.deepEqual(repositoryWorktreeTriggerView(true, current), {
     id: "worktree-trigger",
     className: "worktree-trigger is-open",
@@ -5037,11 +5082,37 @@ async function testRepositoryControlsView(server) {
     label: "Worktrees",
     title: undefined,
   });
+  assert.deepEqual(repositoryWorktreeContextTriggerView(true, current), {
+    id: "worktree-context-trigger",
+    className: "worktree-context-trigger is-open",
+    icon: "worktree",
+    ariaLabel: "Choose worktree",
+    ariaHasPopup: "menu",
+    ariaExpanded: true,
+    ariaControls: "worktree-context-menu",
+    title: current.path,
+  });
+  assert.deepEqual(repositoryWorktreeContextTriggerView(false, undefined), {
+    id: "worktree-context-trigger",
+    className: "worktree-context-trigger",
+    icon: "worktree",
+    ariaLabel: "Choose worktree",
+    ariaHasPopup: "menu",
+    ariaExpanded: false,
+    ariaControls: "worktree-context-menu",
+    title: undefined,
+  });
   assert.deepEqual(repositoryWorktreeMenuChromeView(), {
     className: "ui-menu worktree-menu",
     id: "worktree-menu",
     role: "menu",
     ariaLabelledBy: "worktree-trigger",
+  });
+  assert.deepEqual(repositoryWorktreeContextMenuChromeView(), {
+    className: "ui-menu worktree-menu worktree-context-menu",
+    id: "worktree-context-menu",
+    role: "menu",
+    ariaLabelledBy: "worktree-context-trigger",
   });
   assert.deepEqual(repositoryWorktreeMenuItemView(true, current), {
     className: "ui-menu-item worktree-menu-item is-active",

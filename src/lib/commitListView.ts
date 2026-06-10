@@ -251,7 +251,7 @@ export function commitListView(commits: readonly CommitItem[], searchQuery: stri
       className: "section-heading",
     },
     titleId: recentCommitsTitleId,
-    title: "Recent commits",
+    title: "Commits",
     searchTerms,
     filteredCommits,
     filteredCount: filteredCommits.length,

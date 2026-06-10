@@ -9,6 +9,7 @@ import { RecentCommits } from "./components/RecentCommits";
 import { RepositoryControls } from "./components/RepositoryControls";
 import { RepositoryStateBanner } from "./components/RepositoryStateBanner";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { WorktreeContext } from "./components/WorktreeContext";
 import { useGitPeekController } from "./app/useGitPeekController";
 import { useSettingsEscape, useZenEscape } from "./app/useAppKeyboardShortcuts";
 import { useChangedNowPanel } from "./app/useChangedNowPanel";
@@ -174,9 +175,9 @@ export default function App() {
                       view={controller.commitView}
                       onChangeView={controller.changeCommitView}
                       onSwitchBranch={controller.switchBranch}
-                      onOpenWorktree={controller.openWorktree}
                     />
                   ) : null}
+                  <WorktreeContext worktrees={panelContent.snapshot.worktrees} onOpenWorktree={controller.openWorktree} />
                   <div className={commitScrollRegion.className}>
                     <RecentCommits
                       commits={panelContent.snapshot.commits}

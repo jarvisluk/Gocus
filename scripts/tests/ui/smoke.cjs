@@ -613,9 +613,9 @@ async function openMockedPage(browser, baseUrl, scenario, options = {}) {
 
 async function assertHealthyPage(page, errors) {
   assert.match(await page.title(), /Git Peek/);
-  await page.getByRole("heading", { name: "Recent commits" }).waitFor();
+  await page.getByRole("heading", { name: "Commits" }).waitFor();
   assert.equal(await page.locator(".commits-section").getAttribute("aria-labelledby"), "recent-commits-title");
-  assert.equal(await page.locator("#recent-commits-title").innerText(), "Recent commits");
+  assert.equal(await page.locator("#recent-commits-title").innerText(), "Commits");
   assert.equal(await page.locator(".vite-error-overlay").count(), 0, "Vite error overlay should not render");
   assert.deepEqual(errors, []);
 }
@@ -1518,7 +1518,7 @@ async function testFolderWithoutGitInitialize(browser, baseUrl) {
     await page.getByText("Adds a starter .gitignore.").waitFor();
 
     await page.getByRole("button", { name: "Initialize Git" }).click();
-    await page.getByRole("heading", { name: "Recent commits" }).waitFor();
+    await page.getByRole("heading", { name: "Commits" }).waitFor();
     assert.equal(await page.locator(".repo-title strong").innerText(), "plain-folder");
     await assertGitActions(page, [expectedInitializeRepositoryAction()]);
     assert.deepEqual(errors, []);
@@ -1784,7 +1784,7 @@ async function testDismissableMenus(browser, baseUrl) {
     assert.equal(await branchMenuButton.getAttribute("id"), "branch-ref-trigger");
     assert.equal(await branchMenuButton.getAttribute("aria-expanded"), "true");
     assert.equal(await page.locator("#branch-ref-menu").getAttribute("aria-labelledby"), "branch-ref-trigger");
-    await page.getByRole("heading", { name: "Recent commits" }).click();
+    await page.getByRole("heading", { name: "Commits" }).click();
     assert.equal(await page.locator("#branch-ref-menu").count(), 0);
     assert.equal(await branchMenuButton.getAttribute("aria-expanded"), "false");
 
@@ -1906,7 +1906,7 @@ async function testFocusedViewEscapeControls(browser, baseUrl) {
     await page.getByRole("heading", { name: "Settings" }).waitFor();
     assert.equal(await page.getByRole("heading", { name: "Open in" }).count(), 0);
     await page.keyboard.press("Escape");
-    await page.getByRole("heading", { name: "Recent commits" }).waitFor();
+    await page.getByRole("heading", { name: "Commits" }).waitFor();
 
     await page.getByRole("button", { name: "Enter Zen mode" }).click();
     await page.getByRole("button", { name: "Exit Zen mode" }).waitFor();
@@ -1917,7 +1917,7 @@ async function testFocusedViewEscapeControls(browser, baseUrl) {
       true,
     ]);
     await page.keyboard.press("Escape");
-    await page.getByRole("heading", { name: "Recent commits" }).waitFor();
+    await page.getByRole("heading", { name: "Commits" }).waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.dataset.zenMode), "false");
     assert.deepEqual(await page.evaluate(() => window.__gitPeekSavedPreferences.map((preferences) => preferences.zenMode)), [
       false,

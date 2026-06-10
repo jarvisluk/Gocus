@@ -29,6 +29,8 @@ export interface RepositoryBranchSwitchActionView {
 const branchTriggerId = "branch-ref-trigger";
 const branchMenuId = "branch-ref-menu";
 const worktreeTriggerId = "worktree-trigger";
+const worktreeContextTriggerId = "worktree-context-trigger";
+const worktreeContextMenuId = "worktree-context-menu";
 const worktreeMenuId = "worktree-menu";
 
 export const closedRepositoryControlsMenus: RepositoryControlsMenuState = {
@@ -254,6 +256,30 @@ export function repositoryWorktreeMenuView(worktrees: readonly GitWorktree[]) {
   };
 }
 
+export function repositoryWorktreeContextView(worktrees: readonly GitWorktree[]) {
+  const menu = repositoryWorktreeMenuView(worktrees);
+  const currentWorktree = menu.currentWorktree;
+  const label = worktreeChipLabel(currentWorktree);
+  const countLabel = menu.switchableWorktreeCount === 1 ? "1 worktree" : `${menu.switchableWorktreeCount} worktrees`;
+
+  return {
+    show: Boolean(currentWorktree),
+    className: "worktree-context",
+    staticClassName: "worktree-context-static",
+    copyClassName: "worktree-context-copy",
+    badgeClassName: "worktree-context-count",
+    eyebrow: "Current worktree",
+    label,
+    path: currentWorktree?.path ?? "",
+    countLabel,
+    title: currentWorktree?.path,
+    ariaLabel: currentWorktree ? `Current worktree ${label} at ${currentWorktree.path}` : undefined,
+    canSwitch: menu.showWorktreeControl,
+    currentWorktree,
+    menu,
+  };
+}
+
 export function repositoryWorktreeTriggerView(worktreeMenuOpen: boolean, currentWorktree: GitWorktree | undefined) {
   return {
     id: worktreeTriggerId,
@@ -268,12 +294,34 @@ export function repositoryWorktreeTriggerView(worktreeMenuOpen: boolean, current
   };
 }
 
+export function repositoryWorktreeContextTriggerView(worktreeMenuOpen: boolean, currentWorktree: GitWorktree | undefined) {
+  return {
+    id: worktreeContextTriggerId,
+    className: joinClass("worktree-context-trigger", worktreeMenuOpen && "is-open"),
+    icon: "worktree" as const,
+    ariaLabel: "Choose worktree",
+    ariaHasPopup: "menu" as const,
+    ariaExpanded: worktreeMenuOpen,
+    ariaControls: worktreeContextMenuId,
+    title: currentWorktree?.path,
+  };
+}
+
 export function repositoryWorktreeMenuChromeView() {
   return {
     className: "ui-menu worktree-menu",
     id: worktreeMenuId,
     role: "menu" as const,
     ariaLabelledBy: worktreeTriggerId,
+  };
+}
+
+export function repositoryWorktreeContextMenuChromeView() {
+  return {
+    className: "ui-menu worktree-menu worktree-context-menu",
+    id: worktreeContextMenuId,
+    role: "menu" as const,
+    ariaLabelledBy: worktreeContextTriggerId,
   };
 }
 
