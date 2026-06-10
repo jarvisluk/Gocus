@@ -1622,6 +1622,50 @@ async function testSwitchBranchFromBranchMenu(browser, baseUrl) {
   }
 }
 
+async function testBranchSwitchDisabledTooltipIsCompact(browser, baseUrl) {
+  const { page, errors } = await openMockedPage(browser, baseUrl, dismissableMenuScenario());
+  try {
+    await assertHealthyPage(page, errors);
+
+    await page.getByRole("button", { name: "Choose branch view" }).click();
+    const disabledSwitch = page.getByRole("menuitem", { name: /^Cannot switch to feature\/footer-toggle:/ });
+    await disabledSwitch.waitFor();
+    assert.equal(await disabledSwitch.isDisabled(), true);
+    assert.equal(await disabledSwitch.getAttribute("title"), "Checked out in another worktree");
+
+    const tooltip = page.locator(".branch-switch-tooltip", { has: disabledSwitch });
+    await tooltip.hover();
+    await page.waitForFunction(() => {
+      const bubble = document.querySelector(".branch-switch-tooltip-bubble");
+      return bubble && Number(window.getComputedStyle(bubble).opacity) > 0.95;
+    });
+    const bubbleMetrics = await tooltip.locator(".branch-switch-tooltip-bubble").evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
+
+      return {
+        text: element.textContent?.trim() ?? "",
+        opacity: style.opacity,
+        width: rect.width,
+        height: rect.height,
+      };
+    });
+    assert.match(bubbleMetrics.text, /Checked out elsewhere/);
+    assert.match(bubbleMetrics.text, /Open that worktree before switching/);
+    assert.doesNotMatch(bubbleMetrics.text, /\/Users|git-tree-vis-linked/);
+    assert.ok(Number(bubbleMetrics.opacity) >= 0.95, `tooltip should be visible: ${JSON.stringify(bubbleMetrics)}`);
+    assert.ok(bubbleMetrics.width <= 196, `tooltip should stay compact: ${JSON.stringify(bubbleMetrics)}`);
+    assert.ok(bubbleMetrics.height <= 64, `tooltip should stay compact: ${JSON.stringify(bubbleMetrics)}`);
+
+    await page.getByRole("menuitem", { name: "feature/footer-toggle", exact: true }).click();
+    await page.getByLabel("Viewing branch feature/footer-toggle").waitFor();
+    await assertGitActions(page, []);
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
 async function testMergeTargetDropdownShowsPriorityBranches(browser, baseUrl) {
   const { page, errors } = await openMockedPage(browser, baseUrl, crowdedMergeTargetScenario(), { viewport: { width: 640, height: 720 } });
   try {
@@ -2018,6 +2062,7 @@ async function main() {
     await testEmptyRepositoryRecentOverflow(browser, baseUrl);
     await testBranchViewDoesNotCheckout(browser, baseUrl);
     await testSwitchBranchFromBranchMenu(browser, baseUrl);
+    await testBranchSwitchDisabledTooltipIsCompact(browser, baseUrl);
     await testMergeTargetDropdownShowsPriorityBranches(browser, baseUrl);
     await testOpenWorktreeKeepsCommitView(browser, baseUrl);
     await testRefreshFailureRecovers(browser, baseUrl);

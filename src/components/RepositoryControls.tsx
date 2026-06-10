@@ -148,17 +148,25 @@ export function RepositoryControls({
                       <span>{itemView.label}</span>
                     </button>
                     {itemView.switchAction.show ? (
-                      <button
-                        className={itemView.switchAction.className}
-                        type="button"
-                        role="menuitem"
-                        aria-label={itemView.switchAction.ariaLabel}
-                        title={itemView.switchAction.title}
-                        disabled={itemView.switchAction.disabled}
-                        onClick={() => switchBranch(itemView.switchAction.branchName)}
-                      >
-                        {repositoryControlIcon(itemView.switchAction.icon)}
-                      </button>
+                      <span className="branch-switch-tooltip" title={itemView.switchAction.title}>
+                        <button
+                          className={itemView.switchAction.className}
+                          type="button"
+                          role="menuitem"
+                          aria-label={itemView.switchAction.ariaLabel}
+                          title={itemView.switchAction.title}
+                          disabled={itemView.switchAction.disabled}
+                          onClick={() => switchBranch(itemView.switchAction.branchName)}
+                        >
+                          {repositoryControlIcon(itemView.switchAction.icon)}
+                        </button>
+                        {itemView.switchAction.disabled ? (
+                          <span className="branch-switch-tooltip-bubble" role="tooltip" aria-hidden="true">
+                            <strong>Checked out elsewhere</strong>
+                            <span>Open that worktree before switching.</span>
+                          </span>
+                        ) : null}
+                      </span>
                     ) : null}
                   </div>
                 );

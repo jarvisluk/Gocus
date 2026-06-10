@@ -1598,6 +1598,8 @@ async function testActionDialogView(server) {
       mergeTargetErrorId: actionMergeTargetErrorId,
       actionError: actionDialogMergeDefaults.actionError,
       showActionError: false,
+      mergeFailurePrompt: "",
+      showMergeFailurePrompt: false,
       resolvedBranchName: "",
       showResolvedBranchName: false,
       branchValidationMessage: "",
@@ -4731,6 +4733,10 @@ async function testRepositoryControlsView(server) {
   const current = worktree();
   const linked = worktree({ path: "/Users/junrong/codespace/git-tree-vis-linked", branch: "feature/worktree-menu", current: false });
   const bare = worktree({ path: "/Users/junrong/codespace/git-tree-vis.git", branch: "", current: false, bare: true });
+  const linkedBranchDisabledReason =
+    "This branch is already checked out in another worktree: " +
+    "/Users/junrong/codespace/git-tree-vis-linked. Open that worktree to work on it.";
+  const linkedBranchDisabledAriaLabel = `Cannot switch to feature/worktree-menu: ${linkedBranchDisabledReason}`;
 
   assert.equal(selectedBranchName({ mode: "all" }), "");
   assert.equal(selectedBranchName({ mode: "branch", ref: "feature/worktree-menu" }), "feature/worktree-menu");
@@ -4823,8 +4829,8 @@ async function testRepositoryControlsView(server) {
     branchName: "feature/worktree-menu",
     className: "branch-switch-button",
     icon: "switch",
-    ariaLabel: "Switch to feature/worktree-menu",
-    title: "This branch is checked out in another worktree.",
+    ariaLabel: linkedBranchDisabledAriaLabel,
+    title: "Checked out in another worktree",
   });
   assert.deepEqual(repositoryBranchMenuItemView(true, branches[0]), {
     rowClassName: "branch-ref-menu-row",
