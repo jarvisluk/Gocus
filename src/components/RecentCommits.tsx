@@ -10,6 +10,7 @@ import {
   commitSearchStateAfterClose,
   commitSearchStateAfterToggle,
   commitSelectionVisible,
+  commitVirtualWindow,
   firstCommitId,
   type CommitSearchStateTransition,
 } from "../lib/commitListView";
@@ -21,6 +22,14 @@ function commitActionIcon(icon: CommitRowActionIcon) {
   if (icon === "branch") return <GitFork aria-hidden="true" />;
   if (icon === "merge") return <GitMerge aria-hidden="true" />;
   return <GitBranch aria-hidden="true" />;
+}
+
+function commitScrollContainer(listNode: HTMLElement) {
+  return listNode.closest<HTMLElement>(".scroll-region") ?? listNode;
+}
+
+function commitListSpacerStyle(height: number) {
+  return { height: `${height}px` } satisfies CSSProperties;
 }
 
 function CommitRow({
@@ -193,8 +202,10 @@ export function RecentCommits({
   const [searchQuery, setSearchQuery] = useState("");
   const commitPreviewOpenRef = useRef(false);
   const commitPreviewCommitIdRef = useRef("");
+  const listRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchToggleRef = useRef<HTMLButtonElement>(null);
+  const [scrollFrame, setScrollFrame] = useState({ scrollTop: 0, viewportHeight: 0 });
   const {
     canSearch,
     count,
@@ -214,12 +225,66 @@ export function RecentCommits({
     title,
     titleId,
   } = useMemo(() => commitListView(commits, searchQuery, searchOpen), [commits, searchOpen, searchQuery]);
+  const selectedFilteredIndex = useMemo(
+    () => filteredCommits.findIndex((commit) => commit.id === selectedId),
+    [filteredCommits, selectedId],
+  );
+  const virtualWindow = useMemo(
+    () =>
+      commitVirtualWindow({
+        itemCount: filteredCommits.length,
+        selectedIndex: selectedFilteredIndex,
+        scrollTop: scrollFrame.scrollTop,
+        viewportHeight: scrollFrame.viewportHeight,
+      }),
+    [filteredCommits.length, scrollFrame.scrollTop, scrollFrame.viewportHeight, selectedFilteredIndex],
+  );
+  const visibleCommits = useMemo(
+    () => filteredCommits.slice(virtualWindow.startIndex, virtualWindow.endIndex),
+    [filteredCommits, virtualWindow.endIndex, virtualWindow.startIndex],
+  );
 
   useEffect(() => {
     if (!searchOpen) return;
     searchInputRef.current?.focus();
     searchInputRef.current?.select();
   }, [searchOpen]);
+
+  useEffect(() => {
+    const listNode = listRef.current;
+    if (!listNode) return undefined;
+
+    const scrollNode = commitScrollContainer(listNode);
+    let frame = 0;
+    const readScrollFrame = () => {
+      frame = 0;
+      const nextFrame = {
+        scrollTop: scrollNode.scrollTop,
+        viewportHeight: scrollNode.clientHeight,
+      };
+      setScrollFrame((current) =>
+        current.scrollTop === nextFrame.scrollTop && current.viewportHeight === nextFrame.viewportHeight
+          ? current
+          : nextFrame,
+      );
+    };
+    const scheduleRead = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(readScrollFrame);
+    };
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(scheduleRead);
+
+    readScrollFrame();
+    scrollNode.addEventListener("scroll", scheduleRead, { passive: true });
+    resizeObserver?.observe(scrollNode);
+    resizeObserver?.observe(listNode);
+
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      scrollNode.removeEventListener("scroll", scheduleRead);
+      resizeObserver?.disconnect();
+    };
+  }, [filteredCommits.length]);
 
   useEffect(() => {
     applySearchState(commitSearchStateAfterAvailability({ searchOpen, searchQuery }, canSearch));
@@ -348,14 +413,18 @@ export function RecentCommits({
         </div>
       </div>
       <div
+        ref={listRef}
         className={list.className}
         onBlur={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget)) closeCommitPreview();
         }}
         onPointerLeave={closeCommitPreview}
       >
+        {virtualWindow.topPadding > 0 ? (
+          <div className="commit-list-spacer" style={commitListSpacerStyle(virtualWindow.topPadding)} aria-hidden="true" />
+        ) : null}
         {showCommits ? (
-          filteredCommits.map((commit) => (
+          visibleCommits.map((commit) => (
             <CommitRow
               key={commit.id}
               commit={commit}
@@ -367,6 +436,9 @@ export function RecentCommits({
               onDismissPreview={closeCommitPreview}
             />
           ))
+        ) : null}
+        {virtualWindow.bottomPadding > 0 ? (
+          <div className="commit-list-spacer" style={commitListSpacerStyle(virtualWindow.bottomPadding)} aria-hidden="true" />
         ) : null}
         {showEmptyState ? (
           <div className={emptyState.className} role={emptyState.role} aria-live={emptyState.ariaLive}>

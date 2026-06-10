@@ -32,6 +32,8 @@ export interface MergeTargetBranchOption {
 
 export type ActionDialogGlobalKeyAction = "cancel" | "ignore";
 export type ActionDialogBranchNameKeyAction = "confirm" | "block" | "ignore";
+export type ActionDialogCopyPromptState = "idle" | "copied" | "failed";
+export type ActionDialogCopyPromptIcon = "copy" | "check" | "x";
 export type ActionDialogConfirmation =
   | {
       type: "createBranch";
@@ -68,6 +70,8 @@ export type ActionDialogState =
       title: string;
       body: string;
       ref?: string;
+      fallbackNotice?: string;
+      failureNotice?: string;
     }
   | {
       type: "merge";
@@ -106,13 +110,21 @@ export function mergeTargetBranchOptions(
   branches: readonly Pick<GitBranchRef, "current" | "name" | "type">[],
   currentBranchName = "",
 ): MergeTargetBranchOption[] {
+  const priority = (branch: MergeTargetBranchOption) => {
+    if (branch.current) return 0;
+    if (branch.name === "main") return 1;
+    if (branch.name === "develop") return 2;
+    if (branch.name === "master") return 3;
+    return 4;
+  };
+
   return branches
     .filter((branch) => branch.type === "local" && branch.name)
     .map((branch) => ({
       name: branch.name,
       current: branch.current || branch.name === currentBranchName,
     }))
-    .sort((left, right) => Number(right.current) - Number(left.current) || left.name.localeCompare(right.name));
+    .sort((left, right) => priority(left) - priority(right) || left.name.localeCompare(right.name));
 }
 
 export function mergeCommitActionDialog(
@@ -145,9 +157,11 @@ export function commitActionDialog(
 export function checkoutRefActionDialog(ref: string): ActionDialogState {
   return {
     type: "checkout",
-    title: "Checkout branch",
+    title: "Switch branch",
     body: `Switch the working folder to ${ref}.`,
     ref,
+    fallbackNotice: `Switched to ${ref}.`,
+    failureNotice: "Unable to switch branch.",
   };
 }
 
@@ -205,6 +219,80 @@ export function actionDialogAfterMergeError(dialog: ActionDialogState | null, er
   return dialog?.type === "merge" ? { ...dialog, error } : dialog;
 }
 
+export function mergeFailureAgentPrompt({
+  createMergeCommit,
+  error,
+  ref,
+  targetBranch,
+}: {
+  createMergeCommit?: boolean;
+  error: string;
+  ref?: string;
+  targetBranch: string;
+}) {
+  const sourceRef = ref?.trim() || "unknown";
+  const target = targetBranch.trim() || "unknown";
+  const errorText = error.trim() || "No error output was captured.";
+  const mergeInstructions = [
+    [
+      "Please inspect the current repository state with git status, resolve the merge conflict or blocker,",
+      "keep unrelated worktree changes intact, run the relevant tests/build, and leave a concise summary of what changed.",
+      "If a merge is already in progress, continue from that state instead of starting over.",
+    ].join(" "),
+  ];
+
+  if (createMergeCommit) {
+    mergeInstructions.push(
+      [
+        "No-fast-forward merges are enabled in Settings, so do not complete this as a fast-forward merge;",
+        "preserve an explicit merge commit when retrying or finishing the merge.",
+      ].join(" "),
+    );
+  }
+
+  return [
+    "A Git merge failed in this repository. Please handle it end to end.",
+    "",
+    "Attempted merge:",
+    `- Source ref/commit: ${sourceRef}`,
+    `- Target branch: ${target}`,
+    "",
+    "Failure output:",
+    "```text",
+    errorText,
+    "```",
+    "",
+    ...mergeInstructions,
+  ].join("\n");
+}
+
+export function actionDialogCopyPromptButtonView(copyState: ActionDialogCopyPromptState) {
+  if (copyState === "copied") {
+    return {
+      className: "ui-button action-dialog-copy-prompt",
+      label: "Copied prompt",
+      title: "Copied prompt",
+      icon: "check" as ActionDialogCopyPromptIcon,
+    };
+  }
+
+  if (copyState === "failed") {
+    return {
+      className: "ui-button action-dialog-copy-prompt",
+      label: "Copy failed",
+      title: "Copy failed",
+      icon: "x" as ActionDialogCopyPromptIcon,
+    };
+  }
+
+  return {
+    className: "ui-button action-dialog-copy-prompt",
+    label: "Copy agent prompt",
+    title: "Copy agent prompt",
+    icon: "copy" as ActionDialogCopyPromptIcon,
+  };
+}
+
 export function actionDialogConfirmation(dialog: ActionDialogState | null): ActionDialogConfirmation | null {
   if (!dialog) return null;
 
@@ -225,8 +313,8 @@ export function actionDialogConfirmation(dialog: ActionDialogState | null): Acti
     return {
       type: "checkout",
       ref: dialog.ref,
-      fallbackNotice: "Checkout complete.",
-      failureNotice: "Unable to checkout ref.",
+      fallbackNotice: dialog.fallbackNotice ?? "Checkout complete.",
+      failureNotice: dialog.failureNotice ?? "Unable to checkout ref.",
     };
   }
 
@@ -243,7 +331,7 @@ export function actionDialogConfirmation(dialog: ActionDialogState | null): Acti
   return null;
 }
 
-export function actionDialogView(dialog: ActionDialogState) {
+export function actionDialogView(dialog: ActionDialogState, { createMergeCommit = false }: { createMergeCommit?: boolean } = {}) {
   const isCreateBranch = dialog.type === "createBranch";
   const isMerge = dialog.type === "merge";
   const resolvedBranchName = isCreateBranch ? branchNameWithPrefix(dialog.branchPrefix, dialog.branchName) : "";
@@ -264,6 +352,15 @@ export function actionDialogView(dialog: ActionDialogState) {
   const branchErrorId = branchValidationMessage ? actionBranchErrorId : undefined;
   const actionErrorMessage = isMerge ? dialog.error?.trim() ?? "" : "";
   const actionErrorId = actionErrorMessage ? actionDialogErrorId : undefined;
+  const mergeFailurePrompt =
+    isMerge && actionErrorMessage
+      ? mergeFailureAgentPrompt({
+          createMergeCommit,
+          error: actionErrorMessage,
+          ref: dialog.ref,
+          targetBranch: dialog.targetBranch,
+        })
+      : "";
   const branchInputDescriptionIds = [showResolvedBranchName ? actionBranchPreviewId : undefined, branchErrorId].filter(Boolean);
   const dialogDescriptionIds = [actionDialogBodyId, actionErrorId].filter(Boolean);
 
@@ -333,12 +430,15 @@ export function actionDialogView(dialog: ActionDialogState) {
     showMergeTargetValidationMessage: Boolean(mergeTargetValidationMessage),
     mergeTargetErrorId: mergeTargetValidationMessage ? actionMergeTargetErrorId : undefined,
     actionError: {
+      containerClassName: "action-dialog-error-block",
       className: "ui-layer-panel ui-code-block action-dialog-error",
       id: actionDialogErrorId,
       role: "alert" as const,
       message: actionErrorMessage,
     },
     showActionError: Boolean(actionErrorMessage),
+    mergeFailurePrompt,
+    showMergeFailurePrompt: Boolean(mergeFailurePrompt),
     resolvedBranchName,
     showResolvedBranchName,
     branchValidationMessage,

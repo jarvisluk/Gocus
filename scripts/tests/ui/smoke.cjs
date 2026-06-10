@@ -26,6 +26,14 @@ function expectedCheckoutAction() {
   };
 }
 
+function expectedSwitchBranchAction(branchName = "feature/footer-toggle") {
+  return {
+    type: "checkout",
+    ref: branchName,
+    view: { mode: "current" },
+  };
+}
+
 function expectedMergeAction(targetBranch = "main", createMergeCommit = true) {
   return {
     type: "merge",
@@ -53,16 +61,22 @@ function expectedOpenWorktreeAction(view = { mode: "all" }) {
 }
 
 function graph(overrides = {}) {
+  const currentColor = overrides.currentColor ?? "#2f80ed";
+  const currentVariant = overrides.currentVariant ?? "solid";
+
   return {
     column: 0,
     laneCount: 1,
-    currentColor: "#2f80ed",
-    currentVariant: "solid",
+    currentColor,
+    currentVariant,
+    incomingColor: overrides.incomingColor ?? currentColor,
+    incomingVariant: overrides.incomingVariant ?? currentVariant,
     currentContinues: true,
     passThrough: [],
     parentStems: [],
     bridges: [],
     isMerge: false,
+    isCurrentHead: false,
     ...overrides,
   };
 }
@@ -121,6 +135,19 @@ const mockCommits = [
     refColors: ["#8b5cf6"],
   }),
 ];
+
+function numberedCommits(count) {
+  return Array.from({ length: count }, (_, index) => {
+    const number = String(index + 1).padStart(3, "0");
+    return commit({
+      hash: (index + 1).toString(16).padStart(7, "0"),
+      title: `Virtualized commit ${number}`,
+      message: `Virtualized commit ${number} keeps the list bounded`,
+      refs: index === 0 ? ["main"] : [],
+      relativeTime: `${index + 1} minutes ago`,
+    });
+  });
+}
 
 const externalWorktreeCommits = [
   commit({
@@ -392,6 +419,57 @@ function branchViewScenario() {
   });
 }
 
+function crowdedMergeTargetScenario() {
+  const overflowBranches = Array.from({ length: 18 }, (_, index) => {
+    const number = String(index + 1).padStart(2, "0");
+    const name = `topic/menu-overflow-${number}`;
+
+    return {
+      name,
+      fullName: `refs/heads/${name}`,
+      type: "local",
+      current: false,
+      upstream: "",
+    };
+  });
+
+  return mockedSnapshotScenario(mockCommits, {
+    branch: { name: "feat/branch-swift", upstream: "", ahead: 0, behind: 0, detached: false },
+    branches: [
+      { name: "feat/branch-swift", fullName: "refs/heads/feat/branch-swift", type: "local", current: true, upstream: "" },
+      { name: "codex/worktree-graph-mode", fullName: "refs/heads/codex/worktree-graph-mode", type: "local", current: false, upstream: "" },
+      {
+        name: "feat/beautify-commit-card-layout",
+        fullName: "refs/heads/feat/beautify-commit-card-layout",
+        type: "local",
+        current: false,
+        upstream: "",
+      },
+      { name: "feat/commit-blocking-flow", fullName: "refs/heads/feat/commit-blocking-flow", type: "local", current: false, upstream: "" },
+      { name: "feat/worktree-graph-mode", fullName: "refs/heads/feat/worktree-graph-mode", type: "local", current: false, upstream: "" },
+      {
+        name: "fiery-comet-driven-cleanup",
+        fullName: "refs/heads/fiery-comet-driven-cleanup",
+        type: "local",
+        current: false,
+        upstream: "",
+      },
+      {
+        name: "feat/super-long-branch-name-that-should-wrap-and-still-be-readable-in-the-target-menu",
+        fullName: "refs/heads/feat/super-long-branch-name-that-should-wrap-and-still-be-readable-in-the-target-menu",
+        type: "local",
+        current: false,
+        upstream: "",
+      },
+      { name: "main", fullName: "refs/heads/main", type: "local", current: false, upstream: "origin/main" },
+      { name: "develop", fullName: "refs/heads/develop", type: "local", current: false, upstream: "" },
+      { name: "master", fullName: "refs/heads/master", type: "local", current: false, upstream: "" },
+      ...overflowBranches,
+      { name: "origin/main", fullName: "refs/remotes/origin/main", type: "remote", current: false, upstream: "" },
+    ],
+  });
+}
+
 function mergeFailureScenario() {
   return {
     ...mockedSnapshotScenario(mockCommits, {
@@ -535,9 +613,9 @@ async function openMockedPage(browser, baseUrl, scenario, options = {}) {
 
 async function assertHealthyPage(page, errors) {
   assert.match(await page.title(), /Git Peek/);
-  await page.getByRole("heading", { name: "Recent commits" }).waitFor();
+  await page.getByRole("heading", { name: "Commits" }).waitFor();
   assert.equal(await page.locator(".commits-section").getAttribute("aria-labelledby"), "recent-commits-title");
-  assert.equal(await page.locator("#recent-commits-title").innerText(), "Recent commits");
+  assert.equal(await page.locator("#recent-commits-title").innerText(), "Commits");
   assert.equal(await page.locator(".vite-error-overlay").count(), 0, "Vite error overlay should not render");
   assert.deepEqual(errors, []);
 }
@@ -570,31 +648,50 @@ async function assertSelectedCommitGraphAnchors(page) {
   const metrics = await page.locator(".commit-row.is-selected").evaluate((row) => {
     const node = row.querySelector(".graph-node");
     const topSvg = row.querySelector(".graph-svg-top");
-    const bottomSvg = row.querySelector(".graph-svg-bottom");
+    const bridgeSvg = row.querySelector(".graph-svg-bridge");
+    const bridgeRunSvg = row.querySelector(".graph-svg-bridge-run");
+    const tailSvg = row.querySelector(".graph-svg-tail");
     const timeline = row.querySelector(".timeline-cell");
+    const bridgePath = row.querySelector(".graph-svg-bridge-run .graph-bridge");
 
-    if (!node || !topSvg || !bottomSvg || !timeline) return null;
+    if (!node || !topSvg || !bridgeSvg || !bridgeRunSvg || !tailSvg || !timeline || !bridgePath) return null;
 
     const nodeRect = node.getBoundingClientRect();
     const topSvgRect = topSvg.getBoundingClientRect();
-    const bottomSvgRect = bottomSvg.getBoundingClientRect();
+    const bridgeSvgRect = bridgeSvg.getBoundingClientRect();
+    const bridgeRunSvgRect = bridgeRunSvg.getBoundingClientRect();
+    const tailSvgRect = tailSvg.getBoundingClientRect();
     const rowRect = row.getBoundingClientRect();
     const timelineRect = timeline.getBoundingClientRect();
 
     return {
       nodeCenterY: nodeRect.top + nodeRect.height / 2,
       topSvgBottomY: topSvgRect.bottom,
-      bottomSvgTopY: bottomSvgRect.top,
+      bridgeSvgTopY: bridgeSvgRect.top,
+      bridgeSvgBottomY: bridgeSvgRect.bottom,
+      bridgeSvgHeight: bridgeSvgRect.height,
+      bridgeRunSvgTopY: bridgeRunSvgRect.top,
+      bridgeRunSvgBottomY: bridgeRunSvgRect.bottom,
+      bridgeRunSvgHeight: bridgeRunSvgRect.height,
+      tailSvgTopY: tailSvgRect.top,
+      tailSvgHeight: tailSvgRect.height,
       rowHeight: rowRect.height,
       timelineHeight: timelineRect.height,
+      timelineBottomY: timelineRect.bottom,
       topViewBox: topSvg.getAttribute("viewBox"),
-      bottomViewBox: bottomSvg.getAttribute("viewBox"),
+      bridgeViewBox: bridgeSvg.getAttribute("viewBox"),
+      bridgeRunViewBox: bridgeRunSvg.getAttribute("viewBox"),
+      tailViewBox: tailSvg.getAttribute("viewBox"),
+      bridgePathD: bridgePath.getAttribute("d"),
     };
   });
 
-  assert.ok(metrics, "selected commit should render graph segments and a node");
-  assert.equal(metrics.topViewBox, "0 0 42 32");
-  assert.equal(metrics.bottomViewBox, "0 32 42 68");
+  assert.ok(metrics, "selected commit should render graph segments, a bridge, and a node");
+  assert.equal(metrics.topViewBox, "0 0 42 1");
+  assert.equal(metrics.bridgeViewBox, "0 0 42 38");
+  assert.equal(metrics.bridgeRunViewBox, "0 0 42 38");
+  assert.equal(metrics.tailViewBox, "0 0 42 1");
+  assert.match(metrics.bridgePathD, /^M \d+ 0 C /);
   assert.ok(metrics.rowHeight > 90, `selected row should be expanded: ${JSON.stringify(metrics)}`);
   assert.ok(metrics.timelineHeight >= metrics.rowHeight - 1, `timeline should span selected row: ${JSON.stringify(metrics)}`);
   assert.ok(
@@ -602,8 +699,32 @@ async function assertSelectedCommitGraphAnchors(page) {
     `top graph segment should end at node: ${JSON.stringify(metrics)}`,
   );
   assert.ok(
-    Math.abs(metrics.nodeCenterY - metrics.bottomSvgTopY) <= 0.75,
-    `bottom graph segment should start at node: ${JSON.stringify(metrics)}`,
+    Math.abs(metrics.nodeCenterY - metrics.bridgeSvgTopY) <= 0.75,
+    `fixed bridge graph segment should start at node: ${JSON.stringify(metrics)}`,
+  );
+  assert.ok(
+    Math.abs(metrics.bridgeSvgHeight - 38) <= 0.75,
+    `fixed bridge graph segment should stay fixed when the row expands: ${JSON.stringify(metrics)}`,
+  );
+  assert.ok(
+    Math.abs(metrics.nodeCenterY - metrics.bridgeRunSvgTopY) <= 0.75,
+    `bridge-run graph segment should start at node: ${JSON.stringify(metrics)}`,
+  );
+  assert.ok(
+    Math.abs(metrics.bridgeRunSvgBottomY - metrics.timelineBottomY) <= 0.75,
+    `bridge-run graph segment should reach the row bottom: ${JSON.stringify(metrics)}`,
+  );
+  assert.ok(
+    metrics.bridgeRunSvgHeight > metrics.bridgeSvgHeight,
+    `bridge-run graph segment should absorb expanded row height: ${JSON.stringify(metrics)}`,
+  );
+  assert.ok(
+    Math.abs(metrics.bridgeSvgBottomY - metrics.tailSvgTopY) <= 0.75,
+    `vertical tail graph segment should start after the fixed bridge: ${JSON.stringify(metrics)}`,
+  );
+  assert.ok(
+    metrics.tailSvgHeight > 0,
+    `vertical tail graph segment should absorb expanded row height: ${JSON.stringify(metrics)}`,
   );
 }
 
@@ -611,8 +732,52 @@ async function assertGitActions(page, expectedActions) {
   assert.deepEqual(await page.evaluate(() => window.__gitPeekActions), expectedActions);
 }
 
+async function clickActionDialogBackdrop(page) {
+  const point = await page.locator(".action-dialog-backdrop").evaluate((backdrop) => {
+    const dialog = backdrop.querySelector(".action-dialog");
+    const backdropRect = backdrop.getBoundingClientRect();
+    const dialogRect = dialog?.getBoundingClientRect();
+    const candidates = [
+      { x: backdropRect.left + 16, y: backdropRect.top + 16 },
+      { x: backdropRect.right - 16, y: backdropRect.top + 16 },
+      { x: backdropRect.left + 16, y: backdropRect.bottom - 16 },
+      { x: backdropRect.right - 16, y: backdropRect.bottom - 16 },
+    ];
+
+    const outsideDialog = candidates.find((candidate) => {
+      if (!dialogRect) return true;
+      return (
+        candidate.x < dialogRect.left ||
+        candidate.x > dialogRect.right ||
+        candidate.y < dialogRect.top ||
+        candidate.y > dialogRect.bottom
+      );
+    });
+
+    if (!outsideDialog) throw new Error("No backdrop-only point available.");
+    return outsideDialog;
+  });
+
+  await page.mouse.click(point.x, point.y);
+}
+
 async function testSelectedCommitGraphAnchor(browser, baseUrl) {
-  const { page, errors } = await openMockedPage(browser, baseUrl, mockedSnapshotScenario(mockCommits));
+  const graphAnchorCommits = [
+    commit({
+      hash: "a1b2c3d",
+      title: "Add commit search polish",
+      message: "Add commit search polish and keyboard selection",
+      refs: ["main"],
+      graph: {
+        laneCount: 2,
+        currentColor: "#f2b705",
+        parentStems: [{ column: 0, color: "#f2b705", variant: "solid" }],
+        bridges: [{ fromColumn: 0, toColumn: 1, color: "#2f80ed", variant: "solid" }],
+      },
+    }),
+    mockCommits[1],
+  ];
+  const { page, errors } = await openMockedPage(browser, baseUrl, mockedSnapshotScenario(graphAnchorCommits));
   try {
     await assertHealthyPage(page, errors);
 
@@ -802,7 +967,7 @@ async function testCommitSearch(browser, baseUrl) {
     await invalidBranchNameInput.press("Enter");
     assert.equal(await page.getByRole("dialog", { name: "Create branch" }).count(), 1);
     await assertGitActions(page, []);
-    await page.keyboard.press("Escape");
+    await clickActionDialogBackdrop(page);
     assert.equal(await page.getByRole("dialog", { name: "Create branch" }).count(), 0);
     await assertGitActions(page, []);
 
@@ -813,6 +978,23 @@ async function testCommitSearch(browser, baseUrl) {
     const branchPrefixButton = page.getByRole("button", { name: "Branch prefix" });
     await branchPrefixButton.click();
     assert.equal(await branchPrefixButton.getAttribute("aria-expanded"), "true");
+    const prefixMenuPlacement = await page.locator("#action-branch-prefix-menu").evaluate((menu) => {
+      const trigger = document.querySelector("#action-branch-prefix-trigger");
+      const menuRect = menu.getBoundingClientRect();
+      const triggerRect = trigger?.getBoundingClientRect();
+
+      return {
+        menuTop: menuRect.top,
+        menuBottom: menuRect.bottom,
+        triggerTop: triggerRect?.top ?? 0,
+        viewportHeight: window.innerHeight,
+      };
+    });
+    assert.ok(prefixMenuPlacement.menuTop >= 0, `branch prefix menu should stay within viewport: ${JSON.stringify(prefixMenuPlacement)}`);
+    assert.ok(
+      prefixMenuPlacement.menuBottom <= prefixMenuPlacement.triggerTop,
+      `branch prefix menu should open above the trigger: ${JSON.stringify(prefixMenuPlacement)}`,
+    );
     await page.locator("#action-branch-prefix-menu").getByRole("menuitem", { name: "feat" }).click();
     assert.equal(await branchPrefixButton.getAttribute("aria-expanded"), "false");
     assert.equal(await page.locator(".action-branch-preview").innerText(), "feat/d4e5f6a");
@@ -831,6 +1013,14 @@ async function testCommitSearch(browser, baseUrl) {
       await page.locator("#action-dialog-body").innerText(),
       "Merge d4e5f6a into the selected target branch. The working folder will end on that branch.",
     );
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), "Cancel");
+    await clickActionDialogBackdrop(page);
+    await page.getByRole("dialog", { name: "Merge commit" }).waitFor({ state: "detached" });
+    await assertGitActions(page, [createdBranchAction]);
+
+    await page.getByRole("button", { name: "Merge", exact: true }).click();
+    await page.getByRole("dialog", { name: "Merge commit" }).waitFor();
+    assert.equal(await page.locator("#action-dialog-title").innerText(), "Merge commit");
     assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), "Cancel");
     const mergeTargetButton = page.getByRole("button", { name: "Merge target branch" });
     assert.equal(await mergeTargetButton.innerText(), "main");
@@ -857,6 +1047,13 @@ async function testCommitSearch(browser, baseUrl) {
     assert.equal(await mergeTargetButton.innerText(), "feature/footer-toggle");
     await page.getByRole("button", { name: "Confirm" }).click();
     await page.getByRole("dialog", { name: "Merge commit" }).waitFor({ state: "detached" });
+    await assertGitActions(page, [createdBranchAction, mergeAction]);
+
+    await page.getByRole("button", { name: "Checkout", exact: true }).click();
+    await page.getByRole("dialog", { name: "Checkout commit" }).waitFor();
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), "Cancel");
+    await clickActionDialogBackdrop(page);
+    await page.getByRole("dialog", { name: "Checkout commit" }).waitFor({ state: "detached" });
     await assertGitActions(page, [createdBranchAction, mergeAction]);
 
     await page.getByRole("button", { name: "Checkout", exact: true }).click();
@@ -932,10 +1129,49 @@ async function testMergeFailureStaysInDialog(browser, baseUrl) {
     assert.match(errorText, /Automatic merge failed/);
     assert.deepEqual(await page.evaluate(() => window.__gitPeekActions), [expectedMergeAction("main", false)]);
 
+    await page.getByRole("button", { name: "Copy agent prompt" }).click();
+    await page.getByRole("button", { name: "Copied prompt" }).waitFor();
+    const copiedPrompt = await page.evaluate(() => window.__gitPeekCopiedText);
+    assert.match(copiedPrompt, /A Git merge failed in this repository/);
+    assert.match(copiedPrompt, /Source ref\/commit: d4e5f6a000000000000000000000000000000000/);
+    assert.match(copiedPrompt, /Target branch: main/);
+    assert.match(copiedPrompt, /CONFLICT \(content\): Merge conflict in src\/App\.tsx/);
+    assert.match(copiedPrompt, /keep unrelated worktree changes intact/);
+    assert.doesNotMatch(copiedPrompt, /No-fast-forward merges are enabled/);
+
     const mergeTargetButton = page.getByRole("button", { name: "Merge target branch" });
     await mergeTargetButton.click();
     await page.locator("#action-merge-target-menu").getByRole("menuitem", { name: "feature/footer-toggle" }).click();
     assert.equal(await page.locator("#action-dialog-error").count(), 0);
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
+async function testMergeFailurePromptHonorsNoFastForwardSetting(browser, baseUrl) {
+  const { page, errors } = await openMockedPage(browser, baseUrl, {
+    ...mergeFailureScenario(),
+    preferences: { createMergeCommit: true },
+  });
+  try {
+    await assertHealthyPage(page, errors);
+
+    await page.getByRole("button", { name: /Fix footer changed now toggle/ }).click();
+    await page.getByRole("button", { name: "Merge", exact: true }).click();
+    const mergeDialog = page.getByRole("dialog", { name: "Merge commit" });
+    await mergeDialog.waitFor();
+    await page.getByRole("button", { name: "Confirm" }).click();
+
+    await mergeDialog.waitFor();
+    await page.locator("#action-dialog-error").waitFor();
+    assert.deepEqual(await page.evaluate(() => window.__gitPeekActions), [expectedMergeAction("main", true)]);
+
+    await page.getByRole("button", { name: "Copy agent prompt" }).click();
+    await page.getByRole("button", { name: "Copied prompt" }).waitFor();
+    const copiedPrompt = await page.evaluate(() => window.__gitPeekCopiedText);
+    assert.match(copiedPrompt, /No-fast-forward merges are enabled in Settings/);
+    assert.match(copiedPrompt, /do not complete this as a fast-forward merge/);
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -1121,6 +1357,27 @@ async function testTemporaryInfoEmptyChangedFiles(browser, baseUrl) {
   }
 }
 
+async function testLargeCommitListVirtualizes(browser, baseUrl) {
+  const largeCommits = numberedCommits(160);
+  const { page, errors } = await openMockedPage(browser, baseUrl, mockedSnapshotScenario(largeCommits));
+  try {
+    await assertHealthyPage(page, errors);
+    assert.equal(await page.locator(".commit-count").innerText(), "Showing 160");
+    assert.ok(await page.locator(".commit-list-spacer").count(), "large lists should include virtual spacers");
+    assert.ok((await page.locator(".commit-row").count()) < 80, "large lists should not render every commit row");
+
+    await page.locator(".scroll-region").first().evaluate((node) => {
+      node.scrollTop = node.scrollHeight;
+      node.dispatchEvent(new Event("scroll", { bubbles: true }));
+    });
+    await page.getByRole("button", { name: /Virtualized commit 160/ }).waitFor();
+    assert.ok((await page.locator(".commit-row").count()) < 80, "scrolled large lists should stay virtualized");
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
 async function testEmptyCommitState(browser, baseUrl) {
   const { page, errors } = await openMockedPage(browser, baseUrl, mockedSnapshotScenario([]));
   try {
@@ -1291,7 +1548,7 @@ async function testFolderWithoutGitInitialize(browser, baseUrl) {
     await page.getByText("Adds a starter .gitignore.").waitFor();
 
     await page.getByRole("button", { name: "Initialize Git" }).click();
-    await page.getByRole("heading", { name: "Recent commits" }).waitFor();
+    await page.getByRole("heading", { name: "Commits" }).waitFor();
     assert.equal(await page.locator(".repo-title strong").innerText(), "plain-folder");
     await assertGitActions(page, [expectedInitializeRepositoryAction()]);
     assert.deepEqual(errors, []);
@@ -1328,7 +1585,7 @@ async function testBranchViewDoesNotCheckout(browser, baseUrl) {
     assert.equal(await branchViewButton.getAttribute("aria-pressed"), "false");
 
     await branchViewButton.click();
-    await page.getByRole("menuitem", { name: "feature/footer-toggle" }).click();
+    await page.getByRole("menuitem", { name: "feature/footer-toggle", exact: true }).click();
     await page.getByLabel("Viewing branch feature/footer-toggle").waitFor();
     assert.equal(await allViewButton.getAttribute("aria-pressed"), "false");
     assert.equal(await branchViewButton.getAttribute("aria-pressed"), "true");
@@ -1338,6 +1595,91 @@ async function testBranchViewDoesNotCheckout(browser, baseUrl) {
       ref: "feature/footer-toggle",
     });
     await assertGitActions(page, []);
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
+async function testSwitchBranchFromBranchMenu(browser, baseUrl) {
+  const { page, errors } = await openMockedPage(browser, baseUrl, branchViewScenario());
+  try {
+    await assertHealthyPage(page, errors);
+
+    await page.getByRole("button", { name: "Choose branch view" }).click();
+    await page.getByRole("menuitem", { name: "Switch to feature/footer-toggle", exact: true }).click();
+    const switchDialog = page.getByRole("dialog", { name: "Switch branch" });
+    await switchDialog.waitFor();
+    assert.equal(await page.locator("#action-dialog-body").innerText(), "Switch the working folder to feature/footer-toggle.");
+    await assertGitActions(page, []);
+
+    await page.getByRole("button", { name: "Confirm" }).click();
+    await switchDialog.waitFor({ state: "detached" });
+    await assertGitActions(page, [expectedSwitchBranchAction()]);
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
+async function testMergeTargetDropdownShowsPriorityBranches(browser, baseUrl) {
+  const { page, errors } = await openMockedPage(browser, baseUrl, crowdedMergeTargetScenario(), { viewport: { width: 640, height: 720 } });
+  try {
+    await assertHealthyPage(page, errors);
+
+    await page.getByRole("button", { name: /Fix footer changed now toggle/ }).click();
+    await page.getByRole("button", { name: "Merge", exact: true }).click();
+    await page.getByRole("button", { name: "Merge target branch" }).click();
+    const menu = page.locator("#action-merge-target-menu");
+    await menu.waitFor();
+
+    const metrics = await menu.evaluate((element) => {
+      const menuRect = element.getBoundingClientRect();
+      const triggerRect = document.querySelector("#action-merge-target-trigger")?.getBoundingClientRect();
+      const labels = Array.from(element.querySelectorAll(".action-merge-target-menu-item span"));
+      const labelText = labels.map((label) => label.textContent?.trim() ?? "");
+      const mainLabel = labels.find((label) => label.textContent?.trim() === "main");
+      const longLabel = labels.find((label) => label.textContent?.includes("super-long-branch-name"));
+      const mainRect = mainLabel?.getBoundingClientRect();
+      const longStyle = longLabel ? getComputedStyle(longLabel) : null;
+      const menuStyle = getComputedStyle(element);
+
+      return {
+        width: menuRect.width,
+        triggerWidth: triggerRect?.width ?? 0,
+        left: menuRect.left,
+        triggerLeft: triggerRect?.left ?? 0,
+        clientHeight: element.clientHeight,
+        scrollHeight: element.scrollHeight,
+        labelText,
+        mainVisible:
+          Boolean(mainRect) &&
+          mainRect.top >= menuRect.top &&
+          mainRect.bottom <= menuRect.bottom &&
+          mainRect.left >= menuRect.left &&
+          mainRect.right <= menuRect.right,
+        longWhiteSpace: longStyle?.whiteSpace ?? "",
+        longOverflowWrap: longStyle?.overflowWrap ?? "",
+        longTextOverflow: longStyle?.textOverflow ?? "",
+        menuOverflowY: menuStyle.overflowY,
+        menuScrollbarGutter: menuStyle.scrollbarGutter,
+      };
+    });
+
+    assert.deepEqual(metrics.labelText.slice(0, 4), ["feat/branch-swift current", "main", "develop", "master"]);
+    assert.ok(metrics.mainVisible, `main should be visible without scrolling: ${JSON.stringify(metrics)}`);
+    assert.ok(Math.abs(metrics.width - metrics.triggerWidth) <= 1, `menu should match trigger width: ${JSON.stringify(metrics)}`);
+    assert.ok(Math.abs(metrics.left - metrics.triggerLeft) <= 1, `menu should align with trigger left edge: ${JSON.stringify(metrics)}`);
+    assert.ok(metrics.clientHeight > 184, `merge target menu should show more rows before scrolling: ${JSON.stringify(metrics)}`);
+    assert.ok(
+      metrics.scrollHeight > metrics.clientHeight,
+      `merge target menu should scroll when branches overflow: ${JSON.stringify(metrics)}`,
+    );
+    assert.equal(metrics.longWhiteSpace, "normal");
+    assert.match(metrics.longOverflowWrap, /anywhere|break-word/);
+    assert.equal(metrics.longTextOverflow, "clip");
+    assert.equal(metrics.menuOverflowY, "auto");
+    assert.match(metrics.menuScrollbarGutter, /stable/);
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -1472,7 +1814,7 @@ async function testDismissableMenus(browser, baseUrl) {
     assert.equal(await branchMenuButton.getAttribute("id"), "branch-ref-trigger");
     assert.equal(await branchMenuButton.getAttribute("aria-expanded"), "true");
     assert.equal(await page.locator("#branch-ref-menu").getAttribute("aria-labelledby"), "branch-ref-trigger");
-    await page.getByRole("heading", { name: "Recent commits" }).click();
+    await page.getByRole("heading", { name: "Commits" }).click();
     assert.equal(await page.locator("#branch-ref-menu").count(), 0);
     assert.equal(await branchMenuButton.getAttribute("aria-expanded"), "false");
 
@@ -1594,7 +1936,7 @@ async function testFocusedViewEscapeControls(browser, baseUrl) {
     await page.getByRole("heading", { name: "Settings" }).waitFor();
     assert.equal(await page.getByRole("heading", { name: "Open in" }).count(), 0);
     await page.keyboard.press("Escape");
-    await page.getByRole("heading", { name: "Recent commits" }).waitFor();
+    await page.getByRole("heading", { name: "Commits" }).waitFor();
 
     await page.getByRole("button", { name: "Enter Zen mode" }).click();
     await page.getByRole("button", { name: "Exit Zen mode" }).waitFor();
@@ -1605,7 +1947,7 @@ async function testFocusedViewEscapeControls(browser, baseUrl) {
       true,
     ]);
     await page.keyboard.press("Escape");
-    await page.getByRole("heading", { name: "Recent commits" }).waitFor();
+    await page.getByRole("heading", { name: "Commits" }).waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.dataset.zenMode), "false");
     assert.deepEqual(await page.evaluate(() => window.__gitPeekSavedPreferences.map((preferences) => preferences.zenMode)), [
       false,
@@ -1659,7 +2001,9 @@ async function main() {
     await testCommitHoverPanel(browser, baseUrl);
     await testCommitInfoPanel(browser, baseUrl);
     await testCommitSearch(browser, baseUrl);
+    await testLargeCommitListVirtualizes(browser, baseUrl);
     await testMergeFailureStaysInDialog(browser, baseUrl);
+    await testMergeFailurePromptHonorsNoFastForwardSetting(browser, baseUrl);
     await testMergeStateSurvivesStartup(browser, baseUrl);
     await testTemporaryInfoCopyPrompt(browser, baseUrl);
     await testTemporaryInfoCopyFallback(browser, baseUrl);
@@ -1673,6 +2017,8 @@ async function main() {
     await testFolderWithoutGitInitialize(browser, baseUrl);
     await testEmptyRepositoryRecentOverflow(browser, baseUrl);
     await testBranchViewDoesNotCheckout(browser, baseUrl);
+    await testSwitchBranchFromBranchMenu(browser, baseUrl);
+    await testMergeTargetDropdownShowsPriorityBranches(browser, baseUrl);
     await testOpenWorktreeKeepsCommitView(browser, baseUrl);
     await testRefreshFailureRecovers(browser, baseUrl);
     await testPreviewRefreshWithoutBridge(browser, baseUrl);

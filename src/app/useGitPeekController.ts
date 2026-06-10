@@ -279,7 +279,7 @@ export function useGitPeekController() {
     );
   }
 
-  async function checkoutRef(ref: string) {
+  async function switchBranch(ref: string) {
     if (blockGitActionWithoutBridge()) return;
 
     setActionDialog(checkoutRefActionDialog(ref));
@@ -477,7 +477,7 @@ export function useGitPeekController() {
     dockCurrentState,
     selectCommit,
     handleCommitAction,
-    checkoutRef,
+    switchBranch,
     openWorktree,
     updateActionBranchPrefix,
     updateActionBranchName,

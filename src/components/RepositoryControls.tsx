@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Check, ChevronDown, GitBranch, GitFork } from "lucide-react";
+import { ArrowRightLeft, Check, ChevronDown, GitBranch, GitFork } from "lucide-react";
 import {
   closedRepositoryControlsMenus,
   repositoryBranchMenuItemView,
@@ -11,17 +11,13 @@ import {
   repositoryRetainedBranchMenuItemView,
   type RepositoryControlIcon,
   repositoryViewChipView,
-  repositoryWorktreeMenuChromeView,
-  repositoryWorktreeMenuItemView,
-  repositoryWorktreeMenuView,
-  repositoryWorktreeSelection,
-  repositoryWorktreeTriggerView,
 } from "../lib/repositoryControlsView";
 import { useDismissableLayer } from "../lib/useDismissableLayer";
 import type { CommitViewSelection, GitSnapshot } from "../types";
 
 function repositoryControlIcon(icon: RepositoryControlIcon) {
   if (icon === "check") return <Check aria-hidden="true" />;
+  if (icon === "switch") return <ArrowRightLeft aria-hidden="true" />;
   if (icon === "worktree") return <GitFork aria-hidden="true" />;
   return <GitBranch aria-hidden="true" />;
 }
@@ -30,21 +26,21 @@ export function RepositoryControls({
   snapshot,
   view,
   onChangeView,
-  onOpenWorktree,
+  onSwitchBranch,
 }: {
   snapshot: GitSnapshot;
   view: CommitViewSelection;
   onChangeView: (view: CommitViewSelection) => void;
-  onOpenWorktree: (worktreePath: string) => void;
+  onSwitchBranch: (branchName: string) => void;
 }) {
   const [menuState, setMenuState] = useState(closedRepositoryControlsMenus);
   const branchControlRef = useRef<HTMLDivElement>(null);
-  const worktreeControlRef = useRef<HTMLDivElement>(null);
-  const { branchMenuOpen, worktreeMenuOpen } = menuState;
+  const { branchMenuOpen } = menuState;
   const branchMenu = repositoryBranchMenuView({
     branches: snapshot.branches,
     currentBranchName: snapshot.branch.name,
     view,
+    worktrees: snapshot.worktrees,
   });
   const selectedBranchSummary = branchMenu.selectedBranchSummary;
   const controlsChrome = repositoryControlsChromeView();
@@ -53,13 +49,10 @@ export function RepositoryControls({
   const branchTrigger = repositoryBranchTriggerView(view, branchMenuOpen);
   const branchMenuChrome = repositoryBranchMenuChromeView();
   const retainedBranchItem = repositoryRetainedBranchMenuItemView(branchMenu.retainedSelectedBranch);
-  const worktreeMenu = repositoryWorktreeMenuView(snapshot.worktrees);
-  const worktreeTrigger = repositoryWorktreeTriggerView(worktreeMenuOpen, worktreeMenu.currentWorktree);
-  const worktreeMenuChrome = repositoryWorktreeMenuChromeView();
 
   useDismissableLayer({
-    active: branchMenuOpen || worktreeMenuOpen,
-    refs: [branchControlRef, worktreeControlRef],
+    active: branchMenuOpen,
+    refs: [branchControlRef],
     onDismiss: () => setMenuState(closedRepositoryControlsMenus),
   });
 
@@ -73,10 +66,9 @@ export function RepositoryControls({
     onChangeView({ mode: "branch", ref });
   }
 
-  function openWorktree(worktreePath: string) {
-    const selection = repositoryWorktreeSelection(worktreePath, worktreeMenu.currentWorktree);
-    setMenuState((current) => repositoryControlsMenuState(current, selection.menuAction));
-    if (selection.openWorktreePath) onOpenWorktree(selection.openWorktreePath);
+  function switchBranch(branchName: string) {
+    setMenuState((current) => repositoryControlsMenuState(current, "closeBranch"));
+    onSwitchBranch(branchName);
   }
 
   return (
@@ -139,22 +131,36 @@ export function RepositoryControls({
                   <span>{retainedBranchItem.label}</span>
                 </button>
               ) : null}
-              {branchMenu.branchItems.map(({ active, branch }) => {
-                const itemView = repositoryBranchMenuItemView(active, branch);
+              {branchMenu.branchItems.map(({ active, branch, switchAction }) => {
+                const itemView = repositoryBranchMenuItemView(active, branch, switchAction);
 
                 return (
-                  <button
-                    className={itemView.className}
-                    type="button"
-                    role={itemView.role}
-                    aria-current={itemView.ariaCurrent}
-                    title={itemView.title}
-                    key={itemView.key}
-                    onClick={() => selectBranch(branch.name)}
-                  >
-                    {repositoryControlIcon(itemView.icon)}
-                    <span>{itemView.label}</span>
-                  </button>
+                  <div className={itemView.rowClassName} role="none" key={itemView.key}>
+                    <button
+                      className={itemView.className}
+                      type="button"
+                      role={itemView.role}
+                      aria-current={itemView.ariaCurrent}
+                      title={itemView.title}
+                      onClick={() => selectBranch(branch.name)}
+                    >
+                      {repositoryControlIcon(itemView.icon)}
+                      <span>{itemView.label}</span>
+                    </button>
+                    {itemView.switchAction.show ? (
+                      <button
+                        className={itemView.switchAction.className}
+                        type="button"
+                        role="menuitem"
+                        aria-label={itemView.switchAction.ariaLabel}
+                        title={itemView.switchAction.title}
+                        disabled={itemView.switchAction.disabled}
+                        onClick={() => switchBranch(itemView.switchAction.branchName)}
+                      >
+                        {repositoryControlIcon(itemView.switchAction.icon)}
+                      </button>
+                    ) : null}
+                  </div>
                 );
               })}
             </div>
@@ -166,53 +172,6 @@ export function RepositoryControls({
           {repositoryControlIcon(selectedBranchSummary.icon)}
           <span>{selectedBranchSummary.label}</span>
           <strong>{selectedBranchSummary.branchName}</strong>
-        </div>
-      ) : null}
-      {worktreeMenu.showWorktreeControl ? (
-        <div className={worktreeMenu.controlClassName} ref={worktreeControlRef}>
-          <button
-            id={worktreeTrigger.id}
-            className={worktreeTrigger.className}
-            type="button"
-            aria-label={worktreeTrigger.ariaLabel}
-            aria-haspopup={worktreeTrigger.ariaHasPopup}
-            aria-expanded={worktreeTrigger.ariaExpanded}
-            aria-controls={worktreeTrigger.ariaControls}
-            title={worktreeTrigger.title}
-            onClick={() => setMenuState((current) => repositoryControlsMenuState(current, "toggleWorktree"))}
-          >
-            {repositoryControlIcon(worktreeTrigger.icon)}
-            <span>{worktreeTrigger.label}</span>
-            <strong>{worktreeMenu.switchableWorktreeCount}</strong>
-            <ChevronDown aria-hidden="true" />
-          </button>
-          {worktreeMenuOpen ? (
-            <div
-              className={worktreeMenuChrome.className}
-              id={worktreeMenuChrome.id}
-              role={worktreeMenuChrome.role}
-              aria-labelledby={worktreeMenuChrome.ariaLabelledBy}
-            >
-              {worktreeMenu.worktreeItems.map(({ active, worktree }) => {
-                const itemView = repositoryWorktreeMenuItemView(active, worktree);
-
-                return (
-                  <button
-                    className={itemView.className}
-                    type="button"
-                    role={itemView.role}
-                    aria-current={itemView.ariaCurrent}
-                    title={itemView.title}
-                    key={itemView.key}
-                    onClick={() => openWorktree(worktree.path)}
-                  >
-                    {repositoryControlIcon(itemView.icon)}
-                    <span>{itemView.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          ) : null}
         </div>
       ) : null}
     </section>

@@ -16,6 +16,7 @@ const appMacOSPath = path.join(appContentsPath, "MacOS");
 const appResourcesPath = path.join(appContentsPath, "Resources");
 const payloadPath = path.join(appResourcesPath, "app");
 const plistPath = path.join(appContentsPath, "Info.plist");
+const installedExecutablePath = path.join(installedAppPath, "Contents", "MacOS", productName);
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -37,6 +38,10 @@ function runQuiet(command, args) {
   });
 
   return result.status === 0 ? result.stdout.trim() : "";
+}
+
+function sleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 function copyRequiredPath(source, destination) {
@@ -65,6 +70,68 @@ function electronAppSourcePath() {
 function copyAppBundle(source, destination) {
   fs.rmSync(destination, { force: true, recursive: true });
   run("/usr/bin/ditto", [source, destination]);
+}
+
+function runningInstalledAppPids() {
+  const result = spawnSync("/bin/ps", ["-axo", "pid=,command="], {
+    encoding: "utf8",
+  });
+
+  if (result.status !== 0) return [];
+
+  return result.stdout
+    .split("\n")
+    .map((line) => {
+      const match = line.trimStart().match(/^(\d+)\s+(.*)$/);
+      if (!match) return null;
+
+      const [, pid, command] = match;
+      return command.startsWith(installedExecutablePath) ? Number(pid) : null;
+    })
+    .filter((pid) => Number.isInteger(pid));
+}
+
+function waitForInstalledAppExit(timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (runningInstalledAppPids().length === 0) return true;
+    sleep(250);
+  }
+
+  return runningInstalledAppPids().length === 0;
+}
+
+function quitInstalledApp() {
+  const pids = runningInstalledAppPids();
+  if (pids.length === 0) return false;
+
+  console.log(`Quitting running ${installedAppPath} before installing update.`);
+  runQuiet("/usr/bin/osascript", ["-e", `tell application id "${bundleIdentifier}" to quit`]);
+  if (waitForInstalledAppExit(8000)) return true;
+
+  console.log(`Running ${productName} did not quit in time; sending SIGTERM.`);
+  for (const pid of runningInstalledAppPids()) {
+    try {
+      process.kill(pid, "SIGTERM");
+    } catch (error) {
+      if (error.code !== "ESRCH") throw error;
+    }
+  }
+
+  if (waitForInstalledAppExit(5000)) return true;
+
+  console.log(`Running ${productName} still did not quit; forcing quit.`);
+  for (const pid of runningInstalledAppPids()) {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch (error) {
+      if (error.code !== "ESRCH") throw error;
+    }
+  }
+
+  if (waitForInstalledAppExit(5000)) return true;
+
+  throw new Error(`Could not quit running ${installedAppPath}. Quit it manually and run npm run package:mac again.`);
 }
 
 function writePackageManifest() {
@@ -114,13 +181,17 @@ function maybeInstallApp() {
     return null;
   }
 
+  const shouldReopen = quitInstalledApp();
   copyAppBundle(appPath, installedAppPath);
   console.log(`Installed ${installedAppPath}`);
-  return installedAppPath;
+  return {
+    path: installedAppPath,
+    shouldReopen,
+  };
 }
 
-function maybeOpenApp(openPath = appPath) {
-  if (!process.argv.includes("--open")) return;
+function maybeOpenApp(openPath = appPath, options = {}) {
+  if (!process.argv.includes("--open") && !options.shouldReopen) return;
   run("/usr/bin/open", [openPath]);
 }
 
@@ -159,8 +230,9 @@ function main() {
 
   maybeSignApp();
   const zipPath = zipApp();
-  const openPath = maybeInstallApp() ?? appPath;
-  maybeOpenApp(openPath);
+  const installedApp = maybeInstallApp();
+  const openPath = installedApp?.path ?? appPath;
+  maybeOpenApp(openPath, { shouldReopen: installedApp?.shouldReopen });
 
   console.log(`Packaged ${appPath}`);
   console.log(`Created ${zipPath}`);

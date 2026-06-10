@@ -4,33 +4,32 @@ import type { BranchColor, CommitGraph, GraphBridge, GraphLaneSegment, GraphLine
 const LANE_GAP = 12;
 const LANE_START_X = 9;
 const MIN_GRAPH_WIDTH = 42;
-const NODE_Y = 32;
-const GRAPH_HEIGHT = 100;
 const BRIDGE_CONTROL_OFFSET = 26;
 const BRIDGE_DROP = 12;
+const BRIDGE_HEIGHT = BRIDGE_CONTROL_OFFSET + BRIDGE_DROP;
+
+export type GitTreePathSegment = "top" | "bridge" | "bridge-run" | "tail";
 
 export interface GitTreePath {
   id: string;
   className: string;
   d: string;
   color: BranchColor;
+  segment: GitTreePathSegment;
 }
 
 export interface GitTreeNode {
   x: number;
-  y: number;
   leftPercent: number;
-  topPercent: number;
   color: BranchColor;
   className: string;
-  isMerge: boolean;
+  isCurrentHead: boolean;
   showCore: boolean;
 }
 
 export interface GitTreeRenderModel {
   width: number;
-  height: number;
-  viewBox: string;
+  bridgeHeight: number;
   paths: GitTreePath[];
   node: GitTreeNode;
 }
@@ -50,11 +49,12 @@ function laneX(column: number) {
 function bridgePath(bridge: GraphBridge) {
   const fromX = laneX(bridge.fromColumn);
   const toX = laneX(bridge.toColumn);
-  const curveY = NODE_Y + BRIDGE_CONTROL_OFFSET;
-  const joinY = curveY + BRIDGE_DROP;
-  const curve = `M ${fromX} ${NODE_Y} C ${fromX} ${curveY}, ${toX} ${curveY}, ${toX} ${joinY}`;
+  return `M ${fromX} 0 C ${fromX} ${BRIDGE_CONTROL_OFFSET}, ${toX} ${BRIDGE_CONTROL_OFFSET}, ${toX} ${BRIDGE_HEIGHT}`;
+}
 
-  return bridge.to === "lane" ? curve : `${curve} L ${toX} ${GRAPH_HEIGHT}`;
+function verticalPath(column: number, segment: GitTreePathSegment) {
+  const x = laneX(column);
+  return segment === "bridge" ? `M ${x} 0 L ${x} ${BRIDGE_HEIGHT}` : `M ${x} 0 L ${x} 1`;
 }
 
 function highestColumn(graph: CommitGraph) {
@@ -76,11 +76,39 @@ export function getGitTreeRailWidth(laneCount: number) {
   return Math.max(MIN_GRAPH_WIDTH, LANE_START_X * 2 + Math.max(1, laneCount) * LANE_GAP);
 }
 
-function segmentPath(segment: GraphLaneSegment, yStart: number, yEnd: number) {
-  const x = laneX(segment.column);
-  const start = segment.from === "node" ? NODE_Y : yStart;
-  const end = segment.to === "node" ? NODE_Y : yEnd;
-  return `M ${x} ${start} L ${x} ${end}`;
+function laneSegmentPaths(segment: GraphLaneSegment, index: number, prefix: string): GitTreePath[] {
+  const paths: GitTreePath[] = [];
+
+  if (segment.from !== "node") {
+    paths.push({
+      id: `${prefix}-top-${index}-${segment.column}-${segment.color}`,
+      className: lineClass(undefined, segment.variant),
+      d: verticalPath(segment.column, "top"),
+      color: segment.color,
+      segment: "top",
+    });
+  }
+
+  if (segment.to !== "node") {
+    paths.push(
+      {
+        id: `${prefix}-bridge-${index}-${segment.column}-${segment.color}`,
+        className: lineClass(undefined, segment.variant),
+        d: verticalPath(segment.column, "bridge"),
+        color: segment.color,
+        segment: "bridge",
+      },
+      {
+        id: `${prefix}-tail-${index}-${segment.column}-${segment.color}`,
+        className: lineClass(undefined, segment.variant),
+        d: verticalPath(segment.column, "tail"),
+        color: segment.color,
+        segment: "tail",
+      },
+    );
+  }
+
+  return paths;
 }
 
 export function buildGitTreeRenderModel(graph: CommitGraph, options: GitTreeRenderOptions = {}): GitTreeRenderModel {
@@ -88,28 +116,19 @@ export function buildGitTreeRenderModel(graph: CommitGraph, options: GitTreeRend
   const width = getGitTreeRailWidth(laneCount);
   const nodeX = laneX(graph.column);
   const paths: GitTreePath[] = [
-    ...graph.passThrough.map((lane, index) => ({
-      id: `through-${index}-${lane.column}-${lane.color}-${lane.from ?? "top"}-${lane.to ?? "bottom"}`,
-      className: lineClass(undefined, lane.variant),
-      d: segmentPath(lane, 0, GRAPH_HEIGHT),
-      color: lane.color,
-    })),
+    ...graph.passThrough.flatMap((lane, index) => laneSegmentPaths(lane, index, "through")),
     ...(graph.currentContinues
       ? [
           {
-            id: `current-${graph.column}-${graph.currentColor}`,
-            className: lineClass(undefined, graph.currentVariant),
-            d: `M ${nodeX} 0 L ${nodeX} ${NODE_Y}`,
-            color: graph.currentColor,
+            id: `current-${graph.column}-${graph.incomingColor}`,
+            className: lineClass(undefined, graph.incomingVariant),
+            d: verticalPath(graph.column, "top"),
+            color: graph.incomingColor,
+            segment: "top" as const,
           },
         ]
       : []),
-    ...graph.parentStems.map((lane, index) => ({
-      id: `stem-${index}-${lane.column}-${lane.color}`,
-      className: lineClass(undefined, lane.variant),
-      d: segmentPath(lane, NODE_Y, GRAPH_HEIGHT),
-      color: lane.color,
-    })),
+    ...graph.parentStems.flatMap((lane, index) => laneSegmentPaths({ ...lane, from: "node" }, index, "stem")),
     ...graph.bridges
       .filter((bridge) => bridge.fromColumn !== bridge.toColumn)
       .map((bridge, index) => ({
@@ -117,23 +136,21 @@ export function buildGitTreeRenderModel(graph: CommitGraph, options: GitTreeRend
         className: lineClass("graph-bridge", bridge.variant),
         d: bridgePath(bridge),
         color: bridge.color,
+        segment: bridge.to === "lane" ? ("bridge" as const) : ("bridge-run" as const),
       })),
   ];
 
   return {
     width,
-    height: GRAPH_HEIGHT,
-    viewBox: `0 0 ${width} ${GRAPH_HEIGHT}`,
+    bridgeHeight: BRIDGE_HEIGHT,
     paths,
     node: {
       x: nodeX,
-      y: NODE_Y,
       leftPercent: (nodeX / width) * 100,
-      topPercent: NODE_Y,
       color: graph.currentColor,
-      className: joinClass("graph-node", graph.isMerge && "is-merge", graph.currentVariant === "dashed" && "is-dashed"),
-      isMerge: graph.isMerge,
-      showCore: graph.isMerge,
+      className: joinClass("graph-node", graph.isCurrentHead && "is-current-head", graph.currentVariant === "dashed" && "is-dashed"),
+      isCurrentHead: graph.isCurrentHead,
+      showCore: graph.isCurrentHead,
     },
   };
 }

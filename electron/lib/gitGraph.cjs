@@ -23,6 +23,14 @@ const branchColorSeeds = [
   "#36a7d8",
 ];
 
+const commitMessageMaxLength = 4000;
+
+function normalizeCommitMessage(message, fallback) {
+  const cleanMessage = (message || fallback || "Untitled commit").trim();
+  if (cleanMessage.length <= commitMessageMaxLength) return cleanMessage;
+  return `${cleanMessage.slice(0, commitMessageMaxLength - 3)}...`;
+}
+
 function branchKindFromRefs(refs, index) {
   const lowerRefs = refs.toLowerCase();
   if (lowerRefs.includes("stash")) return "stash";
@@ -71,6 +79,10 @@ function commitRefsIncludeBranch(commit, branchName) {
 function commitRefsIncludeAnyBranch(commit, branches) {
   if (!branches.size) return false;
   return commit.refs.some((ref) => branches.has(normalizeBranchColorKey(ref)));
+}
+
+function preferredRefIndex(commit) {
+  return commit.refs.findIndex((ref) => preferredBranchColors.has(normalizeBranchColorKey(ref)));
 }
 
 function reachableHashesFrom(startHashes, commitsByHash) {
@@ -201,8 +213,8 @@ function buildCommitGraph(commits, graphContext = {}) {
             {
               column: laneIndex,
               hash: lane.hash,
-              color: lane.color,
-              variant: lane.variant,
+              color: lane.incomingColor ?? lane.color,
+              variant: lane.incomingVariant ?? lane.variant,
             },
           ]
         : [],
@@ -227,15 +239,20 @@ function buildCommitGraph(commits, graphContext = {}) {
     let column = findLaneByHash(activeLanes, commit.fullHash);
     const currentContinues = column !== -1;
     if (column === -1) {
+      const initialVariant = lineVariantForCommit(commit, context);
       column = findOpenColumn(activeLanes);
       activeLanes[column] = {
         hash: commit.fullHash,
         color: commit.branchColor,
         label: commit.refs[0] ?? "",
-        variant: lineVariantForCommit(commit, context),
+        variant: initialVariant,
+        incomingColor: commit.branchColor,
+        incomingVariant: initialVariant,
       };
     }
 
+    const incomingColor = activeLanes[column]?.incomingColor ?? activeLanes[column]?.color ?? commit.branchColor;
+    const incomingVariant = activeLanes[column]?.incomingVariant ?? activeLanes[column]?.variant ?? "solid";
     const currentVariant = lineVariantForCommit(commit, context, activeLanes[column]?.variant ?? "solid");
     activeLanes[column] = { ...activeLanes[column], variant: currentVariant };
 
@@ -248,13 +265,25 @@ function buildCommitGraph(commits, graphContext = {}) {
     const passThroughLimits = new Map();
     let after = activeLanes.slice();
     let secondaryParentStartColumn = column + 1;
-    const colorForParent = (parentHash, fallbackColor) => {
+    const refIdentityForParent = (parentHash, { preferredOnly = false } = {}) => {
       const parentCommit = commitsByHash.get(parentHash);
-      return parentCommit?.refs.length ? parentCommit.branchColor : fallbackColor;
+      if (!parentCommit?.refs.length) return null;
+
+      const refIndex = preferredOnly ? preferredRefIndex(parentCommit) : 0;
+      if (refIndex < 0) return null;
+
+      return {
+        color: parentCommit.refColors[refIndex] ?? parentCommit.branchColor,
+        label: parentCommit.refs[refIndex] ?? "",
+      };
     };
-    const labelForParent = (parentHash, fallbackLabel = "") => {
-      const parentCommit = commitsByHash.get(parentHash);
-      return parentCommit?.refs[0] ?? fallbackLabel;
+    const firstParentIdentity = (parentHash, fallbackColor, fallbackLabel) => {
+      const preferredIdentity = refIdentityForParent(parentHash, { preferredOnly: true });
+      return preferredIdentity ?? { color: fallbackColor, label: fallbackLabel };
+    };
+    const branchParentIdentity = (parentHash, fallbackColor, fallbackLabel = "") => {
+      const branchIdentity = refIdentityForParent(parentHash);
+      return branchIdentity ?? { color: fallbackColor, label: fallbackLabel };
     };
     const variantForParent = (parentHash, fallbackVariant) => {
       const parentCommit = commitsByHash.get(parentHash);
@@ -268,27 +297,31 @@ function buildCommitGraph(commits, graphContext = {}) {
       const existingFirstParent = findLaneByHash(after, firstParent, column);
 
       if (existingFirstParent > column) {
-        const color = after[existingFirstParent].color;
-        const label = after[existingFirstParent].label;
-        const variant = after[existingFirstParent].variant;
-        parentEntries.push({ column, color, variant });
+        const activeParentColor = after[existingFirstParent].color;
+        const activeParentVariant = after[existingFirstParent].variant;
+        const { color, label } = firstParentIdentity(firstParent, currentColor, currentLabel);
+        const variant = variantForParent(firstParent, currentVariant);
+        parentEntries.push({ column, color: currentColor, variant: currentVariant });
         passThroughLimits.set(existingFirstParent, { to: "node" });
-        bridges.push({ fromColumn: existingFirstParent, toColumn: column, color, variant, to: "lane" });
-        after[column] = { hash: firstParent, color, label, variant };
+        bridges.push({
+          fromColumn: existingFirstParent,
+          toColumn: column,
+          color: activeParentColor,
+          variant: activeParentVariant,
+          to: "lane",
+        });
+        after[column] = { hash: firstParent, color, label, variant, incomingColor: currentColor, incomingVariant: currentVariant };
         after[existingFirstParent] = null;
       } else if (existingFirstParent >= 0) {
-        const color = after[existingFirstParent].color;
-        const variant = after[existingFirstParent].variant;
-        parentEntries.push({ column: existingFirstParent, color, variant });
-        bridges.push({ fromColumn: column, toColumn: existingFirstParent, color, variant: currentVariant, to: "lane" });
+        parentEntries.push({ column: existingFirstParent, color: currentColor, variant: currentVariant });
+        bridges.push({ fromColumn: column, toColumn: existingFirstParent, color: currentColor, variant: currentVariant, to: "lane" });
         after[column] = null;
         secondaryParentStartColumn = column;
       } else {
-        const color = colorForParent(firstParent, currentColor);
-        const label = labelForParent(firstParent, currentLabel);
+        const { color, label } = firstParentIdentity(firstParent, currentColor, currentLabel);
         const variant = variantForParent(firstParent, currentVariant);
-        after[column] = { hash: firstParent, color, label, variant };
-        parentEntries.push({ column, color, variant });
+        after[column] = { hash: firstParent, color, label, variant, incomingColor: currentColor, incomingVariant: currentVariant };
+        parentEntries.push({ column, color: currentColor, variant: currentVariant });
       }
 
       parents.slice(1).forEach((parentHash, parentIndex) => {
@@ -297,21 +330,20 @@ function buildCommitGraph(commits, graphContext = {}) {
 
         if (parentColumn === -1) {
           const fallbackColor = commit.lane === "stash" ? currentColor : generatedBranchColor(index + parentIndex + 1);
-          const color = colorForParent(parentHash, fallbackColor);
-          const label = labelForParent(parentHash);
+          const { color, label } = branchParentIdentity(parentHash, fallbackColor);
           const variant = variantForParent(parentHash, currentVariant);
           parentColumn = findOpenColumn(after, secondaryParentStartColumn);
-          after[parentColumn] = { hash: parentHash, color, label, variant };
+          after[parentColumn] = { hash: parentHash, color, label, variant, incomingColor: color, incomingVariant: variant };
         }
 
-        const color = after[parentColumn].color;
-        const variant = after[parentColumn].variant;
-        parentEntries.push({ column: parentColumn, color, variant });
+        const parentLineColor = after[parentColumn].color;
+        const parentLineVariant = after[parentColumn].variant;
+        parentEntries.push({ column: parentColumn, color: parentLineColor, variant: parentLineVariant });
         bridges.push({
           fromColumn: column,
           toColumn: parentColumn,
-          color,
-          variant: currentVariant,
+          color: parentLineColor,
+          variant: parentLineVariant,
           ...(parentAlreadyActive ? { to: "lane" } : {}),
         });
       });
@@ -335,6 +367,8 @@ function buildCommitGraph(commits, graphContext = {}) {
         currentColor,
         currentLabel,
         currentVariant,
+        incomingColor,
+        incomingVariant,
         currentContinues,
         passThrough: before
           .filter((lane) => lane.column !== column)
@@ -347,6 +381,7 @@ function buildCommitGraph(commits, graphContext = {}) {
         parentStems,
         bridges,
         isMerge: parents.length > 1,
+        isCurrentHead: Boolean(context.currentHead && commit.fullHash === context.currentHead),
       },
     };
   });
@@ -372,7 +407,7 @@ function parseLog(rawLog, graphContext = {}) {
       const subject = hasAuthoredAt ? metadata[6] : metadata[5];
       const refs = hasAuthoredAt ? metadata[7] ?? "" : metadata[6] ?? "";
       const messageParts = metadata.slice(hasAuthoredAt ? 8 : 7);
-      const message = messageParts.join("\x1f").trim() || subject || "Untitled commit";
+      const message = normalizeCommitMessage(messageParts.join("\x1f"), subject);
       let additions = 0;
       let deletions = 0;
       let filesChanged = 0;
@@ -410,7 +445,9 @@ module.exports = {
   assignBranchColors,
   branchKindFromRefs,
   buildCommitGraph,
+  commitMessageMaxLength,
   generatedBranchColor,
+  normalizeCommitMessage,
   normalizeBranchColorKey,
   parseLog,
   parseRefs,
