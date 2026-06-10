@@ -1848,6 +1848,7 @@ button:disabled {
 }
 
 .timeline-cell {
+  --git-tree-bridge-span: max(0px, min(38px, calc(100% - var(--git-tree-node-y, 22px))));
   position: relative;
   width: var(--git-tree-rail-width);
   min-height: 100%;
@@ -1868,12 +1869,17 @@ button:disabled {
 
 .graph-svg-top {
   top: 0;
-  height: var(--git-tree-node-y, 32%);
+  height: var(--git-tree-node-y, 22px);
 }
 
-.graph-svg-bottom {
-  top: var(--git-tree-node-y, 32%);
-  height: calc(100% - var(--git-tree-node-y, 32%));
+.graph-svg-bridge {
+  top: var(--git-tree-node-y, 22px);
+  height: var(--git-tree-bridge-span);
+}
+
+.graph-svg-tail {
+  top: calc(var(--git-tree-node-y, 22px) + var(--git-tree-bridge-span));
+  height: max(0px, calc(100% - var(--git-tree-node-y, 22px) - var(--git-tree-bridge-span)));
 }
 
 .graph-line {

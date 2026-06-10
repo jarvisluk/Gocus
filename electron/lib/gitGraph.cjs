@@ -81,6 +81,10 @@ function commitRefsIncludeAnyBranch(commit, branches) {
   return commit.refs.some((ref) => branches.has(normalizeBranchColorKey(ref)));
 }
 
+function preferredRefIndex(commit) {
+  return commit.refs.findIndex((ref) => preferredBranchColors.has(normalizeBranchColorKey(ref)));
+}
+
 function reachableHashesFrom(startHashes, commitsByHash) {
   const reachable = new Set();
   const stack = [...startHashes].filter((hash) => hash && commitsByHash.has(hash));
@@ -256,13 +260,25 @@ function buildCommitGraph(commits, graphContext = {}) {
     const passThroughLimits = new Map();
     let after = activeLanes.slice();
     let secondaryParentStartColumn = column + 1;
-    const colorForParent = (parentHash, fallbackColor) => {
+    const refIdentityForParent = (parentHash, { preferredOnly = false } = {}) => {
       const parentCommit = commitsByHash.get(parentHash);
-      return parentCommit?.refs.length ? parentCommit.branchColor : fallbackColor;
+      if (!parentCommit?.refs.length) return null;
+
+      const refIndex = preferredOnly ? preferredRefIndex(parentCommit) : 0;
+      if (refIndex < 0) return null;
+
+      return {
+        color: parentCommit.refColors[refIndex] ?? parentCommit.branchColor,
+        label: parentCommit.refs[refIndex] ?? "",
+      };
     };
-    const labelForParent = (parentHash, fallbackLabel = "") => {
-      const parentCommit = commitsByHash.get(parentHash);
-      return parentCommit?.refs[0] ?? fallbackLabel;
+    const firstParentIdentity = (parentHash, fallbackColor, fallbackLabel) => {
+      const preferredIdentity = refIdentityForParent(parentHash, { preferredOnly: true });
+      return preferredIdentity ?? { color: fallbackColor, label: fallbackLabel };
+    };
+    const branchParentIdentity = (parentHash, fallbackColor, fallbackLabel = "") => {
+      const branchIdentity = refIdentityForParent(parentHash);
+      return branchIdentity ?? { color: fallbackColor, label: fallbackLabel };
     };
     const variantForParent = (parentHash, fallbackVariant) => {
       const parentCommit = commitsByHash.get(parentHash);
@@ -276,12 +292,19 @@ function buildCommitGraph(commits, graphContext = {}) {
       const existingFirstParent = findLaneByHash(after, firstParent, column);
 
       if (existingFirstParent > column) {
-        const color = after[existingFirstParent].color;
-        const label = after[existingFirstParent].label;
-        const variant = after[existingFirstParent].variant;
+        const activeParentColor = after[existingFirstParent].color;
+        const activeParentVariant = after[existingFirstParent].variant;
+        const { color, label } = firstParentIdentity(firstParent, currentColor, currentLabel);
+        const variant = variantForParent(firstParent, currentVariant);
         parentEntries.push({ column, color, variant });
         passThroughLimits.set(existingFirstParent, { to: "node" });
-        bridges.push({ fromColumn: existingFirstParent, toColumn: column, color, variant, to: "lane" });
+        bridges.push({
+          fromColumn: existingFirstParent,
+          toColumn: column,
+          color: activeParentColor,
+          variant: activeParentVariant,
+          to: "lane",
+        });
         after[column] = { hash: firstParent, color, label, variant };
         after[existingFirstParent] = null;
       } else if (existingFirstParent >= 0) {
@@ -292,8 +315,7 @@ function buildCommitGraph(commits, graphContext = {}) {
         after[column] = null;
         secondaryParentStartColumn = column;
       } else {
-        const color = colorForParent(firstParent, currentColor);
-        const label = labelForParent(firstParent, currentLabel);
+        const { color, label } = firstParentIdentity(firstParent, currentColor, currentLabel);
         const variant = variantForParent(firstParent, currentVariant);
         after[column] = { hash: firstParent, color, label, variant };
         parentEntries.push({ column, color, variant });
@@ -305,8 +327,7 @@ function buildCommitGraph(commits, graphContext = {}) {
 
         if (parentColumn === -1) {
           const fallbackColor = commit.lane === "stash" ? currentColor : generatedBranchColor(index + parentIndex + 1);
-          const color = colorForParent(parentHash, fallbackColor);
-          const label = labelForParent(parentHash);
+          const { color, label } = branchParentIdentity(parentHash, fallbackColor);
           const variant = variantForParent(parentHash, currentVariant);
           parentColumn = findOpenColumn(after, secondaryParentStartColumn);
           after[parentColumn] = { hash: parentHash, color, label, variant };

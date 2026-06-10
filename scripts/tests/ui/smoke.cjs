@@ -583,31 +583,42 @@ async function assertSelectedCommitGraphAnchors(page) {
   const metrics = await page.locator(".commit-row.is-selected").evaluate((row) => {
     const node = row.querySelector(".graph-node");
     const topSvg = row.querySelector(".graph-svg-top");
-    const bottomSvg = row.querySelector(".graph-svg-bottom");
+    const bridgeSvg = row.querySelector(".graph-svg-bridge");
+    const tailSvg = row.querySelector(".graph-svg-tail");
     const timeline = row.querySelector(".timeline-cell");
+    const bridgePath = row.querySelector(".graph-svg-bridge .graph-bridge");
 
-    if (!node || !topSvg || !bottomSvg || !timeline) return null;
+    if (!node || !topSvg || !bridgeSvg || !tailSvg || !timeline || !bridgePath) return null;
 
     const nodeRect = node.getBoundingClientRect();
     const topSvgRect = topSvg.getBoundingClientRect();
-    const bottomSvgRect = bottomSvg.getBoundingClientRect();
+    const bridgeSvgRect = bridgeSvg.getBoundingClientRect();
+    const tailSvgRect = tailSvg.getBoundingClientRect();
     const rowRect = row.getBoundingClientRect();
     const timelineRect = timeline.getBoundingClientRect();
 
     return {
       nodeCenterY: nodeRect.top + nodeRect.height / 2,
       topSvgBottomY: topSvgRect.bottom,
-      bottomSvgTopY: bottomSvgRect.top,
+      bridgeSvgTopY: bridgeSvgRect.top,
+      bridgeSvgBottomY: bridgeSvgRect.bottom,
+      bridgeSvgHeight: bridgeSvgRect.height,
+      tailSvgTopY: tailSvgRect.top,
+      tailSvgHeight: tailSvgRect.height,
       rowHeight: rowRect.height,
       timelineHeight: timelineRect.height,
       topViewBox: topSvg.getAttribute("viewBox"),
-      bottomViewBox: bottomSvg.getAttribute("viewBox"),
+      bridgeViewBox: bridgeSvg.getAttribute("viewBox"),
+      tailViewBox: tailSvg.getAttribute("viewBox"),
+      bridgePathD: bridgePath.getAttribute("d"),
     };
   });
 
-  assert.ok(metrics, "selected commit should render graph segments and a node");
-  assert.equal(metrics.topViewBox, "0 0 42 32");
-  assert.equal(metrics.bottomViewBox, "0 32 42 68");
+  assert.ok(metrics, "selected commit should render graph segments, a bridge, and a node");
+  assert.equal(metrics.topViewBox, "0 0 42 1");
+  assert.equal(metrics.bridgeViewBox, "0 0 42 38");
+  assert.equal(metrics.tailViewBox, "0 0 42 1");
+  assert.match(metrics.bridgePathD, /^M \d+ 0 C /);
   assert.ok(metrics.rowHeight > 90, `selected row should be expanded: ${JSON.stringify(metrics)}`);
   assert.ok(metrics.timelineHeight >= metrics.rowHeight - 1, `timeline should span selected row: ${JSON.stringify(metrics)}`);
   assert.ok(
@@ -615,8 +626,20 @@ async function assertSelectedCommitGraphAnchors(page) {
     `top graph segment should end at node: ${JSON.stringify(metrics)}`,
   );
   assert.ok(
-    Math.abs(metrics.nodeCenterY - metrics.bottomSvgTopY) <= 0.75,
-    `bottom graph segment should start at node: ${JSON.stringify(metrics)}`,
+    Math.abs(metrics.nodeCenterY - metrics.bridgeSvgTopY) <= 0.75,
+    `bridge graph segment should start at node: ${JSON.stringify(metrics)}`,
+  );
+  assert.ok(
+    Math.abs(metrics.bridgeSvgHeight - 38) <= 0.75,
+    `bridge graph segment should stay fixed when the row expands: ${JSON.stringify(metrics)}`,
+  );
+  assert.ok(
+    Math.abs(metrics.bridgeSvgBottomY - metrics.tailSvgTopY) <= 0.75,
+    `tail graph segment should start after the fixed bridge: ${JSON.stringify(metrics)}`,
+  );
+  assert.ok(
+    metrics.tailSvgHeight > 0,
+    `tail graph segment should absorb expanded row height: ${JSON.stringify(metrics)}`,
   );
 }
 
@@ -625,7 +648,22 @@ async function assertGitActions(page, expectedActions) {
 }
 
 async function testSelectedCommitGraphAnchor(browser, baseUrl) {
-  const { page, errors } = await openMockedPage(browser, baseUrl, mockedSnapshotScenario(mockCommits));
+  const graphAnchorCommits = [
+    commit({
+      hash: "a1b2c3d",
+      title: "Add commit search polish",
+      message: "Add commit search polish and keyboard selection",
+      refs: ["main"],
+      graph: {
+        laneCount: 2,
+        currentColor: "#f2b705",
+        parentStems: [{ column: 0, color: "#f2b705", variant: "solid" }],
+        bridges: [{ fromColumn: 0, toColumn: 1, color: "#2f80ed", variant: "solid" }],
+      },
+    }),
+    mockCommits[1],
+  ];
+  const { page, errors } = await openMockedPage(browser, baseUrl, mockedSnapshotScenario(graphAnchorCommits));
   try {
     await assertHealthyPage(page, errors);
 

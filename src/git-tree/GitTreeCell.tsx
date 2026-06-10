@@ -11,7 +11,7 @@ export function GitTreeCell({ graph, laneCount }: { graph: CommitGraph; laneCoun
     <div className={view.container.className} aria-hidden={view.container.ariaHidden}>
       {view.svgSegments.map((svg) => (
         <svg className={svg.className} viewBox={svg.viewBox} preserveAspectRatio={svg.preserveAspectRatio} key={svg.key}>
-          {view.paths.map((path) => (
+          {svg.paths.map((path) => (
             <path
               className={path.className}
               d={path.d}

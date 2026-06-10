@@ -693,6 +693,78 @@ function testGitGraphModule() {
   assert.equal(sharedMainGraphByHash.get(sharedMainHash).graph.currentVariant, "solid");
   assert.equal(sharedMainGraphByHash.get(sharedRootHash).graph.currentVariant, "solid");
 
+  const mainTipHash = "2".repeat(40);
+  const mainMiddleHash = "3".repeat(40);
+  const topicPointerHash = "4".repeat(40);
+  const mainThroughTopicPointerGraph = buildCommitGraph([
+    {
+      ...commit({ fullHash: mainTipHash, hash: "2222222", parents: [mainMiddleHash], refs: ["main"] }),
+      branchColor: "#f0a400",
+      refColors: ["#f0a400"],
+    },
+    {
+      ...commit({ fullHash: mainMiddleHash, hash: "3333333", parents: [topicPointerHash], refs: [], refColors: [] }),
+      branchColor: "#f0a400",
+      refColors: [],
+    },
+    {
+      ...commit({ fullHash: topicPointerHash, hash: "4444444", parents: [], refs: ["fiery-comet-drifts-21h04"] }),
+      branchColor: "#48ad62",
+      refColors: ["#48ad62"],
+    },
+  ]);
+  const topicPointerGraph = mainThroughTopicPointerGraph.find((item) => item.fullHash === topicPointerHash).graph;
+  assert.equal(topicPointerGraph.currentColor, "#f0a400");
+  assert.equal(topicPointerGraph.currentLabel, "main");
+
+  const mergeTipHash = "7".repeat(40);
+  const mainFirstParentHash = "8".repeat(40);
+  const topicTipHash = "9".repeat(40);
+  const sharedAncestorHash = "0a".repeat(20);
+  const mainFirstParentGraph = buildCommitGraph([
+    {
+      ...commit({ fullHash: mergeTipHash, hash: "7777777", parents: [mainFirstParentHash, topicTipHash], refs: ["main"] }),
+      branchColor: "#f0a400",
+      refColors: ["#f0a400"],
+    },
+    {
+      ...commit({ fullHash: topicTipHash, hash: "9999999", parents: [sharedAncestorHash], refs: ["refactor/codebase"] }),
+      branchColor: "#2f86d8",
+      refColors: ["#2f86d8"],
+    },
+    {
+      ...commit({ fullHash: mainFirstParentHash, hash: "8888888", parents: [sharedAncestorHash], refs: [], refColors: [] }),
+      branchColor: "#f0a400",
+      refColors: [],
+    },
+    {
+      ...commit({ fullHash: sharedAncestorHash, hash: "0a0a0a0", parents: [], refs: ["fiery-comet-drifts-21h04"] }),
+      branchColor: "#48ad62",
+      refColors: ["#48ad62"],
+    },
+  ]);
+  const sharedAncestorGraph = mainFirstParentGraph.find((item) => item.fullHash === sharedAncestorHash).graph;
+  assert.equal(sharedAncestorGraph.currentColor, "#f0a400");
+  assert.equal(sharedAncestorGraph.currentLabel, "main");
+  assert.equal(mainFirstParentGraph[2].graph.bridges[0].color, "#2f86d8");
+
+  const featureTipHash = "5".repeat(40);
+  const mainBaseHash = "6".repeat(40);
+  const featureJoiningMainGraph = buildCommitGraph([
+    {
+      ...commit({ fullHash: featureTipHash, hash: "5555555", parents: [mainBaseHash], refs: ["feature/preview"] }),
+      branchColor: "#48ad62",
+      refColors: ["#48ad62"],
+    },
+    {
+      ...commit({ fullHash: mainBaseHash, hash: "6666666", parents: [], refs: ["main"] }),
+      branchColor: "#f0a400",
+      refColors: ["#f0a400"],
+    },
+  ]);
+  assert.equal(featureJoiningMainGraph[1].graph.currentColor, "#f0a400");
+  assert.equal(featureJoiningMainGraph[1].graph.currentLabel, "main");
+
   const localOnlyHeadHash = "1".repeat(40);
   const graphWithDetachedExternalInsideLocalBranch = buildCommitGraph(
     [
@@ -4832,16 +4904,15 @@ async function testClassNamesAndGraph(server) {
 
   const model = buildGitTreeRenderModel(graph);
   assert.equal(model.width, 54);
-  assert.equal(model.height, 100);
-  assert.equal(model.viewBox, "0 0 54 100");
+  assert.equal(model.bridgeHeight, 38);
   assert.equal(model.node.x, 33);
   assert.equal(model.node.isMerge, true);
   assert.equal(model.node.className, "graph-node is-merge is-dashed");
   assert.equal(model.node.showCore, true);
-  assert.equal(model.paths.length, 4);
+  assert.equal(model.paths.length, 7);
   assert.ok(model.paths.some((path) => path.className === "graph-line is-dashed"));
   assert.ok(model.paths.some((path) => path.className === "graph-line graph-bridge"));
-  assert.ok(model.paths.some((path) => path.d.startsWith("M 33 32 C")));
+  assert.ok(model.paths.some((path) => path.d.startsWith("M 33 0 C")));
 
   const cellView = gitTreeCellView(model);
   assert.deepEqual(cellView.container, {
@@ -4851,29 +4922,42 @@ async function testClassNamesAndGraph(server) {
   assert.deepEqual(gitTreeSvgSegments(model), [
     {
       key: "top",
+      segment: "top",
       className: "graph-svg graph-svg-top",
-      viewBox: "0 0 54 32",
+      viewBox: "0 0 54 1",
       preserveAspectRatio: "none",
     },
     {
-      key: "bottom",
-      className: "graph-svg graph-svg-bottom",
-      viewBox: "0 32 54 68",
+      key: "bridge",
+      segment: "bridge",
+      className: "graph-svg graph-svg-bridge",
+      viewBox: "0 0 54 38",
+      preserveAspectRatio: "none",
+    },
+    {
+      key: "tail",
+      segment: "tail",
+      className: "graph-svg graph-svg-tail",
+      viewBox: "0 0 54 1",
       preserveAspectRatio: "none",
     },
   ]);
-  assert.deepEqual(cellView.svgSegments, gitTreeSvgSegments(model));
+  assert.deepEqual(
+    cellView.svgSegments.map(({ paths, ...svg }) => svg),
+    gitTreeSvgSegments(model),
+  );
   assert.deepEqual(gitTreePathStyle({ color: "#123456" }), {
     "--git-tree-color": "#123456",
   });
-  assert.equal(cellView.paths.length, model.paths.length);
-  assert.equal(cellView.paths[0].vectorEffect, "non-scaling-stroke");
-  assert.deepEqual(cellView.paths[0].style, {
-    "--git-tree-color": model.paths[0].color,
+  const cellViewPaths = cellView.svgSegments.flatMap((svg) => svg.paths);
+  assert.equal(cellViewPaths.length, model.paths.length);
+  assert.equal(cellViewPaths[0].vectorEffect, "non-scaling-stroke");
+  assert.deepEqual(cellViewPaths[0].style, {
+    "--git-tree-color": cellViewPaths[0].color,
   });
   assert.deepEqual(gitTreeNodeStyle(model), {
     left: `${model.node.leftPercent}%`,
-    top: "var(--git-tree-node-y, 32%)",
+    top: "var(--git-tree-node-y, 22px)",
     "--git-tree-color": "#111111",
   });
   assert.deepEqual(cellView.node, {
