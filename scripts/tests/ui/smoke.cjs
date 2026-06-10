@@ -647,6 +647,35 @@ async function assertGitActions(page, expectedActions) {
   assert.deepEqual(await page.evaluate(() => window.__gitPeekActions), expectedActions);
 }
 
+async function clickActionDialogBackdrop(page) {
+  const point = await page.locator(".action-dialog-backdrop").evaluate((backdrop) => {
+    const dialog = backdrop.querySelector(".action-dialog");
+    const backdropRect = backdrop.getBoundingClientRect();
+    const dialogRect = dialog?.getBoundingClientRect();
+    const candidates = [
+      { x: backdropRect.left + 16, y: backdropRect.top + 16 },
+      { x: backdropRect.right - 16, y: backdropRect.top + 16 },
+      { x: backdropRect.left + 16, y: backdropRect.bottom - 16 },
+      { x: backdropRect.right - 16, y: backdropRect.bottom - 16 },
+    ];
+
+    const outsideDialog = candidates.find((candidate) => {
+      if (!dialogRect) return true;
+      return (
+        candidate.x < dialogRect.left ||
+        candidate.x > dialogRect.right ||
+        candidate.y < dialogRect.top ||
+        candidate.y > dialogRect.bottom
+      );
+    });
+
+    if (!outsideDialog) throw new Error("No backdrop-only point available.");
+    return outsideDialog;
+  });
+
+  await page.mouse.click(point.x, point.y);
+}
+
 async function testSelectedCommitGraphAnchor(browser, baseUrl) {
   const graphAnchorCommits = [
     commit({
@@ -853,7 +882,7 @@ async function testCommitSearch(browser, baseUrl) {
     await invalidBranchNameInput.press("Enter");
     assert.equal(await page.getByRole("dialog", { name: "Create branch" }).count(), 1);
     await assertGitActions(page, []);
-    await page.keyboard.press("Escape");
+    await clickActionDialogBackdrop(page);
     assert.equal(await page.getByRole("dialog", { name: "Create branch" }).count(), 0);
     await assertGitActions(page, []);
 
@@ -864,6 +893,23 @@ async function testCommitSearch(browser, baseUrl) {
     const branchPrefixButton = page.getByRole("button", { name: "Branch prefix" });
     await branchPrefixButton.click();
     assert.equal(await branchPrefixButton.getAttribute("aria-expanded"), "true");
+    const prefixMenuPlacement = await page.locator("#action-branch-prefix-menu").evaluate((menu) => {
+      const trigger = document.querySelector("#action-branch-prefix-trigger");
+      const menuRect = menu.getBoundingClientRect();
+      const triggerRect = trigger?.getBoundingClientRect();
+
+      return {
+        menuTop: menuRect.top,
+        menuBottom: menuRect.bottom,
+        triggerTop: triggerRect?.top ?? 0,
+        viewportHeight: window.innerHeight,
+      };
+    });
+    assert.ok(prefixMenuPlacement.menuTop >= 0, `branch prefix menu should stay within viewport: ${JSON.stringify(prefixMenuPlacement)}`);
+    assert.ok(
+      prefixMenuPlacement.menuBottom <= prefixMenuPlacement.triggerTop,
+      `branch prefix menu should open above the trigger: ${JSON.stringify(prefixMenuPlacement)}`,
+    );
     await page.locator("#action-branch-prefix-menu").getByRole("menuitem", { name: "feat" }).click();
     assert.equal(await branchPrefixButton.getAttribute("aria-expanded"), "false");
     assert.equal(await page.locator(".action-branch-preview").innerText(), "feat/d4e5f6a");
@@ -882,6 +928,14 @@ async function testCommitSearch(browser, baseUrl) {
       await page.locator("#action-dialog-body").innerText(),
       "Merge d4e5f6a into the selected target branch. The working folder will end on that branch.",
     );
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), "Cancel");
+    await clickActionDialogBackdrop(page);
+    await page.getByRole("dialog", { name: "Merge commit" }).waitFor({ state: "detached" });
+    await assertGitActions(page, [createdBranchAction]);
+
+    await page.getByRole("button", { name: "Merge", exact: true }).click();
+    await page.getByRole("dialog", { name: "Merge commit" }).waitFor();
+    assert.equal(await page.locator("#action-dialog-title").innerText(), "Merge commit");
     assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), "Cancel");
     const mergeTargetButton = page.getByRole("button", { name: "Merge target branch" });
     assert.equal(await mergeTargetButton.innerText(), "main");
@@ -908,6 +962,13 @@ async function testCommitSearch(browser, baseUrl) {
     assert.equal(await mergeTargetButton.innerText(), "feature/footer-toggle");
     await page.getByRole("button", { name: "Confirm" }).click();
     await page.getByRole("dialog", { name: "Merge commit" }).waitFor({ state: "detached" });
+    await assertGitActions(page, [createdBranchAction, mergeAction]);
+
+    await page.getByRole("button", { name: "Checkout", exact: true }).click();
+    await page.getByRole("dialog", { name: "Checkout commit" }).waitFor();
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent?.trim()), "Cancel");
+    await clickActionDialogBackdrop(page);
+    await page.getByRole("dialog", { name: "Checkout commit" }).waitFor({ state: "detached" });
     await assertGitActions(page, [createdBranchAction, mergeAction]);
 
     await page.getByRole("button", { name: "Checkout", exact: true }).click();

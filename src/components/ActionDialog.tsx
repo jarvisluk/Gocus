@@ -1,5 +1,5 @@
 import { Check, ChevronDown, GitBranch, GitMerge, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import {
   actionBranchPrefixOptionView,
   actionMergeTargetOptionView,
@@ -199,8 +199,13 @@ export function ActionDialog({
   const view = actionDialogView(dialog);
   const HeadingIcon = dialog.type === "merge" ? GitMerge : GitBranch;
 
+  function handleBackdropMouseDown(event: MouseEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) return;
+    onCancel();
+  }
+
   return (
-    <div className={view.backdrop.className} role={view.backdrop.role}>
+    <div className={view.backdrop.className} role={view.backdrop.role} onMouseDown={handleBackdropMouseDown}>
       <section
         className={view.dialog.className}
         role={view.dialog.role}

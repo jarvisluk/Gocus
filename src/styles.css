@@ -889,7 +889,8 @@ button:disabled {
 
 .action-prefix-menu {
   z-index: 45;
-  top: calc(100% + 6px);
+  top: auto;
+  bottom: calc(100% + 6px);
   left: 0;
   width: min(174px, calc(100vw - 40px));
 }
