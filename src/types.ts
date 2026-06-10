@@ -81,11 +81,14 @@ export interface CommitGraph {
   currentColor: BranchColor;
   currentLabel: string;
   currentVariant: GraphLineVariant;
+  incomingColor: BranchColor;
+  incomingVariant: GraphLineVariant;
   currentContinues: boolean;
   passThrough: GraphLaneSegment[];
   parentStems: GraphLaneSegment[];
   bridges: GraphBridge[];
   isMerge: boolean;
+  isCurrentHead: boolean;
 }
 
 export interface GitBranchState {

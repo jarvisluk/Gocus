@@ -8,7 +8,7 @@ const BRIDGE_CONTROL_OFFSET = 26;
 const BRIDGE_DROP = 12;
 const BRIDGE_HEIGHT = BRIDGE_CONTROL_OFFSET + BRIDGE_DROP;
 
-export type GitTreePathSegment = "top" | "bridge" | "tail";
+export type GitTreePathSegment = "top" | "bridge" | "bridge-run" | "tail";
 
 export interface GitTreePath {
   id: string;
@@ -23,7 +23,7 @@ export interface GitTreeNode {
   leftPercent: number;
   color: BranchColor;
   className: string;
-  isMerge: boolean;
+  isCurrentHead: boolean;
   showCore: boolean;
 }
 
@@ -120,10 +120,10 @@ export function buildGitTreeRenderModel(graph: CommitGraph, options: GitTreeRend
     ...(graph.currentContinues
       ? [
           {
-            id: `current-${graph.column}-${graph.currentColor}`,
-            className: lineClass(undefined, graph.currentVariant),
+            id: `current-${graph.column}-${graph.incomingColor}`,
+            className: lineClass(undefined, graph.incomingVariant),
             d: verticalPath(graph.column, "top"),
-            color: graph.currentColor,
+            color: graph.incomingColor,
             segment: "top" as const,
           },
         ]
@@ -131,29 +131,13 @@ export function buildGitTreeRenderModel(graph: CommitGraph, options: GitTreeRend
     ...graph.parentStems.flatMap((lane, index) => laneSegmentPaths({ ...lane, from: "node" }, index, "stem")),
     ...graph.bridges
       .filter((bridge) => bridge.fromColumn !== bridge.toColumn)
-      .flatMap((bridge, index) => {
-        const bridgePaths: GitTreePath[] = [
-          {
-            id: `bridge-${index}-${bridge.fromColumn}-${bridge.toColumn}-${bridge.color}-${bridge.to ?? "bottom"}`,
-            className: lineClass("graph-bridge", bridge.variant),
-            d: bridgePath(bridge),
-            color: bridge.color,
-            segment: "bridge",
-          },
-        ];
-
-        if (bridge.to !== "lane") {
-          bridgePaths.push({
-            id: `bridge-tail-${index}-${bridge.toColumn}-${bridge.color}`,
-            className: lineClass(undefined, bridge.variant),
-            d: verticalPath(bridge.toColumn, "tail"),
-            color: bridge.color,
-            segment: "tail",
-          });
-        }
-
-        return bridgePaths;
-      }),
+      .map((bridge, index) => ({
+        id: `bridge-${index}-${bridge.fromColumn}-${bridge.toColumn}-${bridge.color}-${bridge.to ?? "bottom"}`,
+        className: lineClass("graph-bridge", bridge.variant),
+        d: bridgePath(bridge),
+        color: bridge.color,
+        segment: bridge.to === "lane" ? ("bridge" as const) : ("bridge-run" as const),
+      })),
   ];
 
   return {
@@ -164,9 +148,9 @@ export function buildGitTreeRenderModel(graph: CommitGraph, options: GitTreeRend
       x: nodeX,
       leftPercent: (nodeX / width) * 100,
       color: graph.currentColor,
-      className: joinClass("graph-node", graph.isMerge && "is-merge", graph.currentVariant === "dashed" && "is-dashed"),
-      isMerge: graph.isMerge,
-      showCore: graph.isMerge,
+      className: joinClass("graph-node", graph.isCurrentHead && "is-current-head", graph.currentVariant === "dashed" && "is-dashed"),
+      isCurrentHead: graph.isCurrentHead,
+      showCore: graph.isCurrentHead,
     },
   };
 }

@@ -23,6 +23,13 @@ export function gitTreeSvgSegments(model: GitTreeRenderModel) {
       preserveAspectRatio: "none",
     },
     {
+      key: "bridge-run",
+      segment: "bridge-run" as const,
+      className: "graph-svg graph-svg-bridge-run",
+      viewBox: `0 0 ${model.width} ${model.bridgeHeight}`,
+      preserveAspectRatio: "none",
+    },
+    {
       key: "tail",
       segment: "tail" as const,
       className: "graph-svg graph-svg-tail",

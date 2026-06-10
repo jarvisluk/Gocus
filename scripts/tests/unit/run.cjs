@@ -52,11 +52,14 @@ function commit(overrides = {}) {
       currentColor: "#2f80ed",
       currentLabel: "main",
       currentVariant: "solid",
+      incomingColor: "#2f80ed",
+      incomingVariant: "solid",
       currentContinues: true,
       passThrough: [],
       parentStems: [],
       bridges: [],
       isMerge: false,
+      isCurrentHead: false,
     },
     checkedOutWorktrees: [],
     ...overrides,
@@ -630,6 +633,8 @@ function testGitGraphModule() {
   assert.equal(commits[0].deletions, 1);
   assert.equal(commits[0].graph.currentLabel, "main");
   assert.equal(commits[0].graph.currentVariant, "solid");
+  assert.equal(commits[0].graph.incomingVariant, "solid");
+  assert.equal(commits[0].graph.isCurrentHead, true);
   const propagatedGraph = buildCommitGraph([
     {
       ...commit({ fullHash: firstHash, parents: [secondHash], refs: ["main"] }),
@@ -689,9 +694,77 @@ function testGitGraphModule() {
   const sharedMainGraphByHash = new Map(sharedMainGraph.map((item) => [item.fullHash, item]));
   assert.equal(sharedMainGraphByHash.get(externalHeadHash).graph.currentVariant, "dashed");
   assert.equal(sharedMainGraphByHash.get(currentHeadHash).graph.currentVariant, "solid");
+  assert.equal(sharedMainGraphByHash.get(currentHeadHash).graph.isCurrentHead, true);
+  assert.equal(sharedMainGraphByHash.get(externalHeadHash).graph.isCurrentHead, false);
   assert.equal(sharedMainGraphByHash.get(currentParentHash).graph.currentVariant, "solid");
   assert.equal(sharedMainGraphByHash.get(sharedMainHash).graph.currentVariant, "solid");
+  assert.equal(sharedMainGraphByHash.get(sharedMainHash).graph.currentColor, "#f0a400");
+  assert.equal(sharedMainGraphByHash.get(sharedMainHash).graph.incomingColor, "#333333");
+  assert.equal(sharedMainGraphByHash.get(sharedMainHash).graph.incomingVariant, "dashed");
   assert.equal(sharedMainGraphByHash.get(sharedRootHash).graph.currentVariant, "solid");
+
+  const externalChildHash = "7".repeat(40);
+  const localParentHash = "8".repeat(40);
+  const sourceStyledParentEdge = buildCommitGraph(
+    [
+      {
+        ...commit({ fullHash: externalChildHash, hash: "7777777", parents: [localParentHash], refs: ["feature/external"] }),
+        branchColor: "#333333",
+        refColors: ["#333333"],
+      },
+      {
+        ...commit({ fullHash: localParentHash, hash: "8888888", parents: [], refs: ["main"] }),
+        branchColor: "#f0a400",
+        refColors: ["#f0a400"],
+      },
+    ],
+    {
+      currentBranch: "main",
+      localBranches: ["main"],
+      externalHeads: [externalChildHash],
+      externalBranches: ["feature/external"],
+    },
+  );
+  assert.equal(sourceStyledParentEdge[0].graph.currentColor, "#333333");
+  assert.equal(sourceStyledParentEdge[0].graph.currentVariant, "dashed");
+  assert.deepEqual(sourceStyledParentEdge[0].graph.parentStems, [
+    { column: 0, color: "#333333", variant: "dashed" },
+  ]);
+  assert.equal(sourceStyledParentEdge[1].graph.currentColor, "#f0a400");
+  assert.equal(sourceStyledParentEdge[1].graph.currentVariant, "solid");
+  assert.equal(sourceStyledParentEdge[1].graph.incomingColor, "#333333");
+  assert.equal(sourceStyledParentEdge[1].graph.incomingVariant, "dashed");
+
+  const branchReturnMergeTipHash = "9".repeat(40);
+  const branchReturnFirstParentHash = "a".repeat(40);
+  const branchReturnParentHash = "b".repeat(40);
+  const branchReturnGraph = buildCommitGraph([
+    {
+      ...commit({
+        fullHash: branchReturnMergeTipHash,
+        hash: "9999999",
+        parents: [branchReturnFirstParentHash, branchReturnParentHash],
+        refs: ["main"],
+      }),
+      branchColor: "#f0a400",
+      refColors: ["#f0a400"],
+    },
+    {
+      ...commit({ fullHash: branchReturnFirstParentHash, hash: "aaaaaaa", parents: [], refs: [], refColors: [] }),
+      branchColor: "#f0a400",
+      refColors: [],
+    },
+    {
+      ...commit({ fullHash: branchReturnParentHash, hash: "bbbbbbb", parents: [], refs: ["refactor/codebase"] }),
+      branchColor: "#48ad62",
+      refColors: ["#48ad62"],
+    },
+  ]);
+  assert.deepEqual(branchReturnGraph[0].graph.bridges, [
+    { fromColumn: 0, toColumn: 1, color: "#48ad62", variant: "solid" },
+  ]);
+  assert.equal(branchReturnGraph[2].graph.currentColor, "#48ad62");
+  assert.equal(branchReturnGraph[2].graph.incomingColor, "#48ad62");
 
   const mainTipHash = "2".repeat(40);
   const mainMiddleHash = "3".repeat(40);
@@ -839,6 +912,7 @@ function testGitGraphModule() {
     },
   ]);
   assert.equal(mergeGraph[0].graph.isMerge, true);
+  assert.equal(mergeGraph[0].graph.isCurrentHead, false);
   assert.equal(mergeGraph[0].graph.bridges.length, 1);
 }
 
@@ -5015,14 +5089,17 @@ async function testClassNamesAndGraph(server) {
     laneCount: 1,
     currentColor: "#111111",
     currentVariant: "dashed",
+    incomingColor: "#999999",
+    incomingVariant: "solid",
     currentContinues: true,
     passThrough: [{ column: 0, color: "#222222", variant: "dashed", from: "top", to: "bottom" }],
     parentStems: [{ column: 1, color: "#333333", variant: "solid", from: "node", to: "bottom" }],
     bridges: [{ fromColumn: 2, toColumn: 0, color: "#444444", variant: "solid", to: "lane" }],
     isMerge: true,
+    isCurrentHead: false,
   };
 
-  assert.equal(joinClass("graph-node", false, null, undefined, "is-merge"), "graph-node is-merge");
+  assert.equal(joinClass("graph-node", false, null, undefined, "is-current-head"), "graph-node is-current-head");
   assert.equal(joinClass(), "");
   assert.equal(getGitTreeRequiredLaneCount(graph), 3);
   assert.equal(getGitTreeRailWidth(1), 42);
@@ -5032,13 +5109,25 @@ async function testClassNamesAndGraph(server) {
   assert.equal(model.width, 54);
   assert.equal(model.bridgeHeight, 38);
   assert.equal(model.node.x, 33);
-  assert.equal(model.node.isMerge, true);
-  assert.equal(model.node.className, "graph-node is-merge is-dashed");
-  assert.equal(model.node.showCore, true);
+  assert.equal(model.node.isCurrentHead, false);
+  assert.equal(model.node.className, "graph-node is-dashed");
+  assert.equal(model.node.showCore, false);
   assert.equal(model.paths.length, 7);
   assert.ok(model.paths.some((path) => path.className === "graph-line is-dashed"));
   assert.ok(model.paths.some((path) => path.className === "graph-line graph-bridge"));
   assert.ok(model.paths.some((path) => path.d.startsWith("M 33 0 C")));
+  const currentTopPath = model.paths.find((path) => path.id === "current-2-#999999");
+  assert.equal(currentTopPath?.color, "#999999");
+  assert.equal(currentTopPath?.className, "graph-line");
+  const bridgeWithoutLaneTarget = buildGitTreeRenderModel({
+    ...graph,
+    bridges: [{ fromColumn: 2, toColumn: 0, color: "#555555", variant: "solid" }],
+  });
+  assert.equal(
+    bridgeWithoutLaneTarget.paths.some((path) => path.id.startsWith("bridge-tail-")),
+    false,
+  );
+  assert.equal(bridgeWithoutLaneTarget.paths.find((path) => path.className === "graph-line graph-bridge")?.segment, "bridge-run");
 
   const cellView = gitTreeCellView(model);
   assert.deepEqual(cellView.container, {
@@ -5057,6 +5146,13 @@ async function testClassNamesAndGraph(server) {
       key: "bridge",
       segment: "bridge",
       className: "graph-svg graph-svg-bridge",
+      viewBox: "0 0 54 38",
+      preserveAspectRatio: "none",
+    },
+    {
+      key: "bridge-run",
+      segment: "bridge-run",
+      className: "graph-svg graph-svg-bridge-run",
       viewBox: "0 0 54 38",
       preserveAspectRatio: "none",
     },
@@ -5087,11 +5183,17 @@ async function testClassNamesAndGraph(server) {
     "--git-tree-color": "#111111",
   });
   assert.deepEqual(cellView.node, {
-    className: "graph-node is-merge is-dashed",
+    className: "graph-node is-dashed",
     style: gitTreeNodeStyle(model),
-    showCore: true,
+    showCore: false,
     coreClassName: "graph-node-core",
   });
+
+  const currentHeadModel = buildGitTreeRenderModel({ ...graph, currentVariant: "solid", isCurrentHead: true });
+  assert.equal(currentHeadModel.node.isCurrentHead, true);
+  assert.equal(currentHeadModel.node.className, "graph-node is-current-head");
+  assert.equal(currentHeadModel.node.showCore, true);
+  assert.equal(gitTreeCellView(currentHeadModel).node.showCore, true);
 
   const regularModel = buildGitTreeRenderModel({ ...graph, currentVariant: "solid", isMerge: false });
   assert.equal(regularModel.node.className, "graph-node");

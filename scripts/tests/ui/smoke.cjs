@@ -61,16 +61,22 @@ function expectedOpenWorktreeAction(view = { mode: "all" }) {
 }
 
 function graph(overrides = {}) {
+  const currentColor = overrides.currentColor ?? "#2f80ed";
+  const currentVariant = overrides.currentVariant ?? "solid";
+
   return {
     column: 0,
     laneCount: 1,
-    currentColor: "#2f80ed",
-    currentVariant: "solid",
+    currentColor,
+    currentVariant,
+    incomingColor: overrides.incomingColor ?? currentColor,
+    incomingVariant: overrides.incomingVariant ?? currentVariant,
     currentContinues: true,
     passThrough: [],
     parentStems: [],
     bridges: [],
     isMerge: false,
+    isCurrentHead: false,
     ...overrides,
   };
 }
@@ -643,15 +649,17 @@ async function assertSelectedCommitGraphAnchors(page) {
     const node = row.querySelector(".graph-node");
     const topSvg = row.querySelector(".graph-svg-top");
     const bridgeSvg = row.querySelector(".graph-svg-bridge");
+    const bridgeRunSvg = row.querySelector(".graph-svg-bridge-run");
     const tailSvg = row.querySelector(".graph-svg-tail");
     const timeline = row.querySelector(".timeline-cell");
-    const bridgePath = row.querySelector(".graph-svg-bridge .graph-bridge");
+    const bridgePath = row.querySelector(".graph-svg-bridge-run .graph-bridge");
 
-    if (!node || !topSvg || !bridgeSvg || !tailSvg || !timeline || !bridgePath) return null;
+    if (!node || !topSvg || !bridgeSvg || !bridgeRunSvg || !tailSvg || !timeline || !bridgePath) return null;
 
     const nodeRect = node.getBoundingClientRect();
     const topSvgRect = topSvg.getBoundingClientRect();
     const bridgeSvgRect = bridgeSvg.getBoundingClientRect();
+    const bridgeRunSvgRect = bridgeRunSvg.getBoundingClientRect();
     const tailSvgRect = tailSvg.getBoundingClientRect();
     const rowRect = row.getBoundingClientRect();
     const timelineRect = timeline.getBoundingClientRect();
@@ -662,12 +670,17 @@ async function assertSelectedCommitGraphAnchors(page) {
       bridgeSvgTopY: bridgeSvgRect.top,
       bridgeSvgBottomY: bridgeSvgRect.bottom,
       bridgeSvgHeight: bridgeSvgRect.height,
+      bridgeRunSvgTopY: bridgeRunSvgRect.top,
+      bridgeRunSvgBottomY: bridgeRunSvgRect.bottom,
+      bridgeRunSvgHeight: bridgeRunSvgRect.height,
       tailSvgTopY: tailSvgRect.top,
       tailSvgHeight: tailSvgRect.height,
       rowHeight: rowRect.height,
       timelineHeight: timelineRect.height,
+      timelineBottomY: timelineRect.bottom,
       topViewBox: topSvg.getAttribute("viewBox"),
       bridgeViewBox: bridgeSvg.getAttribute("viewBox"),
+      bridgeRunViewBox: bridgeRunSvg.getAttribute("viewBox"),
       tailViewBox: tailSvg.getAttribute("viewBox"),
       bridgePathD: bridgePath.getAttribute("d"),
     };
@@ -676,6 +689,7 @@ async function assertSelectedCommitGraphAnchors(page) {
   assert.ok(metrics, "selected commit should render graph segments, a bridge, and a node");
   assert.equal(metrics.topViewBox, "0 0 42 1");
   assert.equal(metrics.bridgeViewBox, "0 0 42 38");
+  assert.equal(metrics.bridgeRunViewBox, "0 0 42 38");
   assert.equal(metrics.tailViewBox, "0 0 42 1");
   assert.match(metrics.bridgePathD, /^M \d+ 0 C /);
   assert.ok(metrics.rowHeight > 90, `selected row should be expanded: ${JSON.stringify(metrics)}`);
@@ -686,19 +700,31 @@ async function assertSelectedCommitGraphAnchors(page) {
   );
   assert.ok(
     Math.abs(metrics.nodeCenterY - metrics.bridgeSvgTopY) <= 0.75,
-    `bridge graph segment should start at node: ${JSON.stringify(metrics)}`,
+    `fixed bridge graph segment should start at node: ${JSON.stringify(metrics)}`,
   );
   assert.ok(
     Math.abs(metrics.bridgeSvgHeight - 38) <= 0.75,
-    `bridge graph segment should stay fixed when the row expands: ${JSON.stringify(metrics)}`,
+    `fixed bridge graph segment should stay fixed when the row expands: ${JSON.stringify(metrics)}`,
+  );
+  assert.ok(
+    Math.abs(metrics.nodeCenterY - metrics.bridgeRunSvgTopY) <= 0.75,
+    `bridge-run graph segment should start at node: ${JSON.stringify(metrics)}`,
+  );
+  assert.ok(
+    Math.abs(metrics.bridgeRunSvgBottomY - metrics.timelineBottomY) <= 0.75,
+    `bridge-run graph segment should reach the row bottom: ${JSON.stringify(metrics)}`,
+  );
+  assert.ok(
+    metrics.bridgeRunSvgHeight > metrics.bridgeSvgHeight,
+    `bridge-run graph segment should absorb expanded row height: ${JSON.stringify(metrics)}`,
   );
   assert.ok(
     Math.abs(metrics.bridgeSvgBottomY - metrics.tailSvgTopY) <= 0.75,
-    `tail graph segment should start after the fixed bridge: ${JSON.stringify(metrics)}`,
+    `vertical tail graph segment should start after the fixed bridge: ${JSON.stringify(metrics)}`,
   );
   assert.ok(
     metrics.tailSvgHeight > 0,
-    `tail graph segment should absorb expanded row height: ${JSON.stringify(metrics)}`,
+    `vertical tail graph segment should absorb expanded row height: ${JSON.stringify(metrics)}`,
   );
 }
 

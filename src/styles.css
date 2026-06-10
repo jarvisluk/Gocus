@@ -1939,6 +1939,11 @@ button:disabled {
   height: var(--git-tree-bridge-span);
 }
 
+.graph-svg-bridge-run {
+  top: var(--git-tree-node-y, 22px);
+  height: max(0px, calc(100% - var(--git-tree-node-y, 22px)));
+}
+
 .graph-svg-tail {
   top: calc(var(--git-tree-node-y, 22px) + var(--git-tree-bridge-span));
   height: max(0px, calc(100% - var(--git-tree-node-y, 22px) - var(--git-tree-bridge-span)));
@@ -1983,7 +1988,7 @@ button:disabled {
   transform: translate(-50%, -50%);
 }
 
-.graph-node.is-merge {
+.graph-node.is-current-head {
   border-width: 2.5px;
 }
 
