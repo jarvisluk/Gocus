@@ -1129,6 +1129,15 @@ async function testMergeFailureStaysInDialog(browser, baseUrl) {
     assert.match(errorText, /Automatic merge failed/);
     assert.deepEqual(await page.evaluate(() => window.__gitPeekActions), [expectedMergeAction("main", false)]);
 
+    await page.getByRole("button", { name: "Copy agent prompt" }).click();
+    await page.getByRole("button", { name: "Copied prompt" }).waitFor();
+    const copiedPrompt = await page.evaluate(() => window.__gitPeekCopiedText);
+    assert.match(copiedPrompt, /A Git merge failed in this repository/);
+    assert.match(copiedPrompt, /Source ref\/commit: d4e5f6a000000000000000000000000000000000/);
+    assert.match(copiedPrompt, /Target branch: main/);
+    assert.match(copiedPrompt, /CONFLICT \(content\): Merge conflict in src\/App\.tsx/);
+    assert.match(copiedPrompt, /keep unrelated worktree changes intact/);
+
     const mergeTargetButton = page.getByRole("button", { name: "Merge target branch" });
     await mergeTargetButton.click();
     await page.locator("#action-merge-target-menu").getByRole("menuitem", { name: "feature/footer-toggle" }).click();

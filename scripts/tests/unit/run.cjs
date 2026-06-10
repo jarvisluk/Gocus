@@ -1102,6 +1102,7 @@ async function testActionDialogView(server) {
     actionDialogBodyId,
     actionDialogBranchNameKeyAction,
     actionDialogConfirmation,
+    actionDialogCopyPromptButtonView,
     actionDialogGlobalKeyAction,
     actionDialogAfterMergeError,
     actionDialogAfterMergeTargetChange,
@@ -1116,6 +1117,7 @@ async function testActionDialogView(server) {
     checkoutRefActionDialog,
     commitActionDialog,
     createBranchActionDialog,
+    mergeFailureAgentPrompt,
     mergeCommitActionDialog,
     mergeTargetBranchOptions,
   } = await loadTsModule(server, "src/lib/actionDialogView.ts");
@@ -1236,12 +1238,15 @@ async function testActionDialogView(server) {
     showMergeTargetValidationMessage: false,
     mergeTargetErrorId: undefined,
     actionError: {
+      containerClassName: "action-dialog-error-block",
       className: "ui-layer-panel ui-code-block action-dialog-error",
       id: "action-dialog-error",
       role: "alert",
       message: "",
     },
     showActionError: false,
+    mergeFailurePrompt: "",
+    showMergeFailurePrompt: false,
   };
   const actionDialogChromeWithBranchMax = (nameMaxLength) => ({
     ...actionDialogChrome,
@@ -1360,6 +1365,24 @@ async function testActionDialogView(server) {
   assert.equal(actionDialogBranchNameKeyAction("Enter", false), "confirm");
   assert.equal(actionDialogBranchNameKeyAction("Enter", true), "block");
   assert.equal(actionDialogBranchNameKeyAction("Escape", false), "ignore");
+  assert.deepEqual(actionDialogCopyPromptButtonView("idle"), {
+    className: "ui-button action-dialog-copy-prompt",
+    label: "Copy agent prompt",
+    title: "Copy agent prompt",
+    icon: "copy",
+  });
+  assert.deepEqual(actionDialogCopyPromptButtonView("copied"), {
+    className: "ui-button action-dialog-copy-prompt",
+    label: "Copied prompt",
+    title: "Copied prompt",
+    icon: "check",
+  });
+  assert.deepEqual(actionDialogCopyPromptButtonView("failed"), {
+    className: "ui-button action-dialog-copy-prompt",
+    label: "Copy failed",
+    title: "Copy failed",
+    icon: "x",
+  });
   const createBranchDialog = createBranchActionDialog(sampleCommit);
   const checkoutDialog = checkoutCommitActionDialog(sampleCommit);
   const mergeDialog = mergeCommitActionDialog(sampleCommit, { targetBranches: mergeTargets });
@@ -1595,11 +1618,26 @@ async function testActionDialogView(server) {
   assert.equal(failedMergeView.dialog.ariaDescribedBy, "action-dialog-body action-dialog-error");
   assert.equal(failedMergeView.showActionError, true);
   assert.deepEqual(failedMergeView.actionError, {
+    containerClassName: "action-dialog-error-block",
     className: "ui-layer-panel ui-code-block action-dialog-error",
     id: "action-dialog-error",
     role: "alert",
     message: "Auto-merging src/App.tsx\nCONFLICT (content): Merge conflict in src/App.tsx",
   });
+  assert.equal(failedMergeView.showMergeFailurePrompt, true);
+  assert.equal(
+    failedMergeView.mergeFailurePrompt,
+    mergeFailureAgentPrompt({
+      error: "Auto-merging src/App.tsx\nCONFLICT (content): Merge conflict in src/App.tsx",
+      ref: "abc123400000000000000000000000000000000",
+      targetBranch: "main",
+    }),
+  );
+  assert.match(failedMergeView.mergeFailurePrompt, /A Git merge failed in this repository/);
+  assert.match(failedMergeView.mergeFailurePrompt, /Source ref\/commit: abc123400000000000000000000000000000000/);
+  assert.match(failedMergeView.mergeFailurePrompt, /Target branch: main/);
+  assert.match(failedMergeView.mergeFailurePrompt, /CONFLICT \(content\): Merge conflict in src\/App\.tsx/);
+  assert.match(failedMergeView.mergeFailurePrompt, /keep unrelated worktree changes intact/);
 }
 
 async function testCommitSearch(server) {
