@@ -1,0 +1,4084 @@
+#!/usr/bin/env node
+
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const { spawnSync } = require("node:child_process");
+const path = require("node:path");
+const { pathToFileURL } = require("node:url");
+
+const projectRoot = path.resolve(__dirname, "../../..");
+
+function gitAcceptsBranchName(branchName) {
+  return spawnSync("git", ["check-ref-format", "--branch", branchName], { stdio: "ignore" }).status === 0;
+}
+
+function commit(overrides = {}) {
+  return {
+    id: "a1b2c3d",
+    fullHash: "a1b2c3d000000000000000000000000000000000",
+    hash: "a1b2c3d",
+    title: "Add commit search polish",
+    message: "Add commit search polish and keyboard selection",
+    author: "Codex",
+    relativeTime: "2 minutes ago",
+    additions: 8,
+    deletions: 1,
+    filesChanged: 2,
+    parents: ["0000000"],
+    refs: ["main"],
+    lane: "main",
+    branchColor: "#2f80ed",
+    refColors: ["#2f80ed"],
+    graph: {
+      column: 0,
+      laneCount: 1,
+      currentColor: "#2f80ed",
+      currentVariant: "solid",
+      currentContinues: true,
+      passThrough: [],
+      parentStems: [],
+      bridges: [],
+      isMerge: false,
+    },
+    checkedOutWorktrees: [],
+    ...overrides,
+  };
+}
+
+function gitSnapshot(overrides = {}) {
+  return {
+    repoPath: "/Users/junrong/repo",
+    repoName: "repo",
+    repositoryKey: "repo-key",
+    branch: { name: "main", upstream: "", ahead: 0, behind: 0, detached: false },
+    branches: [],
+    worktrees: [],
+    view: { mode: "all" },
+    counts: { modified: 0, staged: 0, untracked: 0 },
+    commits: [commit({ id: "keep" }), commit({ id: "other" })],
+    changedFiles: [],
+    lastFetchedAt: "2026-06-10T00:00:00.000Z",
+    isSample: false,
+    ...overrides,
+  };
+}
+
+async function loadTsModule(server, relativePath) {
+  return server.ssrLoadModule(pathToFileURL(path.join(projectRoot, relativePath)).href);
+}
+
+async function testRootMount(server) {
+  const { rootElementFromDocument, rootWindowModeFromUrl } = await loadTsModule(server, "src/lib/rootMount.ts");
+  const rootElement = { id: "root" };
+
+  assert.equal(rootWindowModeFromUrl("http://127.0.0.1/"), "main");
+  assert.equal(rootWindowModeFromUrl("http://127.0.0.1/?window=temporary-info"), "temporary-info");
+  assert.equal(rootWindowModeFromUrl("http://127.0.0.1/?window=main"), "main");
+  assert.equal(rootWindowModeFromUrl("not a url"), "main");
+  assert.equal(
+    rootElementFromDocument({
+      getElementById: (id) => (id === "root" ? rootElement : null),
+    }),
+    rootElement,
+  );
+  assert.throws(
+    () =>
+      rootElementFromDocument({
+        getElementById: () => null,
+      }),
+    /Missing #root root element/,
+  );
+  assert.throws(
+    () =>
+      rootElementFromDocument(
+        {
+          getElementById: () => null,
+        },
+        "app",
+      ),
+    /Missing #app root element/,
+  );
+}
+
+async function testIconButtonView(server) {
+  const { iconButtonView } = await loadTsModule(server, "src/lib/iconButtonView.ts");
+
+  assert.deepEqual(iconButtonView({ label: "Refresh Git status" }), {
+    className: "icon-button",
+    ariaLabel: "Refresh Git status",
+    ariaBusy: undefined,
+    ariaPressed: undefined,
+    title: "Refresh Git status",
+  });
+  assert.deepEqual(iconButtonView({ label: "Refreshing Git status", busy: true }), {
+    className: "icon-button",
+    ariaLabel: "Refreshing Git status",
+    ariaBusy: true,
+    ariaPressed: undefined,
+    title: "Refreshing Git status",
+  });
+  assert.deepEqual(iconButtonView({ label: "Pin floating panel", active: false }), {
+    className: "icon-button",
+    ariaLabel: "Pin floating panel",
+    ariaBusy: undefined,
+    ariaPressed: false,
+    title: "Pin floating panel",
+  });
+  assert.deepEqual(iconButtonView({ label: "Unpin floating panel", active: true }), {
+    className: "icon-button is-active",
+    ariaLabel: "Unpin floating panel",
+    ariaBusy: undefined,
+    ariaPressed: true,
+    title: "Unpin floating panel",
+  });
+}
+
+async function testStatusView(server) {
+  const { politeStatusView } = await loadTsModule(server, "src/lib/statusView.ts");
+
+  assert.deepEqual(politeStatusView({ className: "notice-line", message: "Ready." }), {
+    className: "notice-line",
+    message: "Ready.",
+    role: "status",
+    ariaLive: "polite",
+  });
+  assert.deepEqual(politeStatusView({ role: "alert", ariaLive: "assertive", message: "Softened." }), {
+    role: "status",
+    ariaLive: "polite",
+    message: "Softened.",
+  });
+}
+
+function testFileChecksUtility() {
+  const {
+    collectMatchingFiles,
+    formatProcessFailure,
+    processFailure,
+    relativePath,
+  } = require(path.join(projectRoot, "scripts/lib/file-checks.cjs"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-file-checks-"));
+
+  try {
+    fs.mkdirSync(path.join(tempDir, "src/nested"), { recursive: true });
+    fs.mkdirSync(path.join(tempDir, "src/node_modules"), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, "README.md"), "# Fixture\n", "utf8");
+    fs.writeFileSync(path.join(tempDir, "src/check.cjs"), "module.exports = true;\n", "utf8");
+    fs.writeFileSync(path.join(tempDir, "src/nested/skip.js"), "console.log('skip');\n", "utf8");
+    fs.writeFileSync(path.join(tempDir, "src/node_modules/ignored.cjs"), "module.exports = false;\n", "utf8");
+
+    const files = collectMatchingFiles({
+      projectRoot: tempDir,
+      roots: ["src", "missing-root"],
+      rootFiles: ["README.md", "src/check.cjs", "missing.md"],
+      extensions: new Set([".cjs", ".md"]),
+    });
+    assert.deepEqual(files.map((filePath) => relativePath(tempDir, filePath)), ["README.md", "src/check.cjs"]);
+
+    const failure = processFailure(tempDir, path.join(tempDir, "src/check.cjs"), {
+      status: 2,
+      signal: null,
+      stdout: " stdout \n",
+      stderr: " stderr \n",
+    });
+    assert.deepEqual(failure, {
+      filePath: path.join(tempDir, "src/check.cjs"),
+      relativeFilePath: "src/check.cjs",
+      status: 2,
+      signal: null,
+      stdout: "stdout",
+      stderr: "stderr",
+    });
+    assert.equal(formatProcessFailure(failure, "fixture --check"), "\nsrc/check.cjs\nstderr\nstdout");
+
+    assert.equal(
+      formatProcessFailure({ ...failure, stdout: "", stderr: "" }, "fixture --check"),
+      "\nsrc/check.cjs\nfixture --check exited with 2",
+    );
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+function testSourceHygieneScript() {
+  const {
+    checkContent,
+    collectCheckedFiles,
+    hasGitTreeBarrelImport,
+    hasInlinePoliteStatusViewLiteral,
+    hasReactImport,
+    hasRendererRuntimeImport,
+    isRendererSourceFile,
+    isSrcLibFile,
+    isViewModelFile,
+    maxLineLength,
+    runHygieneCheck,
+  } = require(path.join(projectRoot, "scripts/check-source-hygiene.cjs"));
+  const longLine = "x".repeat(maxLineLength + 1);
+
+  assert.equal(isSrcLibFile("src/lib/commitListView.ts"), true);
+  assert.equal(isSrcLibFile("src/components/RecentCommits.tsx"), false);
+  assert.equal(isRendererSourceFile("src/components/RecentCommits.tsx"), true);
+  assert.equal(isRendererSourceFile("electron/main.cjs"), false);
+  assert.equal(isRendererSourceFile("scripts/dev.cjs"), false);
+  assert.equal(isViewModelFile("src/lib/commitListView.ts"), true);
+  assert.equal(isViewModelFile("src/git-tree/gitTreeCellView.ts"), true);
+  assert.equal(isViewModelFile("src/lib/useDismissableLayer.ts"), false);
+  assert.equal(isViewModelFile("src/components/RecentCommits.tsx"), false);
+  assert.equal(hasInlinePoliteStatusViewLiteral('role: "status" as const,'), true);
+  assert.equal(hasInlinePoliteStatusViewLiteral('ariaLive: "polite" as const,'), true);
+  assert.equal(hasInlinePoliteStatusViewLiteral('role="status" aria-live="polite"'), false);
+  assert.equal(hasReactImport('import type { CSSProperties } from "react";'), true);
+  assert.equal(hasReactImport('import { useEffect } from "react";'), true);
+  assert.equal(hasReactImport('import { Search } from "lucide-react";'), false);
+  assert.equal(hasRendererRuntimeImport('import { ipcRenderer } from "electron";'), true);
+  assert.equal(hasRendererRuntimeImport('import path from "node:path";'), true);
+  assert.equal(hasRendererRuntimeImport('const fs = require("fs");'), true);
+  assert.equal(hasRendererRuntimeImport('import { Search } from "lucide-react";'), false);
+  assert.equal(hasGitTreeBarrelImport('import { GitTreeCell } from "../git-tree";'), true);
+  assert.equal(hasGitTreeBarrelImport('import { GitTreeCell } from "../git-tree/GitTreeCell";'), false);
+  assert.equal(hasGitTreeBarrelImport('import { getGitTreeRailWidth } from "../git-tree/renderGraph";'), false);
+
+  assert.deepEqual(checkContent("sample.ts", "const ok = true;\n"), []);
+  assert.deepEqual(checkContent("sample.ts", "const ok = true;\r\n"), []);
+  assert.deepEqual(checkContent("sample.ts", `const bad = true;  \nconst tab =\ttrue;\n${longLine}\n`), [
+    "sample.ts:1: trailing whitespace",
+    "sample.ts:2: tab character",
+    `sample.ts:3: ${maxLineLength + 1} chars`,
+  ]);
+  assert.deepEqual(checkContent("src/lib/example.ts", 'const empty = { role: "status", ariaLive: "polite" };\n'), [
+    "src/lib/example.ts:1: use politeStatusView for polite status live-region props",
+  ]);
+  assert.deepEqual(checkContent("src/lib/statusView.ts", 'const status = { role: "status", ariaLive: "polite" };\n'), []);
+  assert.deepEqual(checkContent("src/git-tree/exampleView.ts", 'import type { CSSProperties } from "react";\n'), [
+    "src/git-tree/exampleView.ts:1: keep view-model files free of React imports",
+  ]);
+  assert.deepEqual(checkContent("src/components/Example.tsx", 'import { useEffect } from "react";\n'), []);
+  assert.deepEqual(checkContent("src/components/Example.tsx", 'import { ipcRenderer } from "electron";\n'), [
+    "src/components/Example.tsx:1: keep renderer source free of Node/Electron runtime imports",
+  ]);
+  assert.deepEqual(checkContent("src/components/Example.tsx", 'import { GitTreeCell } from "../git-tree";\n'), [
+    "src/components/Example.tsx:1: import git-tree modules directly instead of the barrel",
+  ]);
+  assert.deepEqual(checkContent("electron/preload.cjs", 'const { ipcRenderer } = require("electron");\n'), []);
+
+  const checkedFileLabels = collectCheckedFiles().map((filePath) => path.relative(projectRoot, filePath));
+  assert.ok(checkedFileLabels.includes("electron/main.cjs"));
+  assert.ok(checkedFileLabels.includes("scripts/check-source-hygiene.cjs"));
+  assert.ok(checkedFileLabels.includes("DESIGN.md"));
+  assert.deepEqual(checkedFileLabels, [...checkedFileLabels].sort((left, right) => left.localeCompare(right)));
+
+  const currentResult = runHygieneCheck();
+  assert.ok(currentResult.checkedFiles.length >= checkedFileLabels.length);
+  assert.deepEqual(currentResult.failures, []);
+}
+
+function testSourceHelperUnitCoverage() {
+  const { collectMatchingFiles, relativePath } = require(path.join(projectRoot, "scripts/lib/file-checks.cjs"));
+  const helperCoverageExclusions = new Set(["src/git-tree/GitTreeCell.tsx"]);
+  const coveredModules = new Set(
+    [...fs.readFileSync(__filename, "utf8").matchAll(/loadTsModule\(\s*server,\s*"([^"]+)"/g)].map((match) => match[1]),
+  );
+  const sourceHelperFiles = collectMatchingFiles({
+    projectRoot,
+    roots: ["src/lib", "src/git-tree"],
+    extensions: new Set([".ts", ".tsx"]),
+  })
+    .map((filePath) => relativePath(projectRoot, filePath))
+    .filter((filePath) => !helperCoverageExclusions.has(filePath));
+
+  assert.deepEqual(
+    sourceHelperFiles.filter((filePath) => !coveredModules.has(filePath)),
+    [],
+  );
+}
+
+function testNodeSyntaxScript() {
+  const {
+    checkNodeFileSyntax,
+    collectNodeFiles,
+    runNodeSyntaxCheck,
+  } = require(path.join(projectRoot, "scripts/check-node-syntax.cjs"));
+
+  const nodeFileLabels = collectNodeFiles().map((filePath) => path.relative(projectRoot, filePath));
+  assert.ok(nodeFileLabels.includes("electron/main.cjs"));
+  assert.ok(nodeFileLabels.includes("scripts/check-node-syntax.cjs"));
+  assert.ok(nodeFileLabels.includes("tools/stylelint/git-peek-design.cjs"));
+  assert.deepEqual(nodeFileLabels, [...nodeFileLabels].sort((left, right) => left.localeCompare(right)));
+  assert.equal(checkNodeFileSyntax(path.join(projectRoot, "scripts/check-node-syntax.cjs")), null);
+
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-node-syntax-"));
+  const invalidFile = path.join(tempDir, "invalid.cjs");
+  fs.writeFileSync(invalidFile, "function broken( {\n", "utf8");
+
+  try {
+    const failure = checkNodeFileSyntax(invalidFile);
+    assert.ok(failure);
+    assert.equal(failure.filePath, invalidFile);
+    assert.equal(failure.status, 1);
+    assert.match(failure.stderr, /SyntaxError/);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+
+  const currentResult = runNodeSyntaxCheck();
+  assert.ok(currentResult.checkedFiles.length >= nodeFileLabels.length);
+  assert.deepEqual(currentResult.failures, []);
+}
+
+function testShellSyntaxScript() {
+  const {
+    checkShellFileSyntax,
+    collectShellFiles,
+    runShellSyntaxCheck,
+  } = require(path.join(projectRoot, "scripts/check-shell-syntax.cjs"));
+
+  const shellFileLabels = collectShellFiles().map((filePath) => path.relative(projectRoot, filePath));
+  assert.ok(shellFileLabels.includes("scripts/package-macos.sh"));
+  assert.deepEqual(shellFileLabels, [...shellFileLabels].sort((left, right) => left.localeCompare(right)));
+  assert.equal(checkShellFileSyntax(path.join(projectRoot, "scripts/package-macos.sh")), null);
+
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-shell-syntax-"));
+  const invalidFile = path.join(tempDir, "invalid.sh");
+  fs.writeFileSync(invalidFile, "if true; then\n  echo bad\n", "utf8");
+
+  try {
+    const failure = checkShellFileSyntax(invalidFile);
+    assert.ok(failure);
+    assert.equal(failure.filePath, invalidFile);
+    assert.equal(failure.status, 2);
+    assert.match(failure.stderr, /syntax error|unexpected end of file/i);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+
+  const currentResult = runShellSyntaxCheck();
+  assert.ok(currentResult.checkedFiles.length >= shellFileLabels.length);
+  assert.deepEqual(currentResult.failures, []);
+}
+
+function testWindowGeometryModule() {
+  const {
+    collapsedSize,
+    expandedMinimumSize,
+    clampExpandedSize,
+    mainWindowBounds,
+    temporaryInfoBounds,
+  } = require(path.join(projectRoot, "electron/lib/windowGeometry.cjs"));
+  const display = { x: 0, y: 24, width: 1440, height: 876 };
+
+  assert.deepEqual(collapsedSize, { width: 38, height: 154 });
+  assert.deepEqual(expandedMinimumSize, { width: 320, height: 620 });
+  assert.deepEqual(clampExpandedSize({ width: 1, height: 9999 }, display), { width: 320, height: 860 });
+  assert.deepEqual(
+    mainWindowBounds({
+      currentBounds: { x: 20, y: 40, width: 500, height: 700 },
+      display,
+      collapsed: false,
+      expandedSize: { width: 360, height: 700 },
+    }),
+    { x: 1070, y: 40, width: 360, height: 700 },
+  );
+  assert.deepEqual(
+    mainWindowBounds({
+      currentBounds: null,
+      display,
+      collapsed: true,
+      expandedSize: { width: 360, height: 700 },
+    }),
+    { x: 1402, y: 385, width: 38, height: 154 },
+  );
+  assert.deepEqual(
+    temporaryInfoBounds({
+      mainBounds: { x: 1070, y: 200, width: 360, height: 700 },
+      display,
+    }),
+    { x: 780, y: 640, width: 280, height: 252 },
+  );
+  assert.deepEqual(
+    temporaryInfoBounds({
+      mainBounds: { x: 1070, y: 200, width: 360, height: 700 },
+      display,
+      alignTop: true,
+    }),
+    { x: 780, y: 200, width: 280, height: 252 },
+  );
+}
+
+function testIpcHandlersModule() {
+  const { preferencesSaveSideEffects } = require(path.join(projectRoot, "electron/lib/ipcHandlers.cjs"));
+  const preferences = {
+    launchAtLogin: false,
+    showMenuBarIcon: true,
+    zenMode: false,
+  };
+
+  assert.deepEqual(
+    preferencesSaveSideEffects(preferences, preferences, { ...preferences, zenMode: true }),
+    {
+      syncLaunchAtLogin: false,
+      syncMenuBarIcon: false,
+    },
+  );
+  assert.deepEqual(
+    preferencesSaveSideEffects(preferences, preferences, { ...preferences, launchAtLogin: true }),
+    {
+      syncLaunchAtLogin: true,
+      syncMenuBarIcon: false,
+    },
+  );
+  assert.deepEqual(
+    preferencesSaveSideEffects(preferences, preferences, { ...preferences, showMenuBarIcon: false }),
+    {
+      syncLaunchAtLogin: false,
+      syncMenuBarIcon: true,
+    },
+  );
+}
+
+function testGitStatusModule() {
+  const { applyNumstat, parseStatus } = require(path.join(projectRoot, "electron/lib/gitStatus.cjs"));
+  const status = parseStatus("## main...origin/main [ahead 2, behind 1]\n M src/App.tsx\nA  README.md\n?? notes.txt\n");
+
+  assert.deepEqual(status.branch, {
+    name: "main",
+    upstream: "origin/main",
+    ahead: 2,
+    behind: 1,
+    detached: false,
+  });
+  assert.deepEqual(status.counts, { modified: 1, staged: 1, untracked: 1 });
+  assert.equal(status.files[0].statusLabel, "Modified");
+  assert.equal(status.files[1].statusLabel, "Added");
+  assert.equal(status.files[2].statusLabel, "Untracked");
+
+  applyNumstat(status.files, "12\t2\tsrc/App.tsx\n-\t-\tnotes.txt\n");
+  assert.equal(status.files[0].additions, 12);
+  assert.equal(status.files[0].deletions, 2);
+  assert.equal(status.files[2].additions, 0);
+  assert.equal(status.files[2].deletions, 0);
+}
+
+function testGitGraphModule() {
+  const { buildCommitGraph, parseLog } = require(path.join(projectRoot, "electron/lib/gitGraph.cjs"));
+  const firstHash = "a".repeat(40);
+  const secondHash = "b".repeat(40);
+  const rawLog = [
+    "\x1e",
+    [firstHash, "aaaaaaa", secondHash, "Codex", "2 minutes ago", "Add graph split", "HEAD -> main", "Body"].join("\x1f"),
+    "\x1d\n",
+    "8\t1\tsrc/App.tsx\n",
+  ].join("");
+  const commits = parseLog(rawLog, { currentHead: firstHash, currentBranch: "main" });
+
+  assert.equal(commits.length, 1);
+  assert.equal(commits[0].fullHash, firstHash);
+  assert.deepEqual(commits[0].refs, ["main"]);
+  assert.equal(commits[0].additions, 8);
+  assert.equal(commits[0].deletions, 1);
+  assert.equal(commits[0].graph.currentVariant, "solid");
+
+  const mergeGraph = buildCommitGraph([
+    {
+      ...commit({ fullHash: firstHash, parents: [secondHash, "c".repeat(40)], refs: ["main"] }),
+      branchColor: "#111111",
+      refColors: ["#111111"],
+    },
+  ]);
+  assert.equal(mergeGraph[0].graph.isMerge, true);
+  assert.equal(mergeGraph[0].graph.bridges.length, 1);
+}
+
+async function testBranchNames(server) {
+  const { branchNameValidationMessage, branchNameWithPrefix, branchPrefixes } = await loadTsModule(server, "src/lib/branchNames.ts");
+
+  assert.deepEqual(branchPrefixes, ["none", "feat", "fix", "chore", "docs", "refactor", "test"]);
+
+  assert.equal(branchNameWithPrefix("none", " /ready "), "ready");
+  assert.equal(branchNameWithPrefix("feat", "ready"), "feat/ready");
+  assert.equal(branchNameWithPrefix("feat", "feat/ready"), "feat/ready");
+  assert.equal(branchNameWithPrefix("fix", "/bug"), "fix/bug");
+
+  for (const branchName of ["feature/name", "release/2026.06", "@", "head"]) {
+    assert.equal(branchNameValidationMessage(branchName), "", `${branchName} should be valid`);
+  }
+
+  assert.equal(branchNameValidationMessage(""), "Enter a branch name.");
+  assert.equal(branchNameValidationMessage("-bad"), "Branch names cannot start with a dash.");
+  assert.equal(branchNameValidationMessage("HEAD"), "Branch names cannot be HEAD.");
+  assert.equal(branchNameValidationMessage("feat/"), "Branch names cannot contain empty path segments.");
+  assert.equal(branchNameValidationMessage("feat//ready"), "Branch names cannot contain empty path segments.");
+  assert.equal(branchNameValidationMessage("bad."), "Branch names cannot end with a dot.");
+  assert.equal(branchNameValidationMessage("bad..name"), "Branch names cannot contain consecutive dots.");
+  assert.equal(branchNameValidationMessage("bad@{name"), "Branch names cannot contain @{.");
+  assert.equal(branchNameValidationMessage("bad name"), "Branch names cannot contain spaces or ~ ^ : ? * [ \\.");
+  assert.equal(branchNameValidationMessage("feature/.hidden"), "Branch path segments cannot start with a dot.");
+  assert.equal(branchNameValidationMessage("feature/name.lock"), "Branch path segments cannot end with .lock.");
+
+  for (const branchName of [
+    "feature/name",
+    "release/2026.06",
+    "@",
+    "head",
+    "",
+    "-bad",
+    "HEAD",
+    "feat/",
+    "feat//ready",
+    "bad.",
+    "bad..name",
+    "bad@{name",
+    "bad name",
+    "feature/.hidden",
+    "feature/name.lock",
+  ]) {
+    assert.equal(
+      branchNameValidationMessage(branchName) === "",
+      gitAcceptsBranchName(branchName),
+      `${branchName} should match git check-ref-format`,
+    );
+  }
+}
+
+async function testAppShellView(server) {
+  const {
+    appChangedNowCount,
+    appEditorBackdropView,
+    appNativeDialogBlockerView,
+    appPanelContentView,
+    appPanelView,
+    appPreferencesWithZenMode,
+    appScrollRegionView,
+    appShouldCloseSettingsAfterPreferencesChange,
+    appShouldCloseSettingsOnKey,
+    appShouldShowRepositoryControls,
+    appShouldCloseTemporaryInfoOnPointer,
+    appShouldExitZenOnKey,
+    appTemporaryInfoDismissView,
+    appViewportView,
+    appZenExitButtonView,
+    appZenSnapshot,
+  } = await loadTsModule(server, "src/lib/appShellView.ts");
+  const { defaultPreferences } = await loadTsModule(server, "src/lib/preferences.ts");
+
+  assert.deepEqual(appViewportView({ electron: false, collapsed: false, zenActive: false }), {
+    className: "app-viewport",
+  });
+  assert.deepEqual(appViewportView({ electron: true, collapsed: true, zenActive: true }), {
+    className: "app-viewport is-electron is-collapsed is-zen",
+  });
+  assert.deepEqual(appPanelView(false), {
+    className: "peek-panel",
+    ariaLabel: "Git Peek side panel",
+  });
+  assert.deepEqual(appPanelView(true), {
+    className: "peek-panel is-zen-panel",
+    ariaLabel: "Git Peek zen commit view",
+  });
+  const snapshot = gitSnapshot();
+  assert.deepEqual(appPanelContentView({ snapshot, settingsOpen: true, zenMode: true }), {
+    mode: "zen",
+    snapshot,
+  });
+  assert.deepEqual(appPanelContentView({ snapshot, settingsOpen: true, zenMode: false }), {
+    mode: "settings",
+  });
+  assert.deepEqual(appPanelContentView({ snapshot, settingsOpen: false, zenMode: false }), {
+    mode: "repository",
+    snapshot,
+  });
+  assert.deepEqual(appPanelContentView({ snapshot: null, settingsOpen: false, zenMode: true }), {
+    mode: "empty",
+  });
+  assert.deepEqual(appPanelContentView({ snapshot: null, settingsOpen: false, zenMode: false }), {
+    mode: "empty",
+  });
+  const editorBackdrop = appEditorBackdropView();
+  assert.deepEqual(editorBackdrop.tabs, {
+    className: "editor-tabs",
+    labels: ["Menu.tsx", "shortcuts.ts"],
+  });
+  assert.equal(editorBackdrop.className, "editor-backdrop");
+  assert.equal(editorBackdrop.ariaHidden, true);
+  assert.match(editorBackdrop.previewCode, /className="menu-item"/);
+  assert.deepEqual(appScrollRegionView(false), {
+    className: "scroll-region",
+  });
+  assert.deepEqual(appScrollRegionView(true), {
+    className: "scroll-region zen-scroll-region",
+  });
+  assert.deepEqual(appZenExitButtonView(), {
+    className: "ui-icon-button zen-exit-button",
+    ariaLabel: "Exit Zen mode",
+    title: "Exit Zen mode",
+  });
+  assert.deepEqual(appNativeDialogBlockerView(), {
+    className: "native-dialog-blocker",
+    ariaHidden: true,
+  });
+  assert.deepEqual(appTemporaryInfoDismissView(), {
+    exemptSelector: ".footer-changed-now, .rail-count",
+  });
+  assert.equal(appZenSnapshot({ snapshot, zenMode: true }), snapshot);
+  assert.equal(appZenSnapshot({ snapshot, zenMode: false }), null);
+  assert.equal(appZenSnapshot({ snapshot: null, zenMode: true }), null);
+  assert.equal(appChangedNowCount(null), 0);
+  assert.equal(appChangedNowCount(gitSnapshot({ changedFiles: [] })), 0);
+  assert.equal(appChangedNowCount(gitSnapshot({ changedFiles: [{ path: "src/App.tsx" }, { path: "README.md" }] })), 2);
+  const preferences = { ...defaultPreferences, themeMode: "light", zenMode: false, showZenEntry: false };
+  const zenPreferences = appPreferencesWithZenMode(preferences, true);
+  assert.notEqual(zenPreferences, preferences);
+  assert.deepEqual(zenPreferences, { ...preferences, zenMode: true });
+  assert.deepEqual(appPreferencesWithZenMode(zenPreferences, false), preferences);
+  assert.equal(appShouldShowRepositoryControls({ snapshot: null, zenActive: false }), false);
+  assert.equal(appShouldShowRepositoryControls({ snapshot, zenActive: true }), false);
+  assert.equal(appShouldShowRepositoryControls({ snapshot, zenActive: false }), true);
+  assert.equal(appShouldCloseSettingsOnKey({ key: "Escape", settingsOpen: true, zenActive: false }), true);
+  assert.equal(appShouldCloseSettingsOnKey({ key: "Enter", settingsOpen: true, zenActive: false }), false);
+  assert.equal(appShouldCloseSettingsOnKey({ key: "Escape", settingsOpen: false, zenActive: false }), false);
+  assert.equal(appShouldCloseSettingsOnKey({ key: "Escape", settingsOpen: true, zenActive: true }), false);
+  assert.equal(appShouldCloseSettingsAfterPreferencesChange({ settingsOpen: true, nextZenMode: true }), true);
+  assert.equal(appShouldCloseSettingsAfterPreferencesChange({ settingsOpen: true, nextZenMode: false }), false);
+  assert.equal(appShouldCloseSettingsAfterPreferencesChange({ settingsOpen: false, nextZenMode: true }), false);
+  assert.equal(appShouldExitZenOnKey({ key: "Escape", zenActive: true }), true);
+  assert.equal(appShouldExitZenOnKey({ key: "Enter", zenActive: true }), false);
+  assert.equal(appShouldExitZenOnKey({ key: "Escape", zenActive: false }), false);
+
+  const exemptSelector = appTemporaryInfoDismissView().exemptSelector;
+  const exemptTarget = { closest: (selector) => (selector === exemptSelector ? { nodeType: 1 } : null) };
+  const outsideTarget = { closest: () => null };
+  assert.equal(appShouldCloseTemporaryInfoOnPointer(exemptTarget, exemptSelector), false);
+  assert.equal(appShouldCloseTemporaryInfoOnPointer(outsideTarget, exemptSelector), true);
+  assert.equal(appShouldCloseTemporaryInfoOnPointer({ detail: "not an element" }, exemptSelector), true);
+  assert.equal(appShouldCloseTemporaryInfoOnPointer(null, exemptSelector), true);
+}
+
+async function testActionDialogView(server) {
+  const {
+    actionDialogAfterBranchNameChange,
+    actionDialogAfterBranchPrefixChange,
+    actionBranchErrorId,
+    actionBranchPreviewId,
+    actionDialogBodyId,
+    actionDialogBranchNameKeyAction,
+    actionDialogConfirmation,
+    actionDialogGlobalKeyAction,
+    actionDialogTitleId,
+    actionDialogView,
+    branchPrefixOptions,
+    checkoutCommitActionDialog,
+    checkoutRefActionDialog,
+    commitActionDialog,
+    createBranchActionDialog,
+  } = await loadTsModule(server, "src/lib/actionDialogView.ts");
+
+  assert.deepEqual(
+    branchPrefixOptions.map((option) => option.label),
+    ["None", "feat", "fix", "chore", "docs", "refactor", "test"],
+  );
+  assert.equal(actionDialogTitleId, "action-dialog-title");
+  assert.equal(actionDialogBodyId, "action-dialog-body");
+  assert.equal(actionBranchPreviewId, "action-branch-preview");
+  const actionDialogChrome = {
+    backdrop: {
+      className: "ui-dialog-backdrop action-dialog-backdrop",
+      role: "presentation",
+    },
+    dialog: {
+      className: "ui-dialog ui-layer-panel action-dialog",
+      role: "dialog",
+      ariaModal: true,
+      ariaLabelledBy: actionDialogTitleId,
+      ariaDescribedBy: actionDialogBodyId,
+    },
+    heading: {
+      className: "ui-dialog-heading action-dialog-heading",
+      id: actionDialogTitleId,
+    },
+    closeButton: {
+      className: "ui-icon-button",
+      ariaLabel: "Close dialog",
+    },
+    body: {
+      className: "ui-dialog-body",
+      id: actionDialogBodyId,
+    },
+    branchFields: {
+      containerClassName: "action-branch-fields",
+      fieldClassName: "action-branch-field",
+      prefixLabel: "Prefix",
+      selectFrameClassName: "ui-select-frame",
+      prefixSelectClassName: "ui-select",
+      prefixAriaLabel: "Branch prefix",
+      nameLabel: "Name",
+      nameInputClassName: "ui-input",
+      nameAriaLabel: "Branch name",
+      previewClassName: "action-branch-preview",
+      previewId: actionBranchPreviewId,
+      errorClassName: "action-branch-error",
+    },
+  };
+  const actionDialogButtons = ({ cancelAutoFocus = false, confirmDisabled = false } = {}) => ({
+    actions: {
+      className: "ui-dialog-actions action-dialog-actions",
+    },
+    cancelButton: {
+      className: "ui-button",
+      label: "Cancel",
+      autoFocus: cancelAutoFocus,
+    },
+    confirmButton: {
+      className: "ui-button primary",
+      label: "Confirm",
+      disabled: confirmDisabled,
+    },
+  });
+  const sampleCommit = commit({
+    hash: "abc1234",
+    fullHash: "abc123400000000000000000000000000000000",
+  });
+
+  assert.deepEqual(createBranchActionDialog(sampleCommit), {
+    type: "createBranch",
+    title: "Create branch",
+    body: "Start a new branch from abc1234.",
+    branchPrefix: "none",
+    branchName: "abc1234",
+    commit: {
+      fullHash: "abc123400000000000000000000000000000000",
+      hash: "abc1234",
+    },
+  });
+  assert.deepEqual(commitActionDialog("branch", sampleCommit), createBranchActionDialog(sampleCommit));
+  assert.deepEqual(checkoutCommitActionDialog(sampleCommit), {
+    type: "checkout",
+    title: "Checkout commit",
+    body: "Checkout abc1234. This can detach HEAD.",
+    ref: "abc123400000000000000000000000000000000",
+  });
+  assert.deepEqual(commitActionDialog("checkout", sampleCommit), checkoutCommitActionDialog(sampleCommit));
+  assert.deepEqual(checkoutRefActionDialog("feature/worktree-safety"), {
+    type: "checkout",
+    title: "Checkout branch",
+    body: "Switch the working folder to feature/worktree-safety.",
+    ref: "feature/worktree-safety",
+  });
+  assert.equal(actionDialogGlobalKeyAction("Escape"), "cancel");
+  assert.equal(actionDialogGlobalKeyAction("Enter"), "ignore");
+  assert.equal(actionDialogBranchNameKeyAction("Enter", false), "confirm");
+  assert.equal(actionDialogBranchNameKeyAction("Enter", true), "block");
+  assert.equal(actionDialogBranchNameKeyAction("Escape", false), "ignore");
+  const createBranchDialog = createBranchActionDialog(sampleCommit);
+  const checkoutDialog = checkoutCommitActionDialog(sampleCommit);
+  assert.deepEqual(actionDialogAfterBranchNameChange(createBranchDialog, "ready"), {
+    ...createBranchDialog,
+    branchName: "ready",
+  });
+  assert.deepEqual(actionDialogAfterBranchPrefixChange(createBranchDialog, "fix"), {
+    ...createBranchDialog,
+    branchPrefix: "fix",
+  });
+  assert.equal(actionDialogAfterBranchNameChange(checkoutDialog, "ignored"), checkoutDialog);
+  assert.equal(actionDialogAfterBranchPrefixChange(checkoutDialog, "feat"), checkoutDialog);
+  assert.equal(actionDialogAfterBranchNameChange(null, "ignored"), null);
+  assert.equal(actionDialogAfterBranchPrefixChange(null, "feat"), null);
+  const readyBranchDialog = actionDialogAfterBranchPrefixChange(actionDialogAfterBranchNameChange(createBranchDialog, "ready"), "feat");
+  assert.deepEqual(actionDialogConfirmation(readyBranchDialog), {
+    type: "createBranch",
+    branchName: "feat/ready",
+    baseHash: "abc123400000000000000000000000000000000",
+    fallbackNotice: "Created feat/ready.",
+    failureNotice: "Unable to create branch.",
+  });
+  assert.equal(actionDialogConfirmation(actionDialogAfterBranchNameChange(createBranchDialog, "bad name")), null);
+  assert.equal(
+    actionDialogConfirmation({
+      type: "createBranch",
+      title: "Create branch",
+      body: "Start a branch.",
+      branchPrefix: "none",
+      branchName: "ready",
+    }),
+    null,
+  );
+  assert.deepEqual(actionDialogConfirmation(checkoutDialog), {
+    type: "checkout",
+    ref: "abc123400000000000000000000000000000000",
+    fallbackNotice: "Checkout complete.",
+    failureNotice: "Unable to checkout ref.",
+  });
+  assert.equal(
+    actionDialogConfirmation({
+      type: "checkout",
+      title: "Checkout branch",
+      body: "Switch branch.",
+    }),
+    null,
+  );
+  assert.equal(actionDialogConfirmation(null), null);
+
+  assert.deepEqual(
+    actionDialogView({
+      type: "createBranch",
+      title: "Create branch",
+      body: "Start a branch.",
+      branchPrefix: "feat",
+      branchName: " settings-panel ",
+    }),
+    {
+      isCreateBranch: true,
+      ...actionDialogChrome,
+      showBranchFields: true,
+      resolvedBranchName: "feat/settings-panel",
+      showResolvedBranchName: true,
+      branchValidationMessage: "",
+      showBranchValidationMessage: false,
+      branchErrorId: undefined,
+      branchInputInvalid: false,
+      branchInputAriaInvalid: undefined,
+      branchInputDescribedBy: actionBranchPreviewId,
+      confirmDisabled: false,
+      cancelAutoFocus: false,
+      ...actionDialogButtons(),
+    },
+  );
+
+  assert.deepEqual(
+    actionDialogView({
+      type: "createBranch",
+      title: "Create branch",
+      body: "Start a branch.",
+      branchPrefix: "fix",
+      branchName: "bad name",
+    }),
+    {
+      isCreateBranch: true,
+      ...actionDialogChrome,
+      showBranchFields: true,
+      resolvedBranchName: "fix/bad name",
+      showResolvedBranchName: true,
+      branchValidationMessage: "Branch names cannot contain spaces or ~ ^ : ? * [ \\.",
+      showBranchValidationMessage: true,
+      branchErrorId: actionBranchErrorId,
+      branchInputInvalid: true,
+      branchInputAriaInvalid: true,
+      branchInputDescribedBy: `${actionBranchPreviewId} ${actionBranchErrorId}`,
+      confirmDisabled: true,
+      cancelAutoFocus: false,
+      ...actionDialogButtons({ confirmDisabled: true }),
+    },
+  );
+
+  const emptyBranchView = actionDialogView({
+    type: "createBranch",
+    title: "Create branch",
+    body: "Start a branch.",
+    branchPrefix: "none",
+    branchName: "/",
+  });
+  assert.equal(emptyBranchView.showResolvedBranchName, false);
+  assert.equal(emptyBranchView.branchErrorId, actionBranchErrorId);
+  assert.equal(emptyBranchView.branchInputDescribedBy, actionBranchErrorId);
+
+  assert.deepEqual(
+    actionDialogView({
+      type: "checkout",
+      title: "Checkout branch",
+      body: "Switch branch.",
+    }),
+    {
+      isCreateBranch: false,
+      backdrop: actionDialogChrome.backdrop,
+      dialog: actionDialogChrome.dialog,
+      heading: actionDialogChrome.heading,
+      closeButton: actionDialogChrome.closeButton,
+      body: actionDialogChrome.body,
+      branchFields: actionDialogChrome.branchFields,
+      showBranchFields: false,
+      resolvedBranchName: "",
+      showResolvedBranchName: false,
+      branchValidationMessage: "",
+      showBranchValidationMessage: false,
+      branchErrorId: undefined,
+      branchInputInvalid: false,
+      branchInputAriaInvalid: undefined,
+      branchInputDescribedBy: undefined,
+      confirmDisabled: false,
+      cancelAutoFocus: true,
+      ...actionDialogButtons({ cancelAutoFocus: true }),
+    },
+  );
+}
+
+async function testCommitSearch(server) {
+  const { commitMatchesSearch, commitSearchTerms, filterCommitsBySearch } = await loadTsModule(server, "src/lib/commitSearch.ts");
+  const externalWorktreeCommit = commit({
+    title: "External worktree head",
+    message: "Commit checked out in another worktree",
+    author: "June",
+    refs: ["feature/external-worktree"],
+    parents: ["abc1234"],
+    checkedOutWorktrees: [
+      {
+        path: "/Users/junrong/codespace/git-tree-vis-external",
+        branch: "feature/external-worktree",
+        head: "e7f8a9b000000000000000000000000000000000",
+        headShortHash: "e7f8a9b",
+        headTitle: "External worktree head",
+        headRelativeTime: "5 minutes ago",
+        detached: false,
+        bare: false,
+        current: false,
+        counts: { modified: 0, staged: 0, untracked: 0 },
+      },
+    ],
+  });
+
+  assert.deepEqual(commitSearchTerms("  Footer   CODEX  "), ["footer", "codex"]);
+  assert.deepEqual(commitSearchTerms("   "), []);
+  assert.equal(commitMatchesSearch(commit(), []), true);
+  assert.equal(commitMatchesSearch(commit(), commitSearchTerms("SEARCH keyboard")), true);
+  assert.equal(commitMatchesSearch(commit(), commitSearchTerms("a1b2 codex main")), true);
+  assert.equal(commitMatchesSearch(commit(), commitSearchTerms("missing")), false);
+  assert.equal(commitMatchesSearch(externalWorktreeCommit, commitSearchTerms("external e7f8a9b")), true);
+  assert.equal(commitMatchesSearch(externalWorktreeCommit, commitSearchTerms("git-tree-vis-external abc1234")), true);
+  assert.deepEqual(
+    filterCommitsBySearch([commit({ id: "one" }), externalWorktreeCommit], "June external").map((item) => item.id),
+    ["a1b2c3d"],
+  );
+}
+
+async function testCommitListView(server) {
+  const {
+    commitListView,
+    commitSearchClearButtonView,
+    commitSearchInputKeyAction,
+    commitSearchInputView,
+    commitSearchStateApplication,
+    commitSearchStateAfterAvailability,
+    commitSearchStateAfterClose,
+    commitSearchStateAfterToggle,
+    commitSearchToggleView,
+    commitSelectionVisible,
+    firstCommitId,
+    recentCommitsTitleId,
+    selectedCommitFromSnapshot,
+    selectedCommitIdAfterToggle,
+  } = await loadTsModule(server, "src/lib/commitListView.ts");
+  const commits = [
+    commit({ id: "search", title: "Add commit search polish", message: "Keyboard selection", author: "Codex" }),
+    commit({ id: "footer", title: "Tighten footer menu", message: "Workspace app picker", author: "June", refs: ["feature/footer"] }),
+  ];
+
+  assert.deepEqual(
+    commitListView(commits, "").filteredCommits.map((item) => item.id),
+    ["search", "footer"],
+  );
+  assert.equal(commitListView(commits, "").countLabel, "Showing 2");
+  assert.equal(recentCommitsTitleId, "recent-commits-title");
+  assert.deepEqual(commitListView(commits, "").section, {
+    className: "commits-section",
+    ariaLabelledBy: "recent-commits-title",
+  });
+  assert.deepEqual(commitListView(commits, "").heading, {
+    className: "section-heading",
+  });
+  assert.equal(commitListView(commits, "").titleId, "recent-commits-title");
+  assert.equal(commitListView(commits, "").title, "Recent commits");
+  assert.equal(commitListView(commits, "").filteredCount, 2);
+  assert.equal(commitListView(commits, "").showCommits, true);
+  assert.equal(commitListView(commits, "").showEmptyState, false);
+  assert.equal(commitListView(commits, "", true).searchActive, true);
+  assert.equal(commitListView(commits, "", true).headingToolsClassName, "heading-tools has-search");
+  assert.deepEqual(commitListView(commits, "", true).count, {
+    className: "commit-count",
+    role: "status",
+    ariaLive: "polite",
+    label: "Showing 2",
+  });
+  assert.equal(commitListView(commits, "", true).showSearchForm, true);
+  assert.deepEqual(commitListView(commits, "", true).searchForm, {
+    className: "commit-search",
+    id: "commit-search-form",
+    role: "search",
+  });
+  assert.equal(commitListView(commits, "", true).showSearchClearButton, false);
+  assert.deepEqual(commitListView(commits, "", true).searchInput, {
+    ariaLabel: "Search commits",
+    placeholder: "Search",
+  });
+  assert.deepEqual(commitListView(commits, "", true).searchClearButton, {
+    show: false,
+    className: "commit-search-clear",
+    ariaLabel: "Clear commit search",
+  });
+  assert.equal(commitListView(commits, "footer").countLabel, "Showing 1/2");
+  assert.equal(commitListView(commits, "footer").headingToolsClassName, "heading-tools has-search");
+  assert.equal(commitListView(commits, "footer").showSearchClearButton, true);
+  assert.deepEqual(commitListView(commits, "footer").searchClearButton, {
+    show: true,
+    className: "commit-search-clear",
+    ariaLabel: "Clear commit search",
+  });
+  assert.deepEqual(
+    commitListView(commits, "footer").filteredCommits.map((item) => item.id),
+    ["footer"],
+  );
+  assert.equal(commitListView(commits, "footer").filteredCount, 1);
+  assert.equal(commitListView(commits, "missing").emptyMessage, 'No commits match "missing".');
+  assert.equal(commitListView(commits, "missing").filteredCount, 0);
+  assert.equal(commitListView(commits, "missing").showCommits, false);
+  assert.equal(commitListView(commits, "missing").showEmptyState, true);
+  assert.deepEqual(commitListView(commits, "missing").list, {
+    className: "commit-list",
+  });
+  assert.deepEqual(commitListView(commits, "missing").emptyState, {
+    className: "commit-empty-state",
+    role: "status",
+    ariaLive: "polite",
+    message: 'No commits match "missing".',
+  });
+  assert.equal(commitListView([], "anything").canSearch, false);
+  assert.equal(commitListView([], "anything", true).searchActive, false);
+  assert.equal(commitListView([], "anything", true).headingToolsClassName, "heading-tools");
+  assert.equal(commitListView([], "anything", true).showSearchForm, true);
+  assert.equal(commitListView([], "anything", true).showSearchClearButton, true);
+  assert.equal(commitListView([], "").filteredCount, 0);
+  assert.equal(commitListView([], "").showCommits, false);
+  assert.equal(commitListView([], "").showEmptyState, true);
+  assert.equal(commitListView([], "").emptyMessage, "No commits yet.");
+  assert.deepEqual(commitListView([], "").emptyState, {
+    className: "commit-empty-state",
+    role: "status",
+    ariaLive: "polite",
+    message: "No commits yet.",
+  });
+  assert.equal(commitSelectionVisible(commits, "footer"), true);
+  assert.equal(commitSelectionVisible(commits, "missing"), false);
+  assert.equal(commitSelectionVisible(commits, ""), false);
+  assert.equal(selectedCommitIdAfterToggle("", "search"), "search");
+  assert.equal(selectedCommitIdAfterToggle("footer", "search"), "search");
+  assert.equal(selectedCommitIdAfterToggle("search", "search"), "");
+  assert.deepEqual(selectedCommitFromSnapshot(gitSnapshot({ commits }), "footer"), commits[1]);
+  assert.equal(selectedCommitFromSnapshot(gitSnapshot({ commits }), "missing"), null);
+  assert.equal(selectedCommitFromSnapshot(gitSnapshot({ commits }), ""), null);
+  assert.equal(selectedCommitFromSnapshot(null, "footer"), null);
+  assert.equal(firstCommitId(commits), "search");
+  assert.equal(firstCommitId([]), "");
+  assert.deepEqual(commitSearchInputView(), {
+    ariaLabel: "Search commits",
+    placeholder: "Search",
+  });
+  assert.equal(commitSearchInputKeyAction("Enter"), "selectFirst");
+  assert.equal(commitSearchInputKeyAction("Escape"), "close");
+  assert.equal(commitSearchInputKeyAction("ArrowDown"), "ignore");
+  assert.equal(commitSearchInputKeyAction("Esc"), "ignore");
+  assert.deepEqual(commitSearchClearButtonView(""), {
+    show: false,
+    className: "commit-search-clear",
+    ariaLabel: "Clear commit search",
+  });
+  assert.deepEqual(commitSearchClearButtonView("needle"), {
+    show: true,
+    className: "commit-search-clear",
+    ariaLabel: "Clear commit search",
+  });
+  assert.deepEqual(commitSearchStateAfterClose({ searchOpen: true, searchQuery: "footer" }), {
+    searchOpen: false,
+    searchQuery: "",
+    changed: true,
+    restoreToggleFocus: false,
+  });
+  assert.deepEqual(commitSearchStateAfterClose({ searchOpen: false, searchQuery: "" }, { restoreFocus: true }), {
+    searchOpen: false,
+    searchQuery: "",
+    changed: false,
+    restoreToggleFocus: true,
+  });
+  assert.deepEqual(commitSearchStateApplication(commitSearchStateAfterClose({ searchOpen: true, searchQuery: "footer" })), {
+    searchOpen: false,
+    searchQuery: "",
+    updateState: true,
+    restoreToggleFocus: false,
+  });
+  assert.deepEqual(
+    commitSearchStateApplication(
+      commitSearchStateAfterClose({ searchOpen: false, searchQuery: "" }, { restoreFocus: true }),
+    ),
+    {
+      searchOpen: false,
+      searchQuery: "",
+      updateState: false,
+      restoreToggleFocus: true,
+    },
+  );
+  assert.deepEqual(
+    commitSearchStateAfterToggle(
+      { searchOpen: false, searchQuery: "footer" },
+      { action: "open", disabled: false },
+    ),
+    {
+      searchOpen: true,
+      searchQuery: "footer",
+      changed: true,
+      restoreToggleFocus: false,
+    },
+  );
+  assert.deepEqual(
+    commitSearchStateAfterToggle(
+      { searchOpen: true, searchQuery: "footer" },
+      { action: "close", disabled: false },
+    ),
+    {
+      searchOpen: false,
+      searchQuery: "",
+      changed: true,
+      restoreToggleFocus: false,
+    },
+  );
+  assert.deepEqual(
+    commitSearchStateAfterToggle(
+      { searchOpen: true, searchQuery: "footer" },
+      { action: "close", disabled: true },
+    ),
+    {
+      searchOpen: true,
+      searchQuery: "footer",
+      changed: false,
+      restoreToggleFocus: false,
+    },
+  );
+  assert.deepEqual(commitSearchStateAfterAvailability({ searchOpen: true, searchQuery: "footer" }, false), {
+    searchOpen: false,
+    searchQuery: "",
+    changed: true,
+    restoreToggleFocus: false,
+  });
+  assert.deepEqual(commitSearchStateAfterAvailability({ searchOpen: false, searchQuery: "" }, false), {
+    searchOpen: false,
+    searchQuery: "",
+    changed: false,
+    restoreToggleFocus: false,
+  });
+  assert.deepEqual(commitSearchStateAfterAvailability({ searchOpen: true, searchQuery: "footer" }, true), {
+    searchOpen: true,
+    searchQuery: "footer",
+    changed: false,
+    restoreToggleFocus: false,
+  });
+  assert.deepEqual(commitSearchToggleView({ canSearch: true, searchActive: false, searchOpen: false }), {
+    action: "open",
+    ariaControls: "commit-search-form",
+    ariaExpanded: false,
+    ariaLabel: "Search commits",
+    ariaPressed: false,
+    className: "commit-search-toggle",
+    disabled: false,
+    title: undefined,
+    tooltip: "Search commits",
+  });
+  assert.deepEqual(commitSearchToggleView({ canSearch: true, searchActive: true, searchOpen: true }), {
+    action: "close",
+    ariaControls: "commit-search-form",
+    ariaExpanded: true,
+    ariaLabel: "Close commit search",
+    ariaPressed: true,
+    className: "commit-search-toggle is-active",
+    disabled: false,
+    title: undefined,
+    tooltip: undefined,
+  });
+  assert.deepEqual(commitListView([], "anything", true).searchToggle, {
+    action: "close",
+    ariaControls: "commit-search-form",
+    ariaExpanded: true,
+    ariaLabel: "Close commit search",
+    ariaPressed: false,
+    className: "commit-search-toggle",
+    disabled: true,
+    title: "No commits to search",
+    tooltip: undefined,
+  });
+}
+
+async function testCommitRowView(server) {
+  const { commitRowView } = await loadTsModule(server, "src/lib/commitRowView.ts");
+  const selectedMerge = commit({
+    message: "Merge branch 'feature/details'\n\nKeep the full body available.",
+    refs: ["main", "tag:v1"],
+    refColors: ["#123456"],
+    parents: ["1111111", "2222222"],
+    graph: {
+      ...commit().graph,
+      isMerge: true,
+    },
+  });
+
+  assert.deepEqual(commitRowView(selectedMerge, true, true), {
+    className: "commit-row is-selected",
+    contentClassName: "commit-content",
+    selectButton: {
+      className: "commit-select",
+      ariaPressed: true,
+    },
+    selectAriaPressed: true,
+    titleLineClassName: "commit-title-line",
+    titleTextClassName: "commit-title-text",
+    ref: "main",
+    showRef: true,
+    refPillClassName: "ref-pill",
+    refColor: "#123456",
+    message: "Merge branch 'feature/details'\n\nKeep the full body available.",
+    displayMessage: "Merge branch 'feature/details'\n\nKeep the full body available.",
+    metaClassName: "commit-meta",
+    showAuthor: true,
+    showActions: true,
+    isMerge: true,
+    mergeIndicator: {
+      className: "merge-indicator",
+      title: "2 parent commits",
+    },
+    mergeTitle: "2 parent commits",
+    stats: {
+      className: "commit-stats",
+      additionsClassName: "additions",
+      deletionsClassName: "deletions",
+      filesClassName: "files",
+    },
+    messagePopover: {
+      className: "commit-message-popover",
+      role: "tooltip",
+      message: "Merge branch 'feature/details'\n\nKeep the full body available.",
+    },
+    actionsClassName: "commit-actions",
+    branchAction: {
+      action: "branch",
+      label: "Branch",
+      icon: "branch",
+      disabled: false,
+      title: undefined,
+    },
+    checkoutAction: {
+      action: "checkout",
+      label: "Checkout",
+      icon: "checkout",
+      disabled: false,
+      title: undefined,
+    },
+  });
+
+  const unselected = commitRowView(
+    commit({
+      title: "Tighten compact row",
+      message: "   ",
+      refs: [],
+      refColors: [],
+      branchColor: "#abcdef",
+    }),
+    false,
+    true,
+  );
+
+  assert.equal(unselected.className, "commit-row");
+  assert.equal(unselected.selectAriaPressed, false);
+  assert.equal(unselected.ref, "");
+  assert.equal(unselected.showRef, false);
+  assert.equal(unselected.refColor, "#abcdef");
+  assert.equal(unselected.message, "Tighten compact row");
+  assert.equal(unselected.displayMessage, "Tighten compact row");
+  assert.equal(unselected.showAuthor, false);
+  assert.equal(unselected.showActions, false);
+
+  const externalWorktree = commit({
+    graph: {
+      ...commit().graph,
+      currentVariant: "dashed",
+    },
+  });
+  const externalView = commitRowView(externalWorktree, true);
+
+  assert.deepEqual(externalView.checkoutAction, {
+    action: "checkout",
+    label: "Checkout",
+    icon: "checkout",
+    disabled: true,
+    title: "Open that worktree first to checkout there.",
+  });
+}
+
+async function testCommitView(server) {
+  const { commitViewChangeDecision, commitViewLabel, defaultCommitView, sameCommitView } = await loadTsModule(
+    server,
+    "src/lib/commitView.ts",
+  );
+
+  assert.deepEqual(defaultCommitView, { mode: "all" });
+  assert.equal(sameCommitView({ mode: "all" }, { mode: "all", ref: "" }), true);
+  assert.equal(sameCommitView({ mode: "branch", ref: "main" }, { mode: "branch", ref: "main" }), true);
+  assert.equal(sameCommitView({ mode: "branch" }, { mode: "branch", ref: "" }), true);
+  assert.equal(sameCommitView({ mode: "branch", ref: "main" }, { mode: "branch", ref: "develop" }), false);
+  assert.equal(sameCommitView({ mode: "current" }, { mode: "all" }), false);
+  assert.equal(commitViewLabel({ mode: "all" }), "all branches");
+  assert.equal(commitViewLabel({ mode: "current" }), "current branch");
+  assert.equal(commitViewLabel({ mode: "branch" }), "specific branch");
+  assert.equal(commitViewLabel({ mode: "branch", ref: "feature/worktree-safety" }), "branch feature/worktree-safety");
+  assert.deepEqual(
+    commitViewChangeDecision({
+      currentView: { mode: "all" },
+      nextView: { mode: "all", ref: "" },
+      bridgeAvailable: true,
+      hasSnapshot: true,
+    }),
+    { kind: "unchanged" },
+  );
+  assert.deepEqual(
+    commitViewChangeDecision({
+      currentView: { mode: "all" },
+      nextView: { mode: "current" },
+      bridgeAvailable: false,
+      hasSnapshot: true,
+    }),
+    { kind: "local", notice: "Commit view set to current branch." },
+  );
+  assert.deepEqual(
+    commitViewChangeDecision({
+      currentView: { mode: "all" },
+      nextView: { mode: "branch", ref: "develop" },
+      bridgeAvailable: true,
+      hasSnapshot: false,
+    }),
+    { kind: "local", notice: "Commit view set to branch develop." },
+  );
+  assert.deepEqual(
+    commitViewChangeDecision({
+      currentView: { mode: "current" },
+      nextView: { mode: "all" },
+      bridgeAvailable: true,
+      hasSnapshot: true,
+    }),
+    { kind: "refresh", successNotice: "Showing all branches." },
+  );
+}
+
+async function testSnapshotResponseView(server) {
+  const {
+    defaultSnapshotFailureNotice,
+    folderWithoutGitAfterSnapshotResponse,
+    selectedCommitIdAfterSnapshotResponse,
+    snapshotResponseNotice,
+  } = await loadTsModule(server, "src/lib/snapshotResponseView.ts");
+  const folder = { path: "/Users/junrong/no-git", name: "no-git" };
+  const okResponse = {
+    ok: true,
+    snapshot: gitSnapshot(),
+  };
+  const canceledResponse = { ok: false, reason: "read_failed", error: "Stopped.", canceled: true };
+  const notGitResponse = { ok: false, reason: "not_git_repository", folder };
+  const notGitErrorResponse = {
+    ok: false,
+    reason: "not_git_repository",
+    folder,
+    error: "Git is unavailable here.",
+  };
+  const readFailedResponse = { ok: false, reason: "read_failed" };
+  const invalidRepositoryResponse = {
+    ok: false,
+    reason: "invalid_repository",
+    error: "Repository path is invalid.",
+  };
+
+  assert.equal(snapshotResponseNotice(okResponse, "Loaded."), "Loaded.");
+  assert.equal(snapshotResponseNotice(okResponse, null), null);
+  assert.equal(snapshotResponseNotice(canceledResponse), null);
+  assert.equal(snapshotResponseNotice(notGitResponse), "no-git does not have Git initialized yet.");
+  assert.equal(snapshotResponseNotice(notGitErrorResponse), "Git is unavailable here.");
+  assert.equal(snapshotResponseNotice(readFailedResponse), defaultSnapshotFailureNotice);
+  assert.equal(snapshotResponseNotice(invalidRepositoryResponse), "Repository path is invalid.");
+
+  assert.equal(selectedCommitIdAfterSnapshotResponse(okResponse, "keep"), "keep");
+  assert.equal(selectedCommitIdAfterSnapshotResponse(okResponse, "missing"), "");
+  assert.equal(selectedCommitIdAfterSnapshotResponse(okResponse, ""), "");
+  assert.equal(selectedCommitIdAfterSnapshotResponse(canceledResponse, "keep"), "keep");
+  assert.equal(selectedCommitIdAfterSnapshotResponse(readFailedResponse, "keep"), "");
+
+  assert.equal(folderWithoutGitAfterSnapshotResponse(okResponse), null);
+  assert.equal(folderWithoutGitAfterSnapshotResponse(canceledResponse), undefined);
+  assert.deepEqual(folderWithoutGitAfterSnapshotResponse(notGitResponse), folder);
+  assert.equal(folderWithoutGitAfterSnapshotResponse(readFailedResponse), null);
+}
+
+async function testActionResponseView(server) {
+  const {
+    actionResponseNotice,
+    actionResponseSnapshot,
+    defaultActionFailureNotice,
+  } = await loadTsModule(server, "src/lib/actionResponseView.ts");
+  const snapshot = gitSnapshot({ repoName: "action-repo" });
+  const okResponse = { ok: true };
+  const okMessageResponse = { ok: true, message: "Created branch." };
+  const okEmptyMessageResponse = { ok: true, message: "" };
+  const okSnapshotResponse = { ok: true, snapshot };
+  const canceledResponse = { ok: false, canceled: true, error: "User canceled." };
+  const failedResponse = { ok: false, reason: "action_failed" };
+  const failedMessageResponse = {
+    ok: false,
+    reason: "invalid_repository",
+    error: "Repository is not available.",
+  };
+
+  assert.equal(actionResponseNotice(okResponse, "Done."), "Done.");
+  assert.equal(actionResponseNotice(okMessageResponse, "Done."), "Created branch.");
+  assert.equal(actionResponseNotice(okEmptyMessageResponse, "Done."), "");
+  assert.equal(actionResponseNotice(okSnapshotResponse, "Refreshed."), "Refreshed.");
+  assert.equal(actionResponseNotice(canceledResponse, "Done."), null);
+  assert.equal(actionResponseNotice(failedResponse, "Done."), defaultActionFailureNotice);
+  assert.equal(actionResponseNotice(failedResponse, "Done.", "Unable to checkout ref."), "Unable to checkout ref.");
+  assert.equal(actionResponseNotice(failedMessageResponse, "Done."), "Repository is not available.");
+
+  assert.equal(actionResponseSnapshot(okResponse), null);
+  assert.equal(actionResponseSnapshot(failedMessageResponse), null);
+  assert.equal(actionResponseSnapshot(canceledResponse), null);
+  assert.deepEqual(actionResponseSnapshot(okSnapshotResponse), snapshot);
+}
+
+async function testAutoRefresh(server) {
+  const {
+    autoRefreshEnabled,
+    autoRefreshIntervalMs,
+    autoRefreshSchedule,
+    autoRefreshTickMs,
+    shouldRunAutoRefreshTick,
+  } = await loadTsModule(server, "src/lib/autoRefresh.ts");
+
+  assert.equal(autoRefreshIntervalMs("off"), 0);
+  assert.equal(autoRefreshIntervalMs("1m"), 60_000);
+  assert.equal(autoRefreshIntervalMs("5m"), 300_000);
+  assert.equal(autoRefreshIntervalMs("15m"), 900_000);
+  assert.equal(autoRefreshTickMs(0), 0);
+  assert.equal(autoRefreshTickMs(10_000), 10_000);
+  assert.equal(autoRefreshTickMs(60_000), 30_000);
+  assert.equal(
+    autoRefreshEnabled({
+      intervalMs: 60_000,
+      electron: true,
+      hasSnapshot: true,
+      actionDialogOpen: false,
+      repositoryDialogOpen: false,
+    }),
+    true,
+  );
+  assert.equal(
+    autoRefreshEnabled({
+      intervalMs: 0,
+      electron: true,
+      hasSnapshot: true,
+      actionDialogOpen: false,
+      repositoryDialogOpen: false,
+    }),
+    false,
+  );
+  assert.equal(
+    autoRefreshEnabled({
+      intervalMs: 60_000,
+      electron: true,
+      hasSnapshot: true,
+      actionDialogOpen: true,
+      repositoryDialogOpen: false,
+    }),
+    false,
+  );
+  assert.deepEqual(
+    autoRefreshSchedule({
+      interval: "1m",
+      electron: true,
+      hasSnapshot: true,
+      actionDialogOpen: false,
+      repositoryDialogOpen: false,
+    }),
+    {
+      enabled: true,
+      intervalMs: 60_000,
+      tickMs: 30_000,
+    },
+  );
+  assert.deepEqual(
+    autoRefreshSchedule({
+      interval: "off",
+      electron: true,
+      hasSnapshot: true,
+      actionDialogOpen: false,
+      repositoryDialogOpen: false,
+    }),
+    {
+      enabled: false,
+      intervalMs: 0,
+      tickMs: 0,
+    },
+  );
+  assert.equal(
+    shouldRunAutoRefreshTick({
+      bridgeAvailable: true,
+      inFlight: false,
+      refreshing: false,
+      lastGitRequestAt: 1_000,
+      now: 61_000,
+      intervalMs: 60_000,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldRunAutoRefreshTick({
+      bridgeAvailable: true,
+      inFlight: false,
+      refreshing: false,
+      lastGitRequestAt: 1_000,
+      now: 60_999,
+      intervalMs: 60_000,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldRunAutoRefreshTick({
+      bridgeAvailable: false,
+      inFlight: false,
+      refreshing: false,
+      lastGitRequestAt: 1_000,
+      now: 61_000,
+      intervalMs: 60_000,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldRunAutoRefreshTick({
+      bridgeAvailable: true,
+      inFlight: true,
+      refreshing: false,
+      lastGitRequestAt: 1_000,
+      now: 61_000,
+      intervalMs: 60_000,
+    }),
+    false,
+  );
+}
+
+async function testPreferences(server) {
+  const workspaceTargets = await loadTsModule(server, "src/lib/workspaceOpenTargets.ts");
+  const preferences = await loadTsModule(server, "src/lib/preferences.ts");
+  const { defaultWorkspaceOpenTargets, isWorkspaceOpenTarget, sanitizeWorkspaceOpenTargets, workspaceOpenTargetValues } = workspaceTargets;
+  const {
+    defaultPreferences,
+    mergePreferences,
+    preferencesDocumentThemeView,
+    resolveTheme,
+    resolveThemePreset,
+    systemThemeFallback,
+    systemThemeFromMediaMatches,
+  } = preferences;
+
+  assert.equal(isWorkspaceOpenTarget("cursor"), true);
+  assert.equal(isWorkspaceOpenTarget("unknown"), false);
+  assert.deepEqual(workspaceOpenTargetValues, ["vscode", "cursor", "codex", "antigravity", "finder", "terminal", "xcode"]);
+  assert.deepEqual(sanitizeWorkspaceOpenTargets(["cursor", "finder", "cursor", "unknown"]), ["cursor", "finder"]);
+  assert.deepEqual(sanitizeWorkspaceOpenTargets(null, ["terminal"]), ["terminal"]);
+
+  assert.deepEqual(
+    mergePreferences({
+      themeMode: "solarized",
+      lightThemePreset: "paper",
+      darkThemePreset: "matte",
+      density: "wide",
+      fontFamily: "mono",
+      graphStyle: "wire",
+      workspaceOpenTargets: ["codex", "codex", "bad", "terminal"],
+      showZenEntry: false,
+      showMenuBarIcon: false,
+      launchAtLogin: "yes",
+      zenMode: true,
+      autoRefreshInterval: "2m",
+      promptLanguage: "zh",
+    }),
+    {
+      ...defaultPreferences,
+      lightThemePreset: "paper",
+      darkThemePreset: "matte",
+      fontFamily: "mono",
+      workspaceOpenTargets: ["codex", "terminal"],
+      showZenEntry: false,
+      showMenuBarIcon: false,
+      zenMode: true,
+      promptLanguage: "zh",
+    },
+  );
+  assert.deepEqual(mergePreferences({ workspaceOpenTargets: [] }).workspaceOpenTargets, []);
+  assert.deepEqual(mergePreferences({ workspaceOpenTargets: "cursor" }).workspaceOpenTargets, defaultWorkspaceOpenTargets);
+  assert.equal(resolveThemePreset({ ...defaultPreferences, lightThemePreset: "mist", darkThemePreset: "cursor" }, "light"), "mist");
+  assert.equal(resolveThemePreset({ ...defaultPreferences, lightThemePreset: "mist", darkThemePreset: "cursor" }, "dark"), "cursor");
+  assert.equal(resolveTheme({ ...defaultPreferences, themeMode: "light" }, "dark"), "light");
+  assert.equal(resolveTheme({ ...defaultPreferences, themeMode: "dark" }, "light"), "dark");
+  assert.equal(resolveTheme({ ...defaultPreferences, themeMode: "system" }, "dark"), "dark");
+  assert.equal(systemThemeFromMediaMatches(false), "light");
+  assert.equal(systemThemeFromMediaMatches(true), "dark");
+  assert.deepEqual(preferencesDocumentThemeView({ ...defaultPreferences, themeMode: "system", darkThemePreset: "cursor" }, "dark"), {
+    theme: "dark",
+    themePreset: "cursor",
+  });
+  assert.deepEqual(
+    preferencesDocumentThemeView(
+      { ...defaultPreferences, themeMode: "light", lightThemePreset: "mist", darkThemePreset: "matte" },
+      "dark",
+    ),
+    {
+      theme: "light",
+      themePreset: "mist",
+    },
+  );
+  assert.equal(systemThemeFallback(), "light");
+}
+
+async function testWorkspaceOpenOptions(server) {
+  const { workspaceOpenOptions } = await loadTsModule(server, "src/lib/workspaceOpenOptions.ts");
+  const { workspaceOpenTargetValues } = await loadTsModule(server, "src/lib/workspaceOpenTargets.ts");
+
+  assert.deepEqual(
+    workspaceOpenOptions.map((option) => option.target),
+    workspaceOpenTargetValues,
+  );
+  assert.deepEqual(
+    workspaceOpenOptions.map((option) => option.label),
+    ["VS Code", "Cursor", "Codex", "Antigravity", "Finder", "Terminal", "Xcode"],
+  );
+
+  for (const option of workspaceOpenOptions) {
+    assert.equal(typeof option.iconSrc, "string");
+    assert.match(option.iconSrc, /\.png(?:$|\?)/);
+  }
+}
+
+async function testCollapsedRailView(server) {
+  const { collapsedRailView, workingTreeChangeCount } = await loadTsModule(server, "src/lib/collapsedRailView.ts");
+
+  assert.equal(workingTreeChangeCount({ modified: 2, staged: 3, untracked: 5 }), 10);
+  assert.deepEqual(collapsedRailView(null), {
+    className: "collapsed-rail",
+    ariaLabel: "Collapsed Git Peek",
+    title: "Drag to move. Double-click to dock to the screen edge.",
+    expandButton: {
+      className: "ui-icon-button rail-expand",
+      ariaLabel: "Expand Git Peek",
+    },
+    branch: {
+      className: "rail-branch",
+      label: "Open",
+      icon: "folder",
+    },
+    dirtyCount: 0,
+    showChangedNowButton: false,
+    changedNowButton: {
+      className: "rail-count",
+      ariaLabel: "Open Changed now, 0 working tree changes",
+      ariaPressed: false,
+      title: "Changed now",
+    },
+  });
+  assert.deepEqual(
+    collapsedRailView({
+      branch: { name: "feature/collapsed-rail" },
+      counts: { modified: 2, staged: 1, untracked: 4 },
+    }),
+    {
+      className: "collapsed-rail",
+      ariaLabel: "Collapsed Git Peek",
+      title: "Drag to move. Double-click to dock to the screen edge.",
+      expandButton: {
+        className: "ui-icon-button rail-expand",
+        ariaLabel: "Expand Git Peek",
+      },
+      branch: {
+        className: "rail-branch",
+        label: "feature/collapsed-rail",
+        icon: "branch",
+      },
+      dirtyCount: 7,
+      showChangedNowButton: true,
+      changedNowButton: {
+        className: "rail-count",
+        ariaLabel: "Open Changed now, 7 working tree changes",
+        ariaPressed: false,
+        title: "Changed now",
+      },
+    },
+  );
+  assert.deepEqual(
+    collapsedRailView(
+      {
+        branch: { name: "feature/collapsed-rail" },
+        counts: { modified: 2, staged: 1, untracked: 4 },
+      },
+      true,
+    ).changedNowButton,
+    {
+      className: "rail-count",
+      ariaLabel: "Close Changed now, 7 working tree changes",
+      ariaPressed: true,
+      title: "Close Changed now",
+    },
+  );
+  assert.equal(
+    collapsedRailView({
+      branch: { name: "main" },
+      counts: { modified: 0, staged: 0, untracked: 0 },
+    }).showChangedNowButton,
+    true,
+  );
+}
+
+async function testWorkspaceOpenChoices(server) {
+  const {
+    activeWorkspaceOpenOption,
+    activeWorkspaceOpenTarget,
+    availableWorkspaceOpenOptions,
+    enabledWorkspaceOpenOptionCount,
+    visibleWorkspaceOpenOptions,
+    workspaceOpenTargetsAfterToggle,
+    workspaceOpenTargetsSummary,
+  } = await loadTsModule(server, "src/lib/workspaceOpenChoices.ts");
+  const options = [
+    { target: "vscode", label: "VS Code", iconSrc: "vscode.png" },
+    { target: "cursor", label: "Cursor", iconSrc: "cursor.png" },
+    { target: "codex", label: "Codex", iconSrc: "codex.png" },
+    { target: "terminal", label: "Terminal", iconSrc: "terminal.png" },
+  ];
+  const availableOptions = availableWorkspaceOpenOptions(options, ["terminal", "cursor"]);
+
+  assert.deepEqual(
+    availableOptions.map((option) => option.target),
+    ["cursor", "terminal"],
+  );
+  assert.deepEqual(
+    visibleWorkspaceOpenOptions(options, ["terminal", "cursor", "codex"], ["vscode", "cursor", "terminal"]).map((option) => option.target),
+    ["cursor", "terminal"],
+  );
+  assert.equal(activeWorkspaceOpenOption(availableOptions, "terminal")?.label, "Terminal");
+  assert.equal(activeWorkspaceOpenOption(availableOptions, "codex")?.label, "Cursor");
+  assert.equal(activeWorkspaceOpenOption([], "codex"), null);
+  assert.equal(activeWorkspaceOpenTarget(availableOptions, "terminal"), "terminal");
+  assert.equal(activeWorkspaceOpenTarget(availableOptions, "codex"), "cursor");
+  assert.equal(activeWorkspaceOpenTarget([], "codex"), "");
+  assert.equal(enabledWorkspaceOpenOptionCount(availableOptions, ["cursor", "codex"]), 1);
+  assert.equal(workspaceOpenTargetsSummary(availableOptions, ["cursor", "terminal"]), "2 enabled");
+  assert.equal(workspaceOpenTargetsSummary([], ["cursor"]), "Unavailable");
+  assert.deepEqual(workspaceOpenTargetsAfterToggle(options, ["codex", "terminal"], "cursor", true), ["cursor", "codex", "terminal"]);
+  assert.deepEqual(workspaceOpenTargetsAfterToggle(options, ["vscode", "cursor", "terminal"], "cursor", false), ["vscode", "terminal"]);
+}
+
+async function testFooterWorkspaceView(server) {
+  const {
+    footerActionsView,
+    footerChangedNowButtonView,
+    footerNoticeView,
+    footerOpenRepositoryButtonView,
+    footerSettingsButtonView,
+    footerWorkspaceMenuOpenAfterSelection,
+    footerWorkspaceMenuOpenAfterToggle,
+    footerWorkspaceMenuItemView,
+    footerWorkspaceMenuToggleView,
+    footerWorkspaceMenuView,
+    footerWorkspaceOpenButtonView,
+    footerWorkspaceSelection,
+    footerWorkspaceView,
+    footerZenButtonView,
+  } = await loadTsModule(server, "src/lib/footerWorkspaceView.ts");
+  const options = [
+    { target: "vscode", label: "VS Code", iconSrc: "vscode.png" },
+    { target: "cursor", label: "Cursor", iconSrc: "cursor.png" },
+    { target: "terminal", label: "Terminal", iconSrc: "terminal.png" },
+  ];
+
+  const ready = footerWorkspaceView({
+    options,
+    availableTargets: ["terminal", "cursor"],
+    enabledTargets: ["terminal", "cursor"],
+    activeTarget: "terminal",
+    hasRepository: true,
+  });
+
+  assert.deepEqual(
+    ready.visibleOptions.map((option) => option.target),
+    ["cursor", "terminal"],
+  );
+  assert.equal(ready.activeOption?.label, "Terminal");
+  assert.equal(ready.activeMenuTarget, "terminal");
+  assert.deepEqual(ready.control, {
+    className: "workspace-open-control",
+    iconClassName: "external-app-icon",
+  });
+  assert.equal(ready.controlsDisabled, false);
+  assert.equal(ready.canToggleMenu, true);
+  assert.equal(ready.shouldCloseMenu, false);
+  assert.deepEqual(footerWorkspaceOpenButtonView(ready.activeOption), {
+    className: "workspace-open-trigger",
+    ariaLabel: "Open in Terminal",
+    title: "Open in Terminal",
+  });
+  assert.deepEqual(footerWorkspaceMenuToggleView(false), {
+    id: "workspace-open-menu-toggle",
+    className: "workspace-open-menu-toggle",
+    ariaLabel: "Choose external app",
+    ariaHasPopup: "menu",
+    ariaExpanded: false,
+    ariaControls: "workspace-open-menu",
+    title: "Choose external app",
+  });
+  assert.deepEqual(footerWorkspaceMenuToggleView(true), {
+    id: "workspace-open-menu-toggle",
+    className: "workspace-open-menu-toggle is-open",
+    ariaLabel: "Choose external app",
+    ariaHasPopup: "menu",
+    ariaExpanded: true,
+    ariaControls: "workspace-open-menu",
+    title: "Choose external app",
+  });
+  assert.deepEqual(footerWorkspaceMenuView(), {
+    className: "ui-menu ui-layer-panel workspace-open-menu",
+    id: "workspace-open-menu",
+    role: "menu",
+    ariaLabelledBy: "workspace-open-menu-toggle",
+  });
+  assert.deepEqual(footerWorkspaceMenuItemView(ready.visibleOptions[0], ready.activeMenuTarget), {
+    active: false,
+    className: "ui-menu-item workspace-open-menu-item",
+    iconClassName: "external-app-icon",
+    role: "menuitem",
+    ariaCurrent: undefined,
+  });
+  assert.deepEqual(footerWorkspaceMenuItemView(ready.visibleOptions[1], ready.activeMenuTarget), {
+    active: true,
+    className: "ui-menu-item workspace-open-menu-item is-active",
+    iconClassName: "external-app-icon",
+    role: "menuitem",
+    ariaCurrent: "true",
+  });
+  assert.equal(footerWorkspaceMenuOpenAfterToggle(false, true), true);
+  assert.equal(footerWorkspaceMenuOpenAfterToggle(true, true), false);
+  assert.equal(footerWorkspaceMenuOpenAfterToggle(false, false), false);
+  assert.equal(footerWorkspaceMenuOpenAfterToggle(true, false), true);
+  assert.equal(footerWorkspaceMenuOpenAfterSelection(), false);
+  assert.deepEqual(footerWorkspaceSelection("cursor"), {
+    activeTarget: "cursor",
+    menuOpen: false,
+    openTarget: "cursor",
+  });
+
+  const fallback = footerWorkspaceView({
+    options,
+    availableTargets: ["terminal", "cursor"],
+    enabledTargets: ["terminal", "cursor"],
+    activeTarget: "vscode",
+    hasRepository: true,
+  });
+
+  assert.equal(fallback.activeOption?.label, "Cursor");
+  assert.equal(fallback.activeMenuTarget, "cursor");
+
+  const noRepository = footerWorkspaceView({
+    options,
+    availableTargets: ["cursor"],
+    enabledTargets: ["cursor"],
+    activeTarget: "cursor",
+    hasRepository: false,
+  });
+
+  assert.equal(noRepository.activeOption?.label, "Cursor");
+  assert.equal(noRepository.controlsDisabled, true);
+  assert.equal(noRepository.canToggleMenu, false);
+  assert.equal(noRepository.shouldCloseMenu, true);
+
+  const unavailable = footerWorkspaceView({
+    options,
+    availableTargets: ["terminal"],
+    enabledTargets: ["cursor"],
+    activeTarget: "cursor",
+    hasRepository: true,
+  });
+
+  assert.equal(unavailable.activeOption, null);
+  assert.equal(unavailable.activeMenuTarget, "");
+  assert.equal(unavailable.controlsDisabled, false);
+  assert.equal(unavailable.canToggleMenu, false);
+  assert.equal(unavailable.shouldCloseMenu, true);
+
+  assert.deepEqual(footerChangedNowButtonView(false), {
+    className: "footer-changed-now",
+    ariaLabel: "Open Changed now",
+    ariaPressed: false,
+    title: "Changed now",
+  });
+  assert.deepEqual(footerChangedNowButtonView(true), {
+    className: "footer-changed-now is-open",
+    ariaLabel: "Close Changed now",
+    ariaPressed: true,
+    title: "Close Changed now",
+  });
+  assert.deepEqual(footerSettingsButtonView(), {
+    className: "ui-icon-button footer-icon footer-settings",
+    ariaLabel: "Settings",
+    title: "Settings",
+  });
+  assert.deepEqual(footerOpenRepositoryButtonView(), {
+    className: "footer-primary",
+    label: "Open folder",
+  });
+  assert.deepEqual(footerZenButtonView(false), {
+    className: "ui-icon-button footer-icon footer-zen",
+    ariaLabel: "Enter Zen mode",
+    title: "Zen mode",
+    disabled: true,
+  });
+  assert.deepEqual(footerZenButtonView(true), {
+    className: "ui-icon-button footer-icon footer-zen",
+    ariaLabel: "Enter Zen mode",
+    title: "Zen mode",
+    disabled: false,
+  });
+  assert.deepEqual(footerNoticeView({ hasRepository: true, notice: " Git status refreshed. " }), {
+    className: "notice-line",
+    role: "status",
+    ariaLive: "polite",
+    message: "Git status refreshed.",
+  });
+  assert.equal(footerNoticeView({ hasRepository: true, notice: "   " }), null);
+  assert.equal(footerNoticeView({ hasRepository: false, notice: "Choose a working folder first." }), null);
+  assert.deepEqual(footerActionsView({ changedNowOpen: false, hasRepository: false, showZenEntry: true }), {
+    className: "peek-footer has-zen-entry",
+    showOpenRepositoryButton: true,
+    showChangedNowButton: false,
+    settingsButton: {
+      className: "ui-icon-button footer-icon footer-settings",
+      ariaLabel: "Settings",
+      title: "Settings",
+    },
+    openRepositoryButton: {
+      className: "footer-primary",
+      label: "Open folder",
+    },
+    changedNowButton: {
+      className: "footer-changed-now",
+      ariaLabel: "Open Changed now",
+      ariaPressed: false,
+      title: "Changed now",
+    },
+    showZenButton: true,
+    zenButton: {
+      className: "ui-icon-button footer-icon footer-zen",
+      ariaLabel: "Enter Zen mode",
+      title: "Zen mode",
+      disabled: true,
+    },
+  });
+  assert.deepEqual(footerActionsView({ changedNowOpen: true, hasRepository: true, showZenEntry: false }), {
+    className: "peek-footer",
+    showOpenRepositoryButton: false,
+    showChangedNowButton: true,
+    settingsButton: {
+      className: "ui-icon-button footer-icon footer-settings",
+      ariaLabel: "Settings",
+      title: "Settings",
+    },
+    openRepositoryButton: {
+      className: "footer-primary",
+      label: "Open folder",
+    },
+    changedNowButton: {
+      className: "footer-changed-now is-open",
+      ariaLabel: "Close Changed now",
+      ariaPressed: true,
+      title: "Close Changed now",
+    },
+    showZenButton: false,
+    zenButton: {
+      className: "ui-icon-button footer-icon footer-zen",
+      ariaLabel: "Enter Zen mode",
+      title: "Zen mode",
+      disabled: false,
+    },
+  });
+}
+
+async function testSettingsPanelView(server) {
+  const {
+    settingsPageAfterBack,
+    settingsPageAfterEscape,
+    settingsPanelTitleId,
+    settingsPanelView,
+    settingsPreferencesView,
+    settingsWorkspaceTargetItems,
+  } = await loadTsModule(server, "src/lib/settingsPanelView.ts");
+  const { defaultPreferences } = await loadTsModule(server, "src/lib/preferences.ts");
+  const options = [
+    { target: "vscode", label: "VS Code", iconSrc: "vscode.png" },
+    { target: "cursor", label: "Cursor", iconSrc: "cursor.png" },
+    { target: "terminal", label: "Terminal", iconSrc: "terminal.png" },
+  ];
+  const expectedSections = {
+    appearance: {
+      titleId: "settings-appearance-title",
+      title: "Appearance",
+      rows: {
+        mode: "Mode",
+        light: "Light",
+        dark: "Dark",
+        density: "Density",
+        font: "Font",
+      },
+      lightThemeAriaLabel: "Light theme preset",
+      darkThemeAriaLabel: "Dark theme preset",
+      fontFamilyAriaLabel: "Font family",
+    },
+    graph: {
+      titleId: "settings-graph-title",
+      title: "Graph",
+      rows: {
+        lines: "Lines",
+      },
+    },
+    behavior: {
+      titleId: "settings-behavior-title",
+      title: "Behavior",
+      rows: {
+        refresh: "Refresh",
+        startup: "Startup",
+        menuBar: "Menu bar",
+        zenEntry: "Zen entry",
+        prompt: "Prompt",
+      },
+      autoRefreshAriaLabel: "Auto refresh interval",
+      launchAtLoginAriaLabel: "Launch at login",
+      showMenuBarIconAriaLabel: "Show menu bar icon",
+      showZenEntryAriaLabel: "Show Zen mode entry",
+    },
+    workspace: {
+      titleId: "settings-workspace-title",
+      title: "Workspace",
+      rowLabel: "Open in",
+      disclosureAriaLabel: "Open external app settings",
+      disclosureLabel: "Apps",
+      disclosureValue: "2 enabled",
+    },
+    reset: {
+      ariaLabel: "Reset preferences",
+      label: "Reset",
+    },
+  };
+  const expectedSettingsChrome = {
+    page: {
+      className: "ui-page settings-page",
+      ariaLabelledBy: "settings-panel-title",
+    },
+    header: {
+      className: "ui-page-header settings-page-header",
+      backButton: {
+        className: "ui-icon-button",
+        ariaLabel: "Back to Git view",
+      },
+    },
+    openInPanel: {
+      className: "ui-form settings-panel settings-workspace-targets-panel",
+      listClassName: "workspace-target-list",
+      toggleClassName: "workspace-target-toggle",
+      iconClassName: "external-app-icon",
+      emptyState: {
+        className: "empty-state",
+        role: "status",
+        ariaLive: "polite",
+        message: "No external apps available.",
+      },
+    },
+    mainPanel: {
+      className: "ui-form settings-panel",
+      sectionClassName: "ui-form-section",
+      sectionTitleClassName: "ui-form-section-title",
+      rowClassName: "ui-form-row settings-row",
+      labelClassName: "ui-label",
+      segmentedClassName: "ui-segmented segmented-control",
+      compactSegmentedClassName: "ui-segmented segmented-control compact",
+      selectFrameClassName: "ui-select-frame",
+      selectClassName: "ui-select",
+      launchAtLoginToggleClassName: "ui-toggle settings-launch-at-login-toggle",
+      menuBarIconToggleClassName: "ui-toggle settings-menu-bar-icon-toggle",
+      zenEntryToggleClassName: "ui-toggle settings-zen-entry-toggle",
+      disclosureFrameClassName: "ui-select-frame ui-disclosure-frame",
+      disclosureButtonClassName: "ui-disclosure-button",
+      disclosureLabelClassName: "ui-disclosure-label",
+      disclosureValueClassName: "ui-disclosure-value",
+      resetSectionClassName: "ui-form-section ui-form-section-actions",
+      resetButtonClassName: "ui-button settings-reset",
+    },
+  };
+
+  assert.equal(settingsPanelTitleId, "settings-panel-title");
+  assert.deepEqual(settingsPanelView("main", options, ["cursor", "terminal"]), {
+    openInPageActive: false,
+    ...expectedSettingsChrome,
+    titleId: "settings-panel-title",
+    title: "Settings",
+    subtitle: "Interface preferences",
+    workspaceTargetsSummary: "2 enabled",
+    sections: expectedSections,
+  });
+  assert.deepEqual(settingsPanelView("openIn", options, ["cursor"]), {
+    openInPageActive: true,
+    ...expectedSettingsChrome,
+    header: {
+      ...expectedSettingsChrome.header,
+      backButton: {
+        ...expectedSettingsChrome.header.backButton,
+        ariaLabel: "Back to settings",
+      },
+    },
+    titleId: "settings-panel-title",
+    title: "Open in",
+    subtitle: "External apps",
+    workspaceTargetsSummary: "1 enabled",
+    sections: {
+      ...expectedSections,
+      workspace: {
+        ...expectedSections.workspace,
+        disclosureValue: "1 enabled",
+      },
+    },
+  });
+  assert.equal(settingsPanelView("main", [], ["cursor"]).workspaceTargetsSummary, "Unavailable");
+  assert.equal(settingsPageAfterBack("openIn"), "main");
+  assert.equal(settingsPageAfterBack("main"), null);
+  assert.equal(settingsPageAfterEscape("openIn"), "main");
+  assert.equal(settingsPageAfterEscape("main"), null);
+  assert.deepEqual(
+    settingsPreferencesView({
+      ...defaultPreferences,
+      themeMode: "system",
+      density: "comfortable",
+      graphStyle: "soft",
+      promptLanguage: "zh",
+    }),
+    {
+      themeModeOptions: [
+        { value: "system", label: "System", className: "is-active", ariaPressed: true, icon: "monitor" },
+        { value: "light", label: "Light", className: "", ariaPressed: false, icon: "sun" },
+        { value: "dark", label: "Dark", className: "", ariaPressed: false, icon: "moon" },
+      ],
+      densityOptions: [
+        { value: "compact", label: "Compact", className: "", ariaPressed: false },
+        { value: "comfortable", label: "Comfort", className: "is-active", ariaPressed: true },
+      ],
+      graphStyleOptions: [
+        { value: "solid", label: "Solid", className: "", ariaPressed: false },
+        { value: "soft", label: "Soft", className: "is-active", ariaPressed: true },
+      ],
+      promptLanguageOptions: [
+        { value: "en", label: "English", className: "", ariaPressed: false },
+        { value: "zh", label: "中文", className: "is-active", ariaPressed: true },
+      ],
+      fontFamilyOptions: [
+        { value: "system", label: "System" },
+        { value: "inter", label: "Inter" },
+        { value: "mono", label: "Mono" },
+      ],
+    },
+  );
+  assert.deepEqual(settingsWorkspaceTargetItems(options, ["cursor", "terminal"]), [
+    {
+      option: options[0],
+      checked: false,
+      ariaLabel: "Show VS Code in open menu",
+    },
+    {
+      option: options[1],
+      checked: true,
+      ariaLabel: "Show Cursor in open menu",
+    },
+    {
+      option: options[2],
+      checked: true,
+      ariaLabel: "Show Terminal in open menu",
+    },
+  ]);
+}
+
+async function testErrorMessages(server) {
+  const { errorMessage, logBridgeWarning, runBridgeSideEffect } = await loadTsModule(server, "src/lib/errorMessages.ts");
+
+  assert.equal(errorMessage(new Error("Bridge unavailable"), "Fallback message."), "Bridge unavailable");
+  assert.equal(errorMessage(new Error("   "), "Fallback message."), "Fallback message.");
+  assert.equal(errorMessage("Native dialog failed", "Fallback message."), "Native dialog failed");
+  assert.equal(errorMessage("   ", "Fallback message."), "Fallback message.");
+  assert.equal(errorMessage({ message: "not an Error instance" }, "Fallback message."), "Fallback message.");
+  assert.equal(errorMessage(null, "Fallback message."), "Fallback message.");
+
+  const originalWarn = console.warn;
+  const warnings = [];
+  console.warn = (...args) => warnings.push(args);
+  try {
+    logBridgeWarning("Unable to load preferences.", new Error("Bridge unavailable"));
+    runBridgeSideEffect("Unable to update pinned state.", () => {
+      throw new Error("Pinned bridge failed");
+    });
+    runBridgeSideEffect("Unable to dock window.", () => Promise.reject(new Error("Dock bridge failed")));
+    runBridgeSideEffect("No bridge available.", () => undefined);
+    await Promise.resolve();
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  assert.deepEqual(warnings, [
+    ["[Git Peek] Unable to load preferences.", "Bridge unavailable"],
+    ["[Git Peek] Unable to update pinned state.", "Pinned bridge failed"],
+    ["[Git Peek] Unable to dock window.", "Dock bridge failed"],
+  ]);
+}
+
+async function testBridgeAvailability(server) {
+  const {
+    chooseLocalWorkingFolderInElectronNotice,
+    gitActionBridgeNotice,
+    gitActionBridgeRequiredNotice,
+    initializeRepositoryAvailabilityNotice,
+    initializeRepositoryBridgeRequiredNotice,
+    localFolderBridgeNotice,
+    missingFolderWithoutGitNotice,
+    missingWorkingFolderNotice,
+    previewRefreshCompletion,
+    previewRefreshDelayMs,
+    previewRefreshNotice,
+    refreshSnapshotAvailability,
+    workspaceActionAvailabilityNotice,
+  } = await loadTsModule(server, "src/lib/bridgeAvailability.ts");
+
+  assert.equal(gitActionBridgeNotice(true), null);
+  assert.equal(gitActionBridgeNotice(false), gitActionBridgeRequiredNotice);
+  assert.equal(localFolderBridgeNotice("open", true), null);
+  assert.equal(localFolderBridgeNotice("open", false), "Electron mode is required to open a local folder.");
+  assert.equal(localFolderBridgeNotice("switch", true), null);
+  assert.equal(localFolderBridgeNotice("switch", false), "Electron mode is required to switch local folders.");
+  assert.equal(
+    initializeRepositoryAvailabilityNotice({ bridgeAvailable: true, hasFolderWithoutGit: false }),
+    missingFolderWithoutGitNotice,
+  );
+  assert.equal(
+    initializeRepositoryAvailabilityNotice({ bridgeAvailable: false, hasFolderWithoutGit: true }),
+    initializeRepositoryBridgeRequiredNotice,
+  );
+  assert.equal(initializeRepositoryAvailabilityNotice({ bridgeAvailable: true, hasFolderWithoutGit: true }), null);
+  assert.deepEqual(refreshSnapshotAvailability({ bridgeAvailable: true, hasSnapshot: false }), { kind: "bridge" });
+  assert.deepEqual(refreshSnapshotAvailability({ bridgeAvailable: false, hasSnapshot: true }), { kind: "preview" });
+  assert.deepEqual(refreshSnapshotAvailability({ bridgeAvailable: false, hasSnapshot: false }), {
+    kind: "blocked",
+    notice: chooseLocalWorkingFolderInElectronNotice,
+  });
+  assert.equal(previewRefreshDelayMs, 400);
+  assert.equal(previewRefreshNotice, "Preview refreshed.");
+  assert.deepEqual(previewRefreshCompletion(), {
+    delayMs: previewRefreshDelayMs,
+    notice: previewRefreshNotice,
+  });
+  assert.equal(workspaceActionAvailabilityNotice({ bridgeAvailable: true, hasSnapshot: true }), null);
+  assert.equal(
+    workspaceActionAvailabilityNotice({ bridgeAvailable: false, hasSnapshot: true }),
+    missingWorkingFolderNotice,
+  );
+  assert.equal(
+    workspaceActionAvailabilityNotice({ bridgeAvailable: true, hasSnapshot: false }),
+    missingWorkingFolderNotice,
+  );
+}
+
+async function testPathAndFileStatus(server) {
+  const { parentPathName, pathName, recentRepositoryLabel } = await loadTsModule(server, "src/lib/pathLabels.ts");
+  const { fileKind, formatPath, statusLetter } = await loadTsModule(server, "src/lib/fileStatus.ts");
+
+  assert.equal(pathName("/Users/junrong/codespace/git-tree-vis/"), "git-tree-vis");
+  assert.equal(pathName("C:\\Users\\junrong\\repo"), "repo");
+  assert.equal(parentPathName("/Users/junrong/codespace/git-tree-vis"), "codespace");
+  assert.equal(parentPathName("repo"), "");
+  assert.equal(
+    recentRepositoryLabel({
+      path: "/Users/junrong/codespace/git-tree-vis",
+      name: "git-tree-vis",
+      repositoryKey: "git-tree-vis:/Users/junrong/codespace/git-tree-vis",
+    }),
+    "git-tree-vis - codespace",
+  );
+
+  assert.equal(
+    fileKind({
+      path: "src/App.tsx",
+      status: " M",
+      indexStatus: " ",
+      workingTreeStatus: "M",
+      additions: 3,
+      deletions: 1,
+    }),
+    "modified",
+  );
+  assert.equal(
+    fileKind({
+      path: "src/new.ts",
+      status: "A ",
+      indexStatus: "A",
+      workingTreeStatus: " ",
+      additions: 1,
+      deletions: 0,
+    }),
+    "staged",
+  );
+  assert.equal(
+    fileKind({
+      path: "src/untracked.ts",
+      status: "??",
+      indexStatus: "?",
+      workingTreeStatus: "?",
+      additions: 0,
+      deletions: 0,
+    }),
+    "untracked",
+  );
+  assert.equal(
+    statusLetter({ path: "README.md", status: "R ", indexStatus: "R", workingTreeStatus: " ", additions: 1, deletions: 1 }),
+    "R",
+  );
+  assert.equal(
+    statusLetter({
+      path: "src/App.tsx",
+      status: " M",
+      indexStatus: " ",
+      workingTreeStatus: "M",
+      additions: 3,
+      deletions: 1,
+    }),
+    "M",
+  );
+  assert.equal(
+    statusLetter({ path: "src/old.ts", status: " D", indexStatus: " ", workingTreeStatus: "D", additions: 0, deletions: 4 }),
+    "D",
+  );
+  assert.equal(formatPath("src/components/RecentCommits.tsx"), "src/components/RecentCommits.tsx");
+}
+
+function changedFile(overrides = {}) {
+  return {
+    path: "src/components/ChangedNow.tsx",
+    status: " M",
+    indexStatus: " ",
+    workingTreeStatus: "M",
+    statusLabel: "Modified",
+    additions: 12,
+    deletions: 2,
+    ...overrides,
+  };
+}
+
+async function testCommitPrompt(server) {
+  const { changedFileKey } = await loadTsModule(server, "src/lib/changedFileIdentity.ts");
+  const { changedFilePromptLine, changedFilesCommitPrompt } = await loadTsModule(server, "src/lib/commitPrompt.ts");
+  const modified = changedFile();
+  const renamed = changedFile({
+    path: "src/components/ChangedFiles.tsx",
+    originalPath: "src/components/ChangedNow.tsx",
+    status: "R ",
+    indexStatus: "R",
+    workingTreeStatus: " ",
+    statusLabel: "Renamed",
+    additions: 1,
+    deletions: 1,
+  });
+  const zeroDelta = changedFile({
+    path: "README.md",
+    statusLabel: "Touched",
+    additions: 0,
+    deletions: 0,
+  });
+
+  assert.equal(changedFileKey(modified), " M-src/components/ChangedNow.tsx-");
+  assert.equal(changedFileKey(renamed), "R -src/components/ChangedFiles.tsx-src/components/ChangedNow.tsx");
+  assert.equal(changedFilePromptLine(modified), "- [M] src/components/ChangedNow.tsx: Modified (+12 -2)");
+  assert.equal(changedFilePromptLine(renamed), "- [R] src/components/ChangedFiles.tsx from src/components/ChangedNow.tsx: Renamed (+1 -1)");
+  assert.equal(changedFilePromptLine(zeroDelta), "- [M] README.md: Touched");
+
+  const englishPrompt = changedFilesCommitPrompt([modified, renamed], "modified", "en");
+  assert.ok(englishPrompt.includes("Run or review the necessary git status / git diff"));
+  assert.ok(englishPrompt.includes("Do not run git commit before Yes"));
+  assert.ok(englishPrompt.includes("Current Changed Now list (filter: modified, files: 2):"));
+  assert.ok(englishPrompt.includes("- [R] src/components/ChangedFiles.tsx from src/components/ChangedNow.tsx: Renamed (+1 -1)"));
+
+  const chinesePrompt = changedFilesCommitPrompt([], "staged", "zh");
+  assert.ok(chinesePrompt.includes("先运行或阅读必要的 git status / git diff"));
+  assert.ok(chinesePrompt.includes("在 Yes 前不要执行 git commit"));
+  assert.ok(chinesePrompt.includes("Changed Now 当前列表（filter: staged, files: 0）："));
+  assert.ok(chinesePrompt.includes("- No files in the current Changed Now filter."));
+}
+
+async function testCopyText(server) {
+  const { copyTextTarget, copyTextWithFallback } = await loadTsModule(server, "src/lib/copyText.ts");
+  const calls = [];
+  const bridge = {
+    copyText: async (text) => calls.push(`bridge:${text}`),
+  };
+  const clipboard = {
+    writeText: async (text) => calls.push(`clipboard:${text}`),
+  };
+
+  assert.equal(copyTextTarget({ bridge, clipboard }), "bridge");
+  assert.equal(copyTextTarget({ bridge: null, clipboard }), "clipboard");
+  assert.equal(copyTextTarget({ bridge: null, clipboard: null }), "unavailable");
+  assert.equal(await copyTextWithFallback("hello", { bridge, clipboard }), "bridge");
+  assert.deepEqual(calls, ["bridge:hello"]);
+
+  calls.length = 0;
+  assert.equal(await copyTextWithFallback("fallback", { clipboard }), "clipboard");
+  assert.deepEqual(calls, ["clipboard:fallback"]);
+
+  calls.length = 0;
+  await assert.rejects(
+    () =>
+      copyTextWithFallback("fail", {
+        bridge: {
+          copyText: async (text) => {
+            calls.push(`bridge:${text}`);
+            throw new Error("bridge failed");
+          },
+        },
+      }),
+    /bridge failed/,
+  );
+  assert.deepEqual(calls, ["bridge:fail"]);
+
+  calls.length = 0;
+  assert.equal(
+    await copyTextWithFallback("bridge-error", {
+      bridge: {
+        copyText: async (text) => {
+          calls.push(`bridge:${text}`);
+          throw new Error("bridge failed");
+        },
+      },
+      clipboard,
+    }),
+    "clipboard",
+  );
+  assert.deepEqual(calls, ["bridge:bridge-error", "clipboard:bridge-error"]);
+
+  calls.length = 0;
+  await assert.rejects(
+    () =>
+      copyTextWithFallback("fail", {
+        bridge: {
+          copyText: async (text) => {
+            calls.push(`bridge:${text}`);
+            throw new Error("bridge failed");
+          },
+        },
+        clipboard: {
+          writeText: async (text) => {
+            calls.push(`clipboard:${text}`);
+            throw new Error("clipboard failed");
+          },
+        },
+      }),
+    /clipboard failed/,
+  );
+  assert.deepEqual(calls, ["bridge:fail", "clipboard:fail"]);
+  await assert.rejects(() => copyTextWithFallback("missing", {}), /Clipboard is unavailable/);
+}
+
+async function testDismissableLayer(server) {
+  const {
+    dismissableLayerContainsTarget,
+    dismissableLayerShouldDismissKey,
+    dismissableLayerShouldDismissPointer,
+  } = await loadTsModule(server, "src/lib/useDismissableLayer.ts");
+  const inside = { nodeType: 1 };
+  const outside = { nodeType: 1 };
+  const host = {
+    contains: (target) => target === inside,
+  };
+  const refs = [{ current: host }];
+
+  assert.equal(dismissableLayerContainsTarget(refs, inside), true);
+  assert.equal(dismissableLayerContainsTarget(refs, outside), false);
+  assert.equal(dismissableLayerContainsTarget([{ current: null }], inside), false);
+  assert.equal(dismissableLayerContainsTarget(refs, null), false);
+  assert.equal(dismissableLayerContainsTarget(refs, { detail: "not a node" }), false);
+
+  assert.equal(dismissableLayerShouldDismissPointer(refs, inside), false);
+  assert.equal(dismissableLayerShouldDismissPointer(refs, outside), true);
+  assert.equal(dismissableLayerShouldDismissPointer(refs, null), true);
+
+  assert.equal(dismissableLayerShouldDismissKey("Escape"), true);
+  assert.equal(dismissableLayerShouldDismissKey("Enter"), false);
+  assert.equal(dismissableLayerShouldDismissKey("Esc"), false);
+}
+
+async function testChangedNowView(server) {
+  const {
+    changedNowCopyButtonView,
+    changedNowPanelView,
+    changedNowTitleId,
+    copyPromptStateResetDelayMs,
+    temporaryCopyPromptFeedback,
+  } = await loadTsModule(server, "src/lib/changedNowView.ts");
+
+  assert.equal(copyPromptStateResetDelayMs, 1400);
+  assert.equal(changedNowTitleId, "changed-now-title");
+  assert.deepEqual(temporaryCopyPromptFeedback({ timerActive: false, nextState: "copied" }), {
+    clearExistingTimer: false,
+    nextState: "copied",
+    resetDelayMs: 1400,
+  });
+  assert.deepEqual(temporaryCopyPromptFeedback({ timerActive: true, nextState: "failed" }), {
+    clearExistingTimer: true,
+    nextState: "failed",
+    resetDelayMs: 1400,
+  });
+  assert.deepEqual(changedNowPanelView(), {
+    section: {
+      className: "changed-section",
+      ariaLabelledBy: "changed-now-title",
+    },
+    heading: {
+      className: "section-heading compact",
+    },
+    titleId: "changed-now-title",
+    title: "Changed now",
+    tools: {
+      className: "heading-tools",
+    },
+    fileList: {
+      className: "file-list",
+      id: "changed-now-file-list",
+    },
+    closeButton: {
+      ariaLabel: "Close changed files window",
+      tooltip: "Close window",
+    },
+  });
+  assert.deepEqual(changedNowCopyButtonView("idle"), {
+    label: "Copy prompt to commit changes",
+    title: "Copy prompt to commit changes",
+    icon: "copy",
+  });
+  assert.deepEqual(changedNowCopyButtonView("copied"), {
+    label: "Copied prompt",
+    title: "Copied",
+    icon: "check",
+  });
+  assert.deepEqual(changedNowCopyButtonView("failed"), {
+    label: "Copy failed",
+    title: "Copy failed",
+    icon: "x",
+  });
+}
+
+async function testChangedFilesView(server) {
+  const {
+    changedFilesHiddenCountLabel,
+    changedFilesView,
+    filteredChangedFiles,
+    maxChangedFilesPreview,
+    visibleChangedFiles,
+  } = await loadTsModule(server, "src/lib/changedFilesView.ts");
+  const modified = changedFile({ path: "src/modified.ts", status: " M", indexStatus: " ", workingTreeStatus: "M" });
+  const staged = changedFile({ path: "src/staged.ts", status: "A ", indexStatus: "A", workingTreeStatus: " " });
+  const untracked = changedFile({ path: "src/untracked.ts", status: "??", indexStatus: "?", workingTreeStatus: "?" });
+  const files = [modified, staged, untracked];
+
+  assert.equal(maxChangedFilesPreview, 8);
+  assert.deepEqual(filteredChangedFiles(files, "all"), files);
+  assert.deepEqual(filteredChangedFiles(files, "modified"), [modified]);
+  assert.deepEqual(filteredChangedFiles(files, "staged"), [staged]);
+  assert.deepEqual(filteredChangedFiles(files, "untracked"), [untracked]);
+  assert.deepEqual(visibleChangedFiles(files, 2), [modified, staged]);
+
+  const manyFiles = Array.from({ length: 10 }, (_, index) => changedFile({ path: `src/file-${index}.ts` }));
+  const view = changedFilesView(manyFiles, "all");
+  assert.equal(view.filteredFiles.length, 10);
+  assert.equal(view.filteredCount, 10);
+  assert.equal(view.visibleFiles.length, 8);
+  assert.equal(view.hiddenCount, 2);
+  assert.equal(view.hiddenCountLabel, "+2 more files");
+  assert.equal(view.showFiles, true);
+  assert.equal(view.showHiddenCount, true);
+  assert.deepEqual(view.hiddenCountView, {
+    className: "file-list-more",
+    role: "status",
+    ariaLive: "polite",
+  });
+  assert.equal(view.emptyMessage, "No files in this view.");
+  assert.deepEqual(view.emptyState, {
+    className: "empty-state",
+    role: "status",
+    ariaLive: "polite",
+    message: "No files in this view.",
+  });
+  assert.deepEqual(changedFilesView([], "all"), {
+    filteredFiles: [],
+    filteredCount: 0,
+    visibleFiles: [],
+    hiddenCount: 0,
+    hiddenCountLabel: "",
+    showFiles: false,
+    showHiddenCount: false,
+    hiddenCountView: {
+      className: "file-list-more",
+      role: "status",
+      ariaLive: "polite",
+    },
+    emptyMessage: "No files in this view.",
+    emptyState: {
+      className: "empty-state",
+      role: "status",
+      ariaLive: "polite",
+      message: "No files in this view.",
+    },
+  });
+  assert.equal(changedFilesHiddenCountLabel(0), "");
+  assert.equal(changedFilesHiddenCountLabel(1), "+1 more file");
+  assert.equal(changedFilesHiddenCountLabel(2), "+2 more files");
+}
+
+async function testChangedFileView(server) {
+  const {
+    changedFileDeltaItems,
+    changedFileDeltaView,
+    changedFileInfoPanelView,
+    changedFileInfoTitleId,
+    changedFileRowView,
+    changedFileView,
+  } = await loadTsModule(server, "src/lib/changedFileView.ts");
+  const modified = changedFile();
+  const renamed = changedFile({
+    path: "src/components/ChangedFiles.tsx",
+    originalPath: "src/components/ChangedNow.tsx",
+    status: "R ",
+    indexStatus: "R",
+    workingTreeStatus: " ",
+    statusLabel: "Renamed",
+    additions: 1,
+    deletions: 1,
+  });
+  const zeroDelta = changedFile({
+    path: "README.md",
+    status: "  ",
+    indexStatus: " ",
+    workingTreeStatus: " ",
+    statusLabel: "Touched",
+    additions: 0,
+    deletions: 0,
+  });
+
+  assert.deepEqual(changedFileDeltaView(modified), {
+    additionsLabel: "+12",
+    deletionsLabel: "-2",
+    emptyLabel: "",
+  });
+  assert.deepEqual(changedFileDeltaView(zeroDelta), {
+    additionsLabel: "",
+    deletionsLabel: "",
+    emptyLabel: "0",
+  });
+  assert.deepEqual(changedFileDeltaItems(changedFileDeltaView(modified)), [
+    { key: "additions", label: "+12", className: "additions" },
+    { key: "deletions", label: "-2", className: "deletions" },
+  ]);
+  assert.deepEqual(changedFileDeltaItems(changedFileDeltaView(zeroDelta)), [{ key: "empty", label: "0" }]);
+
+  assert.deepEqual(changedFileView(renamed), {
+    key: "R -src/components/ChangedFiles.tsx-src/components/ChangedNow.tsx",
+    kind: "staged",
+    statusLetter: "R",
+    gitStatus: "R",
+    pathLabel: "src/components/ChangedFiles.tsx",
+    originalPathLabel: "src/components/ChangedNow.tsx",
+    statusDetail: "Renamed from src/components/ChangedNow.tsx",
+    delta: {
+      additionsLabel: "+1",
+      deletionsLabel: "-1",
+      emptyLabel: "",
+    },
+  });
+  assert.equal(changedFileView(zeroDelta).gitStatus, "?");
+  assert.equal(changedFileView(zeroDelta).statusDetail, "Touched");
+
+  const modifiedView = changedFileView(modified);
+  const selectedRow = changedFileRowView(modified, modifiedView.key);
+  const idleRow = changedFileRowView(modified, "");
+
+  assert.equal(selectedRow.selected, true);
+  assert.equal(selectedRow.className, "file-row is-selected");
+  assert.equal(selectedRow.ariaPressed, true);
+  assert.equal(selectedRow.title, modified.path);
+  assert.equal(selectedRow.badgeClassName, "file-badge modified");
+  assert.equal(selectedRow.copyClassName, "file-copy");
+  assert.equal(selectedRow.pathClassName, "file-path");
+  assert.equal(selectedRow.detailClassName, "file-detail");
+  assert.equal(selectedRow.deltaClassName, "file-delta");
+  assert.equal(selectedRow.file.key, modifiedView.key);
+  assert.equal(idleRow.selected, false);
+  assert.equal(idleRow.className, "file-row");
+  assert.equal(idleRow.ariaPressed, false);
+  assert.equal(changedFileInfoTitleId, "changed-file-details-title");
+
+  assert.deepEqual(changedFileInfoPanelView(renamed), {
+    panel: {
+      className: "changed-side-panel",
+      ariaLabelledBy: "changed-file-details-title",
+    },
+    titleId: "changed-file-details-title",
+    header: {
+      className: "changed-side-header",
+    },
+    file: changedFileView(renamed),
+    badgeClassName: "file-badge staged",
+    statusLabel: "Renamed",
+    closeButton: {
+      className: "ui-icon-button",
+      ariaLabel: "Close changed file details",
+    },
+    facts: {
+      kindLabel: "Kind",
+      gitLabel: "Git",
+      changesLabel: "Changes",
+      pathLabel: "Path",
+      originalPathLabel: "From",
+    },
+    factsListClassName: "changed-side-facts",
+    deltaClassName: "changed-side-delta",
+    wideFactClassName: "is-wide",
+    pathText: renamed.path,
+    pathTitle: renamed.path,
+    showOriginalPath: true,
+    originalPathTitle: renamed.originalPath,
+  });
+  assert.deepEqual(changedFileInfoPanelView(modified), {
+    panel: {
+      className: "changed-side-panel",
+      ariaLabelledBy: "changed-file-details-title",
+    },
+    titleId: "changed-file-details-title",
+    header: {
+      className: "changed-side-header",
+    },
+    file: modifiedView,
+    badgeClassName: "file-badge modified",
+    statusLabel: "Modified",
+    closeButton: {
+      className: "ui-icon-button",
+      ariaLabel: "Close changed file details",
+    },
+    facts: {
+      kindLabel: "Kind",
+      gitLabel: "Git",
+      changesLabel: "Changes",
+      pathLabel: "Path",
+      originalPathLabel: "From",
+    },
+    factsListClassName: "changed-side-facts",
+    deltaClassName: "changed-side-delta",
+    wideFactClassName: "is-wide",
+    pathText: modified.path,
+    pathTitle: modified.path,
+    showOriginalPath: false,
+    originalPathTitle: undefined,
+  });
+}
+
+async function testChangedFilesTemporaryInfo(server) {
+  const { changedFilesTemporaryInfoPayload } = await loadTsModule(server, "src/lib/changedFilesTemporaryInfo.ts");
+  const modified = changedFile();
+  const snapshot = { changedFiles: [modified] };
+  const baseOptions = {
+    snapshot,
+    changedNowWindowOpen: true,
+    collapsed: false,
+    collapsedRailChangedNowOpen: false,
+    settingsOpen: false,
+    zenActive: false,
+  };
+
+  assert.deepEqual(changedFilesTemporaryInfoPayload(baseOptions), {
+    kind: "changed-files",
+    files: [modified],
+    filter: "all",
+    selectedFileKey: "",
+  });
+  assert.equal(changedFilesTemporaryInfoPayload({ ...baseOptions, snapshot: null }), null);
+  assert.equal(changedFilesTemporaryInfoPayload({ ...baseOptions, changedNowWindowOpen: false }), null);
+  assert.equal(changedFilesTemporaryInfoPayload({ ...baseOptions, collapsed: true, collapsedRailChangedNowOpen: false }), null);
+  assert.deepEqual(
+    changedFilesTemporaryInfoPayload({
+      ...baseOptions,
+      collapsed: true,
+      collapsedRailChangedNowOpen: true,
+    })?.files,
+    [modified],
+  );
+  assert.equal(changedFilesTemporaryInfoPayload({ ...baseOptions, settingsOpen: true }), null);
+  assert.equal(changedFilesTemporaryInfoPayload({ ...baseOptions, zenActive: true }), null);
+}
+
+async function testTemporaryInfoPanelBridge(server) {
+  const { runTemporaryInfoPanelBridgeSideEffect, temporaryInfoPanelBridgeRequest } = await loadTsModule(
+    server,
+    "src/lib/temporaryInfoPanelBridge.ts",
+  );
+  const payload = {
+    kind: "changed-files",
+    files: [changedFile()],
+    filter: "all",
+    selectedFileKey: "",
+  };
+
+  assert.equal(temporaryInfoPanelBridgeRequest("open", null), null);
+  assert.deepEqual(temporaryInfoPanelBridgeRequest("open", payload), {
+    failureNotice: "Unable to open temporary info panel.",
+    payload,
+  });
+  assert.deepEqual(temporaryInfoPanelBridgeRequest("update", payload), {
+    failureNotice: "Unable to update temporary info panel.",
+    payload,
+  });
+  assert.deepEqual(temporaryInfoPanelBridgeRequest("update", null), {
+    failureNotice: "Unable to update temporary info panel.",
+    payload: null,
+  });
+  assert.deepEqual(temporaryInfoPanelBridgeRequest("close", payload), {
+    failureNotice: "Unable to close temporary info panel.",
+    payload: null,
+  });
+  assert.deepEqual(temporaryInfoPanelBridgeRequest("clear"), {
+    failureNotice: "Unable to clear temporary info panel.",
+    payload: null,
+  });
+
+  const sideEffectPayloads = [];
+  const recordPayload = (nextPayload) => {
+    sideEffectPayloads.push(nextPayload);
+  };
+  assert.equal(runTemporaryInfoPanelBridgeSideEffect("open", recordPayload), false);
+  assert.deepEqual(sideEffectPayloads, []);
+  assert.equal(runTemporaryInfoPanelBridgeSideEffect("open", recordPayload, payload), true);
+  assert.deepEqual(sideEffectPayloads, [payload]);
+  assert.equal(runTemporaryInfoPanelBridgeSideEffect("close", recordPayload), true);
+  assert.deepEqual(sideEffectPayloads, [payload, null]);
+  assert.equal(runTemporaryInfoPanelBridgeSideEffect("clear", undefined), true);
+}
+
+async function testChangedNowWindowState(server) {
+  const {
+    changedNowToggleResult,
+    changedNowWindowState,
+    closedChangedNowWindowState,
+  } = await loadTsModule(server, "src/lib/changedNowWindowState.ts");
+
+  assert.deepEqual(changedNowWindowState(closedChangedNowWindowState, "toggleFromPanel"), {
+    windowOpen: true,
+    collapsedRailOpen: false,
+  });
+  assert.deepEqual(changedNowWindowState({ windowOpen: true, collapsedRailOpen: false }, "toggleFromPanel"), closedChangedNowWindowState);
+  assert.deepEqual(changedNowWindowState(closedChangedNowWindowState, "toggleFromCollapsedRail"), {
+    windowOpen: true,
+    collapsedRailOpen: true,
+  });
+  assert.deepEqual(
+    changedNowWindowState({ windowOpen: true, collapsedRailOpen: true }, "toggleFromCollapsedRail"),
+    closedChangedNowWindowState,
+  );
+  assert.deepEqual(changedNowWindowState({ windowOpen: true, collapsedRailOpen: true }, "expandPanel"), {
+    windowOpen: true,
+    collapsedRailOpen: false,
+  });
+  assert.deepEqual(changedNowWindowState({ windowOpen: true, collapsedRailOpen: false }, "expandPanel"), {
+    windowOpen: true,
+    collapsedRailOpen: false,
+  });
+  assert.deepEqual(changedNowWindowState({ windowOpen: true, collapsedRailOpen: true }, "close"), closedChangedNowWindowState);
+  assert.deepEqual(changedNowToggleResult({ source: "panel", windowOpen: false, hasTemporaryInfoPayload: true }), {
+    windowAction: "toggleFromPanel",
+    temporaryInfoPanelAction: "open",
+  });
+  assert.deepEqual(changedNowToggleResult({ source: "panel", windowOpen: false, hasTemporaryInfoPayload: false }), {
+    windowAction: "toggleFromPanel",
+    temporaryInfoPanelAction: null,
+  });
+  assert.deepEqual(changedNowToggleResult({ source: "collapsedRail", windowOpen: false, hasTemporaryInfoPayload: true }), {
+    windowAction: "toggleFromCollapsedRail",
+    temporaryInfoPanelAction: null,
+  });
+  assert.deepEqual(changedNowToggleResult({ source: "collapsedRail", windowOpen: true, hasTemporaryInfoPayload: true }), {
+    windowAction: "close",
+    temporaryInfoPanelAction: "close",
+  });
+}
+
+async function testTemporaryInfoSelection(server) {
+  const {
+    changedFilesSelectedFileKey,
+    selectedChangedFile,
+    temporaryInfoWindowView,
+  } = await loadTsModule(server, "src/lib/temporaryInfoSelection.ts");
+  const { changedFileKey } = await loadTsModule(server, "src/lib/changedFileIdentity.ts");
+  const first = changedFile({ path: "src/first.ts" });
+  const second = changedFile({ path: "src/second.ts", statusLabel: "Second" });
+  const staged = changedFile({ path: "src/staged.ts", status: "A ", indexStatus: "A", workingTreeStatus: " ", statusLabel: "Added" });
+  const firstKey = changedFileKey(first);
+  const secondKey = changedFileKey(second);
+  const stagedKey = changedFileKey(staged);
+  const temporaryInfoChrome = {
+    viewport: {
+      className: "temporary-info-viewport is-electron",
+    },
+    panel: {
+      className: "peek-panel temporary-info-panel",
+      ariaLabel: "Changed files window",
+    },
+    emptyState: {
+      className: "temporary-info-empty",
+      ariaLabel: "Temporary information",
+      role: "status",
+      ariaLive: "polite",
+      message: "No file selected.",
+    },
+  };
+  const temporaryInfoWithDetailChrome = {
+    ...temporaryInfoChrome,
+    panel: {
+      className: "peek-panel temporary-info-panel has-detail",
+      ariaLabel: "Changed files window",
+    },
+  };
+
+  assert.equal(selectedChangedFile([first, second], secondKey), second);
+  assert.equal(selectedChangedFile([first, staged], firstKey, "modified"), first);
+  assert.equal(selectedChangedFile([first, staged], firstKey, "staged"), null);
+  assert.equal(selectedChangedFile([first, staged], stagedKey, "staged"), staged);
+  assert.equal(selectedChangedFile([first], secondKey), null);
+  assert.equal(selectedChangedFile([first], ""), null);
+  assert.equal(changedFilesSelectedFileKey(null, secondKey), "");
+  assert.equal(
+    changedFilesSelectedFileKey(
+      { kind: "changed-files", files: [first, second], filter: "all", selectedFileKey: secondKey },
+      firstKey,
+    ),
+    secondKey,
+  );
+  assert.equal(
+    changedFilesSelectedFileKey(
+      { kind: "changed-files", files: [first, second], filter: "all", selectedFileKey: "" },
+      firstKey,
+    ),
+    firstKey,
+  );
+  assert.equal(changedFilesSelectedFileKey({ kind: "changed-files", files: [first], filter: "all", selectedFileKey: "" }, secondKey), "");
+  assert.equal(
+    changedFilesSelectedFileKey(
+      { kind: "changed-files", files: [first, staged], filter: "staged", selectedFileKey: firstKey },
+      "",
+    ),
+    "",
+  );
+  assert.equal(
+    changedFilesSelectedFileKey(
+      { kind: "changed-files", files: [first, staged], filter: "staged", selectedFileKey: "" },
+      stagedKey,
+    ),
+    stagedKey,
+  );
+  assert.deepEqual(temporaryInfoWindowView(null, secondKey), {
+    ...temporaryInfoChrome,
+    changedFilesPayload: null,
+    selectedFile: null,
+    showChangedFiles: false,
+    showSelectedFile: false,
+  });
+  assert.deepEqual(
+    temporaryInfoWindowView(
+      { kind: "changed-files", files: [first, second], filter: "all", selectedFileKey: "" },
+      secondKey,
+    ),
+    {
+      ...temporaryInfoWithDetailChrome,
+      changedFilesPayload: { kind: "changed-files", files: [first, second], filter: "all", selectedFileKey: "" },
+      selectedFile: second,
+      showChangedFiles: true,
+      showSelectedFile: true,
+    },
+  );
+  assert.deepEqual(
+    temporaryInfoWindowView(
+      { kind: "changed-files", files: [first, staged], filter: "staged", selectedFileKey: "" },
+      firstKey,
+    ),
+    {
+      ...temporaryInfoChrome,
+      changedFilesPayload: { kind: "changed-files", files: [first, staged], filter: "staged", selectedFileKey: "" },
+      selectedFile: null,
+      showChangedFiles: true,
+      showSelectedFile: false,
+    },
+  );
+}
+
+async function testRecentRepositories(server) {
+  const {
+    dedupeRecentRepositories,
+    isSameRecentRepository,
+    maxEmptyStateRecentRepositories,
+    maxRecentRepositories,
+    recentRepositoriesWithCurrent,
+    recentRepositoryHiddenCountLabel,
+    recentRepositoryPreview,
+    recentRepositoryFromSnapshot,
+    upsertRecentRepository,
+  } = await loadTsModule(server, "src/lib/recentRepositories.ts");
+  const current = {
+    path: "/Users/junrong/codespace/git-tree-vis",
+    name: "git-tree-vis",
+    repositoryKey: "git:/Users/junrong/codespace/git-tree-vis/.git",
+  };
+  const sameRepositoryDifferentPath = {
+    path: "/Users/junrong/codespace/git-tree-vis-linked",
+    name: "git-tree-vis-linked",
+    repositoryKey: current.repositoryKey,
+  };
+  const samePathLegacyKey = {
+    path: current.path,
+    name: "legacy-git-tree-vis",
+    repositoryKey: `path:${current.path}`,
+  };
+  const other = {
+    path: "/Users/junrong/codespace/other",
+    name: "other",
+    repositoryKey: "git:/Users/junrong/codespace/other/.git",
+  };
+  const snapshot = {
+    repoPath: current.path,
+    repoName: "",
+    repositoryKey: current.repositoryKey,
+  };
+
+  assert.equal(maxRecentRepositories, 8);
+  assert.equal(maxEmptyStateRecentRepositories, 4);
+  assert.equal(recentRepositoryFromSnapshot(snapshot).name, "git-tree-vis");
+  assert.equal(isSameRecentRepository(current, sameRepositoryDifferentPath), true);
+  assert.equal(isSameRecentRepository(current, samePathLegacyKey), true);
+  assert.equal(isSameRecentRepository(current, other), false);
+  assert.deepEqual(
+    dedupeRecentRepositories([current, sameRepositoryDifferentPath, samePathLegacyKey, other]).map((repository) => repository.name),
+    ["git-tree-vis", "other"],
+  );
+  assert.deepEqual(upsertRecentRepository([sameRepositoryDifferentPath, samePathLegacyKey, other], current, 2), [current, other]);
+  assert.deepEqual(
+    recentRepositoriesWithCurrent(snapshot, [sameRepositoryDifferentPath, samePathLegacyKey, other]).map((repository) => repository.name),
+    ["git-tree-vis", "other"],
+  );
+  assert.equal(recentRepositoryHiddenCountLabel(0), "");
+  assert.equal(recentRepositoryHiddenCountLabel(1), "+1 more repository");
+  assert.equal(recentRepositoryHiddenCountLabel(2), "+2 more repositories");
+  assert.deepEqual(recentRepositoryPreview([current, sameRepositoryDifferentPath, samePathLegacyKey, other], 2), {
+    visibleRepositories: [current, sameRepositoryDifferentPath],
+    hiddenCount: 2,
+    hiddenCountLabel: "+2 more repositories",
+  });
+}
+
+async function testEmptyRepositoryView(server) {
+  const { emptyRepositoryFolderPathView, emptyRepositoryNoticeView, emptyRepositoryTitleId, emptyRepositoryView } = await loadTsModule(
+    server,
+    "src/lib/emptyRepositoryView.ts",
+  );
+  const recentRepositories = [
+    {
+      path: "/Users/junrong/codespace/git-tree-vis",
+      name: "git-tree-vis",
+      repositoryKey: "git:/Users/junrong/codespace/git-tree-vis/.git",
+    },
+    {
+      path: "/Users/junrong/Desktop/demo",
+      name: "demo",
+      repositoryKey: "git:/Users/junrong/Desktop/demo/.git",
+    },
+    {
+      path: "/Users/junrong/Documents/another",
+      name: "another",
+      repositoryKey: "git:/Users/junrong/Documents/another/.git",
+    },
+    {
+      path: "/Users/junrong/Documents/fourth",
+      name: "fourth",
+      repositoryKey: "git:/Users/junrong/Documents/fourth/.git",
+    },
+    {
+      path: "/Users/junrong/Documents/fifth",
+      name: "fifth",
+      repositoryKey: "git:/Users/junrong/Documents/fifth/.git",
+    },
+  ];
+
+  assert.equal(emptyRepositoryFolderPathView(null), null);
+  assert.deepEqual(
+    emptyRepositoryFolderPathView({
+      path: "/Users/junrong/Desktop/new-project",
+      name: "new-project",
+      hasGitIgnore: false,
+    }),
+    {
+      className: "empty-folder-path",
+      text: "/Users/junrong/Desktop/new-project",
+      title: "/Users/junrong/Desktop/new-project",
+    },
+  );
+  assert.deepEqual(emptyRepositoryNoticeView(" Run the Electron app to choose a local working folder. "), {
+    role: "status",
+    ariaLive: "polite",
+    message: "Run the Electron app to choose a local working folder.",
+  });
+  assert.equal(emptyRepositoryNoticeView("   "), null);
+  assert.equal(emptyRepositoryTitleId, "empty-repository-title");
+
+  assert.deepEqual(emptyRepositoryView({ loading: true, folderWithoutGit: null, initializingRepository: false, recentRepositories: [] }), {
+    section: {
+      className: "empty-repository",
+      ariaLabelledBy: "empty-repository-title",
+    },
+    hasFolderWithoutGit: false,
+    icon: "folder",
+    iconFrameClassName: "empty-icon",
+    titleId: "empty-repository-title",
+    primaryAction: "open",
+    primaryActionIcon: "folder",
+    actionDisabled: true,
+    title: "Checking working folder",
+    body: "Looking for the last saved repository.",
+    primaryActionLabel: "Choose folder",
+    actionsClassName: "empty-actions",
+    primaryButton: {
+      className: "primary-action",
+      icon: "folder",
+      label: "Choose folder",
+      disabled: true,
+    },
+    showSecondaryAction: false,
+    secondaryButton: {
+      className: "secondary-action",
+      icon: "folder",
+      label: "Choose another",
+      disabled: true,
+    },
+    showFolderPath: false,
+    folderPath: null,
+    showGitIgnoreNote: false,
+    gitIgnoreNote: {
+      className: "empty-gitignore-note",
+      text: "",
+    },
+    showRecentRepositories: false,
+    recentRepositories: {
+      className: "empty-recent-repos",
+      ariaLabel: "Recent repositories",
+      heading: "Recent",
+      hiddenCountView: {
+        className: "empty-recent-repos-more",
+        role: "status",
+        ariaLive: "polite",
+      },
+    },
+    recentRepositoriesAriaLabel: "Recent repositories",
+    recentRepositoriesHeading: "Recent",
+    visibleRepositories: [],
+    hiddenCountLabel: "",
+  });
+
+  const plainView = emptyRepositoryView({ loading: false, folderWithoutGit: null, initializingRepository: false, recentRepositories });
+  assert.equal(plainView.titleId, emptyRepositoryTitleId);
+  assert.equal(plainView.title, "Open a working folder");
+  assert.equal(plainView.body, "Git Peek only shows real data from a folder you choose. It remembers that folder for next time.");
+  assert.equal(plainView.primaryActionLabel, "Choose folder");
+  assert.equal(plainView.primaryAction, "open");
+  assert.equal(plainView.primaryActionIcon, "folder");
+  assert.deepEqual(plainView.primaryButton, {
+    className: "primary-action",
+    icon: "folder",
+    label: "Choose folder",
+    disabled: false,
+  });
+  assert.equal(plainView.actionDisabled, false);
+  assert.equal(plainView.showSecondaryAction, false);
+  assert.equal(plainView.showFolderPath, false);
+  assert.equal(plainView.folderPath, null);
+  assert.equal(plainView.showGitIgnoreNote, false);
+  assert.equal(plainView.showRecentRepositories, true);
+  assert.equal(plainView.recentRepositoriesAriaLabel, "Recent repositories");
+  assert.equal(plainView.recentRepositoriesHeading, "Recent");
+  assert.deepEqual(plainView.recentRepositories, {
+    className: "empty-recent-repos",
+    ariaLabel: "Recent repositories",
+    heading: "Recent",
+    hiddenCountView: {
+      className: "empty-recent-repos-more",
+      role: "status",
+      ariaLive: "polite",
+    },
+  });
+  assert.deepEqual(
+    plainView.visibleRepositories.map((repository) => repository.label),
+    ["git-tree-vis - codespace", "demo - Desktop", "another - Documents", "fourth - Documents"],
+  );
+  assert.deepEqual(
+    plainView.visibleRepositories.map((repository) => repository.title),
+    [
+      "/Users/junrong/codespace/git-tree-vis",
+      "/Users/junrong/Desktop/demo",
+      "/Users/junrong/Documents/another",
+      "/Users/junrong/Documents/fourth",
+    ],
+  );
+  assert.equal(plainView.hiddenCountLabel, "+1 more repository");
+
+  const folderView = emptyRepositoryView({
+    loading: false,
+    folderWithoutGit: { path: "/Users/junrong/Desktop/new-project", name: "new-project", hasGitIgnore: false },
+    initializingRepository: false,
+    recentRepositories: [],
+  });
+  assert.equal(folderView.hasFolderWithoutGit, true);
+  assert.equal(folderView.titleId, emptyRepositoryTitleId);
+  assert.equal(folderView.icon, "folder-git");
+  assert.equal(folderView.title, "Folder without Git");
+  assert.equal(folderView.body, "new-project can be initialized here and then tracked by Git Peek.");
+  assert.equal(folderView.primaryActionLabel, "Initialize Git");
+  assert.equal(folderView.primaryAction, "initialize");
+  assert.equal(folderView.primaryActionIcon, "branch-plus");
+  assert.deepEqual(folderView.primaryButton, {
+    className: "primary-action",
+    icon: "branch-plus",
+    label: "Initialize Git",
+    disabled: false,
+  });
+  assert.equal(folderView.showSecondaryAction, true);
+  assert.deepEqual(folderView.secondaryButton, {
+    className: "secondary-action",
+    icon: "folder",
+    label: "Choose another",
+    disabled: false,
+  });
+  assert.equal(folderView.showFolderPath, true);
+  assert.deepEqual(folderView.folderPath, {
+    className: "empty-folder-path",
+    text: "/Users/junrong/Desktop/new-project",
+    title: "/Users/junrong/Desktop/new-project",
+  });
+  assert.equal(folderView.showGitIgnoreNote, true);
+  assert.deepEqual(folderView.gitIgnoreNote, {
+    className: "empty-gitignore-note",
+    text: "Adds a starter .gitignore.",
+  });
+  assert.equal(folderView.showRecentRepositories, false);
+
+  const initializingView = emptyRepositoryView({
+    loading: false,
+    folderWithoutGit: { path: "/Users/junrong/Desktop/new-project", name: "new-project", hasGitIgnore: true },
+    initializingRepository: true,
+    recentRepositories: [],
+  });
+  assert.equal(initializingView.actionDisabled, true);
+  assert.equal(initializingView.primaryActionLabel, "Initializing");
+  assert.deepEqual(initializingView.primaryButton, {
+    className: "primary-action",
+    icon: "branch-plus",
+    label: "Initializing",
+    disabled: true,
+  });
+  assert.deepEqual(initializingView.gitIgnoreNote, {
+    className: "empty-gitignore-note",
+    text: "Keeps the existing .gitignore.",
+  });
+}
+
+async function testPanelHeaderView(server) {
+  const {
+    branchPillTitle,
+    panelHeaderActionsView,
+    panelHeaderBranchPillView,
+    panelHeaderOpenRepositoryButtonView,
+    panelHeaderView,
+    panelPinnedNotice,
+    panelPinnedStateAfterToggle,
+    panelRepositoryMenuOpenAfterSelection,
+    panelRepositoryMenuOpenAfterToggle,
+    panelRepositoryMenuItemView,
+    panelRepositoryMenuView,
+    panelRepositorySelection,
+    panelRepositoryTriggerView,
+    repositoryOptionActive,
+    shouldSwitchRepository,
+  } = await loadTsModule(server, "src/lib/panelHeaderView.ts");
+  const current = {
+    path: "/Users/junrong/codespace/git-tree-vis",
+    name: "git-tree-vis",
+    repositoryKey: "git:/Users/junrong/codespace/git-tree-vis/.git",
+  };
+  const sameRepositoryDifferentPath = {
+    path: "/Users/junrong/codespace/git-tree-vis-linked",
+    name: "git-tree-vis-linked",
+    repositoryKey: current.repositoryKey,
+  };
+  const other = {
+    path: "/Users/junrong/codespace/other",
+    name: "other",
+    repositoryKey: "git:/Users/junrong/codespace/other/.git",
+  };
+  const snapshot = {
+    repoPath: current.path,
+    repoName: "",
+    repositoryKey: current.repositoryKey,
+    branch: { name: "main", upstream: "origin/main" },
+  };
+
+  assert.deepEqual(panelHeaderView(null, [current, other]), {
+    header: {
+      className: "peek-header",
+    },
+    repoSwitcher: {
+      className: "header-repo-switcher",
+    },
+    repositoryTitleCopy: {
+      className: "repo-title-copy",
+    },
+    staticRepositoryTitle: {
+      className: "repo-title",
+    },
+    branchPill: null,
+    currentRepository: null,
+    recentRepositoryOptions: [current, other],
+    canSwitchRepository: false,
+    repositoryTitle: "Git Peek",
+    repositoryPathLabel: "No working folder",
+  });
+
+  assert.deepEqual(panelHeaderView(snapshot, [sameRepositoryDifferentPath, other]), {
+    header: {
+      className: "peek-header",
+    },
+    repoSwitcher: {
+      className: "header-repo-switcher",
+    },
+    repositoryTitleCopy: {
+      className: "repo-title-copy",
+    },
+    staticRepositoryTitle: {
+      className: "repo-title",
+    },
+    branchPill: {
+      className: "branch-pill",
+      icon: "branch",
+      label: "main",
+      title: "origin/main",
+    },
+    currentRepository: current,
+    recentRepositoryOptions: [current, other],
+    canSwitchRepository: true,
+    repositoryTitle: "git-tree-vis",
+    repositoryPathLabel: current.path,
+  });
+  assert.equal(repositoryOptionActive(sameRepositoryDifferentPath, current), true);
+  assert.equal(repositoryOptionActive(other, current), false);
+  assert.equal(repositoryOptionActive(current, null), false);
+  assert.deepEqual(panelHeaderOpenRepositoryButtonView(), {
+    label: "Open repository",
+  });
+  assert.deepEqual(panelRepositoryMenuView(), {
+    className: "ui-menu repo-switch-menu",
+    id: "repo-switch-menu",
+    role: "menu",
+    ariaLabelledBy: "repo-switch-trigger",
+  });
+  assert.deepEqual(panelRepositoryMenuItemView(sameRepositoryDifferentPath, current), {
+    active: true,
+    className: "ui-menu-item repo-menu-item is-active",
+    role: "menuitem",
+    ariaCurrent: "true",
+    showCheck: true,
+    checkClassName: "repo-menu-check",
+    textClassName: "repo-menu-text",
+    key: "/Users/junrong/codespace/git-tree-vis-linked",
+    path: "/Users/junrong/codespace/git-tree-vis-linked",
+    title: "/Users/junrong/codespace/git-tree-vis-linked",
+    label: "git-tree-vis-linked - codespace",
+  });
+  assert.deepEqual(panelRepositoryMenuItemView(other, current), {
+    active: false,
+    className: "ui-menu-item repo-menu-item",
+    role: "menuitem",
+    ariaCurrent: undefined,
+    showCheck: false,
+    checkClassName: "repo-menu-check",
+    textClassName: "repo-menu-text",
+    key: "/Users/junrong/codespace/other",
+    path: "/Users/junrong/codespace/other",
+    title: "/Users/junrong/codespace/other",
+    label: "other - codespace",
+  });
+  assert.equal(shouldSwitchRepository(null, other.path), false);
+  assert.equal(shouldSwitchRepository(snapshot, current.path), false);
+  assert.equal(shouldSwitchRepository(snapshot, other.path), true);
+  assert.equal(panelRepositoryMenuOpenAfterToggle(false, true), true);
+  assert.equal(panelRepositoryMenuOpenAfterToggle(true, true), false);
+  assert.equal(panelRepositoryMenuOpenAfterToggle(false, false), false);
+  assert.equal(panelRepositoryMenuOpenAfterToggle(true, false), true);
+  assert.equal(panelRepositoryMenuOpenAfterSelection(), false);
+  assert.deepEqual(panelRepositorySelection(null, other.path), {
+    menuOpen: false,
+    switchRepositoryPath: "",
+  });
+  assert.deepEqual(panelRepositorySelection(snapshot, current.path), {
+    menuOpen: false,
+    switchRepositoryPath: "",
+  });
+  assert.deepEqual(panelRepositorySelection(snapshot, other.path), {
+    menuOpen: false,
+    switchRepositoryPath: other.path,
+  });
+  assert.equal(panelPinnedStateAfterToggle(false), true);
+  assert.equal(panelPinnedStateAfterToggle(true), false);
+  assert.equal(panelPinnedNotice(true), "Panel pinned above other windows.");
+  assert.equal(panelPinnedNotice(false), "Panel unpinned.");
+  assert.deepEqual(panelRepositoryTriggerView({ canSwitchRepository: true, repoMenuOpen: true, repositoryPath: current.path }), {
+    id: "repo-switch-trigger",
+    className: "repo-title repo-title-button is-open",
+    disabled: false,
+    ariaLabel: "Switch recent repository",
+    ariaHasPopup: "menu",
+    ariaExpanded: true,
+    ariaControls: "repo-switch-menu",
+    title: current.path,
+  });
+  assert.deepEqual(panelRepositoryTriggerView({ canSwitchRepository: false, repoMenuOpen: false, repositoryPath: "" }), {
+    id: "repo-switch-trigger",
+    className: "repo-title",
+    disabled: true,
+    ariaLabel: "Switch recent repository",
+    ariaHasPopup: "menu",
+    ariaExpanded: false,
+    ariaControls: "repo-switch-menu",
+    title: undefined,
+  });
+  assert.deepEqual(panelHeaderActionsView({ pinned: false, refreshing: false, hasRepository: false }), {
+    className: "header-actions",
+    pinButton: {
+      label: "Pin floating panel",
+      active: false,
+      icon: "pin",
+    },
+    refreshButton: {
+      label: "Refresh Git status",
+      busy: false,
+      disabled: true,
+      icon: "refresh",
+      iconClassName: "",
+    },
+    collapseButton: {
+      label: "Collapse side peek",
+      icon: "collapse",
+    },
+  });
+  assert.deepEqual(panelHeaderActionsView({ pinned: true, refreshing: true, hasRepository: true }), {
+    className: "header-actions",
+    pinButton: {
+      label: "Unpin floating panel",
+      active: true,
+      icon: "pin-off",
+    },
+    refreshButton: {
+      label: "Refreshing Git status",
+      busy: true,
+      disabled: true,
+      icon: "refresh",
+      iconClassName: "is-spinning",
+    },
+    collapseButton: {
+      label: "Collapse side peek",
+      icon: "collapse",
+    },
+  });
+  assert.equal(branchPillTitle({ branch: { name: "main", upstream: "origin/main" } }), "origin/main");
+  assert.equal(branchPillTitle({ branch: { name: "feature/no-upstream", upstream: "" } }), "feature/no-upstream");
+  assert.equal(panelHeaderBranchPillView(null), null);
+  assert.deepEqual(panelHeaderBranchPillView({ branch: { name: "feature/no-upstream", upstream: "" } }), {
+    className: "branch-pill",
+    icon: "branch",
+    label: "feature/no-upstream",
+    title: "feature/no-upstream",
+  });
+}
+
+function worktree(overrides = {}) {
+  return {
+    path: "/Users/junrong/codespace/git-tree-vis",
+    branch: "main",
+    head: "a1b2c3d000000000000000000000000000000000",
+    headShortHash: "a1b2c3d",
+    headTitle: "Add commit search polish",
+    headRelativeTime: "2 minutes ago",
+    detached: false,
+    bare: false,
+    current: true,
+    counts: { modified: 0, staged: 0, untracked: 0 },
+    ...overrides,
+  };
+}
+
+async function testRepositoryControlLabels(server) {
+  const {
+    branchOptionLabel,
+    shortHash,
+    worktreeChipLabel,
+    worktreeMenuLabel,
+  } = await loadTsModule(server, "src/lib/repositoryControlLabels.ts");
+
+  assert.equal(
+    branchOptionLabel({ name: "main", fullName: "refs/heads/main", type: "local", current: true, upstream: "origin/main" }),
+    "main",
+  );
+  assert.equal(
+    branchOptionLabel({
+      name: "origin/main",
+      fullName: "refs/remotes/origin/main",
+      type: "remote",
+      current: false,
+      upstream: "",
+    }),
+    "origin/main remote",
+  );
+  assert.equal(
+    branchOptionLabel({ name: "v1.0.0", fullName: "refs/tags/v1.0.0", type: "tag", current: false, upstream: "" }),
+    "v1.0.0 tag",
+  );
+
+  assert.equal(shortHash(""), "unknown");
+  assert.equal(shortHash("a1b2c3d000000000000000000000000000000000"), "a1b2c3d");
+  assert.equal(worktreeChipLabel(undefined), "Worktrees");
+  assert.equal(worktreeChipLabel(worktree()), "main");
+  assert.equal(
+    worktreeChipLabel(worktree({ branch: "", path: "/Users/junrong/codespace/git-tree-vis-linked", current: false })),
+    "git-tree-vis-linked",
+  );
+  assert.equal(worktreeChipLabel(worktree({ detached: true, branch: "", headShortHash: "d4e5f6a" })), "Detached d4e5f6a");
+  assert.equal(worktreeMenuLabel(worktree()), "Current main - git-tree-vis");
+  assert.equal(
+    worktreeMenuLabel(worktree({ current: false, branch: "feature/worktree-menu", path: "/Users/junrong/codespace/git-tree-vis-linked" })),
+    "feature/worktree-menu - git-tree-vis-linked",
+  );
+  assert.equal(worktreeMenuLabel(worktree({ current: false, branch: "", path: "/Users/junrong/codespace/linked" })), "Worktree - linked");
+  assert.equal(
+    worktreeMenuLabel(worktree({ detached: true, branch: "", current: true, headShortHash: "" })),
+    "Current detached @ a1b2c3d - git-tree-vis",
+  );
+  assert.equal(
+    worktreeMenuLabel(worktree({ detached: true, branch: "", current: false, headShortHash: "d4e5f6a" })),
+    "Detached @ d4e5f6a - git-tree-vis",
+  );
+}
+
+async function testRepositoryControlsView(server) {
+  const {
+    closedRepositoryControlsMenus,
+    currentSwitchableWorktree,
+    repositoryBranchMenuItemView,
+    repositoryBranchMenuView,
+    repositoryBranchMenuChromeView,
+    repositoryBranchTriggerView,
+    repositoryControlsChromeView,
+    repositoryControlsMenuState,
+    repositoryControlsView,
+    repositoryRetainedBranchMenuItemView,
+    repositorySelectedBranchSummaryView,
+    repositoryViewChipView,
+    repositoryWorktreeMenuChromeView,
+    repositoryWorktreeMenuItemView,
+    repositoryWorktreeMenuView,
+    repositoryWorktreeSelection,
+    repositoryWorktreeTriggerView,
+    selectedBranchAvailable,
+    selectedBranchName,
+    switchableWorktreeList,
+  } = await loadTsModule(server, "src/lib/repositoryControlsView.ts");
+  const branches = [
+    { name: "main", fullName: "refs/heads/main", type: "local", current: true, upstream: "origin/main" },
+    { name: "feature/worktree-menu", fullName: "refs/heads/feature/worktree-menu", type: "local", current: false, upstream: "" },
+  ];
+  const current = worktree();
+  const linked = worktree({ path: "/Users/junrong/codespace/git-tree-vis-linked", branch: "feature/worktree-menu", current: false });
+  const bare = worktree({ path: "/Users/junrong/codespace/git-tree-vis.git", branch: "", current: false, bare: true });
+
+  assert.equal(selectedBranchName({ mode: "all" }), "");
+  assert.equal(selectedBranchName({ mode: "branch", ref: "feature/worktree-menu" }), "feature/worktree-menu");
+  assert.equal(selectedBranchAvailable("feature/worktree-menu", branches), true);
+  assert.equal(selectedBranchAvailable("missing", branches), false);
+  assert.equal(selectedBranchAvailable("", branches), true);
+  assert.deepEqual(repositoryViewChipView({ mode: "all" }, "all"), {
+    active: true,
+    ariaPressed: true,
+    className: "view-chip is-active",
+    label: "All",
+  });
+  assert.deepEqual(repositoryViewChipView({ mode: "branch", ref: "main" }, "current"), {
+    active: false,
+    ariaPressed: false,
+    className: "view-chip",
+    label: "Current",
+  });
+  assert.deepEqual(repositoryControlsChromeView(), {
+    section: {
+      className: "repo-controls",
+      ariaLabel: "Repository view controls",
+    },
+    commitViewStrip: {
+      className: "commit-view-strip",
+      role: "group",
+      ariaLabel: "Commit view",
+    },
+    branchControl: {
+      className: "branch-menu-control",
+    },
+  });
+  assert.deepEqual(repositoryBranchTriggerView({ mode: "branch", ref: "main" }, true), {
+    id: "branch-ref-trigger",
+    className: "view-chip branch-view-trigger is-active is-open",
+    icon: "branch",
+    label: "Branch",
+    ariaPressed: true,
+    ariaLabel: "Choose branch view",
+    ariaHasPopup: "menu",
+    ariaExpanded: true,
+    ariaControls: "branch-ref-menu",
+  });
+  assert.deepEqual(repositoryBranchTriggerView({ mode: "all" }, false), {
+    id: "branch-ref-trigger",
+    className: "view-chip branch-view-trigger",
+    icon: "branch",
+    label: "Branch",
+    ariaPressed: false,
+    ariaLabel: "Choose branch view",
+    ariaHasPopup: "menu",
+    ariaExpanded: false,
+    ariaControls: "branch-ref-menu",
+  });
+  assert.deepEqual(repositoryBranchMenuChromeView(), {
+    className: "ui-menu branch-ref-menu",
+    id: "branch-ref-menu",
+    role: "menu",
+    ariaLabelledBy: "branch-ref-trigger",
+  });
+  assert.deepEqual(repositoryRetainedBranchMenuItemView("missing"), {
+    className: "ui-menu-item branch-ref-menu-item is-active",
+    role: "menuitem",
+    ariaCurrent: "true",
+    icon: "check",
+    label: "missing",
+  });
+  assert.deepEqual(repositoryBranchMenuItemView(true, branches[0]), {
+    className: "ui-menu-item branch-ref-menu-item is-active",
+    role: "menuitem",
+    ariaCurrent: "true",
+    icon: "check",
+    label: "main",
+    title: "refs/heads/main",
+    key: "local-main",
+  });
+  assert.deepEqual(
+    repositoryBranchMenuItemView(false, {
+      name: "origin/main",
+      fullName: "refs/remotes/origin/main",
+      type: "remote",
+      current: false,
+      upstream: "",
+    }),
+    {
+      className: "ui-menu-item branch-ref-menu-item",
+      role: "menuitem",
+      ariaCurrent: undefined,
+      icon: "branch",
+      label: "origin/main remote",
+      title: "refs/remotes/origin/main",
+      key: "remote-origin/main",
+    },
+  );
+  assert.deepEqual(repositoryBranchMenuView({ branches, currentBranchName: "main", view: { mode: "all" } }), {
+    selectedBranch: "",
+    selectedBranchIsAvailable: true,
+    triggerDisabled: false,
+    triggerTitle: "main",
+    retainedSelectedBranch: "",
+    showSelectedBranchSummary: false,
+    selectedBranchSummary: {
+      show: false,
+      className: "selected-branch-view",
+      icon: "branch",
+      label: "Viewing",
+      branchName: "",
+      title: "",
+      ariaLabel: undefined,
+    },
+    branchItems: [
+      { branch: branches[0], active: false },
+      { branch: branches[1], active: false },
+    ],
+  });
+  assert.deepEqual(
+    repositoryBranchMenuView({
+      branches,
+      currentBranchName: "main",
+      view: { mode: "branch", ref: "feature/worktree-menu" },
+    }),
+    {
+      selectedBranch: "feature/worktree-menu",
+      selectedBranchIsAvailable: true,
+      triggerDisabled: false,
+      triggerTitle: "feature/worktree-menu",
+      retainedSelectedBranch: "",
+      showSelectedBranchSummary: true,
+      selectedBranchSummary: {
+        show: true,
+        className: "selected-branch-view",
+        icon: "branch",
+        label: "Viewing",
+        branchName: "feature/worktree-menu",
+        title: "Viewing branch feature/worktree-menu",
+        ariaLabel: "Viewing branch feature/worktree-menu",
+      },
+      branchItems: [
+        { branch: branches[0], active: false },
+        { branch: branches[1], active: true },
+      ],
+    },
+  );
+  assert.deepEqual(repositoryBranchMenuView({ branches: [], currentBranchName: "main", view: { mode: "branch", ref: "missing" } }), {
+    selectedBranch: "missing",
+    selectedBranchIsAvailable: false,
+    triggerDisabled: false,
+    triggerTitle: "missing",
+    retainedSelectedBranch: "missing",
+    showSelectedBranchSummary: true,
+    selectedBranchSummary: {
+      show: true,
+      className: "selected-branch-view",
+      icon: "branch",
+      label: "Viewing",
+      branchName: "missing",
+      title: "Viewing branch missing",
+      ariaLabel: "Viewing branch missing",
+    },
+    branchItems: [],
+  });
+  assert.deepEqual(repositorySelectedBranchSummaryView("release/1.0"), {
+    show: true,
+    className: "selected-branch-view",
+    icon: "branch",
+    label: "Viewing",
+    branchName: "release/1.0",
+    title: "Viewing branch release/1.0",
+    ariaLabel: "Viewing branch release/1.0",
+  });
+  assert.deepEqual(repositorySelectedBranchSummaryView(""), {
+    show: false,
+    className: "selected-branch-view",
+    icon: "branch",
+    label: "Viewing",
+    branchName: "",
+    title: "",
+    ariaLabel: undefined,
+  });
+  assert.equal(repositoryBranchMenuView({ branches: [], currentBranchName: "main", view: { mode: "all" } }).triggerDisabled, true);
+  assert.deepEqual(switchableWorktreeList([bare, linked, current]), [linked, current]);
+  assert.equal(currentSwitchableWorktree([linked, current]), current);
+  assert.equal(currentSwitchableWorktree([linked]), linked);
+  assert.deepEqual(repositoryWorktreeMenuView([bare, linked, current]), {
+    controlClassName: "worktree-compact",
+    switchableWorktrees: [linked, current],
+    switchableWorktreeCount: 2,
+    currentWorktree: current,
+    showWorktreeControl: true,
+    worktreeItems: [
+      { worktree: linked, active: false },
+      { worktree: current, active: true },
+    ],
+  });
+  assert.deepEqual(repositoryWorktreeMenuView([linked]), {
+    controlClassName: "worktree-compact",
+    switchableWorktrees: [linked],
+    switchableWorktreeCount: 1,
+    currentWorktree: linked,
+    showWorktreeControl: false,
+    worktreeItems: [{ worktree: linked, active: true }],
+  });
+  assert.deepEqual(repositoryWorktreeMenuView([bare]), {
+    controlClassName: "worktree-compact",
+    switchableWorktrees: [],
+    switchableWorktreeCount: 0,
+    currentWorktree: undefined,
+    showWorktreeControl: false,
+    worktreeItems: [],
+  });
+  assert.deepEqual(repositoryWorktreeTriggerView(true, current), {
+    id: "worktree-trigger",
+    className: "worktree-trigger is-open",
+    icon: "worktree",
+    ariaLabel: "Choose worktree",
+    ariaHasPopup: "menu",
+    ariaExpanded: true,
+    ariaControls: "worktree-menu",
+    label: "main",
+    title: current.path,
+  });
+  assert.deepEqual(repositoryWorktreeTriggerView(false, undefined), {
+    id: "worktree-trigger",
+    className: "worktree-trigger",
+    icon: "worktree",
+    ariaLabel: "Choose worktree",
+    ariaHasPopup: "menu",
+    ariaExpanded: false,
+    ariaControls: "worktree-menu",
+    label: "Worktrees",
+    title: undefined,
+  });
+  assert.deepEqual(repositoryWorktreeMenuChromeView(), {
+    className: "ui-menu worktree-menu",
+    id: "worktree-menu",
+    role: "menu",
+    ariaLabelledBy: "worktree-trigger",
+  });
+  assert.deepEqual(repositoryWorktreeMenuItemView(true, current), {
+    className: "ui-menu-item worktree-menu-item is-active",
+    role: "menuitem",
+    ariaCurrent: "true",
+    icon: "check",
+    label: "Current main - git-tree-vis",
+    title: current.path,
+    key: current.path,
+  });
+  assert.deepEqual(repositoryWorktreeMenuItemView(false, linked), {
+    className: "ui-menu-item worktree-menu-item",
+    role: "menuitem",
+    ariaCurrent: undefined,
+    icon: "worktree",
+    label: "feature/worktree-menu - git-tree-vis-linked",
+    title: linked.path,
+    key: linked.path,
+  });
+  assert.deepEqual(repositoryWorktreeSelection(current.path, current), {
+    menuAction: "closeWorktree",
+    openWorktreePath: "",
+  });
+  assert.deepEqual(repositoryWorktreeSelection(linked.path, current), {
+    menuAction: "closeWorktree",
+    openWorktreePath: linked.path,
+  });
+  assert.deepEqual(repositoryWorktreeSelection(linked.path, undefined), {
+    menuAction: "closeWorktree",
+    openWorktreePath: linked.path,
+  });
+
+  assert.deepEqual(repositoryControlsView({ branches, view: { mode: "branch", ref: "missing" }, worktrees: [bare, linked] }), {
+    selectedBranch: "missing",
+    selectedBranchIsAvailable: false,
+    switchableWorktrees: [linked],
+    currentWorktree: linked,
+  });
+
+  assert.deepEqual(repositoryControlsMenuState(closedRepositoryControlsMenus, "toggleBranch"), {
+    branchMenuOpen: true,
+    worktreeMenuOpen: false,
+  });
+  assert.deepEqual(
+    repositoryControlsMenuState({ branchMenuOpen: true, worktreeMenuOpen: false }, "toggleBranch"),
+    closedRepositoryControlsMenus,
+  );
+  assert.deepEqual(repositoryControlsMenuState({ branchMenuOpen: true, worktreeMenuOpen: false }, "toggleWorktree"), {
+    branchMenuOpen: false,
+    worktreeMenuOpen: true,
+  });
+  assert.deepEqual(repositoryControlsMenuState({ branchMenuOpen: false, worktreeMenuOpen: true }, "toggleBranch"), {
+    branchMenuOpen: true,
+    worktreeMenuOpen: false,
+  });
+  assert.deepEqual(repositoryControlsMenuState({ branchMenuOpen: true, worktreeMenuOpen: true }, "closeBranch"), {
+    branchMenuOpen: false,
+    worktreeMenuOpen: true,
+  });
+  assert.deepEqual(repositoryControlsMenuState({ branchMenuOpen: true, worktreeMenuOpen: true }, "closeWorktree"), {
+    branchMenuOpen: true,
+    worktreeMenuOpen: false,
+  });
+  assert.deepEqual(
+    repositoryControlsMenuState({ branchMenuOpen: true, worktreeMenuOpen: true }, "closeAll"),
+    closedRepositoryControlsMenus,
+  );
+}
+
+async function testClassNamesAndGraph(server) {
+  const { joinClass } = await loadTsModule(server, "src/lib/classNames.ts");
+  const { gitTreeCellView, gitTreeNodeStyle, gitTreePathStyle, gitTreeSvgSegments } = await loadTsModule(
+    server,
+    "src/git-tree/gitTreeCellView.ts",
+  );
+  const {
+    buildGitTreeRenderModel,
+    getGitTreeRailWidth,
+    getGitTreeRequiredLaneCount,
+  } = await loadTsModule(server, "src/git-tree/renderGraph.ts");
+  const graph = {
+    column: 2,
+    laneCount: 1,
+    currentColor: "#111111",
+    currentVariant: "dashed",
+    currentContinues: true,
+    passThrough: [{ column: 0, color: "#222222", variant: "dashed", from: "top", to: "bottom" }],
+    parentStems: [{ column: 1, color: "#333333", variant: "solid", from: "node", to: "bottom" }],
+    bridges: [{ fromColumn: 2, toColumn: 0, color: "#444444", variant: "solid", to: "lane" }],
+    isMerge: true,
+  };
+
+  assert.equal(joinClass("graph-node", false, null, undefined, "is-merge"), "graph-node is-merge");
+  assert.equal(joinClass(), "");
+  assert.equal(getGitTreeRequiredLaneCount(graph), 3);
+  assert.equal(getGitTreeRailWidth(1), 42);
+  assert.equal(getGitTreeRailWidth(4), 66);
+
+  const model = buildGitTreeRenderModel(graph);
+  assert.equal(model.width, 54);
+  assert.equal(model.height, 100);
+  assert.equal(model.viewBox, "0 0 54 100");
+  assert.equal(model.node.x, 33);
+  assert.equal(model.node.isMerge, true);
+  assert.equal(model.node.className, "graph-node is-merge is-dashed");
+  assert.equal(model.node.showCore, true);
+  assert.equal(model.paths.length, 4);
+  assert.ok(model.paths.some((path) => path.className === "graph-line is-dashed"));
+  assert.ok(model.paths.some((path) => path.className === "graph-line graph-bridge"));
+  assert.ok(model.paths.some((path) => path.d.startsWith("M 33 32 C")));
+
+  const cellView = gitTreeCellView(model);
+  assert.deepEqual(cellView.container, {
+    className: "timeline-cell",
+    ariaHidden: true,
+  });
+  assert.deepEqual(gitTreeSvgSegments(model), [
+    {
+      key: "top",
+      className: "graph-svg graph-svg-top",
+      viewBox: "0 0 54 32",
+      preserveAspectRatio: "none",
+    },
+    {
+      key: "bottom",
+      className: "graph-svg graph-svg-bottom",
+      viewBox: "0 32 54 68",
+      preserveAspectRatio: "none",
+    },
+  ]);
+  assert.deepEqual(cellView.svgSegments, gitTreeSvgSegments(model));
+  assert.deepEqual(gitTreePathStyle({ color: "#123456" }), {
+    "--git-tree-color": "#123456",
+  });
+  assert.equal(cellView.paths.length, model.paths.length);
+  assert.equal(cellView.paths[0].vectorEffect, "non-scaling-stroke");
+  assert.deepEqual(cellView.paths[0].style, {
+    "--git-tree-color": model.paths[0].color,
+  });
+  assert.deepEqual(gitTreeNodeStyle(model), {
+    left: `${model.node.leftPercent}%`,
+    top: "var(--git-tree-node-y, 32%)",
+    "--git-tree-color": "#111111",
+  });
+  assert.deepEqual(cellView.node, {
+    className: "graph-node is-merge is-dashed",
+    style: gitTreeNodeStyle(model),
+    showCore: true,
+    coreClassName: "graph-node-core",
+  });
+
+  const regularModel = buildGitTreeRenderModel({ ...graph, currentVariant: "solid", isMerge: false });
+  assert.equal(regularModel.node.className, "graph-node");
+  assert.equal(regularModel.node.showCore, false);
+  assert.equal(gitTreeCellView(regularModel).node.showCore, false);
+}
+
+async function main() {
+  testFileChecksUtility();
+  testSourceHygieneScript();
+  testSourceHelperUnitCoverage();
+  testNodeSyntaxScript();
+  testShellSyntaxScript();
+  testWindowGeometryModule();
+  testIpcHandlersModule();
+  testGitStatusModule();
+  testGitGraphModule();
+
+  const { createServer } = await import("vite");
+  const server = await createServer({
+    appType: "custom",
+    configFile: false,
+    optimizeDeps: { noDiscovery: true },
+    root: projectRoot,
+    logLevel: "error",
+    server: { middlewareMode: true, hmr: false },
+  });
+
+  try {
+    await testRootMount(server);
+    await testIconButtonView(server);
+    await testStatusView(server);
+    await testBranchNames(server);
+    await testAppShellView(server);
+    await testActionDialogView(server);
+    await testCommitSearch(server);
+    await testCommitListView(server);
+    await testCommitRowView(server);
+    await testCommitView(server);
+    await testSnapshotResponseView(server);
+    await testActionResponseView(server);
+    await testAutoRefresh(server);
+    await testPreferences(server);
+    await testWorkspaceOpenOptions(server);
+    await testCollapsedRailView(server);
+    await testWorkspaceOpenChoices(server);
+    await testFooterWorkspaceView(server);
+    await testSettingsPanelView(server);
+    await testErrorMessages(server);
+    await testBridgeAvailability(server);
+    await testPathAndFileStatus(server);
+    await testCommitPrompt(server);
+    await testCopyText(server);
+    await testDismissableLayer(server);
+    await testChangedNowView(server);
+    await testChangedFilesView(server);
+    await testChangedFileView(server);
+    await testChangedFilesTemporaryInfo(server);
+    await testTemporaryInfoPanelBridge(server);
+    await testChangedNowWindowState(server);
+    await testTemporaryInfoSelection(server);
+    await testRecentRepositories(server);
+    await testEmptyRepositoryView(server);
+    await testPanelHeaderView(server);
+    await testRepositoryControlLabels(server);
+    await testRepositoryControlsView(server);
+    await testClassNamesAndGraph(server);
+  } finally {
+    await server.close();
+  }
+
+  console.log("Unit checks passed.");
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

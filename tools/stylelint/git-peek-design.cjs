@@ -3,9 +3,15 @@ const stylelint = require("stylelint");
 const ruleName = "git-peek/design-guidelines";
 
 const messages = stylelint.utils.ruleMessages(ruleName, {
-  compactFontSize: (size, max) => `Compact utility UI font-size ${size}px exceeds ${max}px. Use a smaller design token or add a deliberate exception.`,
-  privateSurfaceStyle: (selector, prop) => `${selector} sets ${prop} directly. Use the shared ui-* form/dialog classes or root design tokens instead of private form/window styling.`,
-  globalFontSize: (size, max) => `font-size ${size}px exceeds the global Git Peek ceiling of ${max}px. Large type is reserved for empty-state headings.`,
+  compactFontSize: (size, max) =>
+    `Compact utility UI font-size ${size}px exceeds ${max}px. ` +
+    "Use a smaller design token or add a deliberate exception.",
+  privateSurfaceStyle: (selector, prop) =>
+    `${selector} sets ${prop} directly. ` +
+    "Use the shared ui-* form/dialog classes or root design tokens instead of private form/window styling.",
+  globalFontSize: (size, max) =>
+    `font-size ${size}px exceeds the global Git Peek ceiling of ${max}px. ` +
+    "Large type is reserved for empty-state headings.",
   workspaceOpenAppIcon: (size, max) => `External app icon size ${size}px exceeds ${max}px.`,
   workspaceOpenControl: (size, max) => `External app open control size ${size}px exceeds ${max}px.`,
   workspaceOpenMenuFontSize: (size, max) => `External app menu font-size ${size}px exceeds ${max}px.`,
@@ -13,8 +19,29 @@ const messages = stylelint.utils.ruleMessages(ruleName, {
   workspaceOpenMenuWidth: (size, max) => `External app menu width ${size}px exceeds ${max}px.`,
 });
 
-const compactUiSelectorPattern =
-  /(\bbutton\b|\.branch-checkout|\.branch-pill|\.changed-toggle|\.commit-actions|\.commit-meta|\.commit-stats|\.file-row|\.footer-|\.heading-tools|\.icon-button|\.notice-line|\.ref-pill|\.repo-mark|\.segmented-control|\.settings-row|\.summary-chip|\.workspace-open|\.zen-exit-button)/;
+const compactUiSelectorPattern = new RegExp(
+  [
+    "\\bbutton\\b",
+    "\\.branch-checkout",
+    "\\.branch-pill",
+    "\\.changed-toggle",
+    "\\.commit-actions",
+    "\\.commit-meta",
+    "\\.commit-stats",
+    "\\.file-row",
+    "\\.footer-",
+    "\\.heading-tools",
+    "\\.icon-button",
+    "\\.notice-line",
+    "\\.ref-pill",
+    "\\.repo-mark",
+    "\\.segmented-control",
+    "\\.settings-row",
+    "\\.summary-chip",
+    "\\.workspace-open",
+    "\\.zen-exit-button",
+  ].join("|"),
+);
 
 const privateSurfaceProps = new Set(["background", "background-color", "border-radius", "box-shadow", "color", "font-size", "font-weight"]);
 
