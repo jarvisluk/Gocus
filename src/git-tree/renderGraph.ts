@@ -1,3 +1,4 @@
+import { joinClass } from "../lib/classNames";
 import type { BranchColor, CommitGraph, GraphBridge, GraphLaneSegment, GraphLineVariant } from "../types";
 
 const LANE_GAP = 12;
@@ -21,7 +22,9 @@ export interface GitTreeNode {
   leftPercent: number;
   topPercent: number;
   color: BranchColor;
+  className: string;
   isMerge: boolean;
+  showCore: boolean;
 }
 
 export interface GitTreeRenderModel {
@@ -37,7 +40,7 @@ export interface GitTreeRenderOptions {
 }
 
 function lineClass(extraClass?: string, variant: GraphLineVariant = "solid") {
-  return ["graph-line", variant === "dashed" && "is-dashed", extraClass].filter(Boolean).join(" ");
+  return joinClass("graph-line", variant === "dashed" && "is-dashed", extraClass);
 }
 
 function laneX(column: number) {
@@ -128,7 +131,9 @@ export function buildGitTreeRenderModel(graph: CommitGraph, options: GitTreeRend
       leftPercent: (nodeX / width) * 100,
       topPercent: NODE_Y,
       color: graph.currentColor,
+      className: joinClass("graph-node", graph.isMerge && "is-merge", graph.currentVariant === "dashed" && "is-dashed"),
       isMerge: graph.isMerge,
+      showCore: graph.isMerge,
     },
   };
 }

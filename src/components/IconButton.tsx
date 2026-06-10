@@ -1,25 +1,31 @@
 import type { ReactNode } from "react";
-import { joinClass } from "../lib/classNames";
+import { iconButtonView } from "../lib/iconButtonView";
 
 export function IconButton({
   label,
   onClick,
   children,
-  active = false,
+  active,
+  busy,
   disabled = false,
 }: {
   label: string;
   onClick: () => void;
   children: ReactNode;
   active?: boolean;
+  busy?: boolean;
   disabled?: boolean;
 }) {
+  const view = iconButtonView({ active, busy, label });
+
   return (
     <button
-      className={joinClass("icon-button", active && "is-active")}
+      className={view.className}
       type="button"
-      aria-label={label}
-      title={label}
+      aria-label={view.ariaLabel}
+      aria-busy={view.ariaBusy}
+      aria-pressed={view.ariaPressed}
+      title={view.title}
       onClick={onClick}
       disabled={disabled}
     >

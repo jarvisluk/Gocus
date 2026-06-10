@@ -1,15 +1,20 @@
 import { FilePlus, FolderGit2, FolderOpen, GitBranchPlus } from "lucide-react";
+import {
+  emptyRepositoryNoticeView,
+  emptyRepositoryView,
+  type EmptyRepositoryActionIcon,
+  type EmptyRepositoryIcon,
+} from "../lib/emptyRepositoryView";
 import type { FolderWithoutGit, RecentRepository } from "../types";
 
-function parentPathName(pathValue: string) {
-  const trimmed = pathValue.replace(/[\\/]+$/, "");
-  const parts = trimmed.split(/[\\/]/).filter(Boolean);
-  return parts.length > 1 ? parts[parts.length - 2] : "";
+function emptyRepositoryIcon(icon: EmptyRepositoryIcon) {
+  if (icon === "folder-git") return <FolderGit2 aria-hidden="true" />;
+  return <FolderOpen aria-hidden="true" />;
 }
 
-function recentRepositoryLabel(repository: RecentRepository) {
-  const parentName = parentPathName(repository.path);
-  return parentName ? `${repository.name} - ${parentName}` : repository.name;
+function emptyRepositoryActionIcon(icon: EmptyRepositoryActionIcon) {
+  if (icon === "branch-plus") return <GitBranchPlus aria-hidden="true" />;
+  return <FolderOpen aria-hidden="true" />;
 }
 
 export function EmptyRepositoryState({
@@ -31,56 +36,67 @@ export function EmptyRepositoryState({
   onInitializeRepository: () => void;
   onSwitchRepository: (repositoryPath: string) => void;
 }) {
-  const actionDisabled = loading || initializingRepository;
+  const view = emptyRepositoryView({ loading, folderWithoutGit, initializingRepository, recentRepositories });
+  const noticeView = emptyRepositoryNoticeView(notice);
+  const primaryAction = view.primaryAction === "initialize" ? onInitializeRepository : onOpen;
 
   return (
-    <section className="empty-repository" aria-label="Open working folder">
-      <div className="empty-icon">
-        {folderWithoutGit ? <FolderGit2 aria-hidden="true" /> : <FolderOpen aria-hidden="true" />}
+    <section className={view.section.className} aria-labelledby={view.section.ariaLabelledBy}>
+      <div className={view.iconFrameClassName}>
+        {emptyRepositoryIcon(view.icon)}
       </div>
-      <h2>{loading ? "Checking working folder" : folderWithoutGit ? "Folder without Git" : "Open a working folder"}</h2>
-      <p>
-        {loading
-          ? "Looking for the last saved repository."
-          : folderWithoutGit
-            ? `${folderWithoutGit.name} can be initialized here and then tracked by Git Peek.`
-            : "Git Peek only shows real data from a folder you choose. It remembers that folder for next time."}
-      </p>
-      {folderWithoutGit ? (
-        <code className="empty-folder-path" title={folderWithoutGit.path}>
-          {folderWithoutGit.path}
+      <h2 id={view.titleId}>{view.title}</h2>
+      <p>{view.body}</p>
+      {view.showFolderPath && view.folderPath ? (
+        <code className={view.folderPath.className} title={view.folderPath.title}>
+          {view.folderPath.text}
         </code>
       ) : null}
-      <div className="empty-actions">
-        <button className="primary-action" type="button" onClick={folderWithoutGit ? onInitializeRepository : onOpen} disabled={actionDisabled}>
-          {folderWithoutGit ? <GitBranchPlus aria-hidden="true" /> : <FolderOpen aria-hidden="true" />}
-          {folderWithoutGit ? (initializingRepository ? "Initializing" : "Initialize Git") : "Choose folder"}
+      <div className={view.actionsClassName}>
+        <button className={view.primaryButton.className} type="button" onClick={primaryAction} disabled={view.primaryButton.disabled}>
+          {emptyRepositoryActionIcon(view.primaryButton.icon)}
+          {view.primaryButton.label}
         </button>
-        {folderWithoutGit ? (
-          <button className="secondary-action" type="button" onClick={onOpen} disabled={actionDisabled}>
-            <FolderOpen aria-hidden="true" />
-            Choose another
+        {view.showSecondaryAction ? (
+          <button className={view.secondaryButton.className} type="button" onClick={onOpen} disabled={view.secondaryButton.disabled}>
+            {emptyRepositoryActionIcon(view.secondaryButton.icon)}
+            {view.secondaryButton.label}
           </button>
         ) : null}
       </div>
-      {folderWithoutGit ? (
-        <div className="empty-gitignore-note">
+      {view.showGitIgnoreNote ? (
+        <div className={view.gitIgnoreNote.className}>
           <FilePlus aria-hidden="true" />
-          <span>{folderWithoutGit.hasGitIgnore ? "Keeps the existing .gitignore." : "Adds a starter .gitignore."}</span>
+          <span>{view.gitIgnoreNote.text}</span>
         </div>
       ) : null}
-      {recentRepositories.length ? (
-        <div className="empty-recent-repos" aria-label="Recent repositories">
-          <strong>Recent</strong>
-          {recentRepositories.slice(0, 4).map((repository) => (
-            <button type="button" title={repository.path} key={repository.path} onClick={() => onSwitchRepository(repository.path)} disabled={loading}>
+      {view.showRecentRepositories ? (
+        <div className={view.recentRepositories.className} aria-label={view.recentRepositories.ariaLabel}>
+          <strong>{view.recentRepositories.heading}</strong>
+          {view.visibleRepositories.map((repository) => (
+            <button
+              type="button"
+              title={repository.title}
+              key={repository.path}
+              onClick={() => onSwitchRepository(repository.path)}
+              disabled={loading}
+            >
               <FolderOpen aria-hidden="true" />
-              <span>{recentRepositoryLabel(repository)}</span>
+              <span>{repository.label}</span>
             </button>
           ))}
+          {view.hiddenCountLabel ? (
+            <span
+              className={view.recentRepositories.hiddenCountView.className}
+              role={view.recentRepositories.hiddenCountView.role}
+              aria-live={view.recentRepositories.hiddenCountView.ariaLive}
+            >
+              {view.hiddenCountLabel}
+            </span>
+          ) : null}
         </div>
       ) : null}
-      <span>{notice}</span>
+      {noticeView ? <span role={noticeView.role} aria-live={noticeView.ariaLive}>{noticeView.message}</span> : null}
     </section>
   );
 }

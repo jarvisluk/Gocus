@@ -4,12 +4,13 @@ const os = require("node:os");
 const path = require("node:path");
 const { shell } = require("electron");
 
-const workspaceOpenTargetOrder = ["vscode", "cursor", "codex", "antigravity", "finder", "terminal", "xcode"];
+const workspaceOpenTargetOrder = ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"];
 const darwinAppNamesByTarget = {
   vscode: ["Visual Studio Code"],
   cursor: ["Cursor"],
   codex: ["Codex"],
-  antigravity: ["Antigravity IDE", "Antigravity"],
+  antigravity: ["Antigravity IDE"],
+  antigravityApp: ["Antigravity"],
   finder: ["Finder"],
   terminal: ["Terminal"],
   xcode: ["Xcode"],
@@ -135,11 +136,20 @@ async function openWorkspace(repositoryPath, target) {
 
     if (target === "antigravity") {
       if (process.platform !== "darwin") {
+        return { ok: false, reason: "action_failed", error: "Antigravity IDE is only available as a macOS app target here." };
+      }
+
+      await openDarwinApp(["Antigravity IDE"], repositoryPath);
+      return { ok: true, message: "Opened workspace in Antigravity IDE." };
+    }
+
+    if (target === "antigravityApp") {
+      if (process.platform !== "darwin") {
         return { ok: false, reason: "action_failed", error: "Antigravity is only available as a macOS app target here." };
       }
 
-      await openDarwinApp(["Antigravity IDE", "Antigravity"], repositoryPath);
-      return { ok: true, message: "Opened workspace in Antigravity IDE." };
+      await openDarwinApp(["Antigravity"], repositoryPath);
+      return { ok: true, message: "Opened workspace in Antigravity." };
     }
 
     if (target === "terminal") {

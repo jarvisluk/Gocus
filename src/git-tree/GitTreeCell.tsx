@@ -1,34 +1,29 @@
-import { type CSSProperties } from "react";
+import type { CSSProperties } from "react";
 import type { CommitGraph } from "../types";
+import { gitTreeCellView } from "./gitTreeCellView";
 import { buildGitTreeRenderModel } from "./renderGraph";
-
-function joinClass(...values: Array<string | false | null | undefined>) {
-  return values.filter(Boolean).join(" ");
-}
 
 export function GitTreeCell({ graph, laneCount }: { graph: CommitGraph; laneCount?: number }) {
   const model = buildGitTreeRenderModel(graph, { laneCount });
-  const nodeStyle = {
-    left: `${model.node.leftPercent}%`,
-    top: `var(--git-tree-node-y, ${model.node.topPercent}%)`,
-    "--git-tree-color": model.node.color,
-  } as CSSProperties;
+  const view = gitTreeCellView(model);
 
   return (
-    <div className="timeline-cell" aria-hidden="true">
-      <svg className="graph-svg" viewBox={model.viewBox} preserveAspectRatio="none">
-        {model.paths.map((path) => (
-          <path
-            className={path.className}
-            d={path.d}
-            key={path.id}
-            style={{ "--git-tree-color": path.color } as CSSProperties}
-            vectorEffect="non-scaling-stroke"
-          />
-        ))}
-      </svg>
-      <span className={joinClass("graph-node", model.node.isMerge && "is-merge", graph.currentVariant === "dashed" && "is-dashed")} style={nodeStyle}>
-        {model.node.isMerge ? <span className="graph-node-core" /> : null}
+    <div className={view.container.className} aria-hidden={view.container.ariaHidden}>
+      {view.svgSegments.map((svg) => (
+        <svg className={svg.className} viewBox={svg.viewBox} preserveAspectRatio={svg.preserveAspectRatio} key={svg.key}>
+          {view.paths.map((path) => (
+            <path
+              className={path.className}
+              d={path.d}
+              key={path.id}
+              style={path.style as CSSProperties}
+              vectorEffect={path.vectorEffect}
+            />
+          ))}
+        </svg>
+      ))}
+      <span className={view.node.className} style={view.node.style as CSSProperties}>
+        {view.node.showCore ? <span className={view.node.coreClassName} /> : null}
       </span>
     </div>
   );

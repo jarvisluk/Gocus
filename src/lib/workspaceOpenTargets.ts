@@ -1,6 +1,15 @@
 import type { WorkspaceOpenTarget } from "../types";
 
-export const workspaceOpenTargetValues: WorkspaceOpenTarget[] = ["vscode", "cursor", "codex", "antigravity", "finder", "terminal", "xcode"];
+export const workspaceOpenTargetValues: WorkspaceOpenTarget[] = [
+  "vscode",
+  "cursor",
+  "codex",
+  "antigravity",
+  "antigravityApp",
+  "finder",
+  "terminal",
+  "xcode",
+];
 export const defaultWorkspaceOpenTargets: WorkspaceOpenTarget[] = [...workspaceOpenTargetValues];
 
 export function isWorkspaceOpenTarget(value: unknown): value is WorkspaceOpenTarget {

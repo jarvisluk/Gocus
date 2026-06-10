@@ -1,6 +1,7 @@
 # macOS Widget Feasibility
 
-Git Peek can support a macOS widget, but not from Electron alone. A widget needs a native WidgetKit extension inside an Xcode host app, then a small bridge for sharing repository summary data.
+Git Peek can support a macOS widget, but not from Electron alone. A widget needs a native WidgetKit extension inside an Xcode host app,
+then a small bridge for sharing repository summary data.
 
 Recommended path:
 

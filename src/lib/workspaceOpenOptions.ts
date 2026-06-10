@@ -1,3 +1,4 @@
+import antigravityAppIcon from "../assets/external-app-icons/antigravity-app.png";
 import antigravityIcon from "../assets/external-app-icons/antigravity.png";
 import codexIcon from "../assets/external-app-icons/codex.png";
 import cursorIcon from "../assets/external-app-icons/cursor.png";
@@ -17,7 +18,8 @@ export const workspaceOpenOptions: WorkspaceOpenOption[] = [
   { target: "vscode", label: "VS Code", iconSrc: vscodeIcon },
   { target: "cursor", label: "Cursor", iconSrc: cursorIcon },
   { target: "codex", label: "Codex", iconSrc: codexIcon },
-  { target: "antigravity", label: "Antigravity", iconSrc: antigravityIcon },
+  { target: "antigravity", label: "Antigravity IDE", iconSrc: antigravityIcon },
+  { target: "antigravityApp", label: "Antigravity", iconSrc: antigravityAppIcon },
   { target: "finder", label: "Finder", iconSrc: finderIcon },
   { target: "terminal", label: "Terminal", iconSrc: terminalIcon },
   { target: "xcode", label: "Xcode", iconSrc: xcodeIcon },

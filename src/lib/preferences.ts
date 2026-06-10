@@ -10,7 +10,9 @@ export const defaultPreferences: UiPreferences = {
   graphStyle: "solid",
   workspaceOpenTargets: defaultWorkspaceOpenTargets,
   showZenEntry: true,
+  showMenuBarIcon: true,
   launchAtLogin: false,
+  createMergeCommit: true,
   zenMode: false,
   autoRefreshInterval: "off",
   promptLanguage: "en",
@@ -59,22 +61,55 @@ export function mergePreferences(value: Partial<UiPreferences> | null | undefine
 
   return {
     themeMode: includesValue(themeModes, candidate.themeMode) ? candidate.themeMode : defaultPreferences.themeMode,
-    lightThemePreset: includesValue(lightPresetValues, candidate.lightThemePreset) ? candidate.lightThemePreset : defaultPreferences.lightThemePreset,
-    darkThemePreset: includesValue(darkPresetValues, candidate.darkThemePreset) ? candidate.darkThemePreset : defaultPreferences.darkThemePreset,
+    lightThemePreset: includesValue(lightPresetValues, candidate.lightThemePreset)
+      ? candidate.lightThemePreset
+      : defaultPreferences.lightThemePreset,
+    darkThemePreset: includesValue(darkPresetValues, candidate.darkThemePreset)
+      ? candidate.darkThemePreset
+      : defaultPreferences.darkThemePreset,
     density: includesValue(densityValues, candidate.density) ? candidate.density : defaultPreferences.density,
     fontFamily: includesValue(fontFamilyValues, candidate.fontFamily) ? candidate.fontFamily : defaultPreferences.fontFamily,
     graphStyle: includesValue(graphStyleValues, candidate.graphStyle) ? candidate.graphStyle : defaultPreferences.graphStyle,
     workspaceOpenTargets: sanitizeWorkspaceOpenTargets(candidate.workspaceOpenTargets),
     showZenEntry: typeof candidate.showZenEntry === "boolean" ? candidate.showZenEntry : defaultPreferences.showZenEntry,
+    showMenuBarIcon: typeof candidate.showMenuBarIcon === "boolean" ? candidate.showMenuBarIcon : defaultPreferences.showMenuBarIcon,
     launchAtLogin: typeof candidate.launchAtLogin === "boolean" ? candidate.launchAtLogin : defaultPreferences.launchAtLogin,
+    createMergeCommit:
+      typeof candidate.createMergeCommit === "boolean" ? candidate.createMergeCommit : defaultPreferences.createMergeCommit,
     zenMode: typeof candidate.zenMode === "boolean" ? candidate.zenMode : defaultPreferences.zenMode,
-    autoRefreshInterval: includesValue(autoRefreshIntervalValues, candidate.autoRefreshInterval) ? candidate.autoRefreshInterval : defaultPreferences.autoRefreshInterval,
-    promptLanguage: includesValue(promptLanguageValues, candidate.promptLanguage) ? candidate.promptLanguage : defaultPreferences.promptLanguage,
+    autoRefreshInterval: includesValue(autoRefreshIntervalValues, candidate.autoRefreshInterval)
+      ? candidate.autoRefreshInterval
+      : defaultPreferences.autoRefreshInterval,
+    promptLanguage: includesValue(promptLanguageValues, candidate.promptLanguage)
+      ? candidate.promptLanguage
+      : defaultPreferences.promptLanguage,
   };
 }
 
 export function resolveThemePreset(preferences: UiPreferences, theme: Theme) {
   return theme === "dark" ? preferences.darkThemePreset : preferences.lightThemePreset;
+}
+
+export function systemThemeFromMediaMatches(prefersDark: boolean): Theme {
+  return prefersDark ? "dark" : "light";
+}
+
+export function systemThemeFallback(): Theme {
+  if (typeof window === "undefined" || !window.matchMedia) return "light";
+  return systemThemeFromMediaMatches(window.matchMedia("(prefers-color-scheme: dark)").matches);
+}
+
+export function resolveTheme(preferences: UiPreferences, systemTheme: Theme): Theme {
+  return preferences.themeMode === "system" ? systemTheme : preferences.themeMode;
+}
+
+export function preferencesDocumentThemeView(preferences: UiPreferences, systemTheme: Theme) {
+  const theme = resolveTheme(preferences, systemTheme);
+
+  return {
+    theme,
+    themePreset: resolveThemePreset(preferences, theme),
+  };
 }
 
 export function applyPreferences(preferences: UiPreferences) {

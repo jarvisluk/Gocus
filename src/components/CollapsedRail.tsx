@@ -1,35 +1,51 @@
 import { FolderOpen, GitBranch, PanelRightClose } from "lucide-react";
+import type { CSSProperties } from "react";
+import { collapsedRailView, type CollapsedRailRepositoryIcon } from "../lib/collapsedRailView";
 import type { GitSnapshot } from "../types";
+
+function collapsedRailRepositoryIcon(icon: CollapsedRailRepositoryIcon) {
+  return icon === "branch" ? <GitBranch aria-hidden="true" /> : <FolderOpen aria-hidden="true" />;
+}
 
 export function CollapsedRail({
   snapshot,
+  changedNowOpen,
   onExpand,
   onOpenChangedNow,
   onDock,
 }: {
   snapshot: GitSnapshot | null;
+  changedNowOpen: boolean;
   onExpand: () => void;
   onOpenChangedNow: () => void;
   onDock: () => void;
 }) {
-  const dirtyCount = snapshot ? snapshot.counts.modified + snapshot.counts.staged + snapshot.counts.untracked : 0;
+  const view = collapsedRailView(snapshot, changedNowOpen);
+  const railStyle = view.branch.color ? ({ "--branch-color": view.branch.color } as CSSProperties) : undefined;
 
   function openChangedNow() {
     onOpenChangedNow();
   }
 
   return (
-    <aside className="collapsed-rail" aria-label="Collapsed Git Peek" title="Drag to move. Double-click to dock to the screen edge." onDoubleClick={onDock}>
-      <button className="ui-icon-button rail-expand" type="button" aria-label="Expand Git Peek" onClick={onExpand}>
+    <aside className={view.className} aria-label={view.ariaLabel} title={view.title} style={railStyle} onDoubleClick={onDock}>
+      <button className={view.expandButton.className} type="button" aria-label={view.expandButton.ariaLabel} onClick={onExpand}>
         <PanelRightClose aria-hidden="true" />
       </button>
-      <div className="rail-branch">
-        {snapshot ? <GitBranch aria-hidden="true" /> : <FolderOpen aria-hidden="true" />}
-        <span>{snapshot?.branch.name ?? "Open"}</span>
+      <div className={view.branch.className} title={view.branch.title} aria-label={view.branch.ariaLabel}>
+        {collapsedRailRepositoryIcon(view.branch.icon)}
+        <span>{view.branch.label}</span>
       </div>
-      {snapshot ? (
-        <button className="rail-count" type="button" aria-label={`Open Changed now, ${dirtyCount} working tree changes`} title="Changed now" onClick={openChangedNow}>
-          {dirtyCount}
+      {view.showChangedNowButton ? (
+        <button
+          className={view.changedNowButton.className}
+          type="button"
+          aria-label={view.changedNowButton.ariaLabel}
+          aria-pressed={view.changedNowButton.ariaPressed}
+          title={view.changedNowButton.title}
+          onClick={openChangedNow}
+        >
+          {view.dirtyCount}
         </button>
       ) : null}
     </aside>

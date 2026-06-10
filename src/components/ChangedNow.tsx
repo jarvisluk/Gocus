@@ -1,95 +1,74 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Copy, X } from "lucide-react";
-import { joinClass } from "../lib/classNames";
-import { fileKind, formatPath, statusLetter } from "../lib/fileStatus";
+import { changedFileDeltaItems, changedFileInfoPanelView, changedFileRowView, type ChangedFileView } from "../lib/changedFileView";
+import {
+  changedNowCopyButtonView,
+  changedNowPanelView,
+  temporaryCopyPromptFeedback,
+  type CopyPromptIcon,
+  type CopyPromptState,
+  type TemporaryCopyPromptState,
+} from "../lib/changedNowView";
+import { changedFilesView } from "../lib/changedFilesView";
+import { changedFilesCommitPrompt } from "../lib/commitPrompt";
+import { copyTextWithFallback } from "../lib/copyText";
+import { logBridgeWarning } from "../lib/errorMessages";
 import type { ChangedFile, FileFilter, PromptLanguage } from "../types";
 
-export function changedFileKey(file: ChangedFile) {
-  return `${file.status}-${file.path}-${file.originalPath ?? ""}`;
-}
-
-function deltaContent(file: ChangedFile) {
-  if (!file.additions && !file.deletions) return <span>0</span>;
-
+function deltaContent(delta: ChangedFileView["delta"]) {
   return (
     <>
-      {file.additions ? <span className="additions">+{file.additions}</span> : null}
-      {file.deletions ? <span className="deletions">-{file.deletions}</span> : null}
+      {changedFileDeltaItems(delta).map((item) => (
+        <span key={item.key} className={item.className}>
+          {item.label}
+        </span>
+      ))}
     </>
   );
 }
 
-function filePromptLine(file: ChangedFile) {
-  const delta = [file.additions ? `+${file.additions}` : "", file.deletions ? `-${file.deletions}` : ""].filter(Boolean).join(" ");
-  const originalPath = file.originalPath ? ` from ${file.originalPath}` : "";
-  const deltaText = delta ? ` (${delta})` : "";
-  return `- [${statusLetter(file)}] ${file.path}${originalPath}: ${file.statusLabel}${deltaText}`;
-}
-
-function commitPrompt(files: ChangedFile[], filter: FileFilter, language: PromptLanguage) {
-  const fileLines = files.length ? files.map(filePromptLine).join("\n") : "- No files in the current Changed Now filter.";
-
-  if (language === "zh") {
-    return `请检查当前仓库的 working tree，并判断是否适合现在 commit。
-
-要求：
-1. 先运行或阅读必要的 git status / git diff；下面的文件列表只作为线索。
-2. 简洁说明变动意图、主要文件、风险或未完成点，以及是否 ready。
-3. 只给出一个可执行 commit 方案：你自己决定是单个 commit，还是一组按顺序执行的分段 commits；如需分段，列出每段包含的文件和 commit message。不要给备选方案，也不要让用户选择文件、策略或 message。
-4. 生成 commit message 前，先检查仓库是否有明确记录的 commit message 规则；有就遵守仓库规则，否则使用 Conventional Commits。
-5. 最后只问一个 Yes/No 确认问题：用户回答 Yes 就按方案执行 commit，回答 No 就停止；在 Yes 前不要执行 git commit，也不要再追问其他决策。
-
-Changed Now 当前列表（filter: ${filter}, files: ${files.length}）：
-${fileLines}`;
-  }
-
-  return `Please inspect the current repository working tree and decide whether it is ready to commit.
-
-Requirements:
-1. Run or review the necessary git status / git diff; treat the file list below only as a clue.
-2. Briefly summarize the change intent, key files, risks or unfinished work, and whether it is ready.
-3. Provide exactly one executable commit plan: decide yourself whether it should be one commit or one ordered sequence of split commits; if split commits are needed, list the files and commit message for each. Do not give alternatives or ask the user to choose files, strategy, or messages.
-4. Before drafting commit messages, check whether the repository documents its own commit-message rules; follow those if present, otherwise use Conventional Commits.
-5. End with exactly one Yes/No confirmation question: if the user answers Yes, run the plan; if No, stop. Do not run git commit before Yes, and do not ask for any other decisions.
-
-Current Changed Now list (filter: ${filter}, files: ${files.length}):
-${fileLines}`;
+function copyPromptIcon(icon: CopyPromptIcon) {
+  if (icon === "check") return <Check aria-hidden="true" />;
+  if (icon === "x") return <X aria-hidden="true" />;
+  return <Copy aria-hidden="true" />;
 }
 
 export function ChangedFileInfoPanel({ file, onClose }: { file: ChangedFile; onClose: () => void }) {
+  const view = changedFileInfoPanelView(file);
+
   return (
-    <aside className="changed-side-panel" aria-label="Changed file details">
-      <header className="changed-side-header">
-        <span className={joinClass("file-badge", fileKind(file))}>{statusLetter(file)}</span>
+    <aside className={view.panel.className} aria-labelledby={view.panel.ariaLabelledBy}>
+      <header className={view.header.className}>
+        <span className={view.badgeClassName}>{view.file.statusLetter}</span>
         <div>
-          <h2 title={file.path}>{formatPath(file.path)}</h2>
-          <span>{file.statusLabel}</span>
+          <h2 id={view.titleId} title={view.pathTitle}>{view.file.pathLabel}</h2>
+          <span>{view.statusLabel}</span>
         </div>
-        <button className="ui-icon-button" type="button" aria-label="Close changed file details" onClick={onClose}>
+        <button className={view.closeButton.className} type="button" aria-label={view.closeButton.ariaLabel} onClick={onClose}>
           <X aria-hidden="true" />
         </button>
       </header>
-      <dl className="changed-side-facts">
+      <dl className={view.factsListClassName}>
         <div>
-          <dt>Kind</dt>
-          <dd>{fileKind(file)}</dd>
-        </div>
-        <div>
-          <dt>Git</dt>
-          <dd>{file.status.trim() || "?"}</dd>
+          <dt>{view.facts.kindLabel}</dt>
+          <dd>{view.file.kind}</dd>
         </div>
         <div>
-          <dt>Changes</dt>
-          <dd className="changed-side-delta">{deltaContent(file)}</dd>
+          <dt>{view.facts.gitLabel}</dt>
+          <dd>{view.file.gitStatus}</dd>
         </div>
-        <div className="is-wide">
-          <dt>Path</dt>
-          <dd title={file.path}>{file.path}</dd>
+        <div>
+          <dt>{view.facts.changesLabel}</dt>
+          <dd className={view.deltaClassName}>{deltaContent(view.file.delta)}</dd>
         </div>
-        {file.originalPath ? (
-          <div className="is-wide">
-            <dt>From</dt>
-            <dd title={file.originalPath}>{file.originalPath}</dd>
+        <div className={view.wideFactClassName}>
+          <dt>{view.facts.pathLabel}</dt>
+          <dd title={view.pathTitle}>{view.pathText}</dd>
+        </div>
+        {view.showOriginalPath ? (
+          <div className={view.wideFactClassName}>
+            <dt>{view.facts.originalPathLabel}</dt>
+            <dd title={view.originalPathTitle}>{view.file.originalPathLabel}</dd>
           </div>
         ) : null}
       </dl>
@@ -112,80 +91,116 @@ export function ChangedNow({
   onClose?: () => void;
   onSelectFile: (fileKey: string) => void;
 }) {
-  const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
-  const filteredFiles = filter === "all" ? files : files.filter((file) => fileKind(file) === filter);
+  const [copyState, setCopyState] = useState<CopyPromptState>("idle");
+  const copyStateResetTimerRef = useRef<number | null>(null);
+  const changedFiles = changedFilesView(files, filter);
+  const panelView = changedNowPanelView();
+  const copyButton = changedNowCopyButtonView(copyState);
+
+  useEffect(
+    () => () => {
+      if (copyStateResetTimerRef.current !== null) window.clearTimeout(copyStateResetTimerRef.current);
+    },
+    [],
+  );
+
+  function setTemporaryCopyState(nextCopyState: TemporaryCopyPromptState) {
+    const feedback = temporaryCopyPromptFeedback({
+      timerActive: copyStateResetTimerRef.current !== null,
+      nextState: nextCopyState,
+    });
+
+    if (feedback.clearExistingTimer && copyStateResetTimerRef.current !== null) window.clearTimeout(copyStateResetTimerRef.current);
+    setCopyState(feedback.nextState);
+    copyStateResetTimerRef.current = window.setTimeout(() => {
+      setCopyState("idle");
+      copyStateResetTimerRef.current = null;
+    }, feedback.resetDelayMs);
+  }
 
   async function copyCommitPrompt() {
-    const prompt = commitPrompt(filteredFiles, filter, promptLanguage);
+    const prompt = changedFilesCommitPrompt(changedFiles.filteredFiles, filter, promptLanguage);
 
     try {
-      if (window.gitPeek?.copyText) {
-        await window.gitPeek.copyText(prompt);
-      } else {
-        await navigator.clipboard.writeText(prompt);
-      }
-      setCopyState("copied");
-      window.setTimeout(() => setCopyState("idle"), 1400);
+      await copyTextWithFallback(prompt, { bridge: window.gitPeek, clipboard: navigator.clipboard });
+      setTemporaryCopyState("copied");
     } catch (error) {
-      console.warn("[Git Peek] Unable to copy prompt.", error);
+      logBridgeWarning("Unable to copy prompt.", error);
+      setTemporaryCopyState("failed");
     }
   }
 
   return (
-    <section className="changed-section" aria-label="Changed now">
-      <div className="section-heading compact">
-        <h2>Changed now</h2>
-        <div className="heading-tools">
-          <span>{filteredFiles.length}</span>
+    <section className={panelView.section.className} aria-labelledby={panelView.section.ariaLabelledBy}>
+      <div className={panelView.heading.className}>
+        <h2 id={panelView.titleId}>{panelView.title}</h2>
+        <div className={panelView.tools.className}>
+          <span>{changedFiles.filteredCount}</span>
           <button
             type="button"
-            aria-label={copyState === "copied" ? "Copied prompt" : "Copy prompt to commit changes"}
-            data-tooltip={copyState === "copied" ? "Copied prompt" : "Copy prompt to commit changes"}
-            title={copyState === "copied" ? "Copied" : "Copy prompt to commit changes"}
+            aria-label={copyButton.label}
+            data-tooltip={copyButton.label}
+            title={copyButton.title}
             onClick={copyCommitPrompt}
           >
-            {copyState === "copied" ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+            {copyPromptIcon(copyButton.icon)}
           </button>
           {onClose ? (
-            <button type="button" aria-label="Close changed files window" data-tooltip="Close window" onClick={onClose}>
+            <button
+              type="button"
+              aria-label={panelView.closeButton.ariaLabel}
+              data-tooltip={panelView.closeButton.tooltip}
+              onClick={onClose}
+            >
               <X aria-hidden="true" />
             </button>
           ) : null}
         </div>
       </div>
-      <div className="file-list" id="changed-now-file-list">
-        {filteredFiles.length ? (
-          filteredFiles.slice(0, 8).map((file) => {
-            const fileKey = changedFileKey(file);
+      <div className={panelView.fileList.className} id={panelView.fileList.id}>
+        {changedFiles.showFiles ? (
+          <>
+            {changedFiles.visibleFiles.map((file) => {
+              const row = changedFileRowView(file, selectedFileKey);
 
-            return (
-              <button
-                className={joinClass("file-row", selectedFileKey === fileKey && "is-selected")}
-                type="button"
-                key={fileKey}
-                onClick={() => onSelectFile(fileKey)}
-                aria-pressed={selectedFileKey === fileKey}
-                title={file.path}
+              return (
+                <button
+                  className={row.className}
+                  type="button"
+                  key={row.file.key}
+                  onClick={() => onSelectFile(row.file.key)}
+                  aria-pressed={row.ariaPressed}
+                  title={row.title}
+                >
+                  <span className={row.badgeClassName}>{row.file.statusLetter}</span>
+                  <span className={row.copyClassName}>
+                    <span className={row.pathClassName} title={row.title}>
+                      {row.file.pathLabel}
+                    </span>
+                    <span className={row.detailClassName}>{row.file.statusDetail}</span>
+                  </span>
+                  <span className={row.deltaClassName}>{deltaContent(row.file.delta)}</span>
+                </button>
+              );
+            })}
+            {changedFiles.showHiddenCount ? (
+              <div
+                className={changedFiles.hiddenCountView.className}
+                role={changedFiles.hiddenCountView.role}
+                aria-live={changedFiles.hiddenCountView.ariaLive}
               >
-                <span className={joinClass("file-badge", fileKind(file))}>{statusLetter(file)}</span>
-                <span className="file-copy">
-                  <span className="file-path" title={file.path}>
-                    {formatPath(file.path)}
-                  </span>
-                  <span className="file-detail">
-                    {file.statusLabel}
-                    {file.originalPath ? ` from ${formatPath(file.originalPath)}` : ""}
-                  </span>
-                </span>
-                <span className="file-delta">
-                  {file.additions ? <span className="additions">+{file.additions}</span> : null}
-                  {file.deletions ? <span className="deletions">-{file.deletions}</span> : null}
-                </span>
-              </button>
-            );
-          })
+                {changedFiles.hiddenCountLabel}
+              </div>
+            ) : null}
+          </>
         ) : (
-          <div className="empty-state">No files in this view.</div>
+          <div
+            className={changedFiles.emptyState.className}
+            role={changedFiles.emptyState.role}
+            aria-live={changedFiles.emptyState.ariaLive}
+          >
+            {changedFiles.emptyState.message}
+          </div>
         )}
       </div>
     </section>

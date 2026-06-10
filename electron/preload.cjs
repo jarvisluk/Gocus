@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld("gitPeek", {
   clearRepository: () => ipcRenderer.invoke("git:clearRepository"),
   initializeRepository: (repositoryPath, view) => ipcRenderer.invoke("git:initializeRepository", repositoryPath, view),
   createBranch: (branchName, startPoint, view) => ipcRenderer.invoke("git:createBranch", branchName, startPoint, view),
+  merge: (ref, targetBranch, view, options) => ipcRenderer.invoke("git:merge", ref, targetBranch, view, options),
   checkout: (ref, view) => ipcRenderer.invoke("git:checkout", ref, view),
   openWorktree: (worktreePath, view) => ipcRenderer.invoke("git:openWorktree", worktreePath, view),
   openWorkspace: (target) => ipcRenderer.invoke("workspace:open", target),
@@ -16,10 +17,13 @@ contextBridge.exposeInMainWorld("gitPeek", {
   getPreferences: () => ipcRenderer.invoke("preferences:get"),
   savePreferences: (preferences) => ipcRenderer.invoke("preferences:save", preferences),
   setCollapsed: (collapsed) => ipcRenderer.invoke("window:setCollapsed", collapsed),
+  getPinned: () => ipcRenderer.invoke("window:getPinned"),
   setPinned: (pinned) => ipcRenderer.invoke("window:setPinned", pinned),
   dockToEdge: (collapsed) => ipcRenderer.invoke("window:dockToEdge", collapsed),
   getTemporaryInfoPayload: () => ipcRenderer.invoke("window:getTemporaryInfoPayload"),
   setTemporaryInfoPanel: (payload) => ipcRenderer.invoke("window:setTemporaryInfoPanel", payload),
+  getCommitInfoPayload: () => ipcRenderer.invoke("window:getCommitInfoPayload"),
+  setCommitInfoPanel: (payload) => ipcRenderer.invoke("window:setCommitInfoPanel", payload),
   copyText: (text) => ipcRenderer.invoke("clipboard:writeText", text),
   getSystemTheme: () => ipcRenderer.invoke("theme:getSystemTheme"),
   onTemporaryInfoPayloadUpdated: (callback) => {
@@ -31,6 +35,16 @@ contextBridge.exposeInMainWorld("gitPeek", {
     const handler = () => callback();
     ipcRenderer.on("window:temporaryInfoPanelClosed", handler);
     return () => ipcRenderer.removeListener("window:temporaryInfoPanelClosed", handler);
+  },
+  onCommitInfoPayloadUpdated: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on("window:commitInfoPayload", handler);
+    return () => ipcRenderer.removeListener("window:commitInfoPayload", handler);
+  },
+  onCommitInfoPanelClosed: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on("window:commitInfoPanelClosed", handler);
+    return () => ipcRenderer.removeListener("window:commitInfoPanelClosed", handler);
   },
   onThemeChanged: (callback) => {
     const handler = (_event, theme) => callback(theme);
@@ -51,6 +65,11 @@ contextBridge.exposeInMainWorld("gitPeek", {
     const handler = (_event, collapsed) => callback(collapsed);
     ipcRenderer.on("window:collapsedChanged", handler);
     return () => ipcRenderer.removeListener("window:collapsedChanged", handler);
+  },
+  onPinnedChanged: (callback) => {
+    const handler = (_event, pinned) => callback(pinned);
+    ipcRenderer.on("window:pinnedChanged", handler);
+    return () => ipcRenderer.removeListener("window:pinnedChanged", handler);
   },
   onRepositoryDialogOpenChanged: (callback) => {
     const handler = (_event, open) => callback(open);

@@ -1,96 +1,302 @@
-import { GitBranch, X } from "lucide-react";
+import { Check, ChevronDown, GitBranch, GitMerge, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  actionBranchPrefixOptionView,
+  actionMergeTargetOptionView,
+  actionDialogBranchNameKeyAction,
+  actionDialogGlobalKeyAction,
+  actionDialogView,
+  branchPrefixOptions,
+  type ActionDialogState,
+  type BranchPrefix,
+} from "../lib/actionDialogView";
+import { useDismissableLayer } from "../lib/useDismissableLayer";
 
-export type BranchPrefix = "none" | "feat" | "fix" | "chore" | "docs" | "refactor" | "test";
+function BranchPrefixDropdown({
+  value,
+  open,
+  view,
+  onOpenChange,
+  onChange,
+}: {
+  value: BranchPrefix;
+  open: boolean;
+  view: ReturnType<typeof actionDialogView>["branchFields"];
+  onOpenChange: (open: boolean) => void;
+  onChange: (branchPrefix: BranchPrefix) => void;
+}) {
+  const controlRef = useRef<HTMLDivElement>(null);
+  const selectedOption = branchPrefixOptions.find((option) => option.value === value) ?? branchPrefixOptions[0];
 
-const branchPrefixOptions: { value: BranchPrefix; label: string }[] = [
-  { value: "none", label: "None" },
-  { value: "feat", label: "feat" },
-  { value: "fix", label: "fix" },
-  { value: "chore", label: "chore" },
-  { value: "docs", label: "docs" },
-  { value: "refactor", label: "refactor" },
-  { value: "test", label: "test" },
-];
+  useDismissableLayer({
+    active: open,
+    refs: [controlRef],
+    onDismiss: () => onOpenChange(false),
+  });
 
-export function branchNameWithPrefix(prefix: BranchPrefix, branchName: string) {
-  const trimmedName = branchName.trim().replace(/^\/+/, "");
-  if (!trimmedName || prefix === "none" || trimmedName.startsWith(`${prefix}/`)) return trimmedName;
-  return `${prefix}/${trimmedName}`;
+  function selectPrefix(branchPrefix: BranchPrefix) {
+    onChange(branchPrefix);
+    onOpenChange(false);
+  }
+
+  return (
+    <div className={view.prefixControlClassName} ref={controlRef}>
+      <button
+        id={view.prefixTriggerId}
+        className={`${view.prefixTriggerClassName}${open ? " is-open" : ""}`}
+        type="button"
+        aria-label={view.prefixAriaLabel}
+        aria-haspopup={view.prefixMenuRole}
+        aria-expanded={open}
+        aria-controls={view.prefixMenuId}
+        onClick={() => onOpenChange(!open)}
+      >
+        <span>{selectedOption.label}</span>
+        <ChevronDown aria-hidden="true" />
+      </button>
+      {open ? (
+        <div className={view.prefixMenuClassName} id={view.prefixMenuId} role={view.prefixMenuRole} aria-labelledby={view.prefixTriggerId}>
+          {branchPrefixOptions.map((option) => {
+            const optionView = actionBranchPrefixOptionView(option, value);
+
+            return (
+              <button
+                className={optionView.className}
+                type="button"
+                role={optionView.role}
+                aria-current={optionView.ariaCurrent}
+                key={optionView.key}
+                onClick={() => selectPrefix(optionView.value)}
+              >
+                {optionView.active ? <Check aria-hidden="true" /> : <span aria-hidden="true" />}
+                <span>{optionView.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
-export type ActionDialogState =
-  | {
-      type: "createBranch";
-      title: string;
-      body: string;
-      branchPrefix: BranchPrefix;
-      branchName: string;
-    }
-  | {
-      type: "checkout";
-      title: string;
-      body: string;
-    };
+function MergeTargetDropdown({
+  value,
+  open,
+  view,
+  onOpenChange,
+  onChange,
+}: {
+  value: string;
+  open: boolean;
+  view: ReturnType<typeof actionDialogView>;
+  onOpenChange: (open: boolean) => void;
+  onChange: (targetBranch: string) => void;
+}) {
+  const controlRef = useRef<HTMLDivElement>(null);
+  const selectedBranch = view.mergeTargetBranches.find((branch) => branch.name === value);
+
+  useDismissableLayer({
+    active: open,
+    refs: [controlRef],
+    onDismiss: () => onOpenChange(false),
+  });
+
+  function selectTarget(targetBranch: string) {
+    onChange(targetBranch);
+    onOpenChange(false);
+  }
+
+  return (
+    <div className={view.mergeFields.targetControlClassName} ref={controlRef}>
+      <button
+        id={view.mergeFields.targetTriggerId}
+        className={`${view.mergeFields.targetTriggerClassName}${open ? " is-open" : ""}`}
+        type="button"
+        aria-label={view.mergeFields.targetAriaLabel}
+        aria-haspopup={view.mergeFields.targetMenuRole}
+        aria-expanded={open}
+        aria-controls={view.mergeFields.targetMenuId}
+        disabled={view.mergeTargetBranches.length === 0}
+        onClick={() => onOpenChange(!open)}
+      >
+        <span>{selectedBranch?.name ?? "No local branches"}</span>
+        <ChevronDown aria-hidden="true" />
+      </button>
+      {open ? (
+        <div
+          className={view.mergeFields.targetMenuClassName}
+          id={view.mergeFields.targetMenuId}
+          role={view.mergeFields.targetMenuRole}
+          aria-labelledby={view.mergeFields.targetTriggerId}
+        >
+          {view.mergeTargetBranches.map((option) => {
+            const optionView = actionMergeTargetOptionView(option, value);
+
+            return (
+              <button
+                className={optionView.className}
+                type="button"
+                role={optionView.role}
+                aria-current={optionView.ariaCurrent}
+                title={optionView.title}
+                key={optionView.key}
+                onClick={() => selectTarget(optionView.branchName)}
+              >
+                {optionView.active ? <Check aria-hidden="true" /> : <GitBranch aria-hidden="true" />}
+                <span>{optionView.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export function ActionDialog({
   dialog,
   onBranchPrefixChange,
   onBranchNameChange,
+  onMergeTargetChange,
   onCancel,
   onConfirm,
 }: {
   dialog: ActionDialogState | null;
   onBranchPrefixChange: (branchPrefix: BranchPrefix) => void;
   onBranchNameChange: (branchName: string) => void;
+  onMergeTargetChange: (targetBranch: string) => void;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const [prefixMenuOpen, setPrefixMenuOpen] = useState(false);
+  const [mergeTargetMenuOpen, setMergeTargetMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!dialog) return undefined;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (actionDialogGlobalKeyAction(event.key) !== "cancel") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (prefixMenuOpen || mergeTargetMenuOpen) {
+        setPrefixMenuOpen(false);
+        setMergeTargetMenuOpen(false);
+        return;
+      }
+      onCancel();
+    }
+
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [dialog, mergeTargetMenuOpen, onCancel, prefixMenuOpen]);
+
+  useEffect(() => {
+    setPrefixMenuOpen(false);
+    setMergeTargetMenuOpen(false);
+  }, [dialog]);
+
   if (!dialog) return null;
-  const resolvedBranchName = dialog.type === "createBranch" ? branchNameWithPrefix(dialog.branchPrefix, dialog.branchName) : "";
+  const view = actionDialogView(dialog);
+  const HeadingIcon = dialog.type === "merge" ? GitMerge : GitBranch;
 
   return (
-    <div className="ui-dialog-backdrop action-dialog-backdrop" role="presentation">
-      <section className="ui-dialog action-dialog" role="dialog" aria-modal="true" aria-label={dialog.title}>
-        <div className="ui-dialog-heading action-dialog-heading">
-          <GitBranch aria-hidden="true" />
-          <h2>{dialog.title}</h2>
-          <button className="ui-icon-button" type="button" aria-label="Close dialog" onClick={onCancel}>
+    <div className={view.backdrop.className} role={view.backdrop.role}>
+      <section
+        className={view.dialog.className}
+        role={view.dialog.role}
+        aria-modal={view.dialog.ariaModal}
+        aria-labelledby={view.dialog.ariaLabelledBy}
+        aria-describedby={view.dialog.ariaDescribedBy}
+      >
+        <div className={view.heading.className}>
+          <HeadingIcon aria-hidden="true" />
+          <h2 id={view.heading.id}>{dialog.title}</h2>
+          <button className={view.closeButton.className} type="button" aria-label={view.closeButton.ariaLabel} onClick={onCancel}>
             <X aria-hidden="true" />
           </button>
         </div>
-        <p className="ui-dialog-body">{dialog.body}</p>
-        {dialog.type === "createBranch" ? (
-          <div className="action-branch-fields">
-            <label className="action-branch-field">
-              <span>Prefix</span>
-              <div className="ui-select-frame">
-                <select
-                  className="ui-select"
-                  value={dialog.branchPrefix}
-                  onChange={(event) => onBranchPrefixChange(event.target.value as BranchPrefix)}
-                  aria-label="Branch prefix"
-                >
-                  {branchPrefixOptions.map((option) => (
-                    <option value={option.value} key={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+        <p className={view.body.className} id={view.body.id}>
+          {dialog.body}
+        </p>
+        {view.showBranchFields && dialog.type === "createBranch" ? (
+          <div className={view.branchFields.containerClassName}>
+            <div className={view.branchFields.fieldClassName}>
+              <span>{view.branchFields.prefixLabel}</span>
+              <BranchPrefixDropdown
+                value={dialog.branchPrefix}
+                open={prefixMenuOpen}
+                view={view.branchFields}
+                onOpenChange={(open) => {
+                  setPrefixMenuOpen(open);
+                  if (open) setMergeTargetMenuOpen(false);
+                }}
+                onChange={onBranchPrefixChange}
+              />
+            </div>
+            <label className={view.branchFields.fieldClassName}>
+              <span>{view.branchFields.nameLabel}</span>
+              <input
+                className={view.branchFields.nameInputClassName}
+                value={dialog.branchName}
+                onChange={(event) => onBranchNameChange(event.target.value)}
+                maxLength={view.branchFields.nameMaxLength}
+                onKeyDown={(event) => {
+                  const keyAction = actionDialogBranchNameKeyAction(event.key, view.confirmDisabled);
+                  if (keyAction === "ignore") return;
+                  event.preventDefault();
+                  if (keyAction === "confirm") onConfirm();
+                }}
+                autoFocus
+                aria-label={view.branchFields.nameAriaLabel}
+                aria-invalid={view.branchInputAriaInvalid}
+                aria-describedby={view.branchInputDescribedBy}
+              />
             </label>
-            <label className="action-branch-field">
-              <span>Name</span>
-              <input className="ui-input" value={dialog.branchName} onChange={(event) => onBranchNameChange(event.target.value)} autoFocus aria-label="Branch name" />
-            </label>
-            {resolvedBranchName ? <code className="action-branch-preview">{resolvedBranchName}</code> : null}
+            {view.showResolvedBranchName ? (
+              <code className={view.branchFields.previewClassName} id={view.branchFields.previewId}>
+                {view.resolvedBranchName}
+              </code>
+            ) : null}
+            {view.showBranchValidationMessage ? (
+              <p className={view.branchFields.errorClassName} id={view.branchErrorId} role="alert">
+                {view.branchValidationMessage}
+              </p>
+            ) : null}
           </div>
         ) : null}
-        <div className="ui-dialog-actions action-dialog-actions">
-          <button className="ui-button" type="button" onClick={onCancel}>
-            Cancel
+        {view.showMergeFields && dialog.type === "merge" ? (
+          <div className={view.mergeFields.containerClassName}>
+            <div className={view.mergeFields.fieldClassName}>
+              <span>{view.mergeFields.targetLabel}</span>
+              <MergeTargetDropdown
+                value={dialog.targetBranch}
+                open={mergeTargetMenuOpen}
+                view={view}
+                onOpenChange={(open) => {
+                  setMergeTargetMenuOpen(open);
+                  if (open) setPrefixMenuOpen(false);
+                }}
+                onChange={onMergeTargetChange}
+              />
+            </div>
+            {view.showMergeTargetValidationMessage ? (
+              <p className={view.mergeFields.errorClassName} id={view.mergeTargetErrorId} role="alert">
+                {view.mergeTargetValidationMessage}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+        {view.showActionError ? (
+          <pre className={view.actionError.className} id={view.actionError.id} role={view.actionError.role}>
+            {view.actionError.message}
+          </pre>
+        ) : null}
+        <div className={view.actions.className}>
+          <button className={view.cancelButton.className} type="button" onClick={onCancel} autoFocus={view.cancelButton.autoFocus}>
+            {view.cancelButton.label}
           </button>
-          <button className="ui-button primary" type="button" onClick={onConfirm} disabled={dialog.type === "createBranch" && !resolvedBranchName}>
-            Confirm
+          <button className={view.confirmButton.className} type="button" onClick={onConfirm} disabled={view.confirmButton.disabled}>
+            {view.confirmButton.label}
           </button>
         </div>
       </section>
