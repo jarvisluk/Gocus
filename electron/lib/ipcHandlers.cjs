@@ -22,6 +22,7 @@ function registerIpcHandlers({
   normalizeView,
   openRepositoryPath,
   openWorkspace,
+  openWorkspaceFile,
   openWorktree,
   readPreferences,
   readRecentRepositories,
@@ -151,6 +152,10 @@ function registerIpcHandlers({
 
   ipcMain.handle("workspace:open", async (_event, target) => {
     return openWorkspace(repositoryPathForAction(), target);
+  });
+
+  ipcMain.handle("workspace:openFile", async (_event, target, filePath) => {
+    return openWorkspaceFile(repositoryPathForAction(), target, filePath);
   });
 
   ipcMain.handle("workspace:getAvailableTargets", () => {

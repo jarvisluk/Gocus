@@ -140,6 +140,7 @@ export interface CommitItem {
   filesChanged: number;
   parents: string[];
   refs: string[];
+  containedBranches: string[];
   lane: BranchKind;
   branchColor: BranchColor;
   refColors: BranchColor[];
@@ -170,6 +171,7 @@ export type ChangedFilesTemporaryInfoPayload = {
   files: ChangedFile[];
   filter: FileFilter;
   selectedFileKey: string;
+  workspaceOpenTarget: WorkspaceOpenTarget | "";
 };
 
 export interface CommitInfoAnchorBounds {

@@ -29,7 +29,7 @@ const {
   readGitSnapshot,
 } = require("./lib/git.cjs");
 const { createRepositoryWatcher } = require("./lib/gitWatcher.cjs");
-const { getAvailableWorkspaceTargets, openWorkspace } = require("./lib/workspace.cjs");
+const { getAvailableWorkspaceTargets, openWorkspace, openWorkspaceFile } = require("./lib/workspace.cjs");
 
 installOutputErrorGuard();
 
@@ -1036,6 +1036,7 @@ registerIpcHandlers({
   normalizeView,
   openRepositoryPath,
   openWorkspace,
+  openWorkspaceFile,
   openWorktree,
   readPreferences,
   readRecentRepositories,

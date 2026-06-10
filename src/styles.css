@@ -1656,6 +1656,46 @@ button:disabled {
   grid-template-columns: 18px minmax(0, 1fr);
 }
 
+.branch-switch-tooltip {
+  position: relative;
+  width: 28px;
+  min-height: var(--menu-row-height);
+  display: grid;
+}
+
+.branch-switch-tooltip[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: 50%;
+  right: 0;
+  z-index: 50;
+  width: min(226px, calc(100vw - 40px));
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
+  box-shadow: 0 10px 24px rgba(16, 24, 40, 0.2);
+  color: var(--text);
+  font-size: var(--type-caption-size);
+  font-weight: var(--font-weight-strong);
+  line-height: 1.25;
+  opacity: 0;
+  pointer-events: none;
+  text-align: left;
+  transform: translateY(-50%);
+  white-space: normal;
+}
+
+.branch-switch-tooltip[data-tooltip]:hover::after {
+  opacity: 1;
+}
+
+.branch-switch-tooltip[data-tooltip]:hover .branch-switch-button:disabled {
+  background: var(--surface-hover);
+  color: var(--text);
+  opacity: 0.68;
+}
+
 .branch-switch-button {
   width: 28px;
   min-height: var(--menu-row-height);
@@ -2377,7 +2417,7 @@ button:disabled {
   bottom: auto;
   width: min(348px, calc(100vw - var(--panel-width) - 48px));
   max-width: 348px;
-  max-height: min(132px, calc(100vh - 20px));
+  max-height: min(164px, calc(100vh - 20px));
   gap: 0;
   overflow: hidden;
   padding: 0;
@@ -2393,7 +2433,7 @@ button:disabled {
   height: 100%;
   display: grid;
   align-content: start;
-  grid-template-rows: auto auto auto minmax(0, auto);
+  grid-template-rows: auto auto auto auto minmax(0, auto);
   overflow: hidden;
   padding: 7px 9px 8px;
 }
@@ -2431,6 +2471,7 @@ button:disabled {
 
 .commit-hover-header svg,
 .commit-hover-refs svg,
+.commit-hover-contained svg,
 .commit-hover-hash svg {
   width: 13px;
   height: 13px;
@@ -2441,7 +2482,8 @@ button:disabled {
 .commit-hover-author,
 .commit-hover-time,
 .commit-hover-hash code,
-.commit-hover-ref-pill span {
+.commit-hover-ref-pill span,
+.commit-hover-contained-branch {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2499,6 +2541,40 @@ button:disabled {
   font-weight: var(--type-body-strong-weight);
   line-height: 1;
   white-space: nowrap;
+}
+
+.commit-hover-contained {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+  font-weight: var(--type-caption-weight);
+  line-height: 1.1;
+}
+
+.commit-hover-contained-label {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+}
+
+.commit-hover-contained-branches {
+  min-width: 0;
+  display: flex;
+  flex: 1 1 auto;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.commit-hover-contained-branch {
+  max-width: 124px;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.commit-hover-contained-branch:not(:last-child)::after {
+  content: ",";
 }
 
 .commit-hover-hash {
@@ -2665,7 +2741,7 @@ button:disabled {
 .changed-side-header {
   min-width: 0;
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) var(--control-sm);
+  grid-template-columns: 26px minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-md);
 }
@@ -2698,9 +2774,22 @@ button:disabled {
   color: var(--main);
 }
 
-.changed-side-header .ui-icon-button {
+.changed-side-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+}
+
+.changed-side-actions .ui-icon-button {
   width: var(--control-sm);
   height: var(--control-sm);
+}
+
+.changed-side-open-button .external-app-icon {
+  width: var(--app-icon-menu);
+  height: var(--app-icon-menu);
+  border-radius: 4px;
 }
 
 .changed-side-facts {

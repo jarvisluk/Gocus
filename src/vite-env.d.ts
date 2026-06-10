@@ -32,6 +32,7 @@ declare global {
       checkout: (ref: string, view?: CommitViewSelection) => Promise<ActionResponse>;
       openWorktree: (worktreePath: string, view?: CommitViewSelection) => Promise<ActionResponse>;
       openWorkspace: (target: WorkspaceOpenTarget) => Promise<ActionResponse>;
+      openWorkspaceFile: (target: WorkspaceOpenTarget, filePath: string) => Promise<ActionResponse>;
       getAvailableWorkspaceTargets: () => Promise<WorkspaceOpenTarget[]>;
       getPreferences: () => Promise<UiPreferences>;
       savePreferences: (preferences: UiPreferences) => Promise<void>;

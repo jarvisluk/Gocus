@@ -148,17 +148,23 @@ export function RepositoryControls({
                       <span>{itemView.label}</span>
                     </button>
                     {itemView.switchAction.show ? (
-                      <button
-                        className={itemView.switchAction.className}
-                        type="button"
-                        role="menuitem"
-                        aria-label={itemView.switchAction.ariaLabel}
+                      <span
+                        className={itemView.switchAction.tooltipClassName}
+                        data-tooltip={itemView.switchAction.disabled ? itemView.switchAction.title : undefined}
                         title={itemView.switchAction.title}
-                        disabled={itemView.switchAction.disabled}
-                        onClick={() => switchBranch(itemView.switchAction.branchName)}
                       >
-                        {repositoryControlIcon(itemView.switchAction.icon)}
-                      </button>
+                        <button
+                          className={itemView.switchAction.className}
+                          type="button"
+                          role="menuitem"
+                          aria-label={itemView.switchAction.ariaLabel}
+                          title={itemView.switchAction.title}
+                          disabled={itemView.switchAction.disabled}
+                          onClick={() => switchBranch(itemView.switchAction.branchName)}
+                        >
+                          {repositoryControlIcon(itemView.switchAction.icon)}
+                        </button>
+                      </span>
                     ) : null}
                   </div>
                 );

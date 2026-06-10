@@ -162,6 +162,17 @@ function parseBranches(output, currentBranchName) {
     .filter((branch) => branch.name && !branch.name.endsWith("/HEAD"));
 }
 
+function parseContainedBranchTips(output) {
+  return output
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [name = "", fullName = "", , , hash = ""] = line.split("\0");
+      return { name, fullName, hash };
+    })
+    .filter((branch) => branch.name && branch.hash && branch.fullName.startsWith("refs/heads/"));
+}
+
 function parseWorktrees(output, currentRoot) {
   return output
     .split(/\n\s*\n/)
@@ -324,7 +335,7 @@ async function readGitSnapshot(repoPath, view = { mode: "all" }) {
     runGit(root, ["diff", "--cached", "--numstat"]).catch(() => ""),
     runGit(root, [
       "for-each-ref",
-      "--format=%(refname:short)%00%(refname)%00%(upstream:short)%00%(HEAD)",
+      "--format=%(refname:short)%00%(refname)%00%(upstream:short)%00%(HEAD)%00%(objectname)",
       "refs/heads",
       "refs/remotes",
       "refs/tags",
@@ -333,7 +344,10 @@ async function readGitSnapshot(repoPath, view = { mode: "all" }) {
   ]);
   const worktrees = await Promise.all(parseWorktrees(worktreesRaw, root).map(enrichWorktree));
   const branches = parseBranches(branchesRaw, status.branch.name);
-  const graphContext = graphContextForWorktrees(worktrees, status, branches);
+  const graphContext = {
+    ...graphContextForWorktrees(worktrees, status, branches),
+    containedBranchTips: parseContainedBranchTips(branchesRaw),
+  };
   const logRequest = logArgsForViewWithWorktrees(view, worktrees);
   const logRaw = await runGit(root, logRequest.args, { maxBuffer: 1024 * 1024 * 64 }).catch(() => "");
 

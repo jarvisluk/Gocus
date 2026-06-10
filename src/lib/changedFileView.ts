@@ -2,6 +2,7 @@ import type { ChangedFile } from "../types";
 import { changedFileKey } from "./changedFileIdentity";
 import { joinClass } from "./classNames";
 import { fileKind, formatPath, statusLetter } from "./fileStatus";
+import type { WorkspaceOpenOption } from "./workspaceOpenOptions";
 
 export interface ChangedFileDeltaView {
   additionsLabel: string;
@@ -69,6 +70,13 @@ export interface ChangedFileInfoPanelView {
   pathTitle: string;
   showOriginalPath: boolean;
   originalPathTitle: string | undefined;
+}
+
+export interface ChangedFileInfoOpenButtonView {
+  className: string;
+  iconClassName: string;
+  ariaLabel: string;
+  title: string;
 }
 
 export const changedFileInfoTitleId = "changed-file-details-title";
@@ -159,5 +167,18 @@ export function changedFileInfoPanelView(file: ChangedFile): ChangedFileInfoPane
     pathTitle: file.path,
     showOriginalPath: Boolean(file.originalPath),
     originalPathTitle: file.originalPath,
+  };
+}
+
+export function changedFileInfoOpenButtonView(option: WorkspaceOpenOption | null): ChangedFileInfoOpenButtonView | null {
+  if (!option) return null;
+
+  const label = `Open file in ${option.label}`;
+
+  return {
+    className: "ui-icon-button changed-side-open-button",
+    iconClassName: "external-app-icon",
+    ariaLabel: label,
+    title: label,
   };
 }

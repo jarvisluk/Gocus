@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { Minimize2 } from "lucide-react";
 import { ActionDialog } from "./components/ActionDialog";
 import { CollapsedRail } from "./components/CollapsedRail";
@@ -26,6 +26,9 @@ import {
   appViewportView,
   appZenExitButtonView,
 } from "./lib/appShellView";
+import { activeWorkspaceOpenTarget, visibleWorkspaceOpenOptions } from "./lib/workspaceOpenChoices";
+import { workspaceOpenOptions } from "./lib/workspaceOpenOptions";
+import type { WorkspaceOpenTarget } from "./types";
 
 function EditorBackdrop() {
   const backdrop = appEditorBackdropView();
@@ -44,6 +47,7 @@ function EditorBackdrop() {
 
 export default function App() {
   const controller = useGitPeekController();
+  const [workspaceOpenTarget, setWorkspaceOpenTarget] = useState<WorkspaceOpenTarget>("cursor");
   const panelContent = appPanelContentView({
     snapshot: controller.snapshot,
     settingsOpen: controller.settingsOpen,
@@ -59,6 +63,14 @@ export default function App() {
   const nativeDialogBlocker = appNativeDialogBlockerView();
   const changedNowCount = appChangedNowCount(controller.snapshot);
   const showRepositoryControls = appShouldShowRepositoryControls({ snapshot: repositorySnapshot, zenActive });
+  const syncedWorkspaceOpenTarget = activeWorkspaceOpenTarget(
+    visibleWorkspaceOpenOptions(
+      workspaceOpenOptions,
+      controller.availableWorkspaceTargets,
+      controller.preferences.workspaceOpenTargets,
+    ),
+    workspaceOpenTarget,
+  );
   const {
     changedNowWindowOpen,
     collapsedRailChangedNowOpen,
@@ -68,6 +80,7 @@ export default function App() {
     snapshot: controller.snapshot,
     collapsed: controller.collapsed,
     settingsOpen: controller.settingsOpen,
+    workspaceOpenTarget: syncedWorkspaceOpenTarget,
     zenActive,
   });
 
@@ -208,6 +221,8 @@ export default function App() {
                 onEnterZen={() => updatePreferences(appPreferencesWithZenMode(controller.preferences, true))}
                 onOpenSettings={() => controller.setSettingsOpen(true)}
                 onOpenWorkspace={controller.openWorkspace}
+                activeWorkspaceTarget={workspaceOpenTarget}
+                onActiveWorkspaceTargetChange={setWorkspaceOpenTarget}
                 hasRepository={Boolean(controller.snapshot)}
                 changedNowOpen={changedNowWindowOpen}
                 changedNowCount={changedNowCount}

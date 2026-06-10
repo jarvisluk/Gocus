@@ -96,6 +96,7 @@ function commit(overrides) {
     filesChanged: overrides.filesChanged ?? 2,
     parents: overrides.parents ?? ["0000000"],
     refs: overrides.refs ?? [],
+    containedBranches: overrides.containedBranches ?? [],
     lane: overrides.lane ?? "main",
     branchColor: overrides.branchColor ?? "#2f80ed",
     refColors: overrides.refColors ?? [overrides.branchColor ?? "#2f80ed"],
@@ -123,6 +124,7 @@ const mockCommits = [
     title: "Add commit search polish",
     message: "Add commit search polish and keyboard selection",
     refs: ["main"],
+    containedBranches: ["main"],
   }),
   commit({
     hash: "d4e5f6a",
@@ -220,6 +222,7 @@ function installGitPeekMock(config) {
   window.__gitPeekSavedPreferences = [];
   window.__gitPeekSnapshotRequests = [];
   window.__gitPeekOpenedWorkspaces = [];
+  window.__gitPeekOpenedWorkspaceFiles = [];
   window.__gitPeekRefreshCount = 0;
   if (config.clipboardAvailable) {
     Object.defineProperty(navigator, "clipboard", {
@@ -319,6 +322,10 @@ function installGitPeekMock(config) {
     openWorkspace: async (target) => {
       window.__gitPeekOpenedWorkspaces.push(target);
       return { ok: true, message: "Workspace opened." };
+    },
+    openWorkspaceFile: async (target, filePath) => {
+      window.__gitPeekOpenedWorkspaceFiles.push({ target, filePath });
+      return { ok: true, message: "File opened." };
     },
     refresh: async () => {
       window.__gitPeekRefreshCount += 1;
@@ -860,6 +867,7 @@ async function testCommitInfoPanel(browser, baseUrl) {
     assert.match(panelText, /Add commit search polish and keyboard selection/);
     assert.match(panelText, /2 files changed, 8 insertions\(\+\), 1 deletion\(-\)/);
     assert.match(panelText, /main/);
+    assert.match(panelText, /Contained in/);
     assert.match(panelText, /a1b2c3d/);
     await assertVisibleWithinViewport(page, hoverPanel, "commit info panel");
     await assertNoHorizontalOverflow(page, "commit info panel");
@@ -1207,6 +1215,7 @@ async function testTemporaryInfoCopyPrompt(browser, baseUrl) {
       files: snapshotForCommits(mockCommits).changedFiles,
       filter: "all",
       selectedFileKey: "",
+      workspaceOpenTarget: "cursor",
     },
   });
   try {
@@ -1221,6 +1230,10 @@ async function testTemporaryInfoCopyPrompt(browser, baseUrl) {
     await page.getByRole("complementary", { name: "src/components/RecentCommits.tsx" }).waitFor();
     assert.equal(await page.locator(".changed-side-panel").getAttribute("aria-labelledby"), "changed-file-details-title");
     assert.equal(await page.locator(".changed-side-header h2").innerText(), "src/components/RecentCommits.tsx");
+    await page.getByRole("button", { name: "Open file in Cursor" }).click();
+    assert.deepEqual(await page.evaluate(() => window.__gitPeekOpenedWorkspaceFiles), [
+      { target: "cursor", filePath: "src/components/RecentCommits.tsx" },
+    ]);
     await page.getByRole("button", { name: "Close changed file details" }).click();
     assert.equal(await page.locator(".changed-side-panel").count(), 0);
 
@@ -1228,6 +1241,7 @@ async function testTemporaryInfoCopyPrompt(browser, baseUrl) {
       const payload = {
         ...window.__gitPeekTemporaryInfoPayload,
         selectedFileKey: "M-src/styles.css-",
+        workspaceOpenTarget: "finder",
       };
       window.__gitPeekTemporaryInfoPayload = payload;
       window.__gitPeekTemporaryInfoListeners.forEach((callback) => callback(payload));
@@ -1235,6 +1249,11 @@ async function testTemporaryInfoCopyPrompt(browser, baseUrl) {
     await page.getByRole("complementary", { name: "src/styles.css" }).waitFor();
     assert.equal(await page.locator(".changed-side-header h2").innerText(), "src/styles.css");
     assert.equal(await page.getByRole("button", { name: /src\/styles\.css/ }).getAttribute("aria-pressed"), "true");
+    await page.getByRole("button", { name: "Open file in Finder" }).click();
+    assert.deepEqual(await page.evaluate(() => window.__gitPeekOpenedWorkspaceFiles), [
+      { target: "cursor", filePath: "src/components/RecentCommits.tsx" },
+      { target: "finder", filePath: "src/styles.css" },
+    ]);
 
     await page.getByRole("button", { name: "Copy prompt to commit changes" }).click();
     await page.getByRole("button", { name: "Copied prompt" }).waitFor();
@@ -1515,7 +1534,28 @@ async function testCollapsedRailChangedNowToggle(browser, baseUrl) {
 }
 
 async function testExternalWorktreeCheckoutDisabled(browser, baseUrl) {
-  const { page, errors } = await openMockedPage(browser, baseUrl, mockedSnapshotScenario(externalWorktreeCommits));
+  const { page, errors } = await openMockedPage(
+    browser,
+    baseUrl,
+    mockedSnapshotScenario(externalWorktreeCommits, {
+      branches: [
+        {
+          name: "main",
+          fullName: "refs/heads/main",
+          type: "local",
+          current: true,
+          upstream: "origin/main",
+        },
+        {
+          name: "feature/external-worktree",
+          fullName: "refs/heads/feature/external-worktree",
+          type: "local",
+          current: false,
+          upstream: "",
+        },
+      ],
+    }),
+  );
   try {
     await assertHealthyPage(page, errors);
 
@@ -1525,8 +1565,13 @@ async function testExternalWorktreeCheckoutDisabled(browser, baseUrl) {
     await merge.waitFor();
     await checkout.waitFor();
 
-    assert.equal(await merge.isDisabled(), true);
-    assert.equal(await merge.getAttribute("title"), "Open that worktree first to merge there.");
+    assert.equal(await merge.isDisabled(), false);
+    assert.equal(await merge.getAttribute("title"), null);
+    await merge.click();
+    await page.getByRole("dialog", { name: "Merge commit" }).waitFor();
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await page.getByRole("dialog", { name: "Merge commit" }).waitFor({ state: "detached" });
+
     assert.equal(await checkout.isDisabled(), true);
     assert.equal(await checkout.getAttribute("title"), "Open that worktree first to checkout there.");
     assert.equal(await page.getByRole("dialog", { name: "Checkout commit" }).count(), 0);
@@ -1616,6 +1661,41 @@ async function testSwitchBranchFromBranchMenu(browser, baseUrl) {
     await page.getByRole("button", { name: "Confirm" }).click();
     await switchDialog.waitFor({ state: "detached" });
     await assertGitActions(page, [expectedSwitchBranchAction()]);
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
+async function testBranchSwitchExplainsExternalWorktreeDisable(browser, baseUrl) {
+  const { page, errors } = await openMockedPage(browser, baseUrl, dismissableMenuScenario());
+  try {
+    await assertHealthyPage(page, errors);
+
+    await page.getByRole("button", { name: "Choose branch view" }).click();
+    const disabledTitle =
+      "This branch is already checked out in another worktree: " +
+      "/Users/junrong/codespace/git-tree-vis-linked. Open that worktree to work on it.";
+    const disabledSwitch = page.getByRole("menuitem", { name: /^Cannot switch to feature\/footer-toggle:/ });
+    await disabledSwitch.waitFor();
+    assert.equal(await disabledSwitch.isDisabled(), true);
+    assert.equal(await disabledSwitch.getAttribute("title"), disabledTitle);
+    const disabledTooltip = page.locator(".branch-switch-tooltip", { has: disabledSwitch });
+    assert.equal(await disabledTooltip.getAttribute("data-tooltip"), disabledTitle);
+    await disabledTooltip.hover();
+    const tooltipStyle = await disabledTooltip.evaluate((element) => {
+      const style = window.getComputedStyle(element, "::after");
+      return {
+        content: style.content,
+        opacity: style.opacity,
+      };
+    });
+    assert.match(tooltipStyle.content, /already checked out in another worktree/);
+    assert.equal(tooltipStyle.opacity, "1");
+
+    await page.getByRole("menuitem", { name: "feature/footer-toggle", exact: true }).click();
+    await page.getByLabel("Viewing branch feature/footer-toggle").waitFor();
+    await assertGitActions(page, []);
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -1834,6 +1914,8 @@ async function testDismissableMenus(browser, baseUrl) {
     assert.deepEqual(await page.evaluate(() => window.__gitPeekOpenedWorkspaces), ["finder"]);
     await page.getByRole("button", { name: "Open in Finder" }).click();
     assert.deepEqual(await page.evaluate(() => window.__gitPeekOpenedWorkspaces), ["finder", "finder"]);
+    await page.getByRole("button", { name: "Open Changed now" }).click();
+    await page.waitForFunction(() => window.__gitPeekTemporaryInfoPayload?.workspaceOpenTarget === "finder");
 
     assert.deepEqual(errors, []);
   } finally {
@@ -2018,6 +2100,7 @@ async function main() {
     await testEmptyRepositoryRecentOverflow(browser, baseUrl);
     await testBranchViewDoesNotCheckout(browser, baseUrl);
     await testSwitchBranchFromBranchMenu(browser, baseUrl);
+    await testBranchSwitchExplainsExternalWorktreeDisable(browser, baseUrl);
     await testMergeTargetDropdownShowsPriorityBranches(browser, baseUrl);
     await testOpenWorktreeKeepsCommitView(browser, baseUrl);
     await testRefreshFailureRecovers(browser, baseUrl);

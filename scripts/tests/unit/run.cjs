@@ -43,6 +43,7 @@ function commit(overrides = {}) {
     filesChanged: 2,
     parents: ["0000000"],
     refs: ["main"],
+    containedBranches: [],
     lane: "main",
     branchColor: "#2f80ed",
     refColors: ["#2f80ed"],
@@ -622,13 +623,36 @@ function testGitGraphModule() {
     ].join("\x1f"),
     "\x1d\n",
     "8\t1\tsrc/App.tsx\n",
+    "\x1e",
+    [
+      secondHash,
+      "bbbbbbb",
+      "",
+      "Codex",
+      "3 minutes ago",
+      "2026-06-10T02:20:00+08:00",
+      "Base commit",
+      "feature/base",
+      "Base body",
+    ].join("\x1f"),
+    "\x1d\n",
+    "1\t0\tREADME.md\n",
   ].join("");
-  const commits = parseLog(rawLog, { currentHead: firstHash, currentBranch: "main" });
+  const commits = parseLog(rawLog, {
+    currentHead: firstHash,
+    currentBranch: "main",
+    containedBranchTips: [
+      { name: "main", hash: firstHash },
+      { name: "feature/base", hash: secondHash },
+    ],
+  });
 
-  assert.equal(commits.length, 1);
+  assert.equal(commits.length, 2);
   assert.equal(commits[0].fullHash, firstHash);
   assert.equal(commits[0].authoredAt, "2026-06-10T02:26:00+08:00");
   assert.deepEqual(commits[0].refs, ["main"]);
+  assert.deepEqual(commits[0].containedBranches, ["main"]);
+  assert.deepEqual(commits[1].containedBranches, ["main", "feature/base"]);
   assert.equal(commits[0].additions, 8);
   assert.equal(commits[0].deletions, 1);
   assert.equal(commits[0].graph.currentLabel, "main");
@@ -903,6 +927,67 @@ function testGitGraphModule() {
     externalHeads: [externalHeadHash],
     externalBranches: ["feat/external-worktree"],
   });
+
+  const mainMergeHash = "m".repeat(40);
+  const externalMergeHash = "e1".repeat(20);
+  const mergeFirstParentHash = "p".repeat(40);
+  const mergeSecondParentHash = "s".repeat(40);
+  const mergeRootHash = "r".repeat(40);
+  const externalMergeGraph = buildCommitGraph(
+    [
+      {
+        ...commit({ fullHash: mainMergeHash, hash: "mmmmmmm", parents: [mergeFirstParentHash, mergeSecondParentHash], refs: ["main"] }),
+        branchColor: "#f0a400",
+        refColors: ["#f0a400"],
+      },
+      {
+        ...commit({
+          fullHash: externalMergeHash,
+          hash: "e1e1e1e",
+          parents: [mergeFirstParentHash, mergeSecondParentHash],
+          refs: ["feat/branch-switch-message"],
+        }),
+        branchColor: "#2f86d8",
+        refColors: ["#2f86d8"],
+      },
+      {
+        ...commit({ fullHash: mergeSecondParentHash, hash: "sssssss", parents: [mergeRootHash], refs: ["feat/commit-block"] }),
+        branchColor: "#25b7ba",
+        refColors: ["#25b7ba"],
+      },
+      {
+        ...commit({ fullHash: mergeFirstParentHash, hash: "ppppppp", parents: [mergeRootHash], refs: [], refColors: [] }),
+        branchColor: "#f0a400",
+        refColors: [],
+      },
+      {
+        ...commit({ fullHash: mergeRootHash, hash: "rrrrrrr", parents: [], refs: [], refColors: [] }),
+        branchColor: "#f0a400",
+        refColors: [],
+      },
+    ],
+    {
+      currentHead: mainMergeHash,
+      currentBranch: "main",
+      localBranches: ["main", "feat/commit-block"],
+      externalHeads: [externalMergeHash],
+      externalBranches: ["feat/branch-switch-message"],
+    },
+  );
+  const externalMergeGraphByHash = new Map(externalMergeGraph.map((item) => [item.fullHash, item.graph]));
+  assert.equal(externalMergeGraphByHash.get(externalMergeHash).currentVariant, "dashed");
+  assert.deepEqual(externalMergeGraphByHash.get(externalMergeHash).parentStems, [
+    { column: 2, color: "#2f86d8", variant: "dashed" },
+  ]);
+  assert.deepEqual(externalMergeGraphByHash.get(externalMergeHash).bridges, [
+    { fromColumn: 2, toColumn: 1, color: "#25b7ba", variant: "solid", to: "lane" },
+  ]);
+  assert.ok(externalMergeGraphByHash.get(mergeSecondParentHash).passThrough.some((lane) => lane.column === 2 && lane.variant === "dashed"));
+  assert.ok(
+    externalMergeGraphByHash
+      .get(mergeFirstParentHash)
+      .bridges.some((bridge) => bridge.fromColumn === 2 && bridge.toColumn === 0 && bridge.variant === "dashed"),
+  );
 
   const mergeGraph = buildCommitGraph([
     {
@@ -2012,6 +2097,7 @@ async function testCommitRowView(server) {
   const selectedMerge = commit({
     message: "Merge branch 'feature/details'\n\nKeep the full body available.",
     refs: ["main", "tag:v1"],
+    containedBranches: ["main", "feature/details"],
     refColors: ["#123456"],
     parents: ["1111111", "2222222"],
     graph: {
@@ -2114,8 +2200,8 @@ async function testCommitRowView(server) {
     action: "merge",
     label: "Merge",
     icon: "merge",
-    disabled: true,
-    title: "Open that worktree first to merge there.",
+    disabled: false,
+    title: undefined,
   });
   assert.deepEqual(externalView.checkoutAction, {
     action: "checkout",
@@ -2133,6 +2219,7 @@ async function testCommitRowView(server) {
   assert.equal(hoverPanel.primarySectionClassName, "commit-hover-section commit-hover-primary");
   assert.equal(hoverPanel.statsSectionClassName, "commit-hover-section commit-hover-stats-section");
   assert.equal(hoverPanel.refsSectionClassName, "commit-hover-section commit-hover-refs-section");
+  assert.equal(hoverPanel.containedSectionClassName, "commit-hover-section commit-hover-contained-section");
   assert.equal(hoverPanel.hashSectionClassName, "commit-hover-section commit-hover-hash-section");
   assert.equal(hoverPanel.headerClassName, "commit-hover-header");
   assert.equal(hoverPanel.statsClassName, "commit-hover-stats");
@@ -2150,6 +2237,13 @@ async function testCommitRowView(server) {
     { key: "main-0", label: "main", color: "#123456" },
     { key: "tag:v1-1", label: "tag:v1", color: "#2f80ed" },
   ]);
+  assert.equal(hoverPanel.containedClassName, "commit-hover-contained");
+  assert.equal(hoverPanel.containedLabelClassName, "commit-hover-contained-label");
+  assert.equal(hoverPanel.containedBranchesClassName, "commit-hover-contained-branches");
+  assert.equal(hoverPanel.containedBranchClassName, "commit-hover-contained-branch");
+  assert.deepEqual(hoverPanel.containedBranches, ["main", "feature/details"]);
+  assert.equal(hoverPanel.showContainedBranches, true);
+  assert.equal(hoverPanel.containedBranchesLabel, "Contained in");
   assert.equal(hoverPanel.hash, "a1b2c3d");
 
   const inheritedLaneHoverPanel = commitHoverPanelView(
@@ -2165,6 +2259,8 @@ async function testCommitRowView(server) {
   );
   assert.deepEqual(inheritedLaneHoverPanel.refs, [{ key: "feature/details-lane", label: "feature/details", color: "#654321" }]);
   assert.equal(inheritedLaneHoverPanel.showRefs, true);
+  assert.deepEqual(inheritedLaneHoverPanel.containedBranches, []);
+  assert.equal(inheritedLaneHoverPanel.showContainedBranches, false);
 }
 
 async function testCommitView(server) {
@@ -3703,6 +3799,7 @@ async function testChangedFileView(server) {
   const {
     changedFileDeltaItems,
     changedFileDeltaView,
+    changedFileInfoOpenButtonView,
     changedFileInfoPanelView,
     changedFileInfoTitleId,
     changedFileRowView,
@@ -3791,6 +3888,13 @@ async function testChangedFileView(server) {
   assert.equal(idleRow.className, "file-row");
   assert.equal(idleRow.ariaPressed, false);
   assert.equal(changedFileInfoTitleId, "changed-file-details-title");
+  assert.deepEqual(changedFileInfoOpenButtonView({ target: "cursor", label: "Cursor", iconSrc: "cursor.png" }), {
+    className: "ui-icon-button changed-side-open-button",
+    iconClassName: "external-app-icon",
+    ariaLabel: "Open file in Cursor",
+    title: "Open file in Cursor",
+  });
+  assert.equal(changedFileInfoOpenButtonView(null), null);
 
   assert.deepEqual(changedFileInfoPanelView(renamed), {
     panel: {
@@ -3866,6 +3970,7 @@ async function testChangedFilesTemporaryInfo(server) {
     collapsed: false,
     collapsedRailChangedNowOpen: false,
     settingsOpen: false,
+    workspaceOpenTarget: "cursor",
     zenActive: false,
   };
 
@@ -3874,6 +3979,7 @@ async function testChangedFilesTemporaryInfo(server) {
     files: [modified],
     filter: "all",
     selectedFileKey: "",
+    workspaceOpenTarget: "cursor",
   });
   assert.equal(changedFilesTemporaryInfoPayload({ ...baseOptions, snapshot: null }), null);
   assert.equal(changedFilesTemporaryInfoPayload({ ...baseOptions, changedNowWindowOpen: false }), null);
@@ -4733,6 +4839,10 @@ async function testRepositoryControlsView(server) {
   const current = worktree();
   const linked = worktree({ path: "/Users/junrong/codespace/git-tree-vis-linked", branch: "feature/worktree-menu", current: false });
   const bare = worktree({ path: "/Users/junrong/codespace/git-tree-vis.git", branch: "", current: false, bare: true });
+  const linkedBranchDisabledTitle =
+    "This branch is already checked out in another worktree: " +
+    "/Users/junrong/codespace/git-tree-vis-linked. Open that worktree to work on it.";
+  const linkedBranchDisabledAriaLabel = `Cannot switch to feature/worktree-menu: ${linkedBranchDisabledTitle}`;
 
   assert.equal(selectedBranchName({ mode: "all" }), "");
   assert.equal(selectedBranchName({ mode: "branch", ref: "feature/worktree-menu" }), "feature/worktree-menu");
@@ -4805,6 +4915,7 @@ async function testRepositoryControlsView(server) {
     show: false,
     disabled: false,
     branchName: "main",
+    tooltipClassName: "branch-switch-tooltip",
     className: "branch-switch-button",
     icon: "switch",
     ariaLabel: "Switch to main",
@@ -4814,6 +4925,7 @@ async function testRepositoryControlsView(server) {
     show: true,
     disabled: false,
     branchName: "feature/worktree-menu",
+    tooltipClassName: "branch-switch-tooltip",
     className: "branch-switch-button",
     icon: "switch",
     ariaLabel: "Switch to feature/worktree-menu",
@@ -4823,10 +4935,11 @@ async function testRepositoryControlsView(server) {
     show: true,
     disabled: true,
     branchName: "feature/worktree-menu",
+    tooltipClassName: "branch-switch-tooltip",
     className: "branch-switch-button",
     icon: "switch",
-    ariaLabel: "Switch to feature/worktree-menu",
-    title: "This branch is checked out in another worktree.",
+    ariaLabel: linkedBranchDisabledAriaLabel,
+    title: linkedBranchDisabledTitle,
   });
   assert.deepEqual(repositoryBranchMenuItemView(true, branches[0]), {
     rowClassName: "branch-ref-menu-row",
@@ -4841,6 +4954,7 @@ async function testRepositoryControlsView(server) {
       show: false,
       disabled: false,
       branchName: "main",
+      tooltipClassName: "branch-switch-tooltip",
       className: "branch-switch-button",
       icon: "switch",
       ariaLabel: "Switch to main",
@@ -4868,6 +4982,7 @@ async function testRepositoryControlsView(server) {
         show: false,
         disabled: false,
         branchName: "origin/main",
+        tooltipClassName: "branch-switch-tooltip",
         className: "branch-switch-button",
         icon: "switch",
         ariaLabel: "Switch to origin/main",
@@ -4899,6 +5014,7 @@ async function testRepositoryControlsView(server) {
           show: false,
           disabled: false,
           branchName: "main",
+          tooltipClassName: "branch-switch-tooltip",
           className: "branch-switch-button",
           icon: "switch",
           ariaLabel: "Switch to main",
@@ -4912,6 +5028,7 @@ async function testRepositoryControlsView(server) {
           show: true,
           disabled: false,
           branchName: "feature/worktree-menu",
+          tooltipClassName: "branch-switch-tooltip",
           className: "branch-switch-button",
           icon: "switch",
           ariaLabel: "Switch to feature/worktree-menu",
@@ -4950,6 +5067,7 @@ async function testRepositoryControlsView(server) {
             show: false,
             disabled: false,
             branchName: "main",
+            tooltipClassName: "branch-switch-tooltip",
             className: "branch-switch-button",
             icon: "switch",
             ariaLabel: "Switch to main",
@@ -4963,6 +5081,7 @@ async function testRepositoryControlsView(server) {
             show: true,
             disabled: false,
             branchName: "feature/worktree-menu",
+            tooltipClassName: "branch-switch-tooltip",
             className: "branch-switch-button",
             icon: "switch",
             ariaLabel: "Switch to feature/worktree-menu",

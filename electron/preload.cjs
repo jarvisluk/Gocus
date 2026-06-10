@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("gitPeek", {
   checkout: (ref, view) => ipcRenderer.invoke("git:checkout", ref, view),
   openWorktree: (worktreePath, view) => ipcRenderer.invoke("git:openWorktree", worktreePath, view),
   openWorkspace: (target) => ipcRenderer.invoke("workspace:open", target),
+  openWorkspaceFile: (target, filePath) => ipcRenderer.invoke("workspace:openFile", target, filePath),
   getAvailableWorkspaceTargets: () => ipcRenderer.invoke("workspace:getAvailableTargets"),
   getPreferences: () => ipcRenderer.invoke("preferences:get"),
   savePreferences: (preferences) => ipcRenderer.invoke("preferences:save", preferences),

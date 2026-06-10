@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Copy, X } from "lucide-react";
-import { changedFileDeltaItems, changedFileInfoPanelView, changedFileRowView, type ChangedFileView } from "../lib/changedFileView";
+import {
+  changedFileDeltaItems,
+  changedFileInfoOpenButtonView,
+  changedFileInfoPanelView,
+  changedFileRowView,
+  type ChangedFileView,
+} from "../lib/changedFileView";
 import {
   changedNowCopyButtonView,
   changedNowPanelView,
@@ -13,6 +19,7 @@ import { changedFilesView } from "../lib/changedFilesView";
 import { changedFilesCommitPrompt } from "../lib/commitPrompt";
 import { copyTextWithFallback } from "../lib/copyText";
 import { logBridgeWarning } from "../lib/errorMessages";
+import type { WorkspaceOpenOption } from "../lib/workspaceOpenOptions";
 import type { ChangedFile, FileFilter, PromptLanguage } from "../types";
 
 function deltaContent(delta: ChangedFileView["delta"]) {
@@ -33,8 +40,19 @@ function copyPromptIcon(icon: CopyPromptIcon) {
   return <Copy aria-hidden="true" />;
 }
 
-export function ChangedFileInfoPanel({ file, onClose }: { file: ChangedFile; onClose: () => void }) {
+export function ChangedFileInfoPanel({
+  file,
+  workspaceOpenOption,
+  onClose,
+  onOpenFile,
+}: {
+  file: ChangedFile;
+  workspaceOpenOption?: WorkspaceOpenOption | null;
+  onClose: () => void;
+  onOpenFile?: (filePath: string) => void;
+}) {
   const view = changedFileInfoPanelView(file);
+  const openButton = changedFileInfoOpenButtonView(workspaceOpenOption ?? null);
 
   return (
     <aside className={view.panel.className} aria-labelledby={view.panel.ariaLabelledBy}>
@@ -44,9 +62,24 @@ export function ChangedFileInfoPanel({ file, onClose }: { file: ChangedFile; onC
           <h2 id={view.titleId} title={view.pathTitle}>{view.file.pathLabel}</h2>
           <span>{view.statusLabel}</span>
         </div>
-        <button className={view.closeButton.className} type="button" aria-label={view.closeButton.ariaLabel} onClick={onClose}>
-          <X aria-hidden="true" />
-        </button>
+        <div className="changed-side-actions">
+          {openButton && onOpenFile ? (
+            <button
+              className={openButton.className}
+              type="button"
+              aria-label={openButton.ariaLabel}
+              title={openButton.title}
+              onClick={() => onOpenFile(file.path)}
+            >
+              <span className={openButton.iconClassName}>
+                <img src={workspaceOpenOption?.iconSrc} alt="" aria-hidden="true" />
+              </span>
+            </button>
+          ) : null}
+          <button className={view.closeButton.className} type="button" aria-label={view.closeButton.ariaLabel} onClick={onClose}>
+            <X aria-hidden="true" />
+          </button>
+        </div>
       </header>
       <dl className={view.factsListClassName}>
         <div>

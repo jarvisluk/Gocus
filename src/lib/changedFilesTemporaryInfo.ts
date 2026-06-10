@@ -1,4 +1,4 @@
-import type { GitSnapshot, TemporaryInfoPayload } from "../types";
+import type { GitSnapshot, TemporaryInfoPayload, WorkspaceOpenTarget } from "../types";
 
 interface ChangedFilesTemporaryInfoOptions {
   snapshot: Pick<GitSnapshot, "changedFiles"> | null;
@@ -6,6 +6,7 @@ interface ChangedFilesTemporaryInfoOptions {
   collapsed: boolean;
   collapsedRailChangedNowOpen: boolean;
   settingsOpen: boolean;
+  workspaceOpenTarget: WorkspaceOpenTarget | "";
   zenActive: boolean;
 }
 
@@ -15,6 +16,7 @@ export function changedFilesTemporaryInfoPayload({
   collapsed,
   collapsedRailChangedNowOpen,
   settingsOpen,
+  workspaceOpenTarget,
   zenActive,
 }: ChangedFilesTemporaryInfoOptions): TemporaryInfoPayload {
   if (!snapshot || !changedNowWindowOpen || settingsOpen || zenActive) return null;
@@ -25,5 +27,6 @@ export function changedFilesTemporaryInfoPayload({
     files: snapshot.changedFiles,
     filter: "all",
     selectedFileKey: "",
+    workspaceOpenTarget,
   };
 }
