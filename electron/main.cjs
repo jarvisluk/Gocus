@@ -6,6 +6,8 @@ const { registerIpcHandlers } = require("./lib/ipcHandlers.cjs");
 const { createLaunchAtLoginController } = require("./lib/launchAtLogin.cjs");
 const { installOutputErrorGuard } = require("./lib/outputGuard.cjs");
 const {
+  changedFileInfoBounds,
+  changedFileInfoWindowSize,
   collapsedSize,
   commitInfoBounds,
   commitInfoWindowSize,
@@ -29,7 +31,7 @@ const {
   readGitSnapshot,
 } = require("./lib/git.cjs");
 const { createRepositoryWatcher } = require("./lib/gitWatcher.cjs");
-const { getAvailableWorkspaceTargets, openWorkspace } = require("./lib/workspace.cjs");
+const { getAvailableWorkspaceTargets, openWorkspace, openWorkspaceFile } = require("./lib/workspace.cjs");
 
 installOutputErrorGuard();
 
@@ -48,6 +50,8 @@ let realQuitRequested = false;
 let dockHiddenForMenuBarMode = false;
 let temporaryInfoWindow = null;
 let temporaryInfoPayload = null;
+let changedFileInfoWindow = null;
+let changedFileInfoPayload = null;
 let commitInfoWindow = null;
 let commitInfoPayload = null;
 let repositoryWatcher = null;
@@ -105,6 +109,7 @@ function softQuitToMenuBar() {
   }
 
   closeTemporaryInfoWindow();
+  closeChangedFileInfoWindow();
   closeCommitInfoWindow();
   if (mainWindow && !mainWindow.isDestroyed()) {
     saveCurrentExpandedWindowSize(mainWindow);
@@ -326,6 +331,10 @@ function sendCommitInfoPanelClosed() {
   sendToWindow(mainWindow, "window:commitInfoPanelClosed");
 }
 
+function sendChangedFileInfoPanelClosed() {
+  sendToWindow(temporaryInfoWindow, "window:changedFileInfoPanelClosed");
+}
+
 function waitForDialogBlockerFrame() {
   return new Promise((resolve) => setTimeout(resolve, 32));
 }
@@ -343,14 +352,18 @@ function sendToWindow(win, channel, ...args) {
   }
 }
 
+function isWindowFocused(win) {
+  return Boolean(win && !win.isDestroyed() && win.isFocused());
+}
+
 function sendSystemTheme() {
-  for (const win of [mainWindow, temporaryInfoWindow, commitInfoWindow]) {
+  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow]) {
     sendToWindow(win, "theme:changed", getSystemTheme());
   }
 }
 
 function sendPreferences(preferences = readPreferences()) {
-  for (const win of [mainWindow, temporaryInfoWindow, commitInfoWindow]) {
+  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow]) {
     sendToWindow(win, "preferences:changed", preferences);
   }
 }
@@ -428,6 +441,7 @@ function setCollapsedWindow(collapsed) {
   if (!collapsedState && nextCollapsedState) saveCurrentExpandedWindowSize(mainWindow);
   if (nextCollapsedState) {
     closeTemporaryInfoWindow();
+    closeChangedFileInfoWindow();
     closeCommitInfoWindow();
   }
   collapsedState = nextCollapsedState;
@@ -441,6 +455,7 @@ function dockWindow(collapsed = collapsedState) {
   if (!collapsed) saveCurrentExpandedWindowSize(mainWindow);
   positionWindow(mainWindow, collapsed);
   positionTemporaryInfoWindow({ animated: true });
+  positionChangedFileInfoWindow({ animated: true });
   positionCommitInfoWindow({ animated: true });
 }
 
@@ -497,11 +512,14 @@ function syncTemporaryInfoWindowLevel() {
 
 function closeTemporaryInfoWindowIfAppInactive() {
   setTimeout(() => {
-    const mainFocused = Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused());
-    const infoFocused = Boolean(temporaryInfoWindow && !temporaryInfoWindow.isDestroyed() && temporaryInfoWindow.isFocused());
-    const commitInfoFocused = Boolean(commitInfoWindow && !commitInfoWindow.isDestroyed() && commitInfoWindow.isFocused());
-    if (!mainFocused && !infoFocused && !commitInfoFocused) {
+    const appFocused =
+      isWindowFocused(mainWindow) ||
+      isWindowFocused(temporaryInfoWindow) ||
+      isWindowFocused(changedFileInfoWindow) ||
+      isWindowFocused(commitInfoWindow);
+    if (!appFocused) {
       closeTemporaryInfoWindow();
+      closeChangedFileInfoWindow();
       closeCommitInfoWindow();
     }
   }, 80);
@@ -509,6 +527,7 @@ function closeTemporaryInfoWindowIfAppInactive() {
 
 function closeTemporaryInfoWindow() {
   temporaryInfoPayload = null;
+  closeChangedFileInfoWindow();
   if (!temporaryInfoWindow || temporaryInfoWindow.isDestroyed()) return;
   const windowToClose = temporaryInfoWindow;
   temporaryInfoWindow = null;
@@ -554,6 +573,7 @@ function ensureTemporaryInfoWindow() {
   temporaryInfoWindow.on("closed", () => {
     temporaryInfoWindow = null;
     temporaryInfoPayload = null;
+    closeChangedFileInfoWindow();
     sendTemporaryInfoPanelClosed();
   });
   loadRendererWindow(temporaryInfoWindow, "temporary-info");
@@ -571,8 +591,121 @@ function setTemporaryInfoPanel(payload) {
   const infoWindow = ensureTemporaryInfoWindow();
   if (!infoWindow) return;
   positionTemporaryInfoWindow();
+  positionChangedFileInfoWindow();
   sendTemporaryInfoPayload();
   positionCommitInfoWindow();
+}
+
+function changedFileInfoWindowBounds() {
+  if (!temporaryInfoWindow || temporaryInfoWindow.isDestroyed()) return null;
+
+  const temporaryBounds = temporaryInfoWindow.getBounds();
+  const display = screen.getDisplayMatching(temporaryBounds).workArea;
+  return changedFileInfoBounds({ temporaryInfoBounds: temporaryBounds, display });
+}
+
+function sendChangedFileInfoPayload() {
+  if (!changedFileInfoWindow || changedFileInfoWindow.isDestroyed()) return;
+  sendToWindow(changedFileInfoWindow, "window:changedFileInfoPayload", changedFileInfoPayload);
+}
+
+function setChangedFileInfoWindowBounds(bounds, animated = false) {
+  if (!changedFileInfoWindow || changedFileInfoWindow.isDestroyed()) return;
+  if (windowBoundsEqual(changedFileInfoWindow.getBounds(), bounds)) return;
+  changedFileInfoWindow.setBounds(bounds, animated);
+}
+
+function positionChangedFileInfoWindow({ animated = false } = {}) {
+  if (!changedFileInfoWindow || changedFileInfoWindow.isDestroyed()) return;
+  const bounds = changedFileInfoWindowBounds();
+  if (bounds) setChangedFileInfoWindowBounds(bounds, animated);
+}
+
+function syncChangedFileInfoWindowLevel() {
+  if (!changedFileInfoWindow || changedFileInfoWindow.isDestroyed()) return;
+  changedFileInfoWindow.setAlwaysOnTop(pinnedState || isWindowFocused(mainWindow), "floating");
+}
+
+function closeChangedFileInfoWindowIfAppInactive() {
+  setTimeout(() => {
+    const appFocused =
+      isWindowFocused(mainWindow) ||
+      isWindowFocused(temporaryInfoWindow) ||
+      isWindowFocused(changedFileInfoWindow) ||
+      isWindowFocused(commitInfoWindow);
+    if (!appFocused) {
+      closeChangedFileInfoWindow();
+      closeTemporaryInfoWindow();
+      closeCommitInfoWindow();
+    }
+  }, 80);
+}
+
+function closeChangedFileInfoWindow() {
+  changedFileInfoPayload = null;
+  if (!changedFileInfoWindow || changedFileInfoWindow.isDestroyed()) return;
+  const windowToClose = changedFileInfoWindow;
+  changedFileInfoWindow = null;
+  sendChangedFileInfoPanelClosed();
+  windowToClose.close();
+}
+
+function ensureChangedFileInfoWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
+  if (!temporaryInfoWindow || temporaryInfoWindow.isDestroyed()) return null;
+  if (changedFileInfoWindow && !changedFileInfoWindow.isDestroyed()) return changedFileInfoWindow;
+
+  const bounds = changedFileInfoWindowBounds() ?? { ...changedFileInfoWindowSize };
+  changedFileInfoWindow = new BrowserWindow({
+    ...bounds,
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: "#00000000",
+    hasShadow: false,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    skipTaskbar: true,
+    title: "Git Peek Changed File Info",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  syncChangedFileInfoWindowLevel();
+  changedFileInfoWindow.once("ready-to-show", () => {
+    positionChangedFileInfoWindow();
+    syncChangedFileInfoWindowLevel();
+    changedFileInfoWindow?.showInactive();
+    sendChangedFileInfoPayload();
+  });
+  changedFileInfoWindow.webContents.on("did-finish-load", sendChangedFileInfoPayload);
+  changedFileInfoWindow.on("blur", closeChangedFileInfoWindowIfAppInactive);
+  changedFileInfoWindow.on("closed", () => {
+    changedFileInfoWindow = null;
+    changedFileInfoPayload = null;
+    sendChangedFileInfoPanelClosed();
+  });
+  loadRendererWindow(changedFileInfoWindow, "changed-file-info");
+
+  return changedFileInfoWindow;
+}
+
+function setChangedFileInfoPanel(payload) {
+  if (!payload) {
+    closeChangedFileInfoWindow();
+    return;
+  }
+
+  changedFileInfoPayload = payload;
+  const infoWindow = ensureChangedFileInfoWindow();
+  if (!infoWindow) return;
+  positionChangedFileInfoWindow();
+  sendChangedFileInfoPayload();
 }
 
 function commitInfoWindowBounds() {
@@ -610,11 +743,14 @@ function syncCommitInfoWindowLevel() {
 
 function closeCommitInfoWindowIfAppInactive() {
   setTimeout(() => {
-    const mainFocused = Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused());
-    const temporaryInfoFocused = Boolean(temporaryInfoWindow && !temporaryInfoWindow.isDestroyed() && temporaryInfoWindow.isFocused());
-    const commitInfoFocused = Boolean(commitInfoWindow && !commitInfoWindow.isDestroyed() && commitInfoWindow.isFocused());
-    if (!mainFocused && !temporaryInfoFocused && !commitInfoFocused) {
+    const appFocused =
+      isWindowFocused(mainWindow) ||
+      isWindowFocused(temporaryInfoWindow) ||
+      isWindowFocused(changedFileInfoWindow) ||
+      isWindowFocused(commitInfoWindow);
+    if (!appFocused) {
       closeCommitInfoWindow();
+      closeChangedFileInfoWindow();
       closeTemporaryInfoWindow();
     }
   }, 80);
@@ -691,6 +827,7 @@ function setPinnedWindow(pinned) {
   pinnedState = Boolean(pinned);
   mainWindow.setAlwaysOnTop(pinnedState, "floating");
   syncTemporaryInfoWindowLevel();
+  syncChangedFileInfoWindowLevel();
   syncCommitInfoWindowLevel();
   sendPinnedChanged();
   buildMenus();
@@ -737,29 +874,36 @@ function createWindow({ showOnReady = true } = {}) {
   });
   mainWindow.on("move", () => {
     positionTemporaryInfoWindow();
+    positionChangedFileInfoWindow();
     positionCommitInfoWindow();
   });
   mainWindow.on("resize", () => {
     scheduleExpandedWindowSizeSave(mainWindow);
     positionTemporaryInfoWindow();
+    positionChangedFileInfoWindow();
     positionCommitInfoWindow();
   });
   mainWindow.on("focus", () => {
     syncTemporaryInfoWindowLevel();
+    syncChangedFileInfoWindowLevel();
     syncCommitInfoWindowLevel();
   });
   mainWindow.on("blur", () => {
     syncTemporaryInfoWindowLevel();
+    syncChangedFileInfoWindowLevel();
     syncCommitInfoWindowLevel();
     closeTemporaryInfoWindowIfAppInactive();
+    closeChangedFileInfoWindowIfAppInactive();
     closeCommitInfoWindowIfAppInactive();
   });
   mainWindow.on("hide", () => {
     closeTemporaryInfoWindow();
+    closeChangedFileInfoWindow();
     closeCommitInfoWindow();
   });
   mainWindow.on("close", (event) => {
     closeTemporaryInfoWindow();
+    closeChangedFileInfoWindow();
     closeCommitInfoWindow();
     saveCurrentExpandedWindowSize(mainWindow);
     if (process.platform === "darwin" && !realQuitRequested && shouldUseMenuBarResidency()) {
@@ -769,6 +913,7 @@ function createWindow({ showOnReady = true } = {}) {
   });
   mainWindow.on("closed", () => {
     closeTemporaryInfoWindow();
+    closeChangedFileInfoWindow();
     closeCommitInfoWindow();
     clearTimeout(applyingWindowBoundsTimer);
     clearTimeout(expandedWindowSizeSaveTimer);
@@ -990,10 +1135,12 @@ app.whenReady().then(() => {
   });
   app.on("browser-window-blur", () => {
     closeTemporaryInfoWindowIfAppInactive();
+    closeChangedFileInfoWindowIfAppInactive();
     closeCommitInfoWindowIfAppInactive();
   });
   app.on("did-resign-active", () => {
     closeTemporaryInfoWindow();
+    closeChangedFileInfoWindow();
     closeCommitInfoWindow();
   });
 });
@@ -1023,6 +1170,7 @@ registerIpcHandlers({
   dockWindow,
   errorResponse,
   getAvailableWorkspaceTargets,
+  getChangedFileInfoPayload: () => changedFileInfoPayload,
   getCommitInfoPayload: () => commitInfoPayload,
   getPinnedState: () => pinnedState,
   getSnapshotResponse,
@@ -1036,6 +1184,7 @@ registerIpcHandlers({
   normalizeView,
   openRepositoryPath,
   openWorkspace,
+  openWorkspaceFile,
   openWorktree,
   readPreferences,
   readRecentRepositories,
@@ -1044,6 +1193,7 @@ registerIpcHandlers({
   sendPreferences,
   sendSnapshotResponse,
   setCollapsedWindow,
+  setChangedFileInfoPanel,
   setCommitInfoPanel,
   setCurrentView: (view) => {
     currentView = view;

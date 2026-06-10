@@ -1,7 +1,6 @@
 import type { ChangedFile, ChangedFilesTemporaryInfoPayload, FileFilter, TemporaryInfoPayload } from "../types";
 import { changedFileKey } from "./changedFileIdentity";
 import { filteredChangedFiles } from "./changedFilesView";
-import { joinClass } from "./classNames";
 import { politeStatusView } from "./statusView";
 
 export function selectedChangedFile(files: readonly ChangedFile[], selectedFileKey: string, filter: FileFilter = "all") {
@@ -23,7 +22,7 @@ export function temporaryInfoWindowView(payload: TemporaryInfoPayload, selectedF
       className: "temporary-info-viewport is-electron",
     },
     panel: {
-      className: joinClass("peek-panel", "temporary-info-panel", selectedFile && "has-detail"),
+      className: "peek-panel temporary-info-panel",
       ariaLabel: "Changed files window",
     },
     emptyState: politeStatusView({

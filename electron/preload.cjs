@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("gitPeek", {
   checkout: (ref, view) => ipcRenderer.invoke("git:checkout", ref, view),
   openWorktree: (worktreePath, view) => ipcRenderer.invoke("git:openWorktree", worktreePath, view),
   openWorkspace: (target) => ipcRenderer.invoke("workspace:open", target),
+  openWorkspaceFile: (target, filePath) => ipcRenderer.invoke("workspace:openFile", target, filePath),
   getAvailableWorkspaceTargets: () => ipcRenderer.invoke("workspace:getAvailableTargets"),
   getPreferences: () => ipcRenderer.invoke("preferences:get"),
   savePreferences: (preferences) => ipcRenderer.invoke("preferences:save", preferences),
@@ -22,6 +23,8 @@ contextBridge.exposeInMainWorld("gitPeek", {
   dockToEdge: (collapsed) => ipcRenderer.invoke("window:dockToEdge", collapsed),
   getTemporaryInfoPayload: () => ipcRenderer.invoke("window:getTemporaryInfoPayload"),
   setTemporaryInfoPanel: (payload) => ipcRenderer.invoke("window:setTemporaryInfoPanel", payload),
+  getChangedFileInfoPayload: () => ipcRenderer.invoke("window:getChangedFileInfoPayload"),
+  setChangedFileInfoPanel: (payload) => ipcRenderer.invoke("window:setChangedFileInfoPanel", payload),
   getCommitInfoPayload: () => ipcRenderer.invoke("window:getCommitInfoPayload"),
   setCommitInfoPanel: (payload) => ipcRenderer.invoke("window:setCommitInfoPanel", payload),
   copyText: (text) => ipcRenderer.invoke("clipboard:writeText", text),
@@ -35,6 +38,16 @@ contextBridge.exposeInMainWorld("gitPeek", {
     const handler = () => callback();
     ipcRenderer.on("window:temporaryInfoPanelClosed", handler);
     return () => ipcRenderer.removeListener("window:temporaryInfoPanelClosed", handler);
+  },
+  onChangedFileInfoPayloadUpdated: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on("window:changedFileInfoPayload", handler);
+    return () => ipcRenderer.removeListener("window:changedFileInfoPayload", handler);
+  },
+  onChangedFileInfoPanelClosed: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on("window:changedFileInfoPanelClosed", handler);
+    return () => ipcRenderer.removeListener("window:changedFileInfoPanelClosed", handler);
   },
   onCommitInfoPayloadUpdated: (callback) => {
     const handler = (_event, payload) => callback(payload);

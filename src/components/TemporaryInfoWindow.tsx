@@ -10,7 +10,7 @@ import {
 import { runTemporaryInfoPanelBridgeSideEffect } from "../lib/temporaryInfoPanelBridge";
 import { changedFilesSelectedFileKey, temporaryInfoWindowView } from "../lib/temporaryInfoSelection";
 import type { TemporaryInfoPayload, Theme, UiPreferences } from "../types";
-import { ChangedFileInfoPanel, ChangedNow } from "./ChangedNow";
+import { ChangedNow } from "./ChangedNow";
 
 export function TemporaryInfoWindow() {
   const [payload, setPayload] = useState<TemporaryInfoPayload>(null);
@@ -52,6 +52,22 @@ export function TemporaryInfoWindow() {
     setSelectedFileKey((current) => changedFilesSelectedFileKey(payload, current));
   }, [payload]);
 
+  useEffect(() => {
+    const selectedFile = view.selectedFile;
+    const workspaceOpenTarget = view.changedFilesPayload?.workspaceOpenTarget ?? "";
+    const nextPayload = selectedFile ? { kind: "changed-file" as const, file: selectedFile, workspaceOpenTarget } : null;
+
+    window.gitPeek
+      ?.setChangedFileInfoPanel(nextPayload)
+      .catch((error) => logBridgeWarning("Unable to update changed file info panel.", error));
+  }, [view.changedFilesPayload?.workspaceOpenTarget, view.selectedFile]);
+
+  useEffect(() => {
+    return window.gitPeek?.onChangedFileInfoPanelClosed(() => {
+      setSelectedFileKey("");
+    });
+  }, []);
+
   function closeTemporaryInfoPanel() {
     runTemporaryInfoPanelBridgeSideEffect("close", (nextPayload) => window.gitPeek?.setTemporaryInfoPanel(nextPayload));
   }
@@ -68,7 +84,6 @@ export function TemporaryInfoWindow() {
             onClose={closeTemporaryInfoPanel}
             onSelectFile={setSelectedFileKey}
           />
-          {view.selectedFile ? <ChangedFileInfoPanel file={view.selectedFile} onClose={() => setSelectedFileKey("")} /> : null}
         </section>
       ) : (
         <section

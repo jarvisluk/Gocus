@@ -2,6 +2,7 @@ const expandedMinimumSize = { width: 320, height: 620 };
 const defaultExpandedSize = { width: expandedMinimumSize.width, height: 780 };
 const collapsedSize = { width: 38, height: 268 };
 const temporaryInfoWindowSize = { width: 280, height: 252 };
+const changedFileInfoWindowSize = { width: 280, height: 252 };
 const commitInfoWindowSize = { width: 348, height: 132 };
 const temporaryInfoWindowGap = 10;
 
@@ -57,6 +58,19 @@ function temporaryInfoBounds({ mainBounds, display, alignTop = false }) {
   return sideInfoBounds({ mainBounds, display, alignTop, size: temporaryInfoWindowSize });
 }
 
+function changedFileInfoBounds({ temporaryInfoBounds, display }) {
+  const width = changedFileInfoWindowSize.width;
+  const height = changedFileInfoWindowSize.height;
+  const preferredX = temporaryInfoBounds.x - width - temporaryInfoWindowGap;
+  const fallbackX = temporaryInfoBounds.x + temporaryInfoBounds.width + temporaryInfoWindowGap;
+  const x = preferredX >= display.x + 8 ? preferredX : Math.min(fallbackX, display.x + display.width - width - 8);
+  const minY = display.y + 8;
+  const maxY = display.y + display.height - height - 8;
+  const y = Math.min(Math.max(temporaryInfoBounds.y, minY), Math.max(minY, maxY));
+
+  return { x, y, width, height };
+}
+
 function rectanglesOverlap(left, right) {
   return (
     Boolean(left) &&
@@ -103,6 +117,8 @@ function windowBoundsEqual(left, right) {
 }
 
 module.exports = {
+  changedFileInfoBounds,
+  changedFileInfoWindowSize,
   collapsedSize,
   commitInfoBounds,
   commitInfoWindowSize,

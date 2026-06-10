@@ -170,6 +170,7 @@ export type ChangedFilesTemporaryInfoPayload = {
   files: ChangedFile[];
   filter: FileFilter;
   selectedFileKey: string;
+  workspaceOpenTarget: WorkspaceOpenTarget | "";
 };
 
 export interface CommitInfoAnchorBounds {
@@ -182,6 +183,14 @@ export type CommitInfoPayload =
       kind: "commit";
       commit: CommitItem;
       anchorBounds?: CommitInfoAnchorBounds;
+    }
+  | null;
+
+export type ChangedFileInfoPayload =
+  | {
+      kind: "changed-file";
+      file: ChangedFile;
+      workspaceOpenTarget: WorkspaceOpenTarget | "";
     }
   | null;
 

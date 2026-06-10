@@ -9,6 +9,7 @@ function registerIpcHandlers({
   dockWindow,
   errorResponse,
   getAvailableWorkspaceTargets,
+  getChangedFileInfoPayload,
   getPinnedState,
   getCommitInfoPayload,
   getSnapshotResponse,
@@ -22,6 +23,7 @@ function registerIpcHandlers({
   normalizeView,
   openRepositoryPath,
   openWorkspace,
+  openWorkspaceFile,
   openWorktree,
   readPreferences,
   readRecentRepositories,
@@ -30,6 +32,7 @@ function registerIpcHandlers({
   sendPreferences,
   sendSnapshotResponse,
   setCollapsedWindow,
+  setChangedFileInfoPanel,
   setCommitInfoPanel,
   setCurrentView,
   setPinnedWindow,
@@ -153,6 +156,10 @@ function registerIpcHandlers({
     return openWorkspace(repositoryPathForAction(), target);
   });
 
+  ipcMain.handle("workspace:openFile", async (_event, target, filePath) => {
+    return openWorkspaceFile(repositoryPathForAction(), target, filePath);
+  });
+
   ipcMain.handle("workspace:getAvailableTargets", () => {
     return getAvailableWorkspaceTargets();
   });
@@ -197,6 +204,12 @@ function registerIpcHandlers({
 
   ipcMain.handle("window:setTemporaryInfoPanel", (_event, payload) => {
     setTemporaryInfoPanel(payload);
+  });
+
+  ipcMain.handle("window:getChangedFileInfoPayload", () => getChangedFileInfoPayload());
+
+  ipcMain.handle("window:setChangedFileInfoPanel", (_event, payload) => {
+    setChangedFileInfoPanel(payload);
   });
 
   ipcMain.handle("window:getCommitInfoPayload", () => getCommitInfoPayload());

@@ -2665,7 +2665,7 @@ button:disabled {
 .changed-side-header {
   min-width: 0;
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) var(--control-sm);
+  grid-template-columns: 26px minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-md);
 }
@@ -2698,9 +2698,22 @@ button:disabled {
   color: var(--main);
 }
 
-.changed-side-header .ui-icon-button {
+.changed-side-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+}
+
+.changed-side-actions .ui-icon-button {
   width: var(--control-sm);
   height: var(--control-sm);
+}
+
+.changed-side-open-button .external-app-icon {
+  width: var(--app-icon-menu);
+  height: var(--app-icon-menu);
+  border-radius: 4px;
 }
 
 .changed-side-facts {
@@ -2798,7 +2811,7 @@ button:disabled {
   overflow: hidden;
   padding-bottom: 8px;
   border-top: 0;
-  border-right: 1px solid var(--border-soft);
+  border-right: 0;
 }
 
 .temporary-info-panel .section-heading {
@@ -2841,6 +2854,23 @@ button:disabled {
   background: color-mix(in srgb, var(--panel-solid) 94%, transparent);
   animation: none;
   backdrop-filter: blur(24px) saturate(1.18);
+  pointer-events: auto;
+}
+
+.temporary-info-panel.is-changed-file {
+  align-content: stretch;
+  box-sizing: border-box;
+  padding: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
+.temporary-info-panel.is-changed-file .changed-side-panel {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  overflow: auto;
+  border-radius: var(--radius);
   pointer-events: auto;
 }
 

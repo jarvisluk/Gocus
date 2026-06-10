@@ -8,17 +8,19 @@ import {
   type ChangedNowToggleSource,
 } from "../lib/changedNowWindowState";
 import { runTemporaryInfoPanelBridgeSideEffect, type TemporaryInfoPanelBridgeAction } from "../lib/temporaryInfoPanelBridge";
-import type { GitSnapshot, TemporaryInfoPayload } from "../types";
+import type { GitSnapshot, TemporaryInfoPayload, WorkspaceOpenTarget } from "../types";
 
 export function useChangedNowPanel({
   snapshot,
   collapsed,
   settingsOpen,
+  workspaceOpenTarget,
   zenActive,
 }: {
   snapshot: GitSnapshot | null;
   collapsed: boolean;
   settingsOpen: boolean;
+  workspaceOpenTarget: WorkspaceOpenTarget | "";
   zenActive: boolean;
 }) {
   const [changedNowState, setChangedNowState] = useState(closedChangedNowWindowState);
@@ -32,9 +34,10 @@ export function useChangedNowPanel({
         collapsed,
         collapsedRailChangedNowOpen,
         settingsOpen,
+        workspaceOpenTarget,
         zenActive,
       }),
-    [changedNowWindowOpen, collapsed, collapsedRailChangedNowOpen, settingsOpen, snapshot, zenActive],
+    [changedNowWindowOpen, collapsed, collapsedRailChangedNowOpen, settingsOpen, snapshot, workspaceOpenTarget, zenActive],
   );
 
   const runTemporaryInfoPanelBridgeAction = useCallback((action: TemporaryInfoPanelBridgeAction, payload: TemporaryInfoPayload = null) => {

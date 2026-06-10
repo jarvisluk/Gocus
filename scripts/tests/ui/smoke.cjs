@@ -211,8 +211,11 @@ function installGitPeekMock(config) {
   window.__gitPeekCopiedText = "";
   window.__gitPeekClipboardText = "";
   window.__gitPeekTemporaryInfoPayload = config.temporaryInfoPayload ?? null;
+  window.__gitPeekChangedFileInfoPayload = config.changedFileInfoPayload ?? null;
   window.__gitPeekCommitInfoPayload = config.commitInfoPayload ?? null;
   window.__gitPeekTemporaryInfoListeners = [];
+  window.__gitPeekChangedFileInfoListeners = [];
+  window.__gitPeekChangedFileInfoPanelClosedListeners = [];
   window.__gitPeekCommitInfoListeners = [];
   window.__gitPeekPreferencesListeners = [];
   window.__gitPeekPinnedListeners = [];
@@ -220,6 +223,7 @@ function installGitPeekMock(config) {
   window.__gitPeekSavedPreferences = [];
   window.__gitPeekSnapshotRequests = [];
   window.__gitPeekOpenedWorkspaces = [];
+  window.__gitPeekOpenedWorkspaceFiles = [];
   window.__gitPeekRefreshCount = 0;
   if (config.clipboardAvailable) {
     Object.defineProperty(navigator, "clipboard", {
@@ -275,6 +279,10 @@ function installGitPeekMock(config) {
       if (config.temporaryInfoPayloadError) throw new Error(config.temporaryInfoPayloadError);
       return window.__gitPeekTemporaryInfoPayload;
     },
+    getChangedFileInfoPayload: async () => {
+      if (config.changedFileInfoPayloadError) throw new Error(config.changedFileInfoPayloadError);
+      return window.__gitPeekChangedFileInfoPayload;
+    },
     getCommitInfoPayload: async () => {
       if (config.commitInfoPayloadError) throw new Error(config.commitInfoPayloadError);
       return window.__gitPeekCommitInfoPayload;
@@ -285,6 +293,12 @@ function installGitPeekMock(config) {
         window.__gitPeekTemporaryInfoListeners = window.__gitPeekTemporaryInfoListeners.filter((listener) => listener !== callback);
       };
     },
+    onChangedFileInfoPayloadUpdated: (callback) => {
+      window.__gitPeekChangedFileInfoListeners.push(callback);
+      return () => {
+        window.__gitPeekChangedFileInfoListeners = window.__gitPeekChangedFileInfoListeners.filter((listener) => listener !== callback);
+      };
+    },
     onCommitInfoPayloadUpdated: (callback) => {
       window.__gitPeekCommitInfoListeners.push(callback);
       return () => {
@@ -292,11 +306,25 @@ function installGitPeekMock(config) {
       };
     },
     onTemporaryInfoPanelClosed: () => () => {},
+    onChangedFileInfoPanelClosed: (callback) => {
+      window.__gitPeekChangedFileInfoPanelClosedListeners.push(callback);
+      return () => {
+        window.__gitPeekChangedFileInfoPanelClosedListeners = window.__gitPeekChangedFileInfoPanelClosedListeners.filter(
+          (listener) => listener !== callback,
+        );
+      };
+    },
     onCommitInfoPanelClosed: () => () => {},
     setTemporaryInfoPanel: async (payload) => {
       if (config.setTemporaryInfoPanelError) throw new Error(config.setTemporaryInfoPanelError);
       window.__gitPeekTemporaryInfoPayload = payload;
       window.__gitPeekTemporaryInfoListeners.forEach((callback) => callback(payload));
+    },
+    setChangedFileInfoPanel: async (payload) => {
+      if (config.setChangedFileInfoPanelError) throw new Error(config.setChangedFileInfoPanelError);
+      window.__gitPeekChangedFileInfoPayload = payload;
+      window.__gitPeekChangedFileInfoListeners.forEach((callback) => callback(payload));
+      if (!payload) window.__gitPeekChangedFileInfoPanelClosedListeners.forEach((callback) => callback());
     },
     setCommitInfoPanel: async (payload) => {
       if (config.setCommitInfoPanelError) throw new Error(config.setCommitInfoPanelError);
@@ -319,6 +347,10 @@ function installGitPeekMock(config) {
     openWorkspace: async (target) => {
       window.__gitPeekOpenedWorkspaces.push(target);
       return { ok: true, message: "Workspace opened." };
+    },
+    openWorkspaceFile: async (target, filePath) => {
+      window.__gitPeekOpenedWorkspaceFiles.push({ target, filePath });
+      return { ok: true, message: "File opened." };
     },
     refresh: async () => {
       window.__gitPeekRefreshCount += 1;
@@ -1207,6 +1239,7 @@ async function testTemporaryInfoCopyPrompt(browser, baseUrl) {
       files: snapshotForCommits(mockCommits).changedFiles,
       filter: "all",
       selectedFileKey: "",
+      workspaceOpenTarget: "cursor",
     },
   });
   try {
@@ -1218,23 +1251,47 @@ async function testTemporaryInfoCopyPrompt(browser, baseUrl) {
     assert.equal(await page.locator(".changed-side-panel").count(), 0);
 
     await page.getByRole("button", { name: /src\/components\/RecentCommits\.tsx/ }).click();
-    await page.getByRole("complementary", { name: "src/components/RecentCommits.tsx" }).waitFor();
-    assert.equal(await page.locator(".changed-side-panel").getAttribute("aria-labelledby"), "changed-file-details-title");
-    assert.equal(await page.locator(".changed-side-header h2").innerText(), "src/components/RecentCommits.tsx");
-    await page.getByRole("button", { name: "Close changed file details" }).click();
+    await page.waitForFunction(() => window.__gitPeekChangedFileInfoPayload?.file?.path === "src/components/RecentCommits.tsx");
+    assert.equal(await page.locator(".changed-side-panel").count(), 0);
+    const firstDetailPayload = await page.evaluate(() => window.__gitPeekChangedFileInfoPayload);
+    const { page: detailPage, errors: detailErrors } = await openMockedPage(browser, `${baseUrl}?window=changed-file-info`, {
+      ...mockedSnapshotScenario(mockCommits),
+      changedFileInfoPayload: firstDetailPayload,
+    });
+    try {
+      await detailPage.getByRole("complementary", { name: "src/components/RecentCommits.tsx" }).waitFor();
+      assert.equal(await detailPage.locator(".changed-side-panel").getAttribute("aria-labelledby"), "changed-file-details-title");
+      assert.equal(await detailPage.locator(".changed-side-header h2").innerText(), "src/components/RecentCommits.tsx");
+      assert.equal(await detailPage.locator(".temporary-info-panel").evaluate((node) => node.classList.contains("is-changed-file")), true);
+      await detailPage.getByRole("button", { name: "Open file in Cursor" }).click();
+      assert.deepEqual(await detailPage.evaluate(() => window.__gitPeekOpenedWorkspaceFiles), [
+        { target: "cursor", filePath: "src/components/RecentCommits.tsx" },
+      ]);
+      await detailPage.getByRole("button", { name: "Close changed file details" }).click();
+      await detailPage.waitForFunction(() => window.__gitPeekChangedFileInfoPayload === null);
+      assert.deepEqual(detailErrors, []);
+    } finally {
+      await detailPage.close();
+    }
+
+    await page.evaluate(() => {
+      window.__gitPeekChangedFileInfoPanelClosedListeners.forEach((callback) => callback());
+    });
     assert.equal(await page.locator(".changed-side-panel").count(), 0);
 
     await page.evaluate(() => {
       const payload = {
         ...window.__gitPeekTemporaryInfoPayload,
-        selectedFileKey: "M-src/styles.css-",
+        workspaceOpenTarget: "finder",
       };
       window.__gitPeekTemporaryInfoPayload = payload;
       window.__gitPeekTemporaryInfoListeners.forEach((callback) => callback(payload));
     });
-    await page.getByRole("complementary", { name: "src/styles.css" }).waitFor();
-    assert.equal(await page.locator(".changed-side-header h2").innerText(), "src/styles.css");
+    await page.getByRole("button", { name: /src\/styles\.css/ }).click();
+    await page.waitForFunction(() => window.__gitPeekChangedFileInfoPayload?.file?.path === "src/styles.css");
+    assert.equal(await page.locator(".changed-side-panel").count(), 0);
     assert.equal(await page.getByRole("button", { name: /src\/styles\.css/ }).getAttribute("aria-pressed"), "true");
+    assert.equal(await page.evaluate(() => window.__gitPeekChangedFileInfoPayload?.workspaceOpenTarget), "finder");
 
     await page.getByRole("button", { name: "Copy prompt to commit changes" }).click();
     await page.getByRole("button", { name: "Copied prompt" }).waitFor();
@@ -1834,6 +1891,8 @@ async function testDismissableMenus(browser, baseUrl) {
     assert.deepEqual(await page.evaluate(() => window.__gitPeekOpenedWorkspaces), ["finder"]);
     await page.getByRole("button", { name: "Open in Finder" }).click();
     assert.deepEqual(await page.evaluate(() => window.__gitPeekOpenedWorkspaces), ["finder", "finder"]);
+    await page.getByRole("button", { name: "Open Changed now" }).click();
+    await page.waitForFunction(() => window.__gitPeekTemporaryInfoPayload?.workspaceOpenTarget === "finder");
 
     assert.deepEqual(errors, []);
   } finally {

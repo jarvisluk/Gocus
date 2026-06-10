@@ -75,6 +75,34 @@ async function openDarwinApp(appNames, repositoryPath) {
   throw lastError;
 }
 
+function targetLabel(target) {
+  if (target === "vscode") return "VS Code";
+  if (target === "cursor") return "Cursor";
+  if (target === "codex") return "Codex";
+  if (target === "antigravity") return "Antigravity IDE";
+  if (target === "antigravityApp") return "Antigravity";
+  if (target === "finder") return "Finder";
+  if (target === "terminal") return "Terminal";
+  if (target === "xcode") return "Xcode";
+  return "selected app";
+}
+
+function resolveWorkspaceFilePath(repositoryPath, filePath) {
+  if (!repositoryPath) return null;
+  if (typeof filePath !== "string" || !filePath.trim()) return null;
+
+  const normalizedPath = path.normalize(filePath);
+  if (path.isAbsolute(normalizedPath) || normalizedPath === "." || normalizedPath.startsWith(`..${path.sep}`) || normalizedPath === "..") {
+    return null;
+  }
+
+  const resolvedPath = path.resolve(repositoryPath, normalizedPath);
+  const relativePath = path.relative(repositoryPath, resolvedPath);
+  if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) return null;
+
+  return resolvedPath;
+}
+
 async function isWorkspaceTargetAvailable(target) {
   if (process.platform === "darwin") return darwinAppExists(target);
   if (target === "finder") return true;
@@ -182,4 +210,100 @@ async function openWorkspace(repositoryPath, target) {
   }
 }
 
-module.exports = { getAvailableWorkspaceTargets, openWorkspace };
+async function openWorkspaceFile(repositoryPath, target, filePath) {
+  if (!repositoryPath) {
+    return { ok: false, reason: "not_configured", error: "Choose a working folder first." };
+  }
+
+  const targetPath = resolveWorkspaceFilePath(repositoryPath, filePath);
+  if (!targetPath) {
+    return { ok: false, reason: "action_failed", error: "Unable to resolve the selected file path." };
+  }
+
+  if (!fs.existsSync(targetPath)) {
+    return { ok: false, reason: "action_failed", error: "Selected file no longer exists on disk." };
+  }
+
+  try {
+    if (target === "finder") {
+      shell.showItemInFolder(targetPath);
+      return { ok: true, message: "Revealed file in Finder." };
+    }
+
+    if (target === "vscode") {
+      if (process.platform === "darwin") {
+        await execOpen("open", ["-a", "Visual Studio Code", targetPath]);
+      } else {
+        await execOpen("code", ["-g", targetPath]);
+      }
+      return { ok: true, message: "Opened file in VS Code." };
+    }
+
+    if (target === "cursor") {
+      if (process.platform === "darwin") {
+        await openDarwinApp(["Cursor"], targetPath);
+      } else {
+        await execOpen("cursor", ["-g", targetPath]);
+      }
+      return { ok: true, message: "Opened file in Cursor." };
+    }
+
+    if (target === "codex") {
+      if (process.platform !== "darwin") {
+        return { ok: false, reason: "action_failed", error: "Codex is only available as a macOS app target here." };
+      }
+
+      await openDarwinApp(["Codex"], targetPath);
+      return { ok: true, message: "Opened file in Codex." };
+    }
+
+    if (target === "antigravity") {
+      if (process.platform !== "darwin") {
+        return { ok: false, reason: "action_failed", error: "Antigravity IDE is only available as a macOS app target here." };
+      }
+
+      await openDarwinApp(["Antigravity IDE"], targetPath);
+      return { ok: true, message: "Opened file in Antigravity IDE." };
+    }
+
+    if (target === "antigravityApp") {
+      if (process.platform !== "darwin") {
+        return { ok: false, reason: "action_failed", error: "Antigravity is only available as a macOS app target here." };
+      }
+
+      await openDarwinApp(["Antigravity"], targetPath);
+      return { ok: true, message: "Opened file in Antigravity." };
+    }
+
+    if (target === "terminal") {
+      const containingFolder = path.dirname(targetPath);
+      if (process.platform === "darwin") {
+        await execOpen("open", ["-a", "Terminal", containingFolder]);
+      } else if (process.platform === "win32") {
+        await execOpen("cmd.exe", ["/c", "start", "", "cmd.exe", "/K", `cd /d "${containingFolder}"`]);
+      } else {
+        await execOpen("x-terminal-emulator", ["--working-directory", containingFolder]);
+      }
+      return { ok: true, message: "Opened containing folder in Terminal." };
+    }
+
+    if (target === "xcode") {
+      if (process.platform !== "darwin") {
+        return { ok: false, reason: "action_failed", error: "Xcode is only available on macOS." };
+      }
+
+      await execOpen("open", ["-a", "Xcode", targetPath]);
+      return { ok: true, message: "Opened file in Xcode." };
+    }
+
+    return { ok: false, reason: "action_failed", error: `Unknown ${targetLabel(target)} target.` };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: "action_failed",
+      error: error.message || "Unable to open file.",
+    };
+  }
+}
+
+module.exports = { getAvailableWorkspaceTargets, openWorkspace, openWorkspaceFile };
