@@ -2,9 +2,32 @@ const { app, BrowserWindow, Menu, Tray, clipboard, dialog, ipcMain, nativeImage,
 const path = require("node:path");
 const { createAssetLoader } = require("./lib/assets.cjs");
 const { createConfigStore } = require("./lib/config.cjs");
-const { checkout, createBranch, initializeRepository, isNotGitRepositoryError, normalizeView, openWorktree, readFolderWithoutGit, readGitSnapshot } = require("./lib/git.cjs");
+const { registerIpcHandlers } = require("./lib/ipcHandlers.cjs");
+const { createLaunchAtLoginController } = require("./lib/launchAtLogin.cjs");
+const { installOutputErrorGuard } = require("./lib/outputGuard.cjs");
+const {
+  collapsedSize,
+  expandedMinimumSize,
+  expandedSizeFromConfig,
+  clampExpandedSize,
+  mainWindowBounds,
+  temporaryInfoBounds,
+  temporaryInfoWindowSize,
+} = require("./lib/windowGeometry.cjs");
+const {
+  checkout,
+  createBranch,
+  initializeRepository,
+  isNotGitRepositoryError,
+  normalizeView,
+  openWorktree,
+  readFolderWithoutGit,
+  readGitSnapshot,
+} = require("./lib/git.cjs");
 const { createRepositoryWatcher } = require("./lib/gitWatcher.cjs");
 const { getAvailableWorkspaceTargets, openWorkspace } = require("./lib/workspace.cjs");
+
+installOutputErrorGuard();
 
 let mainWindow;
 let tray;
@@ -21,81 +44,33 @@ let temporaryInfoWindow = null;
 let temporaryInfoPayload = null;
 let repositoryWatcher = null;
 
-const expandedMinimumSize = { width: 320, height: 620 };
-const defaultExpandedSize = { width: expandedMinimumSize.width, height: 780 };
-const collapsedSize = { width: 38, height: 154 };
-const temporaryInfoWindowSize = { width: 280, height: 252 };
-const temporaryInfoWindowGap = 10;
 const hiddenLaunchArg = "--hidden";
 const config = createConfigStore(app);
+const launchAtLogin = createLaunchAtLoginController(app, hiddenLaunchArg);
 const assets = createAssetLoader({
   nativeImage,
   resourcesPath: process.resourcesPath,
   electronDir: __dirname,
 });
 
-function loginItemSettings(openAtLogin) {
-  const settings = { openAtLogin };
-  if (process.platform === "darwin") settings.openAsHidden = openAtLogin;
-  if (process.platform === "win32" && !app.isPackaged) {
-    settings.path = process.execPath;
-    settings.args = [app.getAppPath(), hiddenLaunchArg];
-  }
-  return settings;
-}
-
-function loginItemMatchOptions() {
-  if (process.platform === "win32" && !app.isPackaged) {
-    return {
-      path: process.execPath,
-      args: [app.getAppPath(), hiddenLaunchArg],
-    };
-  }
-
-  return {};
-}
-
-function readLaunchAtLoginEnabled(fallback = false) {
-  if (process.platform !== "darwin" && process.platform !== "win32") return false;
-
-  try {
-    return app.getLoginItemSettings(loginItemMatchOptions()).openAtLogin;
-  } catch (error) {
-    console.warn("[Git Peek] Unable to read launch-at-login state.", error);
-    return fallback;
-  }
-}
-
 function readPreferences() {
   const preferences = config.readPreferences();
   return {
     ...preferences,
-    launchAtLogin: readLaunchAtLoginEnabled(Boolean(preferences.launchAtLogin)),
+    launchAtLogin: launchAtLogin.readLaunchAtLoginEnabled(Boolean(preferences.launchAtLogin)),
   };
 }
 
 function syncLaunchAtLogin(preferences = config.readPreferences()) {
-  if (process.platform !== "darwin" && process.platform !== "win32") return;
-
-  try {
-    app.setLoginItemSettings(loginItemSettings(Boolean(preferences.launchAtLogin)));
-  } catch (error) {
-    console.warn("[Git Peek] Unable to update launch-at-login state.", error);
-  }
+  launchAtLogin.syncLaunchAtLogin(preferences);
 }
 
 function shouldStartInMenuBar() {
-  const preferences = config.readPreferences();
-  if (!preferences.launchAtLogin && !process.argv.includes(hiddenLaunchArg)) return false;
-  if (process.argv.includes(hiddenLaunchArg)) return true;
-  if (process.platform !== "darwin") return false;
+  return launchAtLogin.shouldStartInMenuBar(config.readPreferences());
+}
 
-  try {
-    const settings = app.getLoginItemSettings();
-    return settings.wasOpenedAtLogin || settings.wasOpenedAsHidden;
-  } catch {
-    return false;
-  }
+function shouldShowMenuBarIcon(preferences = config.readPreferences()) {
+  return preferences.showMenuBarIcon !== false;
 }
 
 function hideDockIcon() {
@@ -112,6 +87,11 @@ function showDockIcon() {
 }
 
 function softQuitToMenuBar() {
+  if (!shouldShowMenuBarIcon()) {
+    requestRealQuit();
+    return;
+  }
+
   closeTemporaryInfoWindow();
   if (mainWindow && !mainWindow.isDestroyed()) {
     saveCurrentExpandedWindowSize(mainWindow);
@@ -220,7 +200,11 @@ async function folderWithoutGitResponse(repositoryPath) {
   }
 }
 
-async function openRepositoryPath(repositoryPath, view = currentView, invalidRepositoryMessage = "Unable to read the saved working folder.") {
+async function openRepositoryPath(
+  repositoryPath,
+  view = currentView,
+  invalidRepositoryMessage = "Unable to read the saved working folder.",
+) {
   if (typeof repositoryPath !== "string" || !repositoryPath.trim()) {
     return {
       ok: false,
@@ -317,6 +301,10 @@ function sendRepositoryDialogOpen(open) {
   sendToWindow(mainWindow, "window:repositoryDialogOpenChanged", open);
 }
 
+function sendPinnedChanged() {
+  sendToWindow(mainWindow, "window:pinnedChanged", pinnedState);
+}
+
 function sendTemporaryInfoPanelClosed() {
   sendToWindow(mainWindow, "window:temporaryInfoPanelClosed");
 }
@@ -331,7 +319,11 @@ function getSystemTheme() {
 
 function sendToWindow(win, channel, ...args) {
   if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return;
-  win.webContents.send(channel, ...args);
+  try {
+    win.webContents.send(channel, ...args);
+  } catch (error) {
+    console.warn(`[Git Peek] Unable to send ${channel} to window.`, error);
+  }
 }
 
 function sendSystemTheme() {
@@ -366,15 +358,8 @@ function normalizeRepositorySwitchView(view) {
   return normalized.mode === "branch" ? { mode: "all" } : normalized;
 }
 
-function clampExpandedSize(size, display) {
-  return {
-    width: Math.min(Math.max(Math.round(size.width), expandedMinimumSize.width), Math.max(expandedMinimumSize.width, display.width - 20)),
-    height: Math.min(Math.max(Math.round(size.height), expandedMinimumSize.height), Math.max(expandedMinimumSize.height, display.height - 16)),
-  };
-}
-
 function readExpandedSize(display) {
-  return clampExpandedSize(config.readExpandedWindowSize() ?? defaultExpandedSize, display);
+  return expandedSizeFromConfig(config, display);
 }
 
 function setWindowBounds(win, bounds, animated = true) {
@@ -404,17 +389,20 @@ function scheduleExpandedWindowSizeSave(win) {
 function positionWindow(win, collapsed = false) {
   if (!win) return;
   const display = screen.getPrimaryDisplay().workArea;
-  const size = collapsed ? collapsedSize : readExpandedSize(display);
-  win.setMinimumSize(collapsed ? collapsedSize.width : expandedMinimumSize.width, collapsed ? collapsedSize.height : expandedMinimumSize.height);
-  const current = win.getBounds();
-  const edgeInset = collapsed ? 0 : 10;
-  const x = display.x + display.width - size.width - edgeInset;
-  const fallbackY = display.y + Math.max(18, Math.floor((display.height - size.height) / 2));
-  const requestedY = current?.y ?? fallbackY;
-  const minY = display.y + 8;
-  const maxY = display.y + display.height - size.height - 8;
-  const y = Math.min(Math.max(requestedY, minY), Math.max(minY, maxY));
-  setWindowBounds(win, { x, y, width: size.width, height: size.height }, true);
+  win.setMinimumSize(
+    collapsed ? collapsedSize.width : expandedMinimumSize.width,
+    collapsed ? collapsedSize.height : expandedMinimumSize.height,
+  );
+  setWindowBounds(
+    win,
+    mainWindowBounds({
+      currentBounds: win.getBounds(),
+      display,
+      collapsed,
+      expandedSize: readExpandedSize(display),
+    }),
+    true,
+  );
 }
 
 function setCollapsedWindow(collapsed) {
@@ -424,7 +412,7 @@ function setCollapsedWindow(collapsed) {
   if (nextCollapsedState) closeTemporaryInfoWindow();
   collapsedState = nextCollapsedState;
   positionWindow(mainWindow, collapsedState);
-  mainWindow.webContents.send("window:collapsedChanged", collapsedState);
+  sendToWindow(mainWindow, "window:collapsedChanged", collapsedState);
   buildMenus();
 }
 
@@ -460,22 +448,12 @@ function temporaryInfoWindowBounds() {
 
   const mainBounds = mainWindow.getBounds();
   const display = screen.getDisplayMatching(mainBounds).workArea;
-  const width = temporaryInfoWindowSize.width;
-  const height = temporaryInfoWindowSize.height;
-  const preferredX = mainBounds.x - width - temporaryInfoWindowGap;
-  const fallbackX = mainBounds.x + temporaryInfoWindowGap;
-  const x = preferredX >= display.x + 8 ? preferredX : Math.min(fallbackX, display.x + display.width - width - 8);
-  const preferredY = mainBounds.y + mainBounds.height - height;
-  const minY = display.y + 8;
-  const maxY = display.y + display.height - height - 8;
-  const y = Math.min(Math.max(preferredY, minY), Math.max(minY, maxY));
-
-  return { x, y, width, height };
+  return temporaryInfoBounds({ mainBounds, display, alignTop: collapsedState });
 }
 
 function sendTemporaryInfoPayload() {
   if (!temporaryInfoWindow || temporaryInfoWindow.isDestroyed()) return;
-  temporaryInfoWindow.webContents.send("window:temporaryInfoPayload", temporaryInfoPayload);
+  sendToWindow(temporaryInfoWindow, "window:temporaryInfoPayload", temporaryInfoPayload);
 }
 
 function positionTemporaryInfoWindow() {
@@ -569,6 +547,7 @@ function setPinnedWindow(pinned) {
   pinnedState = Boolean(pinned);
   mainWindow.setAlwaysOnTop(pinnedState, "floating");
   syncTemporaryInfoWindowLevel();
+  sendPinnedChanged();
   buildMenus();
 }
 
@@ -641,6 +620,12 @@ function createWindow({ showOnReady = true } = {}) {
 }
 
 function createTray() {
+  if (!shouldShowMenuBarIcon()) return;
+  if (tray) {
+    buildMenus();
+    return;
+  }
+
   const trayIcon = assets.loadImageAsset("tray-iconTemplate.png", { template: process.platform === "darwin" });
 
   tray = new Tray(trayIcon);
@@ -667,6 +652,23 @@ function createTray() {
   buildMenus();
 }
 
+function destroyTray() {
+  if (!tray) return;
+  tray.destroy();
+  tray = null;
+}
+
+function syncMenuBarIcon(preferences = config.readPreferences()) {
+  if (shouldShowMenuBarIcon(preferences)) {
+    createTray();
+    return;
+  }
+
+  destroyTray();
+  showDockIcon();
+  buildMenus();
+}
+
 function buildMenus() {
   if (!app.isReady()) return;
 
@@ -676,7 +678,13 @@ function buildMenus() {
   const openFolderAction = async () => sendSnapshotResponse(await chooseRepository());
   const refreshAction = async () => refreshAndSendSnapshot();
   const openRecentAction = async (repositoryPath) => {
-    sendSnapshotResponse(await openRepositoryPath(repositoryPath, normalizeRepositorySwitchView(currentView), "Unable to open the recent working folder."));
+    sendSnapshotResponse(
+      await openRepositoryPath(
+        repositoryPath,
+        normalizeRepositorySwitchView(currentView),
+        "Unable to open the recent working folder.",
+      ),
+    );
   };
   const revealAction = () => {
     const repositoryPath = repositoryPathForAction();
@@ -687,6 +695,7 @@ function buildMenus() {
     sendSnapshotResponse(noRepositoryResponse());
     buildMenus();
   };
+  const menuBarModeEnabled = shouldShowMenuBarIcon();
   const buildRecentRepositorySubmenu = () =>
     recentRepositories.length
       ? recentRepositories.map((repository) => {
@@ -717,7 +726,9 @@ function buildMenus() {
             { role: "hideOthers" },
             { role: "unhide" },
             { type: "separator" },
-            { label: "Hide to Menu Bar", accelerator: "CmdOrCtrl+Q", click: softQuitToMenuBar },
+            menuBarModeEnabled
+              ? { label: "Hide to Menu Bar", accelerator: "CmdOrCtrl+Q", click: softQuitToMenuBar }
+              : { role: "quit" },
           ],
         },
       ]
@@ -740,7 +751,12 @@ function buildMenus() {
       label: "View",
       submenu: [
         { label: "Expand Side Peek", accelerator: "CmdOrCtrl+Shift+E", enabled: collapsedState, click: () => setCollapsedWindow(false) },
-        { label: "Collapse to Edge Tab", accelerator: "CmdOrCtrl+Shift+C", enabled: !collapsedState, click: () => setCollapsedWindow(true) },
+        {
+          label: "Collapse to Edge Tab",
+          accelerator: "CmdOrCtrl+Shift+C",
+          enabled: !collapsedState,
+          click: () => setCollapsedWindow(true),
+        },
         { label: "Dock to Screen Edge", accelerator: "CmdOrCtrl+Shift+D", click: () => dockWindow(collapsedState) },
         { type: "separator" },
         { label: "Always on Top", type: "checkbox", checked: pinnedState, click: (item) => setPinnedWindow(item.checked) },
@@ -800,12 +816,12 @@ app.whenReady().then(() => {
   nativeTheme.on("updated", sendSystemTheme);
   currentRepository = readSavedRepositoryPath();
   const preferences = config.readPreferences();
-  if (preferences.launchAtLogin) syncLaunchAtLogin(preferences);
-  const startInMenuBar = shouldStartInMenuBar();
+  const menuBarModeEnabled = shouldShowMenuBarIcon(preferences);
+  const startInMenuBar = menuBarModeEnabled && shouldStartInMenuBar();
   if (process.platform === "darwin" && app.dock) {
     app.dock.setIcon(assets.loadImageAsset("app-icon.png"));
   }
-  createTray();
+  if (menuBarModeEnabled) createTray();
   if (startInMenuBar) hideDockIcon();
   createWindow({ showOnReady: !startInMenuBar });
   if (currentRepository) startRepositoryWatcher(currentRepository);
@@ -818,7 +834,7 @@ app.whenReady().then(() => {
 });
 
 app.on("before-quit", (event) => {
-  if (process.platform !== "darwin" || realQuitRequested) {
+  if (process.platform !== "darwin" || realQuitRequested || !shouldShowMenuBarIcon()) {
     stopRepositoryWatcher();
     return;
   }
@@ -831,131 +847,41 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-ipcMain.handle("git:openRepository", async (_event, view) => {
-  return chooseRepository(normalizeView(view));
+registerIpcHandlers({
+  buildMenus,
+  checkout,
+  chooseRepository,
+  clearRepositoryPath,
+  clipboard,
+  config,
+  createBranch,
+  dockWindow,
+  errorResponse,
+  getAvailableWorkspaceTargets,
+  getPinnedState: () => pinnedState,
+  getSnapshotResponse,
+  getSystemTheme,
+  getTemporaryInfoPayload: () => temporaryInfoPayload,
+  initializeRepository,
+  ipcMain,
+  noRepositoryResponse,
+  normalizeRepositorySwitchView,
+  normalizeView,
+  openRepositoryPath,
+  openWorkspace,
+  openWorktree,
+  readPreferences,
+  readRecentRepositories,
+  repositoryPathForAction,
+  saveRepositoryPath,
+  sendPreferences,
+  sendSnapshotResponse,
+  setCollapsedWindow,
+  setCurrentView: (view) => {
+    currentView = view;
+  },
+  setPinnedWindow,
+  setTemporaryInfoPanel,
+  syncLaunchAtLogin,
+  syncMenuBarIcon,
 });
-
-ipcMain.handle("git:switchRepository", async (_event, repositoryPath, view) => {
-  return openRepositoryPath(repositoryPath, normalizeRepositorySwitchView(view), "Unable to open the saved working folder.");
-});
-
-ipcMain.handle("git:getRecentRepositories", () => {
-  return readRecentRepositories();
-});
-
-ipcMain.handle("git:refresh", async (_event, view) => {
-  return getSnapshotResponse(normalizeView(view));
-});
-
-ipcMain.handle("git:getSnapshot", async (_event, view) => {
-  return getSnapshotResponse(normalizeView(view));
-});
-
-ipcMain.handle("git:initializeRepository", async (_event, repositoryPath, view) => {
-  try {
-    const result = await initializeRepository(repositoryPath, normalizeView(view));
-    saveRepositoryPath(result.snapshot.repoPath, result.snapshot.repositoryKey);
-    buildMenus();
-    sendSnapshotResponse({ ok: true, snapshot: result.snapshot });
-    return {
-      ok: true,
-      message: result.gitIgnoreCreated ? "Initialized Git and added a starter .gitignore." : "Initialized Git and kept the existing .gitignore.",
-      snapshot: result.snapshot,
-    };
-  } catch (error) {
-    return errorResponse(error, "Unable to initialize Git in this folder.");
-  }
-});
-
-ipcMain.handle("git:clearRepository", async () => {
-  clearRepositoryPath();
-  buildMenus();
-  return noRepositoryResponse();
-});
-
-ipcMain.handle("git:createBranch", async (_event, branchName, startPoint, view) => {
-  const repositoryPath = repositoryPathForAction();
-  if (!repositoryPath) return noRepositoryResponse();
-
-  try {
-    const snapshot = await createBranch(repositoryPath, branchName, startPoint, normalizeView(view));
-    saveRepositoryPath(snapshot.repoPath, snapshot.repositoryKey);
-    sendSnapshotResponse({ ok: true, snapshot });
-    return { ok: true, message: `Created branch ${branchName}.`, snapshot };
-  } catch (error) {
-    return errorResponse(error, "Unable to create branch.");
-  }
-});
-
-ipcMain.handle("git:checkout", async (_event, ref, view) => {
-  const repositoryPath = repositoryPathForAction();
-  if (!repositoryPath) return noRepositoryResponse();
-
-  try {
-    const snapshot = await checkout(repositoryPath, ref, normalizeView(view));
-    saveRepositoryPath(snapshot.repoPath, snapshot.repositoryKey);
-    sendSnapshotResponse({ ok: true, snapshot });
-    return { ok: true, message: `Checked out ${snapshot.branch.name}.`, snapshot };
-  } catch (error) {
-    return errorResponse(error, "Unable to checkout ref.");
-  }
-});
-
-ipcMain.handle("git:openWorktree", async (_event, worktreePath, view) => {
-  const repositoryPath = repositoryPathForAction();
-  if (!repositoryPath) return noRepositoryResponse();
-
-  try {
-    const snapshot = await openWorktree(repositoryPath, worktreePath, normalizeView(view));
-    currentView = snapshot.view;
-    saveRepositoryPath(snapshot.repoPath, snapshot.repositoryKey);
-    buildMenus();
-    sendSnapshotResponse({ ok: true, snapshot });
-    return { ok: true, message: `Opened ${snapshot.branch.detached ? "detached worktree" : `${snapshot.branch.name} worktree`}.`, snapshot };
-  } catch (error) {
-    return errorResponse(error, "Unable to open worktree.");
-  }
-});
-
-ipcMain.handle("workspace:open", async (_event, target) => {
-  return openWorkspace(repositoryPathForAction(), target);
-});
-
-ipcMain.handle("workspace:getAvailableTargets", () => {
-  return getAvailableWorkspaceTargets();
-});
-
-ipcMain.handle("preferences:get", () => {
-  return readPreferences();
-});
-
-ipcMain.handle("preferences:save", (_event, preferences) => {
-  config.savePreferences(preferences);
-  const savedPreferences = readPreferences();
-  syncLaunchAtLogin(savedPreferences);
-  sendPreferences(savedPreferences);
-});
-
-ipcMain.handle("window:setCollapsed", (_event, collapsed) => {
-  setCollapsedWindow(Boolean(collapsed));
-});
-
-ipcMain.handle("window:setPinned", (_event, pinned) => {
-  setPinnedWindow(Boolean(pinned));
-});
-
-ipcMain.handle("window:dockToEdge", (_event, collapsed) => {
-  dockWindow(Boolean(collapsed));
-});
-
-ipcMain.handle("window:getTemporaryInfoPayload", () => temporaryInfoPayload);
-
-ipcMain.handle("window:setTemporaryInfoPanel", (_event, payload) => {
-  setTemporaryInfoPanel(payload);
-});
-
-ipcMain.handle("clipboard:writeText", (_event, text) => {
-  clipboard.writeText(typeof text === "string" ? text : "");
-});
-
-ipcMain.handle("theme:getSystemTheme", () => getSystemTheme());
