@@ -1,16 +1,23 @@
-import { Check, ChevronDown, GitBranch, GitMerge, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Check, ChevronDown, Copy, GitBranch, GitMerge, X } from "lucide-react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import {
   actionBranchPrefixOptionView,
+  actionDialogCopyPromptButtonView,
   actionMergeTargetOptionView,
   actionDialogBranchNameKeyAction,
   actionDialogGlobalKeyAction,
   actionDialogView,
   branchPrefixOptions,
+  type ActionDialogCopyPromptIcon,
+  type ActionDialogCopyPromptState,
   type ActionDialogState,
   type BranchPrefix,
 } from "../lib/actionDialogView";
+import { copyTextWithFallback } from "../lib/copyText";
+import { logBridgeWarning } from "../lib/errorMessages";
 import { useDismissableLayer } from "../lib/useDismissableLayer";
+
+const copyPromptStateResetDelayMs = 1400;
 
 function BranchPrefixDropdown({
   value,
@@ -153,7 +160,14 @@ function MergeTargetDropdown({
   );
 }
 
+function copyPromptIcon(icon: ActionDialogCopyPromptIcon) {
+  if (icon === "check") return <Check aria-hidden="true" />;
+  if (icon === "x") return <X aria-hidden="true" />;
+  return <Copy aria-hidden="true" />;
+}
+
 export function ActionDialog({
+  createMergeCommit,
   dialog,
   onBranchPrefixChange,
   onBranchNameChange,
@@ -161,6 +175,7 @@ export function ActionDialog({
   onCancel,
   onConfirm,
 }: {
+  createMergeCommit: boolean;
   dialog: ActionDialogState | null;
   onBranchPrefixChange: (branchPrefix: BranchPrefix) => void;
   onBranchNameChange: (branchName: string) => void;
@@ -170,6 +185,8 @@ export function ActionDialog({
 }) {
   const [prefixMenuOpen, setPrefixMenuOpen] = useState(false);
   const [mergeTargetMenuOpen, setMergeTargetMenuOpen] = useState(false);
+  const [copyPromptState, setCopyPromptState] = useState<ActionDialogCopyPromptState>("idle");
+  const copyPromptResetTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!dialog) return undefined;
@@ -193,14 +210,47 @@ export function ActionDialog({
   useEffect(() => {
     setPrefixMenuOpen(false);
     setMergeTargetMenuOpen(false);
+    setCopyPromptState("idle");
   }, [dialog]);
 
+  useEffect(
+    () => () => {
+      if (copyPromptResetTimerRef.current !== null) window.clearTimeout(copyPromptResetTimerRef.current);
+    },
+    [],
+  );
+
   if (!dialog) return null;
-  const view = actionDialogView(dialog);
+  const view = actionDialogView(dialog, { createMergeCommit });
   const HeadingIcon = dialog.type === "merge" ? GitMerge : GitBranch;
+  const copyPromptButton = view.showMergeFailurePrompt ? actionDialogCopyPromptButtonView(copyPromptState) : null;
+
+  function handleBackdropMouseDown(event: MouseEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) return;
+    onCancel();
+  }
+
+  function setTemporaryCopyPromptState(nextState: ActionDialogCopyPromptState) {
+    if (copyPromptResetTimerRef.current !== null) window.clearTimeout(copyPromptResetTimerRef.current);
+    setCopyPromptState(nextState);
+    copyPromptResetTimerRef.current = window.setTimeout(() => {
+      setCopyPromptState("idle");
+      copyPromptResetTimerRef.current = null;
+    }, copyPromptStateResetDelayMs);
+  }
+
+  async function copyMergeFailurePrompt(prompt: string) {
+    try {
+      await copyTextWithFallback(prompt, { bridge: window.gitPeek, clipboard: navigator.clipboard });
+      setTemporaryCopyPromptState("copied");
+    } catch (error) {
+      logBridgeWarning("Unable to copy merge failure prompt.", error);
+      setTemporaryCopyPromptState("failed");
+    }
+  }
 
   return (
-    <div className={view.backdrop.className} role={view.backdrop.role}>
+    <div className={view.backdrop.className} role={view.backdrop.role} onMouseDown={handleBackdropMouseDown}>
       <section
         className={view.dialog.className}
         role={view.dialog.role}
@@ -287,9 +337,23 @@ export function ActionDialog({
           </div>
         ) : null}
         {view.showActionError ? (
-          <pre className={view.actionError.className} id={view.actionError.id} role={view.actionError.role}>
-            {view.actionError.message}
-          </pre>
+          <div className={view.actionError.containerClassName}>
+            <pre className={view.actionError.className} id={view.actionError.id} role={view.actionError.role}>
+              {view.actionError.message}
+            </pre>
+            {copyPromptButton ? (
+              <button
+                className={copyPromptButton.className}
+                type="button"
+                aria-label={copyPromptButton.label}
+                title={copyPromptButton.title}
+                onClick={() => copyMergeFailurePrompt(view.mergeFailurePrompt)}
+              >
+                {copyPromptIcon(copyPromptButton.icon)}
+                <span>{copyPromptButton.label}</span>
+              </button>
+            ) : null}
+          </div>
         ) : null}
         <div className={view.actions.className}>
           <button className={view.cancelButton.className} type="button" onClick={onCancel} autoFocus={view.cancelButton.autoFocus}>

@@ -9,6 +9,7 @@ import { RecentCommits } from "./components/RecentCommits";
 import { RepositoryControls } from "./components/RepositoryControls";
 import { RepositoryStateBanner } from "./components/RepositoryStateBanner";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { WorktreeContext } from "./components/WorktreeContext";
 import { useGitPeekController } from "./app/useGitPeekController";
 import { useSettingsEscape, useZenEscape } from "./app/useAppKeyboardShortcuts";
 import { useChangedNowPanel } from "./app/useChangedNowPanel";
@@ -108,6 +109,7 @@ export default function App() {
           {panelContent.mode === "zen" ? (
             <>
               <ActionDialog
+                createMergeCommit={controller.preferences.createMergeCommit}
                 dialog={controller.actionDialog}
                 onBranchPrefixChange={controller.updateActionBranchPrefix}
                 onBranchNameChange={controller.updateActionBranchName}
@@ -157,6 +159,7 @@ export default function App() {
               />
 
               <ActionDialog
+                createMergeCommit={controller.preferences.createMergeCommit}
                 dialog={controller.actionDialog}
                 onBranchPrefixChange={controller.updateActionBranchPrefix}
                 onBranchNameChange={controller.updateActionBranchName}
@@ -173,9 +176,10 @@ export default function App() {
                       snapshot={panelContent.snapshot}
                       view={controller.commitView}
                       onChangeView={controller.changeCommitView}
-                      onOpenWorktree={controller.openWorktree}
+                      onSwitchBranch={controller.switchBranch}
                     />
                   ) : null}
+                  <WorktreeContext worktrees={panelContent.snapshot.worktrees} onOpenWorktree={controller.openWorktree} />
                   <div className={commitScrollRegion.className}>
                     <RecentCommits
                       commits={panelContent.snapshot.commits}

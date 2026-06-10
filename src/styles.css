@@ -887,9 +887,10 @@ button:disabled {
   white-space: nowrap;
 }
 
-.action-prefix-menu {
+.ui-menu.action-prefix-menu {
   z-index: 45;
-  top: calc(100% + 6px);
+  top: auto;
+  bottom: calc(100% + 6px);
   left: 0;
   width: min(174px, calc(100vw - 40px));
 }
@@ -962,31 +963,60 @@ button:disabled {
   white-space: nowrap;
 }
 
-.action-merge-target-menu {
+.ui-menu.action-merge-target-menu {
   z-index: 45;
   top: auto;
   bottom: calc(100% + 6px);
   left: 0;
   width: 100%;
-  max-height: 184px;
-  overflow: auto;
+  max-height: min(332px, calc(100vh - 220px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-color: var(--text-subtle) transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.ui-menu.action-merge-target-menu::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ui-menu.action-merge-target-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ui-menu.action-merge-target-menu::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--text-subtle) 72%, transparent);
+  background-clip: content-box;
 }
 
 .action-merge-target-menu-item {
   grid-template-columns: 18px minmax(0, 1fr);
 }
 
-.action-merge-target-menu-item span {
+.action-merge-target-menu .action-merge-target-menu-item span:last-child {
   color: inherit;
   font-size: inherit;
   font-weight: inherit;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
   text-transform: none;
+  white-space: normal;
 }
 
 .action-merge-target-menu-item svg {
   width: var(--icon-sm);
   height: var(--icon-sm);
   color: var(--text-muted);
+}
+
+.action-dialog-error-block {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-sm);
 }
 
 .action-dialog-error {
@@ -997,6 +1027,16 @@ button:disabled {
   border-color: color-mix(in srgb, var(--danger) 36%, var(--border));
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.action-dialog-copy-prompt {
+  justify-self: start;
+  gap: var(--space-xs);
+}
+
+.action-dialog-copy-prompt svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 .action-branch-preview {
@@ -1600,9 +1640,47 @@ button:disabled {
   top: calc(100% + 8px);
 }
 
+.branch-ref-menu-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 3px;
+}
+
+.branch-ref-menu-row.has-switch {
+  grid-template-columns: minmax(0, 1fr) 28px;
+}
+
 .branch-ref-menu-item,
 .worktree-menu-item {
   grid-template-columns: 18px minmax(0, 1fr);
+}
+
+.branch-switch-button {
+  width: 28px;
+  min-height: var(--menu-row-height);
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.branch-switch-button:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.branch-switch-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.branch-switch-button svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
 }
 
 .worktree-compact {
@@ -1642,6 +1720,111 @@ button:disabled {
   top: calc(100% + 6px);
 }
 
+.worktree-context {
+  position: relative;
+  flex: 0 0 auto;
+  z-index: 16;
+  margin: 8px 10px 0;
+}
+
+.worktree-context-trigger,
+.worktree-context-static {
+  width: 100%;
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: var(--icon-lg) minmax(0, 1fr) auto var(--icon-xs);
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface-strong) 82%, var(--panel-solid));
+  color: var(--text);
+  text-align: left;
+}
+
+.worktree-context-trigger {
+  cursor: pointer;
+}
+
+.worktree-context-static {
+  grid-template-columns: var(--icon-lg) minmax(0, 1fr) auto;
+}
+
+.worktree-context-trigger:hover,
+.worktree-context-trigger.is-open {
+  border-color: color-mix(in srgb, var(--focus) 24%, var(--border));
+  background: var(--surface);
+}
+
+.worktree-context-trigger > svg,
+.worktree-context-static > svg {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  color: var(--text-faint);
+}
+
+.worktree-context-trigger > svg:last-child {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+  color: var(--text-faint);
+}
+
+.worktree-context-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  line-height: 1.15;
+}
+
+.worktree-context-copy span {
+  color: var(--text-faint);
+  font-size: var(--type-micro-size);
+  font-weight: var(--font-weight-body);
+  letter-spacing: 0;
+}
+
+.worktree-context-copy strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--type-body-strong-size);
+  font-weight: var(--font-weight-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.worktree-context-copy code {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--user-font);
+  font-size: var(--type-caption-size);
+  font-weight: var(--font-weight-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.worktree-context-count {
+  max-width: 92px;
+  overflow: hidden;
+  padding: 4px 7px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--type-micro-size);
+  font-weight: var(--font-weight-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.worktree-context-menu {
+  right: auto;
+  left: 0;
+  width: 100%;
+}
+
 .scroll-region {
   min-height: 0;
   flex: 1 1 auto;
@@ -1674,6 +1857,12 @@ button:disabled {
   color: var(--text);
   font-size: var(--type-heading-1-size);
   font-weight: 760;
+}
+
+.commits-section .section-heading h2 {
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+  font-weight: var(--font-weight-strong);
 }
 
 .heading-tools {
@@ -1809,6 +1998,10 @@ button:disabled {
   padding-top: 6px;
 }
 
+.commit-list-spacer {
+  pointer-events: none;
+}
+
 .commit-empty-state {
   min-height: 72px;
   display: grid;
@@ -1844,6 +2037,7 @@ button:disabled {
 }
 
 .timeline-cell {
+  --git-tree-bridge-span: max(0px, min(38px, calc(100% - var(--git-tree-node-y, 22px))));
   position: relative;
   width: var(--git-tree-rail-width);
   min-height: 100%;
@@ -1864,12 +2058,22 @@ button:disabled {
 
 .graph-svg-top {
   top: 0;
-  height: var(--git-tree-node-y, 32%);
+  height: var(--git-tree-node-y, 22px);
 }
 
-.graph-svg-bottom {
-  top: var(--git-tree-node-y, 32%);
-  height: calc(100% - var(--git-tree-node-y, 32%));
+.graph-svg-bridge {
+  top: var(--git-tree-node-y, 22px);
+  height: var(--git-tree-bridge-span);
+}
+
+.graph-svg-bridge-run {
+  top: var(--git-tree-node-y, 22px);
+  height: max(0px, calc(100% - var(--git-tree-node-y, 22px)));
+}
+
+.graph-svg-tail {
+  top: calc(var(--git-tree-node-y, 22px) + var(--git-tree-bridge-span));
+  height: max(0px, calc(100% - var(--git-tree-node-y, 22px) - var(--git-tree-bridge-span)));
 }
 
 .graph-line {
@@ -1911,7 +2115,7 @@ button:disabled {
   transform: translate(-50%, -50%);
 }
 
-.graph-node.is-merge {
+.graph-node.is-current-head {
   border-width: 2.5px;
 }
 

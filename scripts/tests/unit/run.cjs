@@ -52,11 +52,14 @@ function commit(overrides = {}) {
       currentColor: "#2f80ed",
       currentLabel: "main",
       currentVariant: "solid",
+      incomingColor: "#2f80ed",
+      incomingVariant: "solid",
       currentContinues: true,
       passThrough: [],
       parentStems: [],
       bridges: [],
       isMerge: false,
+      isCurrentHead: false,
     },
     checkedOutWorktrees: [],
     ...overrides,
@@ -529,9 +532,21 @@ function testGitStatusModule() {
 }
 
 async function testGitModule() {
-  const { mergeArgs, repositoryStateForGit } = require(path.join(projectRoot, "electron/lib/git.cjs"));
+  const {
+    defaultCommitLogLimit,
+    logArgsForView,
+    mergeArgs,
+    normalizeCommitLogLimit,
+    repositoryStateForGit,
+  } = require(path.join(projectRoot, "electron/lib/git.cjs"));
   const { parseStatus } = require(path.join(projectRoot, "electron/lib/gitStatus.cjs"));
 
+  assert.equal(normalizeCommitLogLimit(), defaultCommitLogLimit);
+  assert.equal(normalizeCommitLogLimit("42"), 42);
+  assert.equal(normalizeCommitLogLimit("9999"), 2000);
+  assert.equal(normalizeCommitLogLimit("0"), defaultCommitLogLimit);
+  assert.ok(logArgsForView({ mode: "all" }).args.includes(`--max-count=${defaultCommitLogLimit}`));
+  assert.deepEqual(logArgsForView({ mode: "branch", ref: "main" }).args.slice(-1), ["main"]);
   assert.deepEqual(mergeArgs("feature/footer-toggle"), ["merge", "--no-ff", "--no-edit", "feature/footer-toggle"]);
   assert.deepEqual(mergeArgs("feature/footer-toggle", { createMergeCommit: true }), [
     "merge",
@@ -578,10 +593,20 @@ async function testGitModule() {
 }
 
 function testGitGraphModule() {
-  const { buildCommitGraph, parseLog } = require(path.join(projectRoot, "electron/lib/gitGraph.cjs"));
+  const {
+    buildCommitGraph,
+    commitMessageMaxLength,
+    normalizeCommitMessage,
+    parseLog,
+  } = require(path.join(projectRoot, "electron/lib/gitGraph.cjs"));
   const { graphContextForWorktrees } = require(path.join(projectRoot, "electron/lib/git.cjs"));
   const firstHash = "a".repeat(40);
   const secondHash = "b".repeat(40);
+  const longCommitMessage = "x".repeat(commitMessageMaxLength + 20);
+
+  assert.equal(normalizeCommitMessage("", "Fallback"), "Fallback");
+  assert.equal(normalizeCommitMessage(longCommitMessage, "").length, commitMessageMaxLength);
+  assert.ok(normalizeCommitMessage(longCommitMessage, "").endsWith("..."));
   const rawLog = [
     "\x1e",
     [
@@ -608,6 +633,8 @@ function testGitGraphModule() {
   assert.equal(commits[0].deletions, 1);
   assert.equal(commits[0].graph.currentLabel, "main");
   assert.equal(commits[0].graph.currentVariant, "solid");
+  assert.equal(commits[0].graph.incomingVariant, "solid");
+  assert.equal(commits[0].graph.isCurrentHead, true);
   const propagatedGraph = buildCommitGraph([
     {
       ...commit({ fullHash: firstHash, parents: [secondHash], refs: ["main"] }),
@@ -667,9 +694,149 @@ function testGitGraphModule() {
   const sharedMainGraphByHash = new Map(sharedMainGraph.map((item) => [item.fullHash, item]));
   assert.equal(sharedMainGraphByHash.get(externalHeadHash).graph.currentVariant, "dashed");
   assert.equal(sharedMainGraphByHash.get(currentHeadHash).graph.currentVariant, "solid");
+  assert.equal(sharedMainGraphByHash.get(currentHeadHash).graph.isCurrentHead, true);
+  assert.equal(sharedMainGraphByHash.get(externalHeadHash).graph.isCurrentHead, false);
   assert.equal(sharedMainGraphByHash.get(currentParentHash).graph.currentVariant, "solid");
   assert.equal(sharedMainGraphByHash.get(sharedMainHash).graph.currentVariant, "solid");
+  assert.equal(sharedMainGraphByHash.get(sharedMainHash).graph.currentColor, "#f0a400");
+  assert.equal(sharedMainGraphByHash.get(sharedMainHash).graph.incomingColor, "#333333");
+  assert.equal(sharedMainGraphByHash.get(sharedMainHash).graph.incomingVariant, "dashed");
   assert.equal(sharedMainGraphByHash.get(sharedRootHash).graph.currentVariant, "solid");
+
+  const externalChildHash = "7".repeat(40);
+  const localParentHash = "8".repeat(40);
+  const sourceStyledParentEdge = buildCommitGraph(
+    [
+      {
+        ...commit({ fullHash: externalChildHash, hash: "7777777", parents: [localParentHash], refs: ["feature/external"] }),
+        branchColor: "#333333",
+        refColors: ["#333333"],
+      },
+      {
+        ...commit({ fullHash: localParentHash, hash: "8888888", parents: [], refs: ["main"] }),
+        branchColor: "#f0a400",
+        refColors: ["#f0a400"],
+      },
+    ],
+    {
+      currentBranch: "main",
+      localBranches: ["main"],
+      externalHeads: [externalChildHash],
+      externalBranches: ["feature/external"],
+    },
+  );
+  assert.equal(sourceStyledParentEdge[0].graph.currentColor, "#333333");
+  assert.equal(sourceStyledParentEdge[0].graph.currentVariant, "dashed");
+  assert.deepEqual(sourceStyledParentEdge[0].graph.parentStems, [
+    { column: 0, color: "#333333", variant: "dashed" },
+  ]);
+  assert.equal(sourceStyledParentEdge[1].graph.currentColor, "#f0a400");
+  assert.equal(sourceStyledParentEdge[1].graph.currentVariant, "solid");
+  assert.equal(sourceStyledParentEdge[1].graph.incomingColor, "#333333");
+  assert.equal(sourceStyledParentEdge[1].graph.incomingVariant, "dashed");
+
+  const branchReturnMergeTipHash = "9".repeat(40);
+  const branchReturnFirstParentHash = "a".repeat(40);
+  const branchReturnParentHash = "b".repeat(40);
+  const branchReturnGraph = buildCommitGraph([
+    {
+      ...commit({
+        fullHash: branchReturnMergeTipHash,
+        hash: "9999999",
+        parents: [branchReturnFirstParentHash, branchReturnParentHash],
+        refs: ["main"],
+      }),
+      branchColor: "#f0a400",
+      refColors: ["#f0a400"],
+    },
+    {
+      ...commit({ fullHash: branchReturnFirstParentHash, hash: "aaaaaaa", parents: [], refs: [], refColors: [] }),
+      branchColor: "#f0a400",
+      refColors: [],
+    },
+    {
+      ...commit({ fullHash: branchReturnParentHash, hash: "bbbbbbb", parents: [], refs: ["refactor/codebase"] }),
+      branchColor: "#48ad62",
+      refColors: ["#48ad62"],
+    },
+  ]);
+  assert.deepEqual(branchReturnGraph[0].graph.bridges, [
+    { fromColumn: 0, toColumn: 1, color: "#48ad62", variant: "solid" },
+  ]);
+  assert.equal(branchReturnGraph[2].graph.currentColor, "#48ad62");
+  assert.equal(branchReturnGraph[2].graph.incomingColor, "#48ad62");
+
+  const mainTipHash = "2".repeat(40);
+  const mainMiddleHash = "3".repeat(40);
+  const topicPointerHash = "4".repeat(40);
+  const mainThroughTopicPointerGraph = buildCommitGraph([
+    {
+      ...commit({ fullHash: mainTipHash, hash: "2222222", parents: [mainMiddleHash], refs: ["main"] }),
+      branchColor: "#f0a400",
+      refColors: ["#f0a400"],
+    },
+    {
+      ...commit({ fullHash: mainMiddleHash, hash: "3333333", parents: [topicPointerHash], refs: [], refColors: [] }),
+      branchColor: "#f0a400",
+      refColors: [],
+    },
+    {
+      ...commit({ fullHash: topicPointerHash, hash: "4444444", parents: [], refs: ["fiery-comet-drifts-21h04"] }),
+      branchColor: "#48ad62",
+      refColors: ["#48ad62"],
+    },
+  ]);
+  const topicPointerGraph = mainThroughTopicPointerGraph.find((item) => item.fullHash === topicPointerHash).graph;
+  assert.equal(topicPointerGraph.currentColor, "#f0a400");
+  assert.equal(topicPointerGraph.currentLabel, "main");
+
+  const mergeTipHash = "7".repeat(40);
+  const mainFirstParentHash = "8".repeat(40);
+  const topicTipHash = "9".repeat(40);
+  const sharedAncestorHash = "0a".repeat(20);
+  const mainFirstParentGraph = buildCommitGraph([
+    {
+      ...commit({ fullHash: mergeTipHash, hash: "7777777", parents: [mainFirstParentHash, topicTipHash], refs: ["main"] }),
+      branchColor: "#f0a400",
+      refColors: ["#f0a400"],
+    },
+    {
+      ...commit({ fullHash: topicTipHash, hash: "9999999", parents: [sharedAncestorHash], refs: ["refactor/codebase"] }),
+      branchColor: "#2f86d8",
+      refColors: ["#2f86d8"],
+    },
+    {
+      ...commit({ fullHash: mainFirstParentHash, hash: "8888888", parents: [sharedAncestorHash], refs: [], refColors: [] }),
+      branchColor: "#f0a400",
+      refColors: [],
+    },
+    {
+      ...commit({ fullHash: sharedAncestorHash, hash: "0a0a0a0", parents: [], refs: ["fiery-comet-drifts-21h04"] }),
+      branchColor: "#48ad62",
+      refColors: ["#48ad62"],
+    },
+  ]);
+  const sharedAncestorGraph = mainFirstParentGraph.find((item) => item.fullHash === sharedAncestorHash).graph;
+  assert.equal(sharedAncestorGraph.currentColor, "#f0a400");
+  assert.equal(sharedAncestorGraph.currentLabel, "main");
+  assert.equal(mainFirstParentGraph[2].graph.bridges[0].color, "#2f86d8");
+
+  const featureTipHash = "5".repeat(40);
+  const mainBaseHash = "6".repeat(40);
+  const featureJoiningMainGraph = buildCommitGraph([
+    {
+      ...commit({ fullHash: featureTipHash, hash: "5555555", parents: [mainBaseHash], refs: ["feature/preview"] }),
+      branchColor: "#48ad62",
+      refColors: ["#48ad62"],
+    },
+    {
+      ...commit({ fullHash: mainBaseHash, hash: "6666666", parents: [], refs: ["main"] }),
+      branchColor: "#f0a400",
+      refColors: ["#f0a400"],
+    },
+  ]);
+  assert.equal(featureJoiningMainGraph[1].graph.currentColor, "#f0a400");
+  assert.equal(featureJoiningMainGraph[1].graph.currentLabel, "main");
 
   const localOnlyHeadHash = "1".repeat(40);
   const graphWithDetachedExternalInsideLocalBranch = buildCommitGraph(
@@ -745,6 +912,7 @@ function testGitGraphModule() {
     },
   ]);
   assert.equal(mergeGraph[0].graph.isMerge, true);
+  assert.equal(mergeGraph[0].graph.isCurrentHead, false);
   assert.equal(mergeGraph[0].graph.bridges.length, 1);
 }
 
@@ -934,6 +1102,7 @@ async function testActionDialogView(server) {
     actionDialogBodyId,
     actionDialogBranchNameKeyAction,
     actionDialogConfirmation,
+    actionDialogCopyPromptButtonView,
     actionDialogGlobalKeyAction,
     actionDialogAfterMergeError,
     actionDialogAfterMergeTargetChange,
@@ -948,6 +1117,7 @@ async function testActionDialogView(server) {
     checkoutRefActionDialog,
     commitActionDialog,
     createBranchActionDialog,
+    mergeFailureAgentPrompt,
     mergeCommitActionDialog,
     mergeTargetBranchOptions,
   } = await loadTsModule(server, "src/lib/actionDialogView.ts");
@@ -1068,12 +1238,15 @@ async function testActionDialogView(server) {
     showMergeTargetValidationMessage: false,
     mergeTargetErrorId: undefined,
     actionError: {
+      containerClassName: "action-dialog-error-block",
       className: "ui-layer-panel ui-code-block action-dialog-error",
       id: "action-dialog-error",
       role: "alert",
       message: "",
     },
     showActionError: false,
+    mergeFailurePrompt: "",
+    showMergeFailurePrompt: false,
   };
   const actionDialogChromeWithBranchMax = (nameMaxLength) => ({
     ...actionDialogChrome,
@@ -1118,6 +1291,26 @@ async function testActionDialogView(server) {
     ),
     mergeTargets,
   );
+  assert.deepEqual(
+    mergeTargetBranchOptions(
+      [
+        { name: "feat/branch-swift", type: "local", current: true },
+        { name: "feat/commit-block", type: "local", current: false },
+        { name: "develop", type: "local", current: false },
+        { name: "main", type: "local", current: false },
+        { name: "master", type: "local", current: false },
+        { name: "origin/main", type: "remote", current: false },
+      ],
+      "feat/branch-swift",
+    ),
+    [
+      { name: "feat/branch-swift", current: true },
+      { name: "main", current: false },
+      { name: "develop", current: false },
+      { name: "master", current: false },
+      { name: "feat/commit-block", current: false },
+    ],
+  );
 
   assert.deepEqual(createBranchActionDialog(sampleCommit), {
     type: "createBranch",
@@ -1158,17 +1351,38 @@ async function testActionDialogView(server) {
     commitActionDialog("merge", sampleCommit, { targetBranches: mergeTargets }),
     mergeCommitActionDialog(sampleCommit, { targetBranches: mergeTargets }),
   );
-  assert.deepEqual(checkoutRefActionDialog("feature/worktree-safety"), {
+  const switchBranchDialog = checkoutRefActionDialog("feature/worktree-safety");
+  assert.deepEqual(switchBranchDialog, {
     type: "checkout",
-    title: "Checkout branch",
+    title: "Switch branch",
     body: "Switch the working folder to feature/worktree-safety.",
     ref: "feature/worktree-safety",
+    fallbackNotice: "Switched to feature/worktree-safety.",
+    failureNotice: "Unable to switch branch.",
   });
   assert.equal(actionDialogGlobalKeyAction("Escape"), "cancel");
   assert.equal(actionDialogGlobalKeyAction("Enter"), "ignore");
   assert.equal(actionDialogBranchNameKeyAction("Enter", false), "confirm");
   assert.equal(actionDialogBranchNameKeyAction("Enter", true), "block");
   assert.equal(actionDialogBranchNameKeyAction("Escape", false), "ignore");
+  assert.deepEqual(actionDialogCopyPromptButtonView("idle"), {
+    className: "ui-button action-dialog-copy-prompt",
+    label: "Copy agent prompt",
+    title: "Copy agent prompt",
+    icon: "copy",
+  });
+  assert.deepEqual(actionDialogCopyPromptButtonView("copied"), {
+    className: "ui-button action-dialog-copy-prompt",
+    label: "Copied prompt",
+    title: "Copied prompt",
+    icon: "check",
+  });
+  assert.deepEqual(actionDialogCopyPromptButtonView("failed"), {
+    className: "ui-button action-dialog-copy-prompt",
+    label: "Copy failed",
+    title: "Copy failed",
+    icon: "x",
+  });
   const createBranchDialog = createBranchActionDialog(sampleCommit);
   const checkoutDialog = checkoutCommitActionDialog(sampleCommit);
   const mergeDialog = mergeCommitActionDialog(sampleCommit, { targetBranches: mergeTargets });
@@ -1221,6 +1435,12 @@ async function testActionDialogView(server) {
     ref: "abc123400000000000000000000000000000000",
     fallbackNotice: "Checkout complete.",
     failureNotice: "Unable to checkout ref.",
+  });
+  assert.deepEqual(actionDialogConfirmation(switchBranchDialog), {
+    type: "checkout",
+    ref: "feature/worktree-safety",
+    fallbackNotice: "Switched to feature/worktree-safety.",
+    failureNotice: "Unable to switch branch.",
   });
   assert.deepEqual(actionDialogConfirmation(mergeDialog), {
     type: "merge",
@@ -1398,11 +1618,45 @@ async function testActionDialogView(server) {
   assert.equal(failedMergeView.dialog.ariaDescribedBy, "action-dialog-body action-dialog-error");
   assert.equal(failedMergeView.showActionError, true);
   assert.deepEqual(failedMergeView.actionError, {
+    containerClassName: "action-dialog-error-block",
     className: "ui-layer-panel ui-code-block action-dialog-error",
     id: "action-dialog-error",
     role: "alert",
     message: "Auto-merging src/App.tsx\nCONFLICT (content): Merge conflict in src/App.tsx",
   });
+  assert.equal(failedMergeView.showMergeFailurePrompt, true);
+  assert.equal(
+    failedMergeView.mergeFailurePrompt,
+    mergeFailureAgentPrompt({
+      error: "Auto-merging src/App.tsx\nCONFLICT (content): Merge conflict in src/App.tsx",
+      ref: "abc123400000000000000000000000000000000",
+      targetBranch: "main",
+    }),
+  );
+  assert.match(failedMergeView.mergeFailurePrompt, /A Git merge failed in this repository/);
+  assert.match(failedMergeView.mergeFailurePrompt, /Source ref\/commit: abc123400000000000000000000000000000000/);
+  assert.match(failedMergeView.mergeFailurePrompt, /Target branch: main/);
+  assert.match(failedMergeView.mergeFailurePrompt, /CONFLICT \(content\): Merge conflict in src\/App\.tsx/);
+  assert.match(failedMergeView.mergeFailurePrompt, /keep unrelated worktree changes intact/);
+  assert.doesNotMatch(failedMergeView.mergeFailurePrompt, /No-fast-forward merges are enabled/);
+  const failedNoFastForwardMergeView = actionDialogView(
+    {
+      ...mergeDialog,
+      error: "Auto-merging src/App.tsx\nCONFLICT (content): Merge conflict in src/App.tsx",
+    },
+    { createMergeCommit: true },
+  );
+  assert.equal(
+    failedNoFastForwardMergeView.mergeFailurePrompt,
+    mergeFailureAgentPrompt({
+      createMergeCommit: true,
+      error: "Auto-merging src/App.tsx\nCONFLICT (content): Merge conflict in src/App.tsx",
+      ref: "abc123400000000000000000000000000000000",
+      targetBranch: "main",
+    }),
+  );
+  assert.match(failedNoFastForwardMergeView.mergeFailurePrompt, /No-fast-forward merges are enabled in Settings/);
+  assert.match(failedNoFastForwardMergeView.mergeFailurePrompt, /do not complete this as a fast-forward merge/);
 }
 
 async function testCommitSearch(server) {
@@ -1455,6 +1709,10 @@ async function testCommitListView(server) {
     commitSearchStateAfterToggle,
     commitSearchToggleView,
     commitSelectionVisible,
+    commitVirtualRowOffset,
+    commitVirtualTotalHeight,
+    commitVirtualWindow,
+    commitVirtualizationThreshold,
     firstCommitId,
     recentCommitsTitleId,
     selectedCommitFromSnapshot,
@@ -1479,7 +1737,7 @@ async function testCommitListView(server) {
     className: "section-heading",
   });
   assert.equal(commitListView(commits, "").titleId, "recent-commits-title");
-  assert.equal(commitListView(commits, "").title, "Recent commits");
+  assert.equal(commitListView(commits, "").title, "Commits");
   assert.equal(commitListView(commits, "").filteredCount, 2);
   assert.equal(commitListView(commits, "").showCommits, true);
   assert.equal(commitListView(commits, "").showEmptyState, false);
@@ -1694,6 +1952,57 @@ async function testCommitListView(server) {
     title: "No commits to search",
     tooltip: undefined,
   });
+  assert.deepEqual(
+    commitVirtualWindow({
+      itemCount: 2,
+      selectedIndex: -1,
+      scrollTop: 1000,
+      viewportHeight: 256,
+    }),
+    {
+      startIndex: 0,
+      endIndex: 2,
+      topPadding: 0,
+      bottomPadding: 0,
+      totalHeight: 128,
+      virtualized: false,
+    },
+  );
+  assert.deepEqual(
+    commitVirtualWindow({
+      itemCount: commitVirtualizationThreshold + 80,
+      selectedIndex: -1,
+      scrollTop: 0,
+      viewportHeight: 256,
+    }),
+    {
+      startIndex: 0,
+      endIndex: 13,
+      topPadding: 0,
+      bottomPadding: 11968,
+      totalHeight: 12800,
+      virtualized: true,
+    },
+  );
+  assert.equal(commitVirtualTotalHeight(200, 10), 12848);
+  assert.equal(commitVirtualRowOffset(11, 200, 10), 752);
+  assert.deepEqual(
+    commitVirtualWindow({
+      itemCount: 200,
+      selectedIndex: 10,
+      scrollTop: 640,
+      viewportHeight: 64,
+      overscanRows: 0,
+    }),
+    {
+      startIndex: 10,
+      endIndex: 11,
+      topPadding: 640,
+      bottomPadding: 12096,
+      totalHeight: 12848,
+      virtualized: true,
+    },
+  );
 }
 
 async function testCommitRowView(server) {
@@ -4395,6 +4704,7 @@ async function testRepositoryControlsView(server) {
     repositoryBranchMenuItemView,
     repositoryBranchMenuView,
     repositoryBranchMenuChromeView,
+    repositoryBranchSwitchActionView,
     repositoryBranchTriggerView,
     repositoryControlsChromeView,
     repositoryControlsMenuState,
@@ -4403,6 +4713,9 @@ async function testRepositoryControlsView(server) {
     repositorySelectedBranchSummaryView,
     repositoryViewChipView,
     repositoryWorktreeMenuChromeView,
+    repositoryWorktreeContextMenuChromeView,
+    repositoryWorktreeContextTriggerView,
+    repositoryWorktreeContextView,
     repositoryWorktreeMenuItemView,
     repositoryWorktreeMenuView,
     repositoryWorktreeSelection,
@@ -4479,20 +4792,58 @@ async function testRepositoryControlsView(server) {
     ariaLabelledBy: "branch-ref-trigger",
   });
   assert.deepEqual(repositoryRetainedBranchMenuItemView("missing"), {
+    rowClassName: "branch-ref-menu-row",
     className: "ui-menu-item branch-ref-menu-item is-active",
     role: "menuitem",
     ariaCurrent: "true",
     icon: "check",
     label: "missing",
   });
+  assert.deepEqual(repositoryBranchSwitchActionView(branches[0], "main", [current]), {
+    show: false,
+    disabled: false,
+    branchName: "main",
+    className: "branch-switch-button",
+    icon: "switch",
+    ariaLabel: "Switch to main",
+    title: "Switch to main",
+  });
+  assert.deepEqual(repositoryBranchSwitchActionView(branches[1], "main", [current]), {
+    show: true,
+    disabled: false,
+    branchName: "feature/worktree-menu",
+    className: "branch-switch-button",
+    icon: "switch",
+    ariaLabel: "Switch to feature/worktree-menu",
+    title: "Switch to feature/worktree-menu",
+  });
+  assert.deepEqual(repositoryBranchSwitchActionView(branches[1], "main", [linked]), {
+    show: true,
+    disabled: true,
+    branchName: "feature/worktree-menu",
+    className: "branch-switch-button",
+    icon: "switch",
+    ariaLabel: "Switch to feature/worktree-menu",
+    title: "This branch is checked out in another worktree.",
+  });
   assert.deepEqual(repositoryBranchMenuItemView(true, branches[0]), {
-    className: "ui-menu-item branch-ref-menu-item is-active",
+    rowClassName: "branch-ref-menu-row",
+    className: "ui-menu-item branch-ref-menu-item branch-ref-view-button is-active",
     role: "menuitem",
     ariaCurrent: "true",
     icon: "check",
     label: "main",
     title: "refs/heads/main",
     key: "local-main",
+    switchAction: {
+      show: false,
+      disabled: false,
+      branchName: "main",
+      className: "branch-switch-button",
+      icon: "switch",
+      ariaLabel: "Switch to main",
+      title: "Switch to main",
+    },
   });
   assert.deepEqual(
     repositoryBranchMenuItemView(false, {
@@ -4503,13 +4854,23 @@ async function testRepositoryControlsView(server) {
       upstream: "",
     }),
     {
-      className: "ui-menu-item branch-ref-menu-item",
+      rowClassName: "branch-ref-menu-row",
+      className: "ui-menu-item branch-ref-menu-item branch-ref-view-button",
       role: "menuitem",
       ariaCurrent: undefined,
       icon: "branch",
       label: "origin/main remote",
       title: "refs/remotes/origin/main",
       key: "remote-origin/main",
+      switchAction: {
+        show: false,
+        disabled: false,
+        branchName: "origin/main",
+        className: "branch-switch-button",
+        icon: "switch",
+        ariaLabel: "Switch to origin/main",
+        title: "Switch to origin/main",
+      },
     },
   );
   assert.deepEqual(repositoryBranchMenuView({ branches, currentBranchName: "main", view: { mode: "all" } }), {
@@ -4529,8 +4890,32 @@ async function testRepositoryControlsView(server) {
       ariaLabel: undefined,
     },
     branchItems: [
-      { branch: branches[0], active: false },
-      { branch: branches[1], active: false },
+      {
+        branch: branches[0],
+        active: false,
+        switchAction: {
+          show: false,
+          disabled: false,
+          branchName: "main",
+          className: "branch-switch-button",
+          icon: "switch",
+          ariaLabel: "Switch to main",
+          title: "Switch to main",
+        },
+      },
+      {
+        branch: branches[1],
+        active: false,
+        switchAction: {
+          show: true,
+          disabled: false,
+          branchName: "feature/worktree-menu",
+          className: "branch-switch-button",
+          icon: "switch",
+          ariaLabel: "Switch to feature/worktree-menu",
+          title: "Switch to feature/worktree-menu",
+        },
+      },
     ],
   });
   assert.deepEqual(
@@ -4556,8 +4941,32 @@ async function testRepositoryControlsView(server) {
         ariaLabel: "Viewing branch feature/worktree-menu",
       },
       branchItems: [
-        { branch: branches[0], active: false },
-        { branch: branches[1], active: true },
+        {
+          branch: branches[0],
+          active: false,
+          switchAction: {
+            show: false,
+            disabled: false,
+            branchName: "main",
+            className: "branch-switch-button",
+            icon: "switch",
+            ariaLabel: "Switch to main",
+            title: "Switch to main",
+          },
+        },
+        {
+          branch: branches[1],
+          active: true,
+          switchAction: {
+            show: true,
+            disabled: false,
+            branchName: "feature/worktree-menu",
+            className: "branch-switch-button",
+            icon: "switch",
+            ariaLabel: "Switch to feature/worktree-menu",
+            title: "Switch to feature/worktree-menu",
+          },
+        },
       ],
     },
   );
@@ -4628,6 +5037,48 @@ async function testRepositoryControlsView(server) {
     showWorktreeControl: false,
     worktreeItems: [],
   });
+  const worktreeContext = repositoryWorktreeContextView([bare, linked, current]);
+  assert.equal(worktreeContext.show, true);
+  assert.equal(worktreeContext.className, "worktree-context");
+  assert.equal(worktreeContext.staticClassName, "worktree-context-static");
+  assert.equal(worktreeContext.copyClassName, "worktree-context-copy");
+  assert.equal(worktreeContext.badgeClassName, "worktree-context-count");
+  assert.equal(worktreeContext.eyebrow, "Current worktree");
+  assert.equal(worktreeContext.label, "main");
+  assert.equal(worktreeContext.path, current.path);
+  assert.equal(worktreeContext.countLabel, "2 worktrees");
+  assert.equal(worktreeContext.title, current.path);
+  assert.equal(worktreeContext.ariaLabel, `Current worktree main at ${current.path}`);
+  assert.equal(worktreeContext.canSwitch, true);
+  assert.equal(worktreeContext.currentWorktree, current);
+  assert.deepEqual(worktreeContext.menu.worktreeItems, [
+    { worktree: linked, active: false },
+    { worktree: current, active: true },
+  ]);
+  assert.deepEqual(repositoryWorktreeContextView([current]), {
+    show: true,
+    className: "worktree-context",
+    staticClassName: "worktree-context-static",
+    copyClassName: "worktree-context-copy",
+    badgeClassName: "worktree-context-count",
+    eyebrow: "Current worktree",
+    label: "main",
+    path: current.path,
+    countLabel: "1 worktree",
+    title: current.path,
+    ariaLabel: `Current worktree main at ${current.path}`,
+    canSwitch: false,
+    currentWorktree: current,
+    menu: {
+      controlClassName: "worktree-compact",
+      switchableWorktrees: [current],
+      switchableWorktreeCount: 1,
+      currentWorktree: current,
+      showWorktreeControl: false,
+      worktreeItems: [{ worktree: current, active: true }],
+    },
+  });
+  assert.equal(repositoryWorktreeContextView([bare]).show, false);
   assert.deepEqual(repositoryWorktreeTriggerView(true, current), {
     id: "worktree-trigger",
     className: "worktree-trigger is-open",
@@ -4650,11 +5101,37 @@ async function testRepositoryControlsView(server) {
     label: "Worktrees",
     title: undefined,
   });
+  assert.deepEqual(repositoryWorktreeContextTriggerView(true, current), {
+    id: "worktree-context-trigger",
+    className: "worktree-context-trigger is-open",
+    icon: "worktree",
+    ariaLabel: "Choose worktree",
+    ariaHasPopup: "menu",
+    ariaExpanded: true,
+    ariaControls: "worktree-context-menu",
+    title: current.path,
+  });
+  assert.deepEqual(repositoryWorktreeContextTriggerView(false, undefined), {
+    id: "worktree-context-trigger",
+    className: "worktree-context-trigger",
+    icon: "worktree",
+    ariaLabel: "Choose worktree",
+    ariaHasPopup: "menu",
+    ariaExpanded: false,
+    ariaControls: "worktree-context-menu",
+    title: undefined,
+  });
   assert.deepEqual(repositoryWorktreeMenuChromeView(), {
     className: "ui-menu worktree-menu",
     id: "worktree-menu",
     role: "menu",
     ariaLabelledBy: "worktree-trigger",
+  });
+  assert.deepEqual(repositoryWorktreeContextMenuChromeView(), {
+    className: "ui-menu worktree-menu worktree-context-menu",
+    id: "worktree-context-menu",
+    role: "menu",
+    ariaLabelledBy: "worktree-context-trigger",
   });
   assert.deepEqual(repositoryWorktreeMenuItemView(true, current), {
     className: "ui-menu-item worktree-menu-item is-active",
@@ -4740,14 +5217,17 @@ async function testClassNamesAndGraph(server) {
     laneCount: 1,
     currentColor: "#111111",
     currentVariant: "dashed",
+    incomingColor: "#999999",
+    incomingVariant: "solid",
     currentContinues: true,
     passThrough: [{ column: 0, color: "#222222", variant: "dashed", from: "top", to: "bottom" }],
     parentStems: [{ column: 1, color: "#333333", variant: "solid", from: "node", to: "bottom" }],
     bridges: [{ fromColumn: 2, toColumn: 0, color: "#444444", variant: "solid", to: "lane" }],
     isMerge: true,
+    isCurrentHead: false,
   };
 
-  assert.equal(joinClass("graph-node", false, null, undefined, "is-merge"), "graph-node is-merge");
+  assert.equal(joinClass("graph-node", false, null, undefined, "is-current-head"), "graph-node is-current-head");
   assert.equal(joinClass(), "");
   assert.equal(getGitTreeRequiredLaneCount(graph), 3);
   assert.equal(getGitTreeRailWidth(1), 42);
@@ -4755,16 +5235,27 @@ async function testClassNamesAndGraph(server) {
 
   const model = buildGitTreeRenderModel(graph);
   assert.equal(model.width, 54);
-  assert.equal(model.height, 100);
-  assert.equal(model.viewBox, "0 0 54 100");
+  assert.equal(model.bridgeHeight, 38);
   assert.equal(model.node.x, 33);
-  assert.equal(model.node.isMerge, true);
-  assert.equal(model.node.className, "graph-node is-merge is-dashed");
-  assert.equal(model.node.showCore, true);
-  assert.equal(model.paths.length, 4);
+  assert.equal(model.node.isCurrentHead, false);
+  assert.equal(model.node.className, "graph-node is-dashed");
+  assert.equal(model.node.showCore, false);
+  assert.equal(model.paths.length, 7);
   assert.ok(model.paths.some((path) => path.className === "graph-line is-dashed"));
   assert.ok(model.paths.some((path) => path.className === "graph-line graph-bridge"));
-  assert.ok(model.paths.some((path) => path.d.startsWith("M 33 32 C")));
+  assert.ok(model.paths.some((path) => path.d.startsWith("M 33 0 C")));
+  const currentTopPath = model.paths.find((path) => path.id === "current-2-#999999");
+  assert.equal(currentTopPath?.color, "#999999");
+  assert.equal(currentTopPath?.className, "graph-line");
+  const bridgeWithoutLaneTarget = buildGitTreeRenderModel({
+    ...graph,
+    bridges: [{ fromColumn: 2, toColumn: 0, color: "#555555", variant: "solid" }],
+  });
+  assert.equal(
+    bridgeWithoutLaneTarget.paths.some((path) => path.id.startsWith("bridge-tail-")),
+    false,
+  );
+  assert.equal(bridgeWithoutLaneTarget.paths.find((path) => path.className === "graph-line graph-bridge")?.segment, "bridge-run");
 
   const cellView = gitTreeCellView(model);
   assert.deepEqual(cellView.container, {
@@ -4774,37 +5265,63 @@ async function testClassNamesAndGraph(server) {
   assert.deepEqual(gitTreeSvgSegments(model), [
     {
       key: "top",
+      segment: "top",
       className: "graph-svg graph-svg-top",
-      viewBox: "0 0 54 32",
+      viewBox: "0 0 54 1",
       preserveAspectRatio: "none",
     },
     {
-      key: "bottom",
-      className: "graph-svg graph-svg-bottom",
-      viewBox: "0 32 54 68",
+      key: "bridge",
+      segment: "bridge",
+      className: "graph-svg graph-svg-bridge",
+      viewBox: "0 0 54 38",
+      preserveAspectRatio: "none",
+    },
+    {
+      key: "bridge-run",
+      segment: "bridge-run",
+      className: "graph-svg graph-svg-bridge-run",
+      viewBox: "0 0 54 38",
+      preserveAspectRatio: "none",
+    },
+    {
+      key: "tail",
+      segment: "tail",
+      className: "graph-svg graph-svg-tail",
+      viewBox: "0 0 54 1",
       preserveAspectRatio: "none",
     },
   ]);
-  assert.deepEqual(cellView.svgSegments, gitTreeSvgSegments(model));
+  assert.deepEqual(
+    cellView.svgSegments.map(({ paths, ...svg }) => svg),
+    gitTreeSvgSegments(model),
+  );
   assert.deepEqual(gitTreePathStyle({ color: "#123456" }), {
     "--git-tree-color": "#123456",
   });
-  assert.equal(cellView.paths.length, model.paths.length);
-  assert.equal(cellView.paths[0].vectorEffect, "non-scaling-stroke");
-  assert.deepEqual(cellView.paths[0].style, {
-    "--git-tree-color": model.paths[0].color,
+  const cellViewPaths = cellView.svgSegments.flatMap((svg) => svg.paths);
+  assert.equal(cellViewPaths.length, model.paths.length);
+  assert.equal(cellViewPaths[0].vectorEffect, "non-scaling-stroke");
+  assert.deepEqual(cellViewPaths[0].style, {
+    "--git-tree-color": cellViewPaths[0].color,
   });
   assert.deepEqual(gitTreeNodeStyle(model), {
     left: `${model.node.leftPercent}%`,
-    top: "var(--git-tree-node-y, 32%)",
+    top: "var(--git-tree-node-y, 22px)",
     "--git-tree-color": "#111111",
   });
   assert.deepEqual(cellView.node, {
-    className: "graph-node is-merge is-dashed",
+    className: "graph-node is-dashed",
     style: gitTreeNodeStyle(model),
-    showCore: true,
+    showCore: false,
     coreClassName: "graph-node-core",
   });
+
+  const currentHeadModel = buildGitTreeRenderModel({ ...graph, currentVariant: "solid", isCurrentHead: true });
+  assert.equal(currentHeadModel.node.isCurrentHead, true);
+  assert.equal(currentHeadModel.node.className, "graph-node is-current-head");
+  assert.equal(currentHeadModel.node.showCore, true);
+  assert.equal(gitTreeCellView(currentHeadModel).node.showCore, true);
 
   const regularModel = buildGitTreeRenderModel({ ...graph, currentVariant: "solid", isMerge: false });
   assert.equal(regularModel.node.className, "graph-node");
