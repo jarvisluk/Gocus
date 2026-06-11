@@ -30,6 +30,7 @@ function registerIpcHandlers({
   saveRepositoryPath,
   sendPreferences,
   sendSnapshotResponse,
+  setCollapsedRailHeight,
   setCollapsedWindow,
   setCommitInfoPanel,
   setCurrentView,
@@ -186,6 +187,10 @@ function registerIpcHandlers({
 
   ipcMain.handle("window:setCollapsed", (_event, collapsed) => {
     setCollapsedWindow(Boolean(collapsed));
+  });
+
+  ipcMain.handle("window:setCollapsedRailHeight", (_event, height) => {
+    setCollapsedRailHeight(height);
   });
 
   ipcMain.handle("window:setPinned", (_event, pinned) => {

@@ -223,6 +223,7 @@ function installGitPeekMock(config) {
   window.__gitPeekSnapshotRequests = [];
   window.__gitPeekOpenedWorkspaces = [];
   window.__gitPeekOpenedWorkspaceFiles = [];
+  window.__gitPeekCollapsedRailHeights = [];
   window.__gitPeekRefreshCount = 0;
   if (config.clipboardAvailable) {
     Object.defineProperty(navigator, "clipboard", {
@@ -312,6 +313,9 @@ function installGitPeekMock(config) {
     setPinned: async (pinned) => {
       window.__gitPeekPinnedState = Boolean(pinned);
       window.__gitPeekPinnedListeners.forEach((callback) => callback(window.__gitPeekPinnedState));
+    },
+    setCollapsedRailHeight: async (height) => {
+      window.__gitPeekCollapsedRailHeights.push(height);
     },
     setCollapsed: async () => {},
     dockToEdge: async () => {},
@@ -1436,7 +1440,7 @@ async function testResponsiveShell(browser, baseUrl) {
 }
 
 async function testCollapsedRailChangedNowToggle(browser, baseUrl) {
-  const branchName = "refactor/codebase-optimization";
+  const branchName = "fix/worktree-render";
   const branchColor = "#25b7ba";
   const collapsedRailCommits = [
     commit({
@@ -1453,7 +1457,7 @@ async function testCollapsedRailChangedNowToggle(browser, baseUrl) {
     browser,
     baseUrl,
     mockedSnapshotScenario(collapsedRailCommits, {
-      branch: { name: branchName, upstream: "origin/refactor/codebase-optimization", ahead: 1, behind: 0, detached: false },
+      branch: { name: branchName, upstream: "origin/fix/worktree-render", ahead: 1, behind: 0, detached: false },
     }),
   );
   try {
@@ -1463,9 +1467,10 @@ async function testCollapsedRailChangedNowToggle(browser, baseUrl) {
       return refPill ? getComputedStyle(refPill).getPropertyValue("--branch-color").trim() : "";
     }, branchName);
     assert.equal(mainBranchColor, branchColor);
+    await page.waitForFunction(() => window.__gitPeekCollapsedRailHeights.at(-1) === 230);
 
     await page.getByRole("button", { name: "Collapse side peek" }).click();
-    await page.setViewportSize({ width: 38, height: 268 });
+    await page.setViewportSize({ width: 38, height: 230 });
     await page.getByLabel("Collapsed Git Peek").waitFor();
     await assertNoHorizontalOverflow(page, "collapsed rail");
 
@@ -1503,10 +1508,11 @@ async function testCollapsedRailChangedNowToggle(browser, baseUrl) {
     assert.equal(railMetrics.branchColor, mainBranchColor);
     assert.equal(railMetrics.countColor, mainBranchColor);
     assert.equal(railMetrics.whiteSpace, "nowrap");
+    assert.equal(Math.round(railMetrics.rail.height), 230);
     assert.ok(railMetrics.label.width <= 16, `label should stay in one vertical column: ${JSON.stringify(railMetrics)}`);
     assert.ok(
-      railMetrics.count.top - railMetrics.branch.bottom >= 7,
-      `count should have breathing room below branch icon: ${JSON.stringify(railMetrics)}`,
+      railMetrics.count.top - railMetrics.branch.bottom >= 5,
+      `count should keep the configured gap below branch icon: ${JSON.stringify(railMetrics)}`,
     );
     assert.ok(railMetrics.branch.top >= railMetrics.rail.top - 1, `branch starts inside rail: ${JSON.stringify(railMetrics)}`);
     assert.ok(railMetrics.branch.bottom <= railMetrics.rail.bottom + 1, `branch ends inside rail: ${JSON.stringify(railMetrics)}`);

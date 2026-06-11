@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Minimize2 } from "lucide-react";
 import { ActionDialog } from "./components/ActionDialog";
 import { CollapsedRail } from "./components/CollapsedRail";
@@ -26,6 +26,7 @@ import {
   appViewportView,
   appZenExitButtonView,
 } from "./lib/appShellView";
+import { collapsedRailHeightForBranchName } from "./lib/collapsedRailView";
 import { activeWorkspaceOpenTarget, visibleWorkspaceOpenOptions } from "./lib/workspaceOpenChoices";
 import { workspaceOpenOptions } from "./lib/workspaceOpenOptions";
 import type { WorkspaceOpenTarget } from "./types";
@@ -97,6 +98,15 @@ export default function App() {
     onClose: closeSettings,
   });
   useZenEscape({ zenActive, onExit: exitZenMode });
+  useEffect(() => {
+    const height = collapsedRailHeightForBranchName(controller.snapshot?.branch.name);
+    const syncHeight = window.gitPeek?.setCollapsedRailHeight?.(height);
+    if (syncHeight) {
+      void syncHeight.catch((error) => {
+        console.warn("[Git Peek] Unable to update collapsed rail height.", error);
+      });
+    }
+  }, [controller.snapshot?.branch.name]);
 
   function updatePreferences(nextPreferences: typeof controller.preferences) {
     controller.setPreferences(nextPreferences);

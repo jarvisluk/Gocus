@@ -1,9 +1,10 @@
 const expandedMinimumSize = { width: 320, height: 620 };
 const defaultExpandedSize = { width: expandedMinimumSize.width, height: 780 };
-const collapsedSize = { width: 38, height: 268 };
+const collapsedSize = { width: 38, height: 136 };
 const temporaryInfoWindowSize = { width: 280, height: 252 };
 const commitInfoWindowSize = { width: 348, height: 132 };
 const temporaryInfoWindowGap = 10;
+const collapsedRailMaximumHeight = 420;
 
 function clampExpandedSize(size, display) {
   return {
@@ -19,8 +20,17 @@ function expandedSizeFromConfig(config, display) {
   return clampExpandedSize(config.readExpandedWindowSize() ?? defaultExpandedSize, display);
 }
 
-function mainWindowBounds({ currentBounds, display, collapsed, expandedSize }) {
-  const size = collapsed ? collapsedSize : expandedSize;
+function clampCollapsedRailHeight(height, display) {
+  const requestedHeight = Math.round(Number(height));
+  const availableHeight = Number(display?.height) ? display.height - 16 : collapsedRailMaximumHeight;
+  const maximumHeight = Math.max(collapsedSize.height, Math.min(collapsedRailMaximumHeight, availableHeight));
+
+  if (!Number.isFinite(requestedHeight)) return collapsedSize.height;
+  return Math.min(Math.max(requestedHeight, collapsedSize.height), maximumHeight);
+}
+
+function mainWindowBounds({ currentBounds, display, collapsed, expandedSize, collapsedWindowSize = collapsedSize }) {
+  const size = collapsed ? collapsedWindowSize : expandedSize;
   const edgeInset = collapsed ? 0 : 10;
   const x = display.x + display.width - size.width - edgeInset;
   const fallbackY = display.y + Math.max(18, Math.floor((display.height - size.height) / 2));
@@ -103,6 +113,7 @@ function windowBoundsEqual(left, right) {
 }
 
 module.exports = {
+  clampCollapsedRailHeight,
   collapsedSize,
   commitInfoBounds,
   commitInfoWindowSize,
