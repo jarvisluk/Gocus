@@ -8,6 +8,7 @@ const { installOutputErrorGuard } = require("./lib/outputGuard.cjs");
 const {
   changedFileInfoBounds,
   changedFileInfoWindowSize,
+  clampCommitInfoWindowHeight,
   collapsedSize,
   commitInfoBounds,
   commitInfoWindowSize,
@@ -56,6 +57,7 @@ let changedFileInfoWindow = null;
 let changedFileInfoPayload = null;
 let commitInfoWindow = null;
 let commitInfoPayload = null;
+let commitInfoWindowHeight = commitInfoWindowSize.height;
 let activeWorkspaceOpenTarget = "cursor";
 let workspaceOpenMenuActive = false;
 let repositoryWatcher = null;
@@ -820,7 +822,15 @@ function commitInfoWindowBounds() {
   const display = screen.getDisplayMatching(mainBounds).workArea;
   const avoidBounds = temporaryInfoWindow && !temporaryInfoWindow.isDestroyed() ? temporaryInfoWindow.getBounds() : null;
   const anchorBounds = commitInfoPayload?.kind === "commit" ? commitInfoPayload.anchorBounds : null;
-  return commitInfoBounds({ mainBounds, display, alignTop: collapsedState, avoidBounds, anchorBounds });
+  const height = clampCommitInfoWindowHeight(commitInfoWindowHeight, display);
+  return commitInfoBounds({
+    mainBounds,
+    display,
+    alignTop: collapsedState,
+    avoidBounds,
+    anchorBounds,
+    size: { ...commitInfoWindowSize, height },
+  });
 }
 
 function sendCommitInfoPayload() {
@@ -864,6 +874,7 @@ function closeCommitInfoWindowIfAppInactive() {
 
 function closeCommitInfoWindow() {
   commitInfoPayload = null;
+  commitInfoWindowHeight = commitInfoWindowSize.height;
   if (!commitInfoWindow || commitInfoWindow.isDestroyed()) return;
   const windowToClose = commitInfoWindow;
   commitInfoWindow = null;
@@ -908,6 +919,7 @@ function ensureCommitInfoWindow() {
   commitInfoWindow.on("closed", () => {
     commitInfoWindow = null;
     commitInfoPayload = null;
+    commitInfoWindowHeight = commitInfoWindowSize.height;
     sendCommitInfoPanelClosed();
   });
   loadRendererWindow(commitInfoWindow, "commit-info");
@@ -926,6 +938,18 @@ function setCommitInfoPanel(payload) {
   if (!infoWindow) return;
   positionCommitInfoWindow();
   sendCommitInfoPayload();
+}
+
+function setCommitInfoPanelHeight(height) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  const mainBounds = mainWindow.getBounds();
+  const display = screen.getDisplayMatching(mainBounds).workArea;
+  const nextHeight = clampCommitInfoWindowHeight(height, display);
+  if (nextHeight === commitInfoWindowHeight) return;
+
+  commitInfoWindowHeight = nextHeight;
+  positionCommitInfoWindow({ animated: true });
 }
 
 function setPinnedWindow(pinned) {
@@ -1306,6 +1330,7 @@ registerIpcHandlers({
   setCollapsedWindow,
   setChangedFileInfoPanel,
   setCommitInfoPanel,
+  setCommitInfoPanelHeight,
   setCurrentView: (view) => {
     currentView = view;
   },

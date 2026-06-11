@@ -38,6 +38,7 @@ function registerIpcHandlers({
   setCollapsedWindow,
   setChangedFileInfoPanel,
   setCommitInfoPanel,
+  setCommitInfoPanelHeight,
   setCurrentView,
   setPinnedWindow,
   setTemporaryInfoPanel,
@@ -238,6 +239,10 @@ function registerIpcHandlers({
 
   ipcMain.handle("window:setCommitInfoPanel", (_event, payload) => {
     setCommitInfoPanel(payload);
+  });
+
+  ipcMain.handle("window:setCommitInfoPanelHeight", (_event, height) => {
+    setCommitInfoPanelHeight(height);
   });
 
   ipcMain.handle("clipboard:writeText", (_event, text) => {
