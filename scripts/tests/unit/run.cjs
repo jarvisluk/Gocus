@@ -390,11 +390,13 @@ function testWindowGeometryModule() {
     commitInfoBounds,
     commitInfoWindowSize,
     temporaryInfoBounds,
+    temporaryInfoWindowSize,
     windowBoundsEqual,
   } = require(path.join(projectRoot, "electron/lib/windowGeometry.cjs"));
   const display = { x: 0, y: 24, width: 1440, height: 876 };
 
   assert.deepEqual(collapsedSize, { width: 38, height: 136 });
+  assert.deepEqual(temporaryInfoWindowSize, { width: 280, height: 252 });
   assert.deepEqual(commitInfoWindowSize, { width: 348, height: 132 });
   assert.deepEqual(expandedMinimumSize, { width: 320, height: 620 });
   assert.equal(clampCollapsedRailHeight(96, display), 136);
@@ -4605,6 +4607,7 @@ async function testPanelHeaderView(server) {
     canSwitchRepository: false,
     repositoryTitle: "Git Peek",
     repositoryPathLabel: "No working folder",
+    repositoryPathTitle: undefined,
   });
 
   assert.deepEqual(panelHeaderView(snapshot, [sameRepositoryDifferentPath, other]), {
@@ -4631,6 +4634,7 @@ async function testPanelHeaderView(server) {
     canSwitchRepository: true,
     repositoryTitle: "git-tree-vis",
     repositoryPathLabel: current.path,
+    repositoryPathTitle: current.path,
   });
   assert.equal(repositoryOptionActive(sameRepositoryDifferentPath, current), true);
   assert.equal(repositoryOptionActive(other, current), false);

@@ -63,7 +63,6 @@ export function WorktreeContext({
             <span className={worktreeContext.copyClassName}>
               <span>{worktreeContext.eyebrow}</span>
               <strong>{worktreeContext.label}</strong>
-              <code>{worktreeContext.path}</code>
             </span>
             <span className={worktreeContext.badgeClassName}>{worktreeContext.countLabel}</span>
             <ChevronDown aria-hidden="true" />
@@ -106,7 +105,6 @@ export function WorktreeContext({
           <span className={worktreeContext.copyClassName}>
             <span>{worktreeContext.eyebrow}</span>
             <strong>{worktreeContext.label}</strong>
-            <code>{worktreeContext.path}</code>
           </span>
           <span className={worktreeContext.badgeClassName}>{worktreeContext.countLabel}</span>
         </div>

@@ -13,6 +13,21 @@
   --border: rgba(30, 36, 46, 0.12);
   --border-soft: rgba(30, 36, 46, 0.08);
   --shadow: 0 20px 58px rgba(30, 34, 42, 0.2), 0 2px 8px rgba(30, 34, 42, 0.08);
+  --mac-window-shadow:
+    0 34px 78px rgba(16, 20, 28, 0.24),
+    0 14px 34px rgba(16, 20, 28, 0.16),
+    0 2px 8px rgba(16, 20, 28, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --mac-floating-window-shadow:
+    0 24px 54px rgba(16, 20, 28, 0.24),
+    0 10px 24px rgba(16, 20, 28, 0.16),
+    0 1px 4px rgba(16, 20, 28, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --mac-rail-window-shadow:
+    -20px 24px 48px rgba(16, 20, 28, 0.22),
+    -8px 10px 22px rgba(16, 20, 28, 0.16),
+    -1px 0 4px rgba(16, 20, 28, 0.1),
+    inset 1px 0 0 rgba(255, 255, 255, 0.08);
   --focus: #577da6;
   --focus-soft: rgba(87, 125, 166, 0.16);
   --main: #f0a400;
@@ -209,6 +224,21 @@
   --border: rgba(255, 255, 255, 0.1);
   --border-soft: rgba(255, 255, 255, 0.07);
   --shadow: 0 24px 64px rgba(0, 0, 0, 0.48), 0 2px 10px rgba(0, 0, 0, 0.26);
+  --mac-window-shadow:
+    0 34px 82px rgba(0, 0, 0, 0.58),
+    0 14px 34px rgba(0, 0, 0, 0.4),
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --mac-floating-window-shadow:
+    0 24px 58px rgba(0, 0, 0, 0.52),
+    0 10px 24px rgba(0, 0, 0, 0.38),
+    0 1px 5px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --mac-rail-window-shadow:
+    -22px 24px 50px rgba(0, 0, 0, 0.5),
+    -8px 10px 24px rgba(0, 0, 0, 0.38),
+    -1px 0 5px rgba(0, 0, 0, 0.3),
+    inset 1px 0 0 rgba(255, 255, 255, 0.07);
   --dialog-shadow: 0 18px 44px rgba(0, 0, 0, 0.38);
   --popover-shadow: 0 24px 46px rgba(0, 0, 0, 0.42);
   --focus: #a0a0a0;
@@ -413,7 +443,7 @@ svg {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  box-shadow: var(--mac-window-shadow);
   backdrop-filter: blur(24px) saturate(1.2);
 }
 
@@ -1391,11 +1421,30 @@ button:disabled {
 }
 
 .repo-controls {
+  position: relative;
   flex: 0 0 auto;
+  z-index: 18;
   display: grid;
   gap: 6px;
   padding: 7px 10px;
   border-bottom: 1px solid var(--border-soft);
+  background: var(--panel-solid);
+}
+
+.repo-controls::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  height: 18px;
+  background: linear-gradient(
+    to bottom,
+    var(--panel-solid) 0%,
+    color-mix(in srgb, var(--panel-solid) 58%, transparent) 44%,
+    transparent 100%
+  );
+  pointer-events: none;
 }
 
 .settings-reset {
@@ -1777,23 +1826,27 @@ button:disabled {
   position: relative;
   flex: 0 0 auto;
   z-index: 16;
-  margin: 8px 10px 0;
+  margin: 12px 10px 0;
+  background: transparent;
 }
 
 .worktree-context-trigger,
 .worktree-context-static {
   width: 100%;
-  min-height: 58px;
+  min-height: 50px;
   display: grid;
   grid-template-columns: var(--icon-lg) minmax(0, 1fr) auto var(--icon-xs);
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 7px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--surface-strong) 82%, var(--panel-solid));
+  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(18px) saturate(1.36);
   color: var(--text);
   text-align: left;
+  -webkit-backdrop-filter: blur(18px) saturate(1.36);
 }
 
 .worktree-context-trigger {
@@ -1807,7 +1860,7 @@ button:disabled {
 .worktree-context-trigger:hover,
 .worktree-context-trigger.is-open {
   border-color: color-mix(in srgb, var(--focus) 24%, var(--border));
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface-strong) 94%, transparent);
 }
 
 .worktree-context-trigger > svg,
@@ -1826,7 +1879,7 @@ button:disabled {
 .worktree-context-copy {
   min-width: 0;
   display: grid;
-  gap: 2px;
+  gap: 1px;
   line-height: 1.15;
 }
 
@@ -1842,17 +1895,6 @@ button:disabled {
   overflow: hidden;
   color: var(--text);
   font-size: var(--type-body-strong-size);
-  font-weight: var(--font-weight-body);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.worktree-context-copy code {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text-muted);
-  font-family: var(--user-font);
-  font-size: var(--type-caption-size);
   font-weight: var(--font-weight-body);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1881,13 +1923,22 @@ button:disabled {
 .scroll-region {
   min-height: 0;
   flex: 1 1 auto;
+  position: relative;
   overflow: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
 
+.worktree-context + .scroll-region {
+  --worktree-context-placeholder-height: 70px;
+  --worktree-context-placeholder-lift: 24px;
+  margin-top: calc(var(--worktree-context-placeholder-height) * -1);
+  padding-top: var(--worktree-context-placeholder-height);
+}
+
 .commits-section,
 .changed-section {
+  position: relative;
   padding: 14px 10px 0;
 }
 
@@ -3283,7 +3334,7 @@ button:disabled {
   border-right: 0;
   border-radius: 10px 0 0 10px;
   background: var(--panel);
-  box-shadow: var(--shadow);
+  box-shadow: var(--mac-rail-window-shadow);
   backdrop-filter: blur(24px) saturate(1.2);
   -webkit-app-region: drag;
 }
