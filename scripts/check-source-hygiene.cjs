@@ -46,6 +46,7 @@ const cssCustomPropertyUsagePattern = /var\(\s*(--[a-z0-9-]+)\b/g;
 const cssCommentPattern = /\/\*[\s\S]*?\*\//g;
 const cssRulePattern = /([^{}]+)\{([^{}]+)\}/g;
 const stylesheetImportPattern = /^\s*@import\s+["']\.\/styles\/([^"']+\.css)["'];\s*$/;
+const backdropFilterDeclarationPattern = /^\s*(-webkit-)?backdrop-filter\s*:\s*([^;]+);/;
 const maxCssFileLines = 300;
 const minDuplicateCssDeclarationCount = 3;
 
@@ -167,6 +168,20 @@ function checkCssFileSize(relativeFilePath, content) {
     `${relativeFilePath}:1: keep CSS files at or below ${maxCssFileLines} lines ` +
       `(currently ${lineCount}); split by surface or shared pattern`,
   ];
+}
+
+function checkBackdropFilterTokens(relativeFilePath, content) {
+  if (!relativeFilePath.endsWith(".css")) return [];
+
+  return content.split("\n").flatMap((line, index) => {
+    const match = line.match(backdropFilterDeclarationPattern);
+    if (!match) return [];
+
+    const value = match[2].trim();
+    if (value === "none" || value.startsWith("var(")) return [];
+
+    return [`${relativeFilePath}:${index + 1}: use a backdrop-filter custom property or none`];
+  });
 }
 
 function lineNumberFromIndex(content, index) {
@@ -303,6 +318,7 @@ function runHygieneCheck() {
     failures: [
       ...fileContents.flatMap(({ relativeFilePath, content }) => checkContent(relativeFilePath, content)),
       ...fileContents.flatMap(({ relativeFilePath, content }) => checkCssFileSize(relativeFilePath, content)),
+      ...fileContents.flatMap(({ relativeFilePath, content }) => checkBackdropFilterTokens(relativeFilePath, content)),
       ...checkUnusedCssCustomProperties(fileContents),
       ...checkDuplicateCssDeclarationBlocks(fileContents),
       ...checkStylesheetManifest(fileContents),
@@ -327,6 +343,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  checkBackdropFilterTokens,
   checkContent,
   checkCssFileSize,
   checkDuplicateCssDeclarationBlocks,

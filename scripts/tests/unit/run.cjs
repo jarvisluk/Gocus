@@ -258,6 +258,7 @@ function testWorkspaceModule() {
 
 function testSourceHygieneScript() {
   const {
+    checkBackdropFilterTokens,
     checkContent,
     checkCssFileSize,
     checkDuplicateCssDeclarationBlocks,
@@ -336,6 +337,13 @@ function testSourceHygieneScript() {
   assert.deepEqual(checkCssFileSize("src/styles/example.css", "x\n".repeat(maxCssFileLines + 1)), [
     `src/styles/example.css:1: keep CSS files at or below ${maxCssFileLines} lines ` +
       `(currently ${maxCssFileLines + 1}); split by surface or shared pattern`,
+  ]);
+  assert.deepEqual(checkBackdropFilterTokens("src/components/Example.tsx", "backdrop-filter: blur(1px);\n"), []);
+  assert.deepEqual(checkBackdropFilterTokens("src/styles/example.css", "backdrop-filter: none;\n"), []);
+  assert.deepEqual(checkBackdropFilterTokens("src/styles/example.css", "backdrop-filter: var(--panel-backdrop-filter);\n"), []);
+  assert.deepEqual(checkBackdropFilterTokens("src/styles/example.css", "-webkit-backdrop-filter: var(--panel-backdrop-filter);\n"), []);
+  assert.deepEqual(checkBackdropFilterTokens("src/styles/example.css", "backdrop-filter: blur(24px) saturate(1.18);\n"), [
+    "src/styles/example.css:1: use a backdrop-filter custom property or none",
   ]);
   assert.deepEqual(cssCustomPropertyDefinitions("src/styles/example.css", ":root {\n  --unused-token: red;\n}\n"), [
     { name: "--unused-token", relativeFilePath: "src/styles/example.css", lineNumber: 2 },
