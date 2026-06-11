@@ -45,6 +45,7 @@ const cssCustomPropertyDefinitionPattern = /^\s*(--[a-z0-9-]+)\s*:/;
 const cssCustomPropertyUsagePattern = /var\(\s*(--[a-z0-9-]+)\b/g;
 const cssCommentPattern = /\/\*[\s\S]*?\*\//g;
 const cssRulePattern = /([^{}]+)\{([^{}]+)\}/g;
+const maxCssFileLines = 300;
 const minDuplicateCssDeclarationCount = 3;
 
 function isSrcLibFile(relativeFilePath) {
@@ -150,6 +151,23 @@ function checkUnusedCssCustomProperties(fileContents) {
   });
 }
 
+function sourceLineCount(content) {
+  if (!content) return 0;
+  return content.split("\n").length - (content.endsWith("\n") ? 1 : 0);
+}
+
+function checkCssFileSize(relativeFilePath, content) {
+  if (!relativeFilePath.endsWith(".css")) return [];
+
+  const lineCount = sourceLineCount(content);
+  if (lineCount <= maxCssFileLines) return [];
+
+  return [
+    `${relativeFilePath}:1: keep CSS files at or below ${maxCssFileLines} lines ` +
+      `(currently ${lineCount}); split by surface or shared pattern`,
+  ];
+}
+
 function lineNumberFromIndex(content, index) {
   return content.slice(0, index).split("\n").length;
 }
@@ -238,6 +256,7 @@ function runHygieneCheck() {
     checkedFiles,
     failures: [
       ...fileContents.flatMap(({ relativeFilePath, content }) => checkContent(relativeFilePath, content)),
+      ...fileContents.flatMap(({ relativeFilePath, content }) => checkCssFileSize(relativeFilePath, content)),
       ...checkUnusedCssCustomProperties(fileContents),
       ...checkDuplicateCssDeclarationBlocks(fileContents),
     ],
@@ -262,6 +281,7 @@ if (require.main === module) {
 
 module.exports = {
   checkContent,
+  checkCssFileSize,
   checkDuplicateCssDeclarationBlocks,
   checkUnusedCssCustomProperties,
   collectCheckedFiles,
@@ -276,7 +296,9 @@ module.exports = {
   isRendererSourceFile,
   isSrcLibFile,
   isViewModelFile,
+  maxCssFileLines,
   maxLineLength,
   minDuplicateCssDeclarationCount,
   runHygieneCheck,
+  sourceLineCount,
 };

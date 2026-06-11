@@ -227,6 +227,7 @@ function testFileChecksUtility() {
 function testSourceHygieneScript() {
   const {
     checkContent,
+    checkCssFileSize,
     checkDuplicateCssDeclarationBlocks,
     checkUnusedCssCustomProperties,
     collectCheckedFiles,
@@ -241,8 +242,10 @@ function testSourceHygieneScript() {
     isRendererSourceFile,
     isSrcLibFile,
     isViewModelFile,
+    maxCssFileLines,
     maxLineLength,
     runHygieneCheck,
+    sourceLineCount,
   } = require(path.join(projectRoot, "scripts/check-source-hygiene.cjs"));
   const longLine = "x".repeat(maxLineLength + 1);
 
@@ -291,6 +294,15 @@ function testSourceHygieneScript() {
     "src/components/Example.tsx:1: import git-tree modules directly instead of the barrel",
   ]);
   assert.deepEqual(checkContent("electron/preload.cjs", 'const { ipcRenderer } = require("electron");\n'), []);
+  assert.equal(sourceLineCount(""), 0);
+  assert.equal(sourceLineCount("one"), 1);
+  assert.equal(sourceLineCount("one\n"), 1);
+  assert.deepEqual(checkCssFileSize("src/components/Example.tsx", "x\n".repeat(maxCssFileLines + 1)), []);
+  assert.deepEqual(checkCssFileSize("src/styles/example.css", "x\n".repeat(maxCssFileLines)), []);
+  assert.deepEqual(checkCssFileSize("src/styles/example.css", "x\n".repeat(maxCssFileLines + 1)), [
+    `src/styles/example.css:1: keep CSS files at or below ${maxCssFileLines} lines ` +
+      `(currently ${maxCssFileLines + 1}); split by surface or shared pattern`,
+  ]);
   assert.deepEqual(cssCustomPropertyDefinitions("src/styles/example.css", ":root {\n  --unused-token: red;\n}\n"), [
     { name: "--unused-token", relativeFilePath: "src/styles/example.css", lineNumber: 2 },
   ]);
