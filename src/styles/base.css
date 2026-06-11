@@ -1,0 +1,163 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--user-font);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2;
+}
+
+.app-viewport {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  min-height: 720px;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(247, 249, 252, 0.72), rgba(247, 249, 252, 0.18)),
+    var(--stage-bg);
+}
+
+:root[data-theme="dark"] .app-viewport {
+  background:
+    linear-gradient(90deg, rgba(18, 18, 18, 0.8), rgba(18, 18, 18, 0.28)),
+    var(--stage-bg);
+}
+
+.app-viewport.is-electron {
+  min-height: 0;
+  background: transparent;
+}
+
+.editor-backdrop {
+  position: absolute;
+  inset: 0;
+  padding: 24px 42vw 36px 28px;
+  color: rgba(82, 94, 112, 0.52);
+  filter: blur(1.2px);
+  opacity: 0.72;
+  user-select: none;
+}
+
+.editor-tabs {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid rgba(126, 139, 155, 0.16);
+}
+
+.editor-tabs span {
+  padding: 8px 12px;
+  border-radius: 7px 7px 0 0;
+  background: rgba(255, 255, 255, 0.48);
+  font-size: var(--type-body-strong-size);
+  font-weight: 700;
+}
+
+:root[data-theme="dark"] .editor-tabs span {
+  background: rgba(46, 46, 46, 0.52);
+}
+
+.editor-backdrop pre {
+  margin: 26px 0 0;
+  font-family: var(--mono-font);
+  font-size: var(--type-page-title-size);
+  line-height: 1.9;
+  white-space: pre-wrap;
+}
+
+.peek-panel {
+  position: absolute;
+  top: 24px;
+  right: 18px;
+  bottom: 24px;
+  width: min(var(--panel-width), calc(100vw - 24px));
+  min-height: 620px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--mac-window-shadow);
+  backdrop-filter: blur(24px) saturate(1.2);
+}
+
+.is-electron .peek-panel {
+  inset: 0;
+  width: auto;
+  min-height: 0;
+  border-radius: 0;
+  border: 0;
+  box-shadow: none;
+}
+
+.peek-header {
+  height: 62px;
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border-soft);
+  -webkit-app-region: drag;
+}
+
+.icon-button,
+.repo-title-button,
+.repo-menu-item,
+.heading-tools button,
+.commit-actions button,
+.footer-changed-now,
+.footer-primary,
+.rail-count,
+.ui-disclosure-button,
+.workspace-open-trigger,
+.workspace-open-menu-toggle,
+.workspace-open-menu-item,
+.empty-recent-repos button,
+.primary-action,
+.secondary-action {
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
