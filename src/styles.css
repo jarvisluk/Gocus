@@ -119,6 +119,7 @@
   --user-font:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
+  --mono-font: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-family:
     var(--user-font);
   background: var(--stage-bg);
@@ -414,7 +415,7 @@ svg {
 
 .editor-backdrop pre {
   margin: 26px 0 0;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-family: var(--mono-font);
   font-size: var(--type-page-title-size);
   line-height: 1.9;
   white-space: pre-wrap;
@@ -840,7 +841,7 @@ button:disabled {
 }
 
 .ui-code-block {
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-family: var(--mono-font);
   font-size: var(--type-caption-size);
   line-height: var(--type-caption-line);
 }
@@ -1035,7 +1036,7 @@ button:disabled {
   border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text-muted);
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-family: var(--mono-font);
   font-size: var(--type-caption-size);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1160,7 +1161,7 @@ button:disabled {
 
 .repo-title strong {
   font-size: var(--type-heading-2-size);
-  font-weight: 760;
+  font-weight: var(--font-weight-title);
   line-height: 1.2;
 }
 
@@ -1222,7 +1223,7 @@ button:disabled {
 
 .repo-menu-text code {
   color: var(--text-faint);
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-family: var(--mono-font);
   font-size: var(--type-micro-size);
 }
 
@@ -1235,11 +1236,11 @@ button:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--main);
   background: var(--chip-amber);
   font-size: var(--type-body-strong-size);
-  font-weight: 720;
+  font-weight: var(--font-weight-strong);
 }
 
 .branch-pill {
@@ -1847,7 +1848,7 @@ button:disabled {
   margin: 0;
   color: var(--text);
   font-size: var(--type-heading-1-size);
-  font-weight: 760;
+  font-weight: var(--font-weight-title);
 }
 
 .commits-section .section-heading h2 {
@@ -2100,7 +2101,7 @@ button:disabled {
   display: grid;
   place-items: center;
   border: 2.5px solid var(--git-tree-color, var(--main));
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--panel-solid);
   box-shadow: 0 0 0 2px var(--panel-solid);
   transform: translate(-50%, -50%);
@@ -2117,7 +2118,7 @@ button:disabled {
 .graph-node-core {
   width: 5px;
   height: 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--git-tree-color, var(--main));
 }
 
@@ -2186,7 +2187,7 @@ button:disabled {
   overflow: hidden;
   color: var(--text);
   font-size: var(--type-body-strong-size);
-  font-weight: 720;
+  font-weight: var(--font-weight-strong);
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2214,7 +2215,7 @@ button:disabled {
 }
 
 .commit-meta code {
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-family: var(--mono-font);
   font-size: var(--type-micro-size);
 }
 
@@ -2231,7 +2232,7 @@ button:disabled {
   width: 3px;
   height: 3px;
   margin: 0 6px 2px 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: currentColor;
 }
 
@@ -2255,7 +2256,7 @@ button:disabled {
   gap: 13px;
   margin-top: 6px;
   font-size: var(--type-micro-size);
-  font-weight: 720;
+  font-weight: var(--font-weight-strong);
 }
 
 .additions {
@@ -2274,8 +2275,8 @@ button:disabled {
 }
 
 .files svg {
-  width: 13px;
-  height: 13px;
+  width: var(--icon-xs);
+  height: var(--icon-xs);
 }
 
 .commit-actions {
@@ -2322,8 +2323,8 @@ button:disabled {
 }
 
 .commit-actions svg {
-  width: 13px;
-  height: 13px;
+  width: var(--icon-xs);
+  height: var(--icon-xs);
   color: var(--text-muted);
 }
 
@@ -2423,8 +2424,8 @@ button:disabled {
 .commit-hover-header svg,
 .commit-hover-refs svg,
 .commit-hover-hash svg {
-  width: 13px;
-  height: 13px;
+  width: var(--icon-xs);
+  height: var(--icon-xs);
   flex: 0 0 auto;
 }
 
@@ -2511,7 +2512,7 @@ button:disabled {
 
 .commit-hover-hash code {
   flex: 1 1 auto;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-family: var(--mono-font);
   font-size: var(--type-caption-size);
   font-weight: var(--type-caption-weight);
 }
@@ -2770,7 +2771,7 @@ button:disabled {
   margin: 0;
   overflow: hidden;
   color: var(--text-muted);
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-family: var(--mono-font);
   font-size: var(--type-caption-size);
   font-weight: var(--font-weight-body);
   line-height: 1.35;
@@ -3269,7 +3270,7 @@ button:disabled {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   font-size: var(--type-micro-size);
-  font-weight: 760;
+  font-weight: var(--font-weight-title);
   line-height: 1;
   white-space: nowrap;
 }
@@ -3285,7 +3286,7 @@ button:disabled {
   display: grid;
   place-items: center;
   padding: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid color-mix(in srgb, var(--branch-color, var(--main)) 38%, transparent);
   background: color-mix(in srgb, var(--branch-color, var(--main)) 22%, transparent);
   color: var(--branch-color, var(--main));
@@ -3446,7 +3447,7 @@ button:disabled {
   background: var(--text);
   color: var(--panel-solid);
   font-size: var(--type-body-strong-size);
-  font-weight: 720;
+  font-weight: var(--font-weight-strong);
 }
 
 .secondary-action {
