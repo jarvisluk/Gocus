@@ -2841,7 +2841,7 @@ button:disabled {
 
 .temporary-info-panel .file-row {
   width: calc(100% - 4px);
-  padding-left: 12px;
+  padding-left: 9px;
   padding-right: 8px;
   -webkit-app-region: no-drag;
 }
