@@ -1,0 +1,36 @@
+.repo-switch-menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 8px);
+  left: -5px;
+  width: min(280px, calc(100vw - 24px));
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.repo-menu-item {
+  grid-template-columns: 18px minmax(0, 1fr);
+  min-height: 42px;
+}
+
+.repo-menu-check {
+  display: grid;
+  place-items: center;
+}
+
+.repo-menu-check svg,
+.repo-menu-item svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.repo-menu-text strong {
+  font-size: var(--type-caption-size);
+  font-weight: var(--font-weight-strong);
+}
+
+.repo-menu-text code {
+  color: var(--text-faint);
+  font-family: var(--mono-font);
+  font-size: var(--type-micro-size);
+}
