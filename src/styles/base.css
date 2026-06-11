@@ -49,12 +49,6 @@ svg {
     var(--stage-bg);
 }
 
-:root[data-theme="dark"] .app-viewport {
-  background:
-    var(--editor-stage-gradient),
-    var(--stage-bg);
-}
-
 .app-viewport.is-electron {
   min-height: 0;
   background: transparent;
@@ -84,10 +78,6 @@ svg {
   background: var(--editor-tab-surface);
   font-size: var(--type-body-strong-size);
   font-weight: 700;
-}
-
-:root[data-theme="dark"] .editor-tabs span {
-  background: var(--editor-tab-surface);
 }
 
 .editor-backdrop pre {
