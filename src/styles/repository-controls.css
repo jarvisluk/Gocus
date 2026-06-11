@@ -1,0 +1,64 @@
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.icon-button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.icon-button:hover,
+.icon-button.is-active {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.icon-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.is-spinning {
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.repo-controls {
+  position: relative;
+  flex: 0 0 auto;
+  z-index: 18;
+  display: grid;
+  gap: 6px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--panel-solid);
+}
+
+.repo-controls::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  height: 18px;
+  background: linear-gradient(
+    to bottom,
+    var(--panel-solid) 0%,
+    color-mix(in srgb, var(--panel-solid) 58%, transparent) 44%,
+    transparent 100%
+  );
+  pointer-events: none;
+}

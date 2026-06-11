@@ -10,6 +10,8 @@
 @import "./styles/menus.css";
 @import "./styles/repository.css";
 @import "./styles/repository-menu.css";
+@import "./styles/repository-status.css";
+@import "./styles/repository-controls.css";
 @import "./styles/settings.css";
 @import "./styles/workspace.css";
 @import "./styles/workspace-menus.css";
