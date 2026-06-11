@@ -112,7 +112,7 @@ svg {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--mac-window-shadow);
-  backdrop-filter: blur(24px) saturate(1.2);
+  backdrop-filter: var(--window-backdrop-filter);
 }
 
 .peek-header {

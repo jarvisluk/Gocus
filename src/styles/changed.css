@@ -101,7 +101,7 @@
   border-radius: var(--radius);
   background: var(--panel);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(24px) saturate(1.18);
+  backdrop-filter: var(--panel-backdrop-filter);
 }
 
 .changed-side-header {

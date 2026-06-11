@@ -8,7 +8,7 @@
   border-radius: var(--radius-lg);
   background: var(--popover-surface);
   box-shadow: var(--popover-shadow);
-  backdrop-filter: blur(24px) saturate(1.15);
+  backdrop-filter: var(--popover-backdrop-filter);
 }
 
 .ui-layer-panel {

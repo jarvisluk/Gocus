@@ -98,7 +98,7 @@
   border-radius: 10px 0 0 10px;
   background: var(--panel);
   box-shadow: var(--mac-rail-window-shadow);
-  backdrop-filter: blur(24px) saturate(1.2);
+  backdrop-filter: var(--window-backdrop-filter);
   -webkit-app-region: drag;
 }
 
