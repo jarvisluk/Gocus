@@ -224,6 +224,7 @@ function installGitPeekMock(config) {
   window.__gitPeekOpenedWorkspaces = [];
   window.__gitPeekOpenedWorkspaceFiles = [];
   window.__gitPeekCollapsedRailHeights = [];
+  window.__gitPeekCommitInfoPanelHeights = [];
   window.__gitPeekRefreshCount = 0;
   if (config.clipboardAvailable) {
     Object.defineProperty(navigator, "clipboard", {
@@ -306,6 +307,9 @@ function installGitPeekMock(config) {
       if (config.setCommitInfoPanelError) throw new Error(config.setCommitInfoPanelError);
       window.__gitPeekCommitInfoPayload = payload;
       window.__gitPeekCommitInfoListeners.forEach((callback) => callback(payload));
+    },
+    setCommitInfoPanelHeight: async (height) => {
+      window.__gitPeekCommitInfoPanelHeights.push(height);
     },
     savePreferences: async (preferences) => {
       window.__gitPeekSavedPreferences.push(preferences);
@@ -867,6 +871,11 @@ async function testCommitInfoPanel(browser, baseUrl) {
     const hoverPanel = page.locator(".commit-hover-panel");
     await hoverPanel.waitFor();
     assert.equal(await page.locator(".temporary-info-panel").evaluate((node) => node.classList.contains("is-commit")), true);
+    await page.waitForFunction(() => window.__gitPeekCommitInfoPanelHeights?.length > 0);
+    const reportedHeights = await page.evaluate(() => window.__gitPeekCommitInfoPanelHeights);
+    const reportedHeight = reportedHeights[reportedHeights.length - 1];
+    assert.ok(reportedHeight >= 92, `commit info panel height should keep a readable minimum: ${reportedHeight}`);
+    assert.ok(reportedHeight <= 164, `commit info panel height should stay within the compact cap: ${reportedHeight}`);
 
     const panelText = await hoverPanel.innerText();
     assert.match(panelText, /Codex/);
@@ -880,6 +889,22 @@ async function testCommitInfoPanel(browser, baseUrl) {
     await page.getByRole("button", { name: "Copy commit hash" }).click();
     await page.getByRole("button", { name: "Copied commit hash" }).waitFor();
     assert.equal(await page.evaluate(() => window.__gitPeekCopiedText), mockCommits[0].fullHash);
+    await page.evaluate(
+      (commit) => window.gitPeek.setCommitInfoPanel({ kind: "commit", commit }),
+      commit({
+        hash: "c0ffee0",
+        title: "Fix compact panel",
+        message: "Fix compact panel",
+        refs: [],
+        containedBranches: [],
+      }),
+    );
+    await page.waitForFunction(() => window.__gitPeekCommitInfoPanelHeights?.some((height) => height < 132));
+    const compactReportedHeight = await page.evaluate(() => {
+      const heights = window.__gitPeekCommitInfoPanelHeights;
+      return heights[heights.length - 1];
+    });
+    assert.ok(compactReportedHeight < 132, `commit info panel height should shrink below the old fixed height: ${compactReportedHeight}`);
     await assertVisibleWithinViewport(page, hoverPanel, "commit info panel");
     await assertNoHorizontalOverflow(page, "commit info panel");
     assert.deepEqual(errors, []);

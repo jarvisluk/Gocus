@@ -382,6 +382,7 @@ function testShellSyntaxScript() {
 
 function testWindowGeometryModule() {
   const {
+    clampCommitInfoWindowHeight,
     clampCollapsedRailHeight,
     collapsedSize,
     expandedMinimumSize,
@@ -401,6 +402,10 @@ function testWindowGeometryModule() {
   assert.equal(clampCollapsedRailHeight(355, display), 355);
   assert.equal(clampCollapsedRailHeight(9999, display), 420);
   assert.equal(clampCollapsedRailHeight("bad", display), 136);
+  assert.equal(clampCommitInfoWindowHeight(72, display), 92);
+  assert.equal(clampCommitInfoWindowHeight(104, display), 104);
+  assert.equal(clampCommitInfoWindowHeight(9999, display), 164);
+  assert.equal(clampCommitInfoWindowHeight("bad", display), 132);
   assert.deepEqual(clampExpandedSize({ width: 1, height: 9999 }, display), { width: 320, height: 860 });
   assert.deepEqual(
     mainWindowBounds({
@@ -451,6 +456,14 @@ function testWindowGeometryModule() {
       display,
     }),
     { x: 712, y: 200, width: 348, height: 132 },
+  );
+  assert.deepEqual(
+    commitInfoBounds({
+      mainBounds: { x: 1070, y: 200, width: 360, height: 700 },
+      display,
+      size: { width: 348, height: 104 },
+    }),
+    { x: 712, y: 200, width: 348, height: 104 },
   );
   assert.deepEqual(
     commitInfoBounds({

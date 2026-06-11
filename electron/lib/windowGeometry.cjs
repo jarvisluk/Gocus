@@ -3,6 +3,8 @@ const defaultExpandedSize = { width: expandedMinimumSize.width, height: 780 };
 const collapsedSize = { width: 38, height: 136 };
 const temporaryInfoWindowSize = { width: 280, height: 252 };
 const commitInfoWindowSize = { width: 348, height: 132 };
+const commitInfoWindowMinimumHeight = 92;
+const commitInfoWindowMaximumHeight = 164;
 const temporaryInfoWindowGap = 10;
 const collapsedRailMaximumHeight = 420;
 
@@ -27,6 +29,15 @@ function clampCollapsedRailHeight(height, display) {
 
   if (!Number.isFinite(requestedHeight)) return collapsedSize.height;
   return Math.min(Math.max(requestedHeight, collapsedSize.height), maximumHeight);
+}
+
+function clampCommitInfoWindowHeight(height, display) {
+  const requestedHeight = Math.round(Number(height));
+  const availableHeight = Number(display?.height) ? display.height - 16 : commitInfoWindowMaximumHeight;
+  const maximumHeight = Math.max(commitInfoWindowMinimumHeight, Math.min(commitInfoWindowMaximumHeight, availableHeight));
+
+  if (!Number.isFinite(requestedHeight)) return commitInfoWindowSize.height;
+  return Math.min(Math.max(requestedHeight, commitInfoWindowMinimumHeight), maximumHeight);
 }
 
 function mainWindowBounds({ currentBounds, display, collapsed, expandedSize, collapsedWindowSize = collapsedSize }) {
@@ -78,13 +89,13 @@ function rectanglesOverlap(left, right) {
   );
 }
 
-function commitInfoBounds({ mainBounds, display, alignTop = false, avoidBounds = null, anchorBounds = null }) {
+function commitInfoBounds({ mainBounds, display, alignTop = false, avoidBounds = null, anchorBounds = null, size = commitInfoWindowSize }) {
   const hasAnchor = anchorTop(anchorBounds) !== null;
   const bounds = sideInfoBounds({
     mainBounds,
     display,
     alignTop: true,
-    size: commitInfoWindowSize,
+    size,
     anchorBounds,
   });
   if (hasAnchor) return bounds;
@@ -113,6 +124,7 @@ function windowBoundsEqual(left, right) {
 }
 
 module.exports = {
+  clampCommitInfoWindowHeight,
   clampCollapsedRailHeight,
   collapsedSize,
   commitInfoBounds,

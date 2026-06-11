@@ -2932,6 +2932,7 @@ button:disabled {
 }
 
 .temporary-info-panel .commit-hover-panel.changed-side-panel {
+  align-self: start;
   height: auto;
   overflow: hidden;
   border: 0;
@@ -2940,6 +2941,10 @@ button:disabled {
   animation: none;
   backdrop-filter: blur(24px) saturate(1.18);
   pointer-events: auto;
+}
+
+.temporary-info-panel .commit-hover-body {
+  height: auto;
 }
 
 @media (max-width: 520px) {
