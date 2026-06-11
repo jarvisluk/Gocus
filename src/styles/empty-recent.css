@@ -1,0 +1,47 @@
+.empty-recent-repos {
+  width: 100%;
+  display: grid;
+  gap: 5px;
+  padding-top: 2px;
+}
+
+.empty-recent-repos button {
+  min-width: 0;
+  height: 30px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  padding: 0 7px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--type-body-size);
+  font-weight: 650;
+  text-align: left;
+}
+
+.empty-recent-repos button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.empty-recent-repos svg {
+  width: var(--icon-md);
+  height: var(--icon-md);
+  color: var(--text-muted);
+}
+
+.empty-recent-repos span {
+  overflow: hidden;
+  color: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-recent-repos-more {
+  padding: 3px 7px 0;
+  color: var(--text-faint);
+  font-size: var(--type-caption-size);
+}

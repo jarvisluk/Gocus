@@ -32,4 +32,6 @@
 @import "./styles/zen.css";
 @import "./styles/workspace-open.css";
 @import "./styles/empty.css";
+@import "./styles/empty-recent.css";
+@import "./styles/empty-actions.css";
 @import "./styles/responsive.css";

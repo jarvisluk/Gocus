@@ -1,0 +1,55 @@
+.empty-actions {
+  max-width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.empty-gitignore-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-faint);
+}
+
+.empty-gitignore-note svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.primary-action {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-radius: 7px;
+  background: var(--text);
+  color: var(--panel-solid);
+  font-size: var(--type-body-strong-size);
+  font-weight: var(--font-weight-strong);
+}
+
+.secondary-action {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: var(--type-body-strong-size);
+  font-weight: 700;
+}
+
+.primary-action svg,
+.secondary-action svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.primary-action:hover:not(:disabled),
+.secondary-action:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
