@@ -842,8 +842,12 @@ async function testCommitHoverPanel(browser, baseUrl) {
       `commit info anchor should use the post-selection row top: ${JSON.stringify({ secondAnchorTop, secondSelectedTop })}`,
     );
 
-    await page.mouse.move(1, 1);
-    await page.waitForFunction(() => window.__gitPeekCommitInfoPayload === null);
+    const commitListBox = await page.locator(".commit-list").boundingBox();
+    assert.ok(commitListBox, "commit list should have a bounding box");
+    await page.mouse.move(commitListBox.x + 8, secondSelectedTop + 12);
+    await page.mouse.move(commitListBox.x - 16, secondSelectedTop + 12);
+    await page.waitForTimeout(80);
+    assert.equal(await page.evaluate(() => window.__gitPeekCommitInfoPayload?.commit?.hash), "d4e5f6a");
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -871,8 +875,11 @@ async function testCommitInfoPanel(browser, baseUrl) {
     assert.match(panelText, /Add commit search polish and keyboard selection/);
     assert.match(panelText, /2 files changed, 8 insertions\(\+\), 1 deletion\(-\)/);
     assert.match(panelText, /main/);
-    assert.match(panelText, /Contained in/);
+    assert.doesNotMatch(panelText, /Contained in/);
     assert.match(panelText, /a1b2c3d/);
+    await page.getByRole("button", { name: "Copy commit hash" }).click();
+    await page.getByRole("button", { name: "Copied commit hash" }).waitFor();
+    assert.equal(await page.evaluate(() => window.__gitPeekCopiedText), mockCommits[0].fullHash);
     await assertVisibleWithinViewport(page, hoverPanel, "commit info panel");
     await assertNoHorizontalOverflow(page, "commit info panel");
     assert.deepEqual(errors, []);

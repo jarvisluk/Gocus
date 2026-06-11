@@ -2234,7 +2234,6 @@ async function testCommitRowView(server) {
   assert.equal(hoverPanel.primarySectionClassName, "commit-hover-section commit-hover-primary");
   assert.equal(hoverPanel.statsSectionClassName, "commit-hover-section commit-hover-stats-section");
   assert.equal(hoverPanel.refsSectionClassName, "commit-hover-section commit-hover-refs-section");
-  assert.equal(hoverPanel.containedSectionClassName, "commit-hover-section commit-hover-contained-section");
   assert.equal(hoverPanel.hashSectionClassName, "commit-hover-section commit-hover-hash-section");
   assert.equal(hoverPanel.headerClassName, "commit-hover-header");
   assert.equal(hoverPanel.statsClassName, "commit-hover-stats");
@@ -2249,17 +2248,11 @@ async function testCommitRowView(server) {
   assert.equal(hoverPanel.insertionsLabel, "8 insertions(+)");
   assert.equal(hoverPanel.deletionsLabel, "1 deletion(-)");
   assert.deepEqual(hoverPanel.refs, [
-    { key: "main-0", label: "main", color: "#123456" },
-    { key: "tag:v1-1", label: "tag:v1", color: "#2f80ed" },
+    { key: "main-0", label: "main", color: "#123456", title: "main", icon: "branch", modifierClassName: "" },
+    { key: "tag:v1-1", label: "tag:v1", color: "#2f80ed", title: "tag:v1", icon: "branch", modifierClassName: "" },
   ]);
-  assert.equal(hoverPanel.containedClassName, "commit-hover-contained");
-  assert.equal(hoverPanel.containedLabelClassName, "commit-hover-contained-label");
-  assert.equal(hoverPanel.containedBranchesClassName, "commit-hover-contained-branches");
-  assert.equal(hoverPanel.containedBranchClassName, "commit-hover-contained-branch");
-  assert.deepEqual(hoverPanel.containedBranches, ["main", "feature/details"]);
-  assert.equal(hoverPanel.showContainedBranches, true);
-  assert.equal(hoverPanel.containedBranchesLabel, "Contained in");
   assert.equal(hoverPanel.hash, "a1b2c3d");
+  assert.equal(hoverPanel.fullHash, "a1b2c3d000000000000000000000000000000000");
 
   const inheritedLaneHoverPanel = commitHoverPanelView(
     commit({
@@ -2272,10 +2265,56 @@ async function testCommitRowView(server) {
       },
     }),
   );
-  assert.deepEqual(inheritedLaneHoverPanel.refs, [{ key: "feature/details-lane", label: "feature/details", color: "#654321" }]);
+  assert.deepEqual(inheritedLaneHoverPanel.refs, [
+    {
+      key: "feature/details-lane",
+      label: "feature/details",
+      color: "#654321",
+      title: "feature/details",
+      icon: "branch",
+      modifierClassName: "",
+    },
+  ]);
   assert.equal(inheritedLaneHoverPanel.showRefs, true);
-  assert.deepEqual(inheritedLaneHoverPanel.containedBranches, []);
-  assert.equal(inheritedLaneHoverPanel.showContainedBranches, false);
+
+  const detachedHeadTitle =
+    "Checked out as detached HEAD in 0371/git-tree-vis @ 5656bd8: /Users/junrong/.codex/worktrees/0371/git-tree-vis";
+  const detachedHeadCommit = commit({
+    refs: [],
+    refColors: [],
+    branchColor: "#f0a400",
+    graph: {
+      ...commit().graph,
+      currentColor: "#f0a400",
+      currentLabel: "",
+    },
+    checkedOutWorktrees: [
+      {
+        path: "/Users/junrong/.codex/worktrees/0371/git-tree-vis",
+        branch: "",
+        head: "5656bd8acd42892a3467465553d0ac318d8380ae",
+        headShortHash: "5656bd8",
+        headTitle: "fix: render branch graph fan-outs from commit nodes",
+        headRelativeTime: "19 minutes ago",
+        detached: true,
+        bare: false,
+        current: false,
+        counts: { modified: 0, staged: 0, untracked: 0 },
+      },
+    ],
+  });
+  const detachedHoverPanel = commitHoverPanelView(detachedHeadCommit);
+  assert.deepEqual(detachedHoverPanel.refs, [
+    {
+      key: "detached-worktree-head",
+      label: "Detached 0371/git-tree-vis",
+      color: "#f0a400",
+      title: detachedHeadTitle,
+      icon: "worktree",
+      modifierClassName: "is-detached-worktree",
+    },
+  ]);
+  assert.equal(detachedHoverPanel.showRefs, true);
 }
 
 async function testCommitView(server) {

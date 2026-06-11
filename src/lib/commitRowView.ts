@@ -37,6 +37,43 @@ function formatCommitAbsoluteTime(value: string) {
   return `${parts.month} ${parts.day}, ${parts.year} at ${parts.hour}:${parts.minute} ${parts.dayPeriod}`;
 }
 
+function shortHash(value: string) {
+  return value ? value.slice(0, 7) : "";
+}
+
+function compactWorktreePath(value: string) {
+  const parts = value.split(/[\\/]+/).filter(Boolean);
+  if (!parts.length) return "worktree";
+
+  const name = parts[parts.length - 1] ?? "worktree";
+  const parent = parts[parts.length - 2] ?? "";
+  const grandparent = parts[parts.length - 3] ?? "";
+
+  if (grandparent === "worktrees" && parent) return `${parent}/${name}`;
+  return name;
+}
+
+function detachedWorktreesForCommit(commit: CommitItem) {
+  return (commit.checkedOutWorktrees ?? []).filter((worktree) => worktree.detached && !worktree.bare);
+}
+
+function detachedWorktreeTitle(worktrees: ReturnType<typeof detachedWorktreesForCommit>) {
+  if (!worktrees.length) return undefined;
+
+  const worktreeSummaries = worktrees.map((worktree) => {
+    const hash = worktree.headShortHash || shortHash(worktree.head);
+    const name = compactWorktreePath(worktree.path);
+    return `${name}${hash ? ` @ ${hash}` : ""}: ${worktree.path}`;
+  });
+
+  return `Checked out as detached HEAD in ${worktreeSummaries.join(", ")}`;
+}
+
+function detachedWorktreePanelLabel(worktrees: ReturnType<typeof detachedWorktreesForCommit>) {
+  if (worktrees.length === 1) return `Detached ${compactWorktreePath(worktrees[0].path)}`;
+  return `${worktrees.length} detached worktrees`;
+}
+
 export function commitRowView(commit: CommitItem, selected: boolean, expandSelectedMessage = false) {
   const message = commit.message.trim() || commit.title;
   const ref = commit.refs[0] ?? "";
@@ -107,12 +144,15 @@ export function commitHoverPanelView(commit: CommitItem) {
   const message = commit.message.trim() || commit.title;
   const absoluteTime = formatCommitAbsoluteTime(commit.authoredAt);
   const timeLabel = absoluteTime && commit.relativeTime ? `${commit.relativeTime} (${absoluteTime})` : commit.relativeTime || absoluteTime;
-  const containedBranches = commit.containedBranches ?? [];
-  const refPills = commit.refs.length
+  const detachedWorktrees = detachedWorktreesForCommit(commit);
+  const branchPills = commit.refs.length
     ? commit.refs.map((ref, index) => ({
         key: `${ref}-${index}`,
         label: ref,
         color: commit.refColors[index] ?? commit.branchColor,
+        title: ref,
+        icon: "branch" as const,
+        modifierClassName: "",
       }))
     : commit.graph.currentLabel
       ? [
@@ -120,9 +160,25 @@ export function commitHoverPanelView(commit: CommitItem) {
             key: `${commit.graph.currentLabel}-lane`,
             label: commit.graph.currentLabel,
             color: commit.graph.currentColor,
+            title: commit.graph.currentLabel,
+            icon: "branch" as const,
+            modifierClassName: "",
           },
         ]
       : [];
+  const detachedWorktreePills = detachedWorktrees.length
+    ? [
+        {
+          key: "detached-worktree-head",
+          label: detachedWorktreePanelLabel(detachedWorktrees),
+          color: commit.graph.currentColor || commit.branchColor,
+          title: detachedWorktreeTitle(detachedWorktrees) ?? "Detached HEAD",
+          icon: "worktree" as const,
+          modifierClassName: "is-detached-worktree",
+        },
+      ]
+    : [];
+  const refPills = [...branchPills, ...detachedWorktreePills];
 
   return {
     panel: {
@@ -134,7 +190,6 @@ export function commitHoverPanelView(commit: CommitItem) {
     primarySectionClassName: "commit-hover-section commit-hover-primary",
     statsSectionClassName: "commit-hover-section commit-hover-stats-section",
     refsSectionClassName: "commit-hover-section commit-hover-refs-section",
-    containedSectionClassName: "commit-hover-section commit-hover-contained-section",
     hashSectionClassName: "commit-hover-section commit-hover-hash-section",
     headerClassName: "commit-hover-header",
     authorClassName: "commit-hover-author",
@@ -143,10 +198,6 @@ export function commitHoverPanelView(commit: CommitItem) {
     statsClassName: "commit-hover-stats",
     refsClassName: "commit-hover-refs",
     refPillClassName: "ref-pill commit-hover-ref-pill",
-    containedClassName: "commit-hover-contained",
-    containedLabelClassName: "commit-hover-contained-label",
-    containedBranchesClassName: "commit-hover-contained-branches",
-    containedBranchClassName: "commit-hover-contained-branch",
     hashClassName: "commit-hover-hash",
     author: commit.author || "Unknown",
     relativeTime: commit.relativeTime,
@@ -160,9 +211,7 @@ export function commitHoverPanelView(commit: CommitItem) {
     deletionsLabel: `${pluralize(commit.deletions, "deletion")}(-)`,
     refs: refPills,
     showRefs: refPills.length > 0,
-    containedBranches,
-    showContainedBranches: containedBranches.length > 0,
-    containedBranchesLabel: "Contained in",
     hash: commit.hash,
+    fullHash: commit.fullHash || commit.hash,
   };
 }

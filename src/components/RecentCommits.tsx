@@ -1,5 +1,5 @@
 import { FileCode2, GitBranch, GitFork, GitMerge, Search, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { GitTreeCell } from "../git-tree/GitTreeCell";
 import { getGitTreeRailWidth, getGitTreeRequiredLaneCount } from "../git-tree/renderGraph";
 import {
@@ -339,6 +339,12 @@ export function RecentCommits({
     runCommitInfoPanelBridgeSideEffect("close", (payload) => window.gitPeek?.setCommitInfoPanel(payload));
   }
 
+  function handleCommitListPointerLeave(event: PointerEvent<HTMLDivElement>) {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (event.clientX <= bounds.left) return;
+    closeCommitPreview();
+  }
+
   return (
     <section className={section.className} aria-labelledby={section.ariaLabelledBy}>
       <div className={heading.className}>
@@ -418,7 +424,7 @@ export function RecentCommits({
         onBlur={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget)) closeCommitPreview();
         }}
-        onPointerLeave={closeCommitPreview}
+        onPointerLeave={handleCommitListPointerLeave}
       >
         {virtualWindow.topPadding > 0 ? (
           <div className="commit-list-spacer" style={commitListSpacerStyle(virtualWindow.topPadding)} aria-hidden="true" />
