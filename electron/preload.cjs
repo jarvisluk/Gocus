@@ -15,6 +15,9 @@ contextBridge.exposeInMainWorld("gitPeek", {
   openWorkspace: (target) => ipcRenderer.invoke("workspace:open", target),
   openWorkspaceFile: (target, filePath) => ipcRenderer.invoke("workspace:openFile", target, filePath),
   getAvailableWorkspaceTargets: () => ipcRenderer.invoke("workspace:getAvailableTargets"),
+  getActiveWorkspaceTarget: () => ipcRenderer.invoke("workspace:getActiveTarget"),
+  setActiveWorkspaceTarget: (target) => ipcRenderer.invoke("workspace:setActiveTarget", target),
+  openWorkspaceFileMenu: (payload) => ipcRenderer.invoke("workspace:openFileMenu", payload),
   getPreferences: () => ipcRenderer.invoke("preferences:get"),
   savePreferences: (preferences) => ipcRenderer.invoke("preferences:save", preferences),
   setCollapsed: (collapsed) => ipcRenderer.invoke("window:setCollapsed", collapsed),
@@ -24,6 +27,8 @@ contextBridge.exposeInMainWorld("gitPeek", {
   dockToEdge: (collapsed) => ipcRenderer.invoke("window:dockToEdge", collapsed),
   getTemporaryInfoPayload: () => ipcRenderer.invoke("window:getTemporaryInfoPayload"),
   setTemporaryInfoPanel: (payload) => ipcRenderer.invoke("window:setTemporaryInfoPanel", payload),
+  getChangedFileInfoPayload: () => ipcRenderer.invoke("window:getChangedFileInfoPayload"),
+  setChangedFileInfoPanel: (payload) => ipcRenderer.invoke("window:setChangedFileInfoPanel", payload),
   getCommitInfoPayload: () => ipcRenderer.invoke("window:getCommitInfoPayload"),
   setCommitInfoPanel: (payload) => ipcRenderer.invoke("window:setCommitInfoPanel", payload),
   copyText: (text) => ipcRenderer.invoke("clipboard:writeText", text),
@@ -37,6 +42,16 @@ contextBridge.exposeInMainWorld("gitPeek", {
     const handler = () => callback();
     ipcRenderer.on("window:temporaryInfoPanelClosed", handler);
     return () => ipcRenderer.removeListener("window:temporaryInfoPanelClosed", handler);
+  },
+  onChangedFileInfoPayloadUpdated: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on("window:changedFileInfoPayload", handler);
+    return () => ipcRenderer.removeListener("window:changedFileInfoPayload", handler);
+  },
+  onChangedFileInfoPanelClosed: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on("window:changedFileInfoPanelClosed", handler);
+    return () => ipcRenderer.removeListener("window:changedFileInfoPanelClosed", handler);
   },
   onCommitInfoPayloadUpdated: (callback) => {
     const handler = (_event, payload) => callback(payload);
@@ -57,6 +72,11 @@ contextBridge.exposeInMainWorld("gitPeek", {
     const handler = (_event, preferences) => callback(preferences);
     ipcRenderer.on("preferences:changed", handler);
     return () => ipcRenderer.removeListener("preferences:changed", handler);
+  },
+  onActiveWorkspaceTargetChanged: (callback) => {
+    const handler = (_event, target) => callback(target);
+    ipcRenderer.on("workspace:activeTargetChanged", handler);
+    return () => ipcRenderer.removeListener("workspace:activeTargetChanged", handler);
   },
   onSnapshotUpdated: (callback) => {
     const handler = (_event, response) => callback(response);

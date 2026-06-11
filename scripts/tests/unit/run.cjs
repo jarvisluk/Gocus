@@ -96,6 +96,7 @@ async function testRootMount(server) {
 
   assert.equal(rootWindowModeFromUrl("http://127.0.0.1/"), "main");
   assert.equal(rootWindowModeFromUrl("http://127.0.0.1/?window=temporary-info"), "temporary-info");
+  assert.equal(rootWindowModeFromUrl("http://127.0.0.1/?window=changed-file-info"), "changed-file-info");
   assert.equal(rootWindowModeFromUrl("http://127.0.0.1/?window=commit-info"), "commit-info");
   assert.equal(rootWindowModeFromUrl("http://127.0.0.1/?window=main"), "main");
   assert.equal(rootWindowModeFromUrl("not a url"), "main");
@@ -383,6 +384,8 @@ function testShellSyntaxScript() {
 function testWindowGeometryModule() {
   const {
     clampCollapsedRailHeight,
+    changedFileInfoBounds,
+    changedFileInfoWindowSize,
     collapsedSize,
     expandedMinimumSize,
     clampExpandedSize,
@@ -395,6 +398,7 @@ function testWindowGeometryModule() {
   const display = { x: 0, y: 24, width: 1440, height: 876 };
 
   assert.deepEqual(collapsedSize, { width: 38, height: 136 });
+  assert.deepEqual(changedFileInfoWindowSize, { width: 280, height: 252 });
   assert.deepEqual(commitInfoWindowSize, { width: 348, height: 132 });
   assert.deepEqual(expandedMinimumSize, { width: 320, height: 620 });
   assert.equal(clampCollapsedRailHeight(96, display), 136);
@@ -444,6 +448,13 @@ function testWindowGeometryModule() {
       alignTop: true,
     }),
     { x: 780, y: 200, width: 280, height: 252 },
+  );
+  assert.deepEqual(
+    changedFileInfoBounds({
+      temporaryInfoBounds: { x: 780, y: 640, width: 280, height: 252 },
+      display,
+    }),
+    { x: 490, y: 640, width: 280, height: 252 },
   );
   assert.deepEqual(
     commitInfoBounds({
@@ -2374,6 +2385,38 @@ async function testCommitInfoSelection(server) {
   });
 }
 
+async function testChangedFileInfoSelection(server) {
+  const { changedFileInfoWindowView } = await loadTsModule(server, "src/lib/changedFileInfoSelection.ts");
+  const file = changedFile({ path: "src/file.ts" });
+  const changedFileInfoChrome = {
+    viewport: {
+      className: "temporary-info-viewport is-electron",
+    },
+    panel: {
+      className: "peek-panel temporary-info-panel is-changed-file",
+      ariaLabel: "Changed file details window",
+    },
+    emptyState: {
+      className: "temporary-info-empty",
+      ariaLabel: "Changed file details",
+      role: "status",
+      ariaLive: "polite",
+      message: "No file selected.",
+    },
+  };
+
+  assert.deepEqual(changedFileInfoWindowView(null), {
+    ...changedFileInfoChrome,
+    changedFilePayload: null,
+    showChangedFile: false,
+  });
+  assert.deepEqual(changedFileInfoWindowView({ kind: "changed-file", file, workspaceOpenTarget: "cursor" }), {
+    ...changedFileInfoChrome,
+    changedFilePayload: { kind: "changed-file", file, workspaceOpenTarget: "cursor" },
+    showChangedFile: true,
+  });
+}
+
 async function testSnapshotResponseView(server) {
   const {
     defaultSnapshotFailureNotice,
@@ -4191,14 +4234,6 @@ async function testTemporaryInfoSelection(server) {
       message: "No file selected.",
     },
   };
-  const temporaryInfoWithDetailChrome = {
-    ...temporaryInfoChrome,
-    panel: {
-      className: "peek-panel temporary-info-panel has-detail",
-      ariaLabel: "Changed files window",
-    },
-  };
-
   assert.equal(selectedChangedFile([first, second], secondKey), second);
   assert.equal(selectedChangedFile([first, staged], firstKey, "modified"), first);
   assert.equal(selectedChangedFile([first, staged], firstKey, "staged"), null);
@@ -4248,7 +4283,7 @@ async function testTemporaryInfoSelection(server) {
       secondKey,
     ),
     {
-      ...temporaryInfoWithDetailChrome,
+      ...temporaryInfoChrome,
       changedFilesPayload: { kind: "changed-files", files: [first, second], filter: "all", selectedFileKey: "" },
       selectedFile: second,
       showChangedFiles: true,
@@ -5510,6 +5545,7 @@ async function main() {
     await testCommitRowView(server);
     await testCommitView(server);
     await testCommitInfoSelection(server);
+    await testChangedFileInfoSelection(server);
     await testSnapshotResponseView(server);
     await testRepositoryStateView(server);
     await testActionResponseView(server);

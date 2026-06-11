@@ -8,7 +8,9 @@ function registerIpcHandlers({
   createBranch,
   dockWindow,
   errorResponse,
+  getActiveWorkspaceOpenTarget,
   getAvailableWorkspaceTargets,
+  getChangedFileInfoPayload,
   getPinnedState,
   getCommitInfoPayload,
   getSnapshotResponse,
@@ -23,6 +25,7 @@ function registerIpcHandlers({
   openRepositoryPath,
   openWorkspace,
   openWorkspaceFile,
+  openWorkspaceFileMenu,
   openWorktree,
   readPreferences,
   readRecentRepositories,
@@ -31,13 +34,16 @@ function registerIpcHandlers({
   sendPreferences,
   sendSnapshotResponse,
   setCollapsedRailHeight,
+  setActiveWorkspaceOpenTarget,
   setCollapsedWindow,
+  setChangedFileInfoPanel,
   setCommitInfoPanel,
   setCurrentView,
   setPinnedWindow,
   setTemporaryInfoPanel,
   syncLaunchAtLogin,
   syncMenuBarIcon,
+  syncNativeThemeSource,
 }) {
   ipcMain.handle("git:openRepository", async (_event, view) => {
     return chooseRepository(normalizeView(view));
@@ -163,6 +169,18 @@ function registerIpcHandlers({
     return getAvailableWorkspaceTargets();
   });
 
+  ipcMain.handle("workspace:getActiveTarget", () => {
+    return getActiveWorkspaceOpenTarget();
+  });
+
+  ipcMain.handle("workspace:setActiveTarget", (_event, target) => {
+    return setActiveWorkspaceOpenTarget(target);
+  });
+
+  ipcMain.handle("workspace:openFileMenu", (event, payload) => {
+    openWorkspaceFileMenu(event.sender, payload);
+  });
+
   ipcMain.handle("preferences:get", () => {
     return readPreferences();
   });
@@ -182,6 +200,7 @@ function registerIpcHandlers({
     if (sideEffects.syncMenuBarIcon) syncMenuBarIcon(savedConfigPreferences);
 
     const savedPreferences = readPreferences();
+    syncNativeThemeSource(savedPreferences);
     sendPreferences(savedPreferences);
   });
 
@@ -207,6 +226,12 @@ function registerIpcHandlers({
 
   ipcMain.handle("window:setTemporaryInfoPanel", (_event, payload) => {
     setTemporaryInfoPanel(payload);
+  });
+
+  ipcMain.handle("window:getChangedFileInfoPayload", () => getChangedFileInfoPayload());
+
+  ipcMain.handle("window:setChangedFileInfoPanel", (_event, payload) => {
+    setChangedFileInfoPanel(payload);
   });
 
   ipcMain.handle("window:getCommitInfoPayload", () => getCommitInfoPayload());

@@ -27,6 +27,7 @@ import {
   appZenExitButtonView,
 } from "./lib/appShellView";
 import { collapsedRailHeightForBranchName } from "./lib/collapsedRailView";
+import { logBridgeWarning } from "./lib/errorMessages";
 import { activeWorkspaceOpenTarget, visibleWorkspaceOpenOptions } from "./lib/workspaceOpenChoices";
 import { workspaceOpenOptions } from "./lib/workspaceOpenOptions";
 import type { WorkspaceOpenTarget } from "./types";
@@ -108,11 +109,24 @@ export default function App() {
     }
   }, [controller.snapshot?.branch.name]);
 
+  useEffect(() => {
+    window.gitPeek
+      ?.getActiveWorkspaceTarget()
+      .then(setWorkspaceOpenTarget)
+      .catch((error) => logBridgeWarning("Unable to load active workspace target.", error));
+    return window.gitPeek?.onActiveWorkspaceTargetChanged(setWorkspaceOpenTarget);
+  }, []);
+
   function updatePreferences(nextPreferences: typeof controller.preferences) {
     controller.setPreferences(nextPreferences);
     if (appShouldCloseSettingsAfterPreferencesChange({ settingsOpen: controller.settingsOpen, nextZenMode: nextPreferences.zenMode })) {
       controller.setSettingsOpen(false);
     }
+  }
+
+  function updateWorkspaceOpenTarget(target: WorkspaceOpenTarget) {
+    setWorkspaceOpenTarget(target);
+    window.gitPeek?.setActiveWorkspaceTarget(target).catch((error) => logBridgeWarning("Unable to save active workspace target.", error));
   }
 
   return (
@@ -232,7 +246,7 @@ export default function App() {
                 onOpenSettings={() => controller.setSettingsOpen(true)}
                 onOpenWorkspace={controller.openWorkspace}
                 activeWorkspaceTarget={workspaceOpenTarget}
-                onActiveWorkspaceTargetChange={setWorkspaceOpenTarget}
+                onActiveWorkspaceTargetChange={updateWorkspaceOpenTarget}
                 hasRepository={Boolean(controller.snapshot)}
                 changedNowOpen={changedNowWindowOpen}
                 changedNowCount={changedNowCount}

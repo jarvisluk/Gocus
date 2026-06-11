@@ -6,6 +6,8 @@ const { registerIpcHandlers } = require("./lib/ipcHandlers.cjs");
 const { createLaunchAtLoginController } = require("./lib/launchAtLogin.cjs");
 const { installOutputErrorGuard } = require("./lib/outputGuard.cjs");
 const {
+  changedFileInfoBounds,
+  changedFileInfoWindowSize,
   collapsedSize,
   commitInfoBounds,
   commitInfoWindowSize,
@@ -50,8 +52,12 @@ let realQuitRequested = false;
 let dockHiddenForMenuBarMode = false;
 let temporaryInfoWindow = null;
 let temporaryInfoPayload = null;
+let changedFileInfoWindow = null;
+let changedFileInfoPayload = null;
 let commitInfoWindow = null;
 let commitInfoPayload = null;
+let activeWorkspaceOpenTarget = "cursor";
+let workspaceOpenMenuActive = false;
 let repositoryWatcher = null;
 
 const hiddenLaunchArg = "--hidden";
@@ -62,6 +68,17 @@ const assets = createAssetLoader({
   resourcesPath: process.resourcesPath,
   electronDir: __dirname,
 });
+
+const workspaceOpenMenuOptions = [
+  { target: "vscode", label: "VS Code" },
+  { target: "cursor", label: "Cursor" },
+  { target: "codex", label: "Codex" },
+  { target: "antigravity", label: "Antigravity IDE" },
+  { target: "antigravityApp", label: "Antigravity" },
+  { target: "finder", label: "Finder" },
+  { target: "terminal", label: "Terminal" },
+  { target: "xcode", label: "Xcode" },
+];
 
 function readPreferences() {
   const preferences = config.readPreferences();
@@ -107,6 +124,7 @@ function softQuitToMenuBar() {
   }
 
   closeTemporaryInfoWindow();
+  closeChangedFileInfoWindow();
   closeCommitInfoWindow();
   if (mainWindow && !mainWindow.isDestroyed()) {
     saveCurrentExpandedWindowSize(mainWindow);
@@ -328,12 +346,24 @@ function sendCommitInfoPanelClosed() {
   sendToWindow(mainWindow, "window:commitInfoPanelClosed");
 }
 
+function sendChangedFileInfoPanelClosed() {
+  sendToWindow(temporaryInfoWindow, "window:changedFileInfoPanelClosed");
+}
+
 function waitForDialogBlockerFrame() {
   return new Promise((resolve) => setTimeout(resolve, 32));
 }
 
 function getSystemTheme() {
   return nativeTheme.shouldUseDarkColors ? "dark" : "light";
+}
+
+function nativeThemeSourceForPreferences(preferences = readPreferences()) {
+  return preferences.themeMode === "light" || preferences.themeMode === "dark" ? preferences.themeMode : "system";
+}
+
+function syncNativeThemeSource(preferences = readPreferences()) {
+  nativeTheme.themeSource = nativeThemeSourceForPreferences(preferences);
 }
 
 function sendToWindow(win, channel, ...args) {
@@ -345,16 +375,33 @@ function sendToWindow(win, channel, ...args) {
   }
 }
 
+function isWindowFocused(win) {
+  return Boolean(win && !win.isDestroyed() && win.isFocused());
+}
+
 function sendSystemTheme() {
-  for (const win of [mainWindow, temporaryInfoWindow, commitInfoWindow]) {
+  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow]) {
     sendToWindow(win, "theme:changed", getSystemTheme());
   }
 }
 
 function sendPreferences(preferences = readPreferences()) {
-  for (const win of [mainWindow, temporaryInfoWindow, commitInfoWindow]) {
+  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow]) {
     sendToWindow(win, "preferences:changed", preferences);
   }
+}
+
+function sendActiveWorkspaceOpenTarget() {
+  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow]) {
+    sendToWindow(win, "workspace:activeTargetChanged", activeWorkspaceOpenTarget);
+  }
+}
+
+function setActiveWorkspaceOpenTarget(target) {
+  if (typeof target !== "string" || target.length === 0) return activeWorkspaceOpenTarget;
+  activeWorkspaceOpenTarget = target;
+  sendActiveWorkspaceOpenTarget();
+  return activeWorkspaceOpenTarget;
 }
 
 async function refreshAndSendSnapshot() {
@@ -441,6 +488,7 @@ function setCollapsedWindow(collapsed) {
   if (!collapsedState && nextCollapsedState) saveCurrentExpandedWindowSize(mainWindow);
   if (nextCollapsedState) {
     closeTemporaryInfoWindow();
+    closeChangedFileInfoWindow();
     closeCommitInfoWindow();
   }
   collapsedState = nextCollapsedState;
@@ -454,6 +502,7 @@ function dockWindow(collapsed = collapsedState) {
   if (!collapsed) saveCurrentExpandedWindowSize(mainWindow);
   positionWindow(mainWindow, collapsed);
   positionTemporaryInfoWindow({ animated: true });
+  positionChangedFileInfoWindow({ animated: true });
   positionCommitInfoWindow({ animated: true });
 }
 
@@ -510,11 +559,15 @@ function syncTemporaryInfoWindowLevel() {
 
 function closeTemporaryInfoWindowIfAppInactive() {
   setTimeout(() => {
-    const mainFocused = Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused());
-    const infoFocused = Boolean(temporaryInfoWindow && !temporaryInfoWindow.isDestroyed() && temporaryInfoWindow.isFocused());
-    const commitInfoFocused = Boolean(commitInfoWindow && !commitInfoWindow.isDestroyed() && commitInfoWindow.isFocused());
-    if (!mainFocused && !infoFocused && !commitInfoFocused) {
+    const appFocused =
+      isWindowFocused(mainWindow) ||
+      isWindowFocused(temporaryInfoWindow) ||
+      isWindowFocused(changedFileInfoWindow) ||
+      isWindowFocused(commitInfoWindow) ||
+      workspaceOpenMenuActive;
+    if (!appFocused) {
       closeTemporaryInfoWindow();
+      closeChangedFileInfoWindow();
       closeCommitInfoWindow();
     }
   }, 80);
@@ -522,6 +575,7 @@ function closeTemporaryInfoWindowIfAppInactive() {
 
 function closeTemporaryInfoWindow() {
   temporaryInfoPayload = null;
+  closeChangedFileInfoWindow();
   if (!temporaryInfoWindow || temporaryInfoWindow.isDestroyed()) return;
   const windowToClose = temporaryInfoWindow;
   temporaryInfoWindow = null;
@@ -567,6 +621,7 @@ function ensureTemporaryInfoWindow() {
   temporaryInfoWindow.on("closed", () => {
     temporaryInfoWindow = null;
     temporaryInfoPayload = null;
+    closeChangedFileInfoWindow();
     sendTemporaryInfoPanelClosed();
   });
   loadRendererWindow(temporaryInfoWindow, "temporary-info");
@@ -584,8 +639,178 @@ function setTemporaryInfoPanel(payload) {
   const infoWindow = ensureTemporaryInfoWindow();
   if (!infoWindow) return;
   positionTemporaryInfoWindow();
+  positionChangedFileInfoWindow();
   sendTemporaryInfoPayload();
   positionCommitInfoWindow();
+}
+
+function changedFileInfoWindowBounds() {
+  if (!temporaryInfoWindow || temporaryInfoWindow.isDestroyed()) return null;
+
+  const temporaryBounds = temporaryInfoWindow.getBounds();
+  const display = screen.getDisplayMatching(temporaryBounds).workArea;
+  return changedFileInfoBounds({ temporaryInfoBounds: temporaryBounds, display });
+}
+
+function sendChangedFileInfoPayload() {
+  if (!changedFileInfoWindow || changedFileInfoWindow.isDestroyed()) return;
+  sendToWindow(changedFileInfoWindow, "window:changedFileInfoPayload", changedFileInfoPayload);
+}
+
+function setChangedFileInfoWindowBounds(bounds, animated = false) {
+  if (!changedFileInfoWindow || changedFileInfoWindow.isDestroyed()) return;
+  if (windowBoundsEqual(changedFileInfoWindow.getBounds(), bounds)) return;
+  changedFileInfoWindow.setBounds(bounds, animated);
+}
+
+function positionChangedFileInfoWindow({ animated = false } = {}) {
+  if (!changedFileInfoWindow || changedFileInfoWindow.isDestroyed()) return;
+  const bounds = changedFileInfoWindowBounds();
+  if (bounds) setChangedFileInfoWindowBounds(bounds, animated);
+}
+
+function syncChangedFileInfoWindowLevel() {
+  if (!changedFileInfoWindow || changedFileInfoWindow.isDestroyed()) return;
+  changedFileInfoWindow.setAlwaysOnTop(pinnedState || isWindowFocused(mainWindow), "floating");
+}
+
+function closeChangedFileInfoWindowIfAppInactive() {
+  setTimeout(() => {
+    const appFocused =
+      isWindowFocused(mainWindow) ||
+      isWindowFocused(temporaryInfoWindow) ||
+      isWindowFocused(changedFileInfoWindow) ||
+      isWindowFocused(commitInfoWindow) ||
+      workspaceOpenMenuActive;
+    if (!appFocused) {
+      closeChangedFileInfoWindow();
+      closeTemporaryInfoWindow();
+      closeCommitInfoWindow();
+    }
+  }, 80);
+}
+
+function closeChangedFileInfoWindow() {
+  changedFileInfoPayload = null;
+  if (!changedFileInfoWindow || changedFileInfoWindow.isDestroyed()) return;
+  const windowToClose = changedFileInfoWindow;
+  changedFileInfoWindow = null;
+  sendChangedFileInfoPanelClosed();
+  windowToClose.close();
+}
+
+function ensureChangedFileInfoWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
+  if (!temporaryInfoWindow || temporaryInfoWindow.isDestroyed()) return null;
+  if (changedFileInfoWindow && !changedFileInfoWindow.isDestroyed()) return changedFileInfoWindow;
+
+  const bounds = changedFileInfoWindowBounds() ?? { ...changedFileInfoWindowSize };
+  changedFileInfoWindow = new BrowserWindow({
+    ...bounds,
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: "#00000000",
+    hasShadow: false,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    skipTaskbar: true,
+    title: "Git Peek Changed File Info",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  syncChangedFileInfoWindowLevel();
+  changedFileInfoWindow.once("ready-to-show", () => {
+    positionChangedFileInfoWindow();
+    syncChangedFileInfoWindowLevel();
+    changedFileInfoWindow?.showInactive();
+    sendChangedFileInfoPayload();
+  });
+  changedFileInfoWindow.webContents.on("did-finish-load", sendChangedFileInfoPayload);
+  changedFileInfoWindow.on("blur", closeChangedFileInfoWindowIfAppInactive);
+  changedFileInfoWindow.on("closed", () => {
+    changedFileInfoWindow = null;
+    changedFileInfoPayload = null;
+    sendChangedFileInfoPanelClosed();
+  });
+  loadRendererWindow(changedFileInfoWindow, "changed-file-info");
+
+  return changedFileInfoWindow;
+}
+
+function setChangedFileInfoPanel(payload) {
+  if (!payload) {
+    closeChangedFileInfoWindow();
+    return;
+  }
+
+  changedFileInfoPayload = payload;
+  const infoWindow = ensureChangedFileInfoWindow();
+  if (!infoWindow) return;
+  positionChangedFileInfoWindow();
+  sendChangedFileInfoPayload();
+}
+
+function workspaceOpenMenuVisibleOptions(payload) {
+  if (!payload || payload.kind !== "changed-file") return [];
+  const availableTargets = new Set(Array.isArray(payload.availableWorkspaceTargets) ? payload.availableWorkspaceTargets : []);
+  const enabledTargets = new Set(Array.isArray(payload.enabledWorkspaceTargets) ? payload.enabledWorkspaceTargets : []);
+  return workspaceOpenMenuOptions.filter((option) => availableTargets.has(option.target) && enabledTargets.has(option.target));
+}
+
+function openWorkspaceFileMenu(sourceWebContents, payload) {
+  const sourceWindow = BrowserWindow.fromWebContents(sourceWebContents);
+  if (!sourceWindow || sourceWindow.isDestroyed()) return;
+
+  const visibleOptions = workspaceOpenMenuVisibleOptions(payload);
+  if (visibleOptions.length === 0) return;
+
+  const checkedTarget = visibleOptions.some((option) => option.target === payload.activeWorkspaceTarget)
+    ? payload.activeWorkspaceTarget
+    : visibleOptions[0].target;
+  const template = visibleOptions.map((option) => ({
+    label: option.label,
+    type: "checkbox",
+    checked: option.target === checkedTarget,
+    click: () => {
+      setActiveWorkspaceOpenTarget(option.target);
+      openWorkspaceFile(repositoryPathForAction(), option.target, payload.filePath)
+        .then((response) => {
+          if (response && !response.ok) {
+            console.warn("[Git Peek] Unable to open file in selected app.", response.error ?? response);
+          }
+        })
+        .catch((error) => {
+          console.warn("[Git Peek] Unable to open file in selected app.", error);
+        });
+    },
+  }));
+  const anchorBounds = payload.anchorBounds ?? {};
+  const anchorLeft = Number.isFinite(anchorBounds.left) ? anchorBounds.left : 0;
+  const anchorTop = Number.isFinite(anchorBounds.top) ? anchorBounds.top : 0;
+  const anchorHeight = Number.isFinite(anchorBounds.height) ? anchorBounds.height : 0;
+
+  workspaceOpenMenuActive = true;
+  try {
+    Menu.buildFromTemplate(template).popup({
+      window: sourceWindow,
+      x: Math.round(anchorLeft),
+      y: Math.round(anchorTop + anchorHeight),
+      positioningItem: Math.max(0, visibleOptions.findIndex((option) => option.target === checkedTarget)),
+      callback: () => {
+        workspaceOpenMenuActive = false;
+      },
+    });
+  } catch (error) {
+    workspaceOpenMenuActive = false;
+    console.warn("[Git Peek] Unable to open workspace app menu.", error);
+  }
 }
 
 function commitInfoWindowBounds() {
@@ -623,11 +848,15 @@ function syncCommitInfoWindowLevel() {
 
 function closeCommitInfoWindowIfAppInactive() {
   setTimeout(() => {
-    const mainFocused = Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused());
-    const temporaryInfoFocused = Boolean(temporaryInfoWindow && !temporaryInfoWindow.isDestroyed() && temporaryInfoWindow.isFocused());
-    const commitInfoFocused = Boolean(commitInfoWindow && !commitInfoWindow.isDestroyed() && commitInfoWindow.isFocused());
-    if (!mainFocused && !temporaryInfoFocused && !commitInfoFocused) {
+    const appFocused =
+      isWindowFocused(mainWindow) ||
+      isWindowFocused(temporaryInfoWindow) ||
+      isWindowFocused(changedFileInfoWindow) ||
+      isWindowFocused(commitInfoWindow) ||
+      workspaceOpenMenuActive;
+    if (!appFocused) {
       closeCommitInfoWindow();
+      closeChangedFileInfoWindow();
       closeTemporaryInfoWindow();
     }
   }, 80);
@@ -704,6 +933,7 @@ function setPinnedWindow(pinned) {
   pinnedState = Boolean(pinned);
   mainWindow.setAlwaysOnTop(pinnedState, "floating");
   syncTemporaryInfoWindowLevel();
+  syncChangedFileInfoWindowLevel();
   syncCommitInfoWindowLevel();
   sendPinnedChanged();
   buildMenus();
@@ -750,29 +980,36 @@ function createWindow({ showOnReady = true } = {}) {
   });
   mainWindow.on("move", () => {
     positionTemporaryInfoWindow();
+    positionChangedFileInfoWindow();
     positionCommitInfoWindow();
   });
   mainWindow.on("resize", () => {
     scheduleExpandedWindowSizeSave(mainWindow);
     positionTemporaryInfoWindow();
+    positionChangedFileInfoWindow();
     positionCommitInfoWindow();
   });
   mainWindow.on("focus", () => {
     syncTemporaryInfoWindowLevel();
+    syncChangedFileInfoWindowLevel();
     syncCommitInfoWindowLevel();
   });
   mainWindow.on("blur", () => {
     syncTemporaryInfoWindowLevel();
+    syncChangedFileInfoWindowLevel();
     syncCommitInfoWindowLevel();
     closeTemporaryInfoWindowIfAppInactive();
+    closeChangedFileInfoWindowIfAppInactive();
     closeCommitInfoWindowIfAppInactive();
   });
   mainWindow.on("hide", () => {
     closeTemporaryInfoWindow();
+    closeChangedFileInfoWindow();
     closeCommitInfoWindow();
   });
   mainWindow.on("close", (event) => {
     closeTemporaryInfoWindow();
+    closeChangedFileInfoWindow();
     closeCommitInfoWindow();
     saveCurrentExpandedWindowSize(mainWindow);
     if (process.platform === "darwin" && !realQuitRequested && shouldUseMenuBarResidency()) {
@@ -782,6 +1019,7 @@ function createWindow({ showOnReady = true } = {}) {
   });
   mainWindow.on("closed", () => {
     closeTemporaryInfoWindow();
+    closeChangedFileInfoWindow();
     closeCommitInfoWindow();
     clearTimeout(applyingWindowBoundsTimer);
     clearTimeout(expandedWindowSizeSaveTimer);
@@ -984,10 +1222,10 @@ function buildMenus() {
 
 app.whenReady().then(() => {
   app.setName("Git Peek");
-  nativeTheme.themeSource = "system";
   nativeTheme.on("updated", sendSystemTheme);
   currentRepository = readSavedRepositoryPath();
   const preferences = config.readPreferences();
+  syncNativeThemeSource(preferences);
   const menuBarModeEnabled = shouldUseMenuBarResidency(preferences);
   const startInMenuBar = menuBarModeEnabled && shouldStartInMenuBar();
   if (process.platform === "darwin" && app.dock) {
@@ -1003,10 +1241,13 @@ app.whenReady().then(() => {
   });
   app.on("browser-window-blur", () => {
     closeTemporaryInfoWindowIfAppInactive();
+    closeChangedFileInfoWindowIfAppInactive();
     closeCommitInfoWindowIfAppInactive();
   });
   app.on("did-resign-active", () => {
+    workspaceOpenMenuActive = false;
     closeTemporaryInfoWindow();
+    closeChangedFileInfoWindow();
     closeCommitInfoWindow();
   });
 });
@@ -1035,7 +1276,9 @@ registerIpcHandlers({
   createBranch,
   dockWindow,
   errorResponse,
+  getActiveWorkspaceOpenTarget: () => activeWorkspaceOpenTarget,
   getAvailableWorkspaceTargets,
+  getChangedFileInfoPayload: () => changedFileInfoPayload,
   getCommitInfoPayload: () => commitInfoPayload,
   getPinnedState: () => pinnedState,
   getSnapshotResponse,
@@ -1050,6 +1293,7 @@ registerIpcHandlers({
   openRepositoryPath,
   openWorkspace,
   openWorkspaceFile,
+  openWorkspaceFileMenu,
   openWorktree,
   readPreferences,
   readRecentRepositories,
@@ -1058,7 +1302,9 @@ registerIpcHandlers({
   sendPreferences,
   sendSnapshotResponse,
   setCollapsedRailHeight,
+  setActiveWorkspaceOpenTarget,
   setCollapsedWindow,
+  setChangedFileInfoPanel,
   setCommitInfoPanel,
   setCurrentView: (view) => {
     currentView = view;
@@ -1067,4 +1313,5 @@ registerIpcHandlers({
   setTemporaryInfoPanel,
   syncLaunchAtLogin,
   syncMenuBarIcon,
+  syncNativeThemeSource,
 });
