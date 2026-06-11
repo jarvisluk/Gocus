@@ -10,6 +10,7 @@ import type {
   SnapshotResponse,
   TemporaryInfoPayload,
   UiPreferences,
+  WorkspaceOpenMenuPayload,
   WorkspaceOpenTarget,
 } from "./types";
 
@@ -35,6 +36,9 @@ declare global {
       openWorkspace: (target: WorkspaceOpenTarget) => Promise<ActionResponse>;
       openWorkspaceFile: (target: WorkspaceOpenTarget, filePath: string) => Promise<ActionResponse>;
       getAvailableWorkspaceTargets: () => Promise<WorkspaceOpenTarget[]>;
+      getActiveWorkspaceTarget: () => Promise<WorkspaceOpenTarget>;
+      setActiveWorkspaceTarget: (target: WorkspaceOpenTarget) => Promise<WorkspaceOpenTarget>;
+      openWorkspaceFileMenu: (payload: WorkspaceOpenMenuPayload) => Promise<void>;
       getPreferences: () => Promise<UiPreferences>;
       savePreferences: (preferences: UiPreferences) => Promise<void>;
       setCollapsed: (collapsed: boolean) => Promise<void>;
@@ -57,6 +61,7 @@ declare global {
       onCommitInfoPanelClosed: (callback: () => void) => () => void;
       onThemeChanged: (callback: (theme: "light" | "dark") => void) => () => void;
       onPreferencesChanged: (callback: (preferences: UiPreferences) => void) => () => void;
+      onActiveWorkspaceTargetChanged: (callback: (target: WorkspaceOpenTarget) => void) => () => void;
       onSnapshotUpdated: (callback: (response: SnapshotResponse) => void) => () => void;
       onCollapsedChanged: (callback: (collapsed: boolean) => void) => () => void;
       onPinnedChanged: (callback: (pinned: boolean) => void) => () => void;

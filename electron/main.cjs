@@ -54,6 +54,8 @@ let changedFileInfoWindow = null;
 let changedFileInfoPayload = null;
 let commitInfoWindow = null;
 let commitInfoPayload = null;
+let activeWorkspaceOpenTarget = "cursor";
+let workspaceOpenMenuActive = false;
 let repositoryWatcher = null;
 
 const hiddenLaunchArg = "--hidden";
@@ -64,6 +66,17 @@ const assets = createAssetLoader({
   resourcesPath: process.resourcesPath,
   electronDir: __dirname,
 });
+
+const workspaceOpenMenuOptions = [
+  { target: "vscode", label: "VS Code" },
+  { target: "cursor", label: "Cursor" },
+  { target: "codex", label: "Codex" },
+  { target: "antigravity", label: "Antigravity IDE" },
+  { target: "antigravityApp", label: "Antigravity" },
+  { target: "finder", label: "Finder" },
+  { target: "terminal", label: "Terminal" },
+  { target: "xcode", label: "Xcode" },
+];
 
 function readPreferences() {
   const preferences = config.readPreferences();
@@ -343,6 +356,14 @@ function getSystemTheme() {
   return nativeTheme.shouldUseDarkColors ? "dark" : "light";
 }
 
+function nativeThemeSourceForPreferences(preferences = readPreferences()) {
+  return preferences.themeMode === "light" || preferences.themeMode === "dark" ? preferences.themeMode : "system";
+}
+
+function syncNativeThemeSource(preferences = readPreferences()) {
+  nativeTheme.themeSource = nativeThemeSourceForPreferences(preferences);
+}
+
 function sendToWindow(win, channel, ...args) {
   if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return;
   try {
@@ -366,6 +387,19 @@ function sendPreferences(preferences = readPreferences()) {
   for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow]) {
     sendToWindow(win, "preferences:changed", preferences);
   }
+}
+
+function sendActiveWorkspaceOpenTarget() {
+  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow]) {
+    sendToWindow(win, "workspace:activeTargetChanged", activeWorkspaceOpenTarget);
+  }
+}
+
+function setActiveWorkspaceOpenTarget(target) {
+  if (typeof target !== "string" || target.length === 0) return activeWorkspaceOpenTarget;
+  activeWorkspaceOpenTarget = target;
+  sendActiveWorkspaceOpenTarget();
+  return activeWorkspaceOpenTarget;
 }
 
 async function refreshAndSendSnapshot() {
@@ -516,7 +550,8 @@ function closeTemporaryInfoWindowIfAppInactive() {
       isWindowFocused(mainWindow) ||
       isWindowFocused(temporaryInfoWindow) ||
       isWindowFocused(changedFileInfoWindow) ||
-      isWindowFocused(commitInfoWindow);
+      isWindowFocused(commitInfoWindow) ||
+      workspaceOpenMenuActive;
     if (!appFocused) {
       closeTemporaryInfoWindow();
       closeChangedFileInfoWindow();
@@ -632,7 +667,8 @@ function closeChangedFileInfoWindowIfAppInactive() {
       isWindowFocused(mainWindow) ||
       isWindowFocused(temporaryInfoWindow) ||
       isWindowFocused(changedFileInfoWindow) ||
-      isWindowFocused(commitInfoWindow);
+      isWindowFocused(commitInfoWindow) ||
+      workspaceOpenMenuActive;
     if (!appFocused) {
       closeChangedFileInfoWindow();
       closeTemporaryInfoWindow();
@@ -708,6 +744,62 @@ function setChangedFileInfoPanel(payload) {
   sendChangedFileInfoPayload();
 }
 
+function workspaceOpenMenuVisibleOptions(payload) {
+  if (!payload || payload.kind !== "changed-file") return [];
+  const availableTargets = new Set(Array.isArray(payload.availableWorkspaceTargets) ? payload.availableWorkspaceTargets : []);
+  const enabledTargets = new Set(Array.isArray(payload.enabledWorkspaceTargets) ? payload.enabledWorkspaceTargets : []);
+  return workspaceOpenMenuOptions.filter((option) => availableTargets.has(option.target) && enabledTargets.has(option.target));
+}
+
+function openWorkspaceFileMenu(sourceWebContents, payload) {
+  const sourceWindow = BrowserWindow.fromWebContents(sourceWebContents);
+  if (!sourceWindow || sourceWindow.isDestroyed()) return;
+
+  const visibleOptions = workspaceOpenMenuVisibleOptions(payload);
+  if (visibleOptions.length === 0) return;
+
+  const checkedTarget = visibleOptions.some((option) => option.target === payload.activeWorkspaceTarget)
+    ? payload.activeWorkspaceTarget
+    : visibleOptions[0].target;
+  const template = visibleOptions.map((option) => ({
+    label: option.label,
+    type: "checkbox",
+    checked: option.target === checkedTarget,
+    click: () => {
+      setActiveWorkspaceOpenTarget(option.target);
+      openWorkspaceFile(repositoryPathForAction(), option.target, payload.filePath)
+        .then((response) => {
+          if (response && !response.ok) {
+            console.warn("[Git Peek] Unable to open file in selected app.", response.error ?? response);
+          }
+        })
+        .catch((error) => {
+          console.warn("[Git Peek] Unable to open file in selected app.", error);
+        });
+    },
+  }));
+  const anchorBounds = payload.anchorBounds ?? {};
+  const anchorLeft = Number.isFinite(anchorBounds.left) ? anchorBounds.left : 0;
+  const anchorTop = Number.isFinite(anchorBounds.top) ? anchorBounds.top : 0;
+  const anchorHeight = Number.isFinite(anchorBounds.height) ? anchorBounds.height : 0;
+
+  workspaceOpenMenuActive = true;
+  try {
+    Menu.buildFromTemplate(template).popup({
+      window: sourceWindow,
+      x: Math.round(anchorLeft),
+      y: Math.round(anchorTop + anchorHeight),
+      positioningItem: Math.max(0, visibleOptions.findIndex((option) => option.target === checkedTarget)),
+      callback: () => {
+        workspaceOpenMenuActive = false;
+      },
+    });
+  } catch (error) {
+    workspaceOpenMenuActive = false;
+    console.warn("[Git Peek] Unable to open workspace app menu.", error);
+  }
+}
+
 function commitInfoWindowBounds() {
   if (!mainWindow || mainWindow.isDestroyed()) return null;
 
@@ -747,7 +839,8 @@ function closeCommitInfoWindowIfAppInactive() {
       isWindowFocused(mainWindow) ||
       isWindowFocused(temporaryInfoWindow) ||
       isWindowFocused(changedFileInfoWindow) ||
-      isWindowFocused(commitInfoWindow);
+      isWindowFocused(commitInfoWindow) ||
+      workspaceOpenMenuActive;
     if (!appFocused) {
       closeCommitInfoWindow();
       closeChangedFileInfoWindow();
@@ -1116,10 +1209,10 @@ function buildMenus() {
 
 app.whenReady().then(() => {
   app.setName("Git Peek");
-  nativeTheme.themeSource = "system";
   nativeTheme.on("updated", sendSystemTheme);
   currentRepository = readSavedRepositoryPath();
   const preferences = config.readPreferences();
+  syncNativeThemeSource(preferences);
   const menuBarModeEnabled = shouldUseMenuBarResidency(preferences);
   const startInMenuBar = menuBarModeEnabled && shouldStartInMenuBar();
   if (process.platform === "darwin" && app.dock) {
@@ -1139,6 +1232,7 @@ app.whenReady().then(() => {
     closeCommitInfoWindowIfAppInactive();
   });
   app.on("did-resign-active", () => {
+    workspaceOpenMenuActive = false;
     closeTemporaryInfoWindow();
     closeChangedFileInfoWindow();
     closeCommitInfoWindow();
@@ -1169,6 +1263,7 @@ registerIpcHandlers({
   createBranch,
   dockWindow,
   errorResponse,
+  getActiveWorkspaceOpenTarget: () => activeWorkspaceOpenTarget,
   getAvailableWorkspaceTargets,
   getChangedFileInfoPayload: () => changedFileInfoPayload,
   getCommitInfoPayload: () => commitInfoPayload,
@@ -1185,6 +1280,7 @@ registerIpcHandlers({
   openRepositoryPath,
   openWorkspace,
   openWorkspaceFile,
+  openWorkspaceFileMenu,
   openWorktree,
   readPreferences,
   readRecentRepositories,
@@ -1192,6 +1288,7 @@ registerIpcHandlers({
   saveRepositoryPath,
   sendPreferences,
   sendSnapshotResponse,
+  setActiveWorkspaceOpenTarget,
   setCollapsedWindow,
   setChangedFileInfoPanel,
   setCommitInfoPanel,
@@ -1202,4 +1299,5 @@ registerIpcHandlers({
   setTemporaryInfoPanel,
   syncLaunchAtLogin,
   syncMenuBarIcon,
+  syncNativeThemeSource,
 });

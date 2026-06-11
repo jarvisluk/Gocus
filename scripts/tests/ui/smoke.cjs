@@ -7,6 +7,8 @@ const graphAnchorScreenshotPath = process.env.GIT_PEEK_GRAPH_ANCHOR_SCREENSHOT;
 const compactViewport = { width: 390, height: 720 };
 const desktopViewport = { width: 960, height: 720 };
 const temporaryInfoViewport = { width: 280, height: 252 };
+const changedFileInfoViewport = { width: 280, height: 252 };
+const allWorkspaceTargets = ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"];
 const footerCommitFullHash = "d4e5f6a000000000000000000000000000000000";
 
 function expectedCreateBranchAction(name) {
@@ -213,6 +215,7 @@ function installGitPeekMock(config) {
   window.__gitPeekTemporaryInfoPayload = config.temporaryInfoPayload ?? null;
   window.__gitPeekChangedFileInfoPayload = config.changedFileInfoPayload ?? null;
   window.__gitPeekCommitInfoPayload = config.commitInfoPayload ?? null;
+  window.__gitPeekWorkspaceOpenMenuPayload = null;
   window.__gitPeekTemporaryInfoListeners = [];
   window.__gitPeekChangedFileInfoListeners = [];
   window.__gitPeekChangedFileInfoPanelClosedListeners = [];
@@ -220,6 +223,12 @@ function installGitPeekMock(config) {
   window.__gitPeekPreferencesListeners = [];
   window.__gitPeekPinnedListeners = [];
   window.__gitPeekPinnedState = Boolean(config.pinned);
+  window.__gitPeekActiveWorkspaceTarget =
+    config.activeWorkspaceTarget ??
+    config.changedFileInfoPayload?.workspaceOpenTarget ??
+    config.temporaryInfoPayload?.workspaceOpenTarget ??
+    "cursor";
+  window.__gitPeekActiveWorkspaceTargetListeners = [];
   window.__gitPeekSavedPreferences = [];
   window.__gitPeekSnapshotRequests = [];
   window.__gitPeekOpenedWorkspaces = [];
@@ -250,6 +259,20 @@ function installGitPeekMock(config) {
       if (config.availableWorkspaceTargetsError) throw new Error(config.availableWorkspaceTargetsError);
       return config.availableWorkspaceTargets ?? ["cursor", "finder", "terminal"];
     },
+    getActiveWorkspaceTarget: async () => {
+      if (config.activeWorkspaceTargetError) throw new Error(config.activeWorkspaceTargetError);
+      return window.__gitPeekActiveWorkspaceTarget;
+    },
+    setActiveWorkspaceTarget: async (target) => {
+      if (config.setActiveWorkspaceTargetError) throw new Error(config.setActiveWorkspaceTargetError);
+      window.__gitPeekActiveWorkspaceTarget = target;
+      window.__gitPeekActiveWorkspaceTargetListeners.forEach((callback) => callback(target));
+      return target;
+    },
+    openWorkspaceFileMenu: async (payload) => {
+      if (config.openWorkspaceFileMenuError) throw new Error(config.openWorkspaceFileMenuError);
+      window.__gitPeekWorkspaceOpenMenuPayload = payload;
+    },
     getSnapshot: async (view) => {
       if (view) window.__gitPeekSnapshotRequests.push(view);
       if (!initialResponse.ok) return initialResponse;
@@ -273,6 +296,14 @@ function installGitPeekMock(config) {
       window.__gitPeekPreferencesListeners.push(callback);
       return () => {
         window.__gitPeekPreferencesListeners = window.__gitPeekPreferencesListeners.filter((listener) => listener !== callback);
+      };
+    },
+    onActiveWorkspaceTargetChanged: (callback) => {
+      window.__gitPeekActiveWorkspaceTargetListeners.push(callback);
+      return () => {
+        window.__gitPeekActiveWorkspaceTargetListeners = window.__gitPeekActiveWorkspaceTargetListeners.filter(
+          (listener) => listener !== callback,
+        );
       };
     },
     getTemporaryInfoPayload: async () => {
@@ -1256,17 +1287,46 @@ async function testTemporaryInfoCopyPrompt(browser, baseUrl) {
     const firstDetailPayload = await page.evaluate(() => window.__gitPeekChangedFileInfoPayload);
     const { page: detailPage, errors: detailErrors } = await openMockedPage(browser, `${baseUrl}?window=changed-file-info`, {
       ...mockedSnapshotScenario(mockCommits),
+      availableWorkspaceTargets: allWorkspaceTargets,
       changedFileInfoPayload: firstDetailPayload,
-    });
+    }, { viewport: changedFileInfoViewport });
     try {
       await detailPage.getByRole("complementary", { name: "src/components/RecentCommits.tsx" }).waitFor();
       assert.equal(await detailPage.locator(".changed-side-panel").getAttribute("aria-labelledby"), "changed-file-details-title");
       assert.equal(await detailPage.locator(".changed-side-header h2").innerText(), "src/components/RecentCommits.tsx");
+      assert.equal(await detailPage.locator(".changed-side-header .workspace-open-control").count(), 0);
+      assert.equal(await detailPage.locator(".changed-side-footer-actions .workspace-open-control").count(), 1);
       assert.equal(await detailPage.locator(".temporary-info-panel").evaluate((node) => node.classList.contains("is-changed-file")), true);
-      await detailPage.getByRole("button", { name: "Open file in Cursor" }).click();
+      await detailPage.getByRole("button", { name: "Open in Cursor" }).click();
       assert.deepEqual(await detailPage.evaluate(() => window.__gitPeekOpenedWorkspaceFiles), [
         { target: "cursor", filePath: "src/components/RecentCommits.tsx" },
       ]);
+      await detailPage.getByRole("button", { name: "Choose external app" }).click();
+      await detailPage.waitForFunction(() => window.__gitPeekWorkspaceOpenMenuPayload?.filePath === "src/components/RecentCommits.tsx");
+      assert.equal(await detailPage.locator("#workspace-open-menu").count(), 0);
+      const detailPanelScroll = await detailPage.locator(".temporary-info-panel").evaluate((node) => ({
+        clientHeight: node.clientHeight,
+        scrollHeight: node.scrollHeight,
+        scrollTop: node.scrollTop,
+      }));
+      assert.equal(detailPanelScroll.scrollTop, 0);
+      assert.ok(
+        detailPanelScroll.scrollHeight <= detailPanelScroll.clientHeight + 1,
+        `Changed file details should not scroll when the external app menu is open: ${JSON.stringify(detailPanelScroll)}`,
+      );
+      const changedSideScroll = await detailPage.locator(".changed-side-panel").evaluate((node) => ({
+        clientHeight: node.clientHeight,
+        scrollHeight: node.scrollHeight,
+        scrollTop: node.scrollTop,
+      }));
+      assert.equal(changedSideScroll.scrollTop, 0);
+      assert.ok(
+        changedSideScroll.scrollHeight <= changedSideScroll.clientHeight + 1,
+        `Changed side panel should not scroll when the external app menu is open: ${JSON.stringify(changedSideScroll)}`,
+      );
+      const menuPayload = await detailPage.evaluate(() => window.__gitPeekWorkspaceOpenMenuPayload);
+      assert.equal(menuPayload.itemCount, allWorkspaceTargets.length);
+      assert.equal(menuPayload.anchorBounds.width, 78);
       await detailPage.getByRole("button", { name: "Close changed file details" }).click();
       await detailPage.waitForFunction(() => window.__gitPeekChangedFileInfoPayload === null);
       assert.deepEqual(detailErrors, []);

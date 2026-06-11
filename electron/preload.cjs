@@ -15,6 +15,9 @@ contextBridge.exposeInMainWorld("gitPeek", {
   openWorkspace: (target) => ipcRenderer.invoke("workspace:open", target),
   openWorkspaceFile: (target, filePath) => ipcRenderer.invoke("workspace:openFile", target, filePath),
   getAvailableWorkspaceTargets: () => ipcRenderer.invoke("workspace:getAvailableTargets"),
+  getActiveWorkspaceTarget: () => ipcRenderer.invoke("workspace:getActiveTarget"),
+  setActiveWorkspaceTarget: (target) => ipcRenderer.invoke("workspace:setActiveTarget", target),
+  openWorkspaceFileMenu: (payload) => ipcRenderer.invoke("workspace:openFileMenu", payload),
   getPreferences: () => ipcRenderer.invoke("preferences:get"),
   savePreferences: (preferences) => ipcRenderer.invoke("preferences:save", preferences),
   setCollapsed: (collapsed) => ipcRenderer.invoke("window:setCollapsed", collapsed),
@@ -68,6 +71,11 @@ contextBridge.exposeInMainWorld("gitPeek", {
     const handler = (_event, preferences) => callback(preferences);
     ipcRenderer.on("preferences:changed", handler);
     return () => ipcRenderer.removeListener("preferences:changed", handler);
+  },
+  onActiveWorkspaceTargetChanged: (callback) => {
+    const handler = (_event, target) => callback(target);
+    ipcRenderer.on("workspace:activeTargetChanged", handler);
+    return () => ipcRenderer.removeListener("workspace:activeTargetChanged", handler);
   },
   onSnapshotUpdated: (callback) => {
     const handler = (_event, response) => callback(response);

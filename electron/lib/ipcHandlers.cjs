@@ -8,6 +8,7 @@ function registerIpcHandlers({
   createBranch,
   dockWindow,
   errorResponse,
+  getActiveWorkspaceOpenTarget,
   getAvailableWorkspaceTargets,
   getChangedFileInfoPayload,
   getPinnedState,
@@ -24,6 +25,7 @@ function registerIpcHandlers({
   openRepositoryPath,
   openWorkspace,
   openWorkspaceFile,
+  openWorkspaceFileMenu,
   openWorktree,
   readPreferences,
   readRecentRepositories,
@@ -31,6 +33,7 @@ function registerIpcHandlers({
   saveRepositoryPath,
   sendPreferences,
   sendSnapshotResponse,
+  setActiveWorkspaceOpenTarget,
   setCollapsedWindow,
   setChangedFileInfoPanel,
   setCommitInfoPanel,
@@ -39,6 +42,7 @@ function registerIpcHandlers({
   setTemporaryInfoPanel,
   syncLaunchAtLogin,
   syncMenuBarIcon,
+  syncNativeThemeSource,
 }) {
   ipcMain.handle("git:openRepository", async (_event, view) => {
     return chooseRepository(normalizeView(view));
@@ -164,6 +168,18 @@ function registerIpcHandlers({
     return getAvailableWorkspaceTargets();
   });
 
+  ipcMain.handle("workspace:getActiveTarget", () => {
+    return getActiveWorkspaceOpenTarget();
+  });
+
+  ipcMain.handle("workspace:setActiveTarget", (_event, target) => {
+    return setActiveWorkspaceOpenTarget(target);
+  });
+
+  ipcMain.handle("workspace:openFileMenu", (event, payload) => {
+    openWorkspaceFileMenu(event.sender, payload);
+  });
+
   ipcMain.handle("preferences:get", () => {
     return readPreferences();
   });
@@ -183,6 +199,7 @@ function registerIpcHandlers({
     if (sideEffects.syncMenuBarIcon) syncMenuBarIcon(savedConfigPreferences);
 
     const savedPreferences = readPreferences();
+    syncNativeThemeSource(savedPreferences);
     sendPreferences(savedPreferences);
   });
 

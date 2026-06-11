@@ -2762,6 +2762,18 @@ button:disabled {
   font-weight: var(--font-weight-strong);
 }
 
+.changed-side-footer-actions {
+  min-width: 0;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+}
+
+.changed-side-footer-actions .workspace-open-control {
+  width: var(--workspace-open-width);
+  flex: 0 0 var(--workspace-open-width);
+}
+
 @media (max-width: 620px) {
   .changed-side-panel {
     right: 8px;
@@ -3188,6 +3200,11 @@ button:disabled {
 .workspace-open-menu {
   right: 0;
   bottom: calc(100% + 8px);
+}
+
+.workspace-open-control.opens-below .workspace-open-menu {
+  top: calc(100% + 8px);
+  bottom: auto;
 }
 
 .workspace-open-menu .external-app-icon {

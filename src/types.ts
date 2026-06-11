@@ -194,6 +194,25 @@ export type ChangedFileInfoPayload =
     }
   | null;
 
+export interface WorkspaceOpenMenuAnchorBounds {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+export type WorkspaceOpenMenuPayload =
+  | {
+      kind: "changed-file";
+      filePath: string;
+      anchorBounds: WorkspaceOpenMenuAnchorBounds;
+      activeWorkspaceTarget: WorkspaceOpenTarget;
+      availableWorkspaceTargets: WorkspaceOpenTarget[];
+      enabledWorkspaceTargets: WorkspaceOpenTarget[];
+      itemCount: number;
+    }
+  | null;
+
 export type TemporaryInfoPayload = ChangedFilesTemporaryInfoPayload | null;
 
 export interface GitSnapshot {
