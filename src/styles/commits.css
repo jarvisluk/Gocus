@@ -1,0 +1,577 @@
+.commit-list {
+  --git-tree-rail-width: 42px;
+  padding-top: 6px;
+}
+
+.commit-list-spacer {
+  pointer-events: none;
+}
+
+.commit-empty-state {
+  min-height: 72px;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--text-muted);
+  font-size: var(--type-body-size);
+  font-weight: var(--font-weight-body);
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.commit-row {
+  --git-tree-node-y: 22px;
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--git-tree-rail-width) minmax(0, 1fr);
+  min-height: 64px;
+  border-radius: var(--radius);
+}
+
+.commit-row + .commit-row {
+  margin-top: 0;
+}
+
+.commit-row:hover .commit-content {
+  background: var(--surface);
+}
+
+.commit-row.is-selected {
+  min-height: 112px;
+}
+
+.timeline-cell {
+  --git-tree-bridge-span: max(0px, min(38px, calc(100% - var(--git-tree-node-y, 22px))));
+  position: relative;
+  width: var(--git-tree-rail-width);
+  min-height: 100%;
+  overflow: hidden;
+  background-image: radial-gradient(var(--border) 0.8px, transparent 0.8px);
+  background-position: center;
+  background-size: 12px 12px;
+}
+
+.graph-svg {
+  position: absolute;
+  left: 0;
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.graph-svg-top {
+  top: 0;
+  height: var(--git-tree-node-y, 22px);
+}
+
+.graph-svg-bridge {
+  top: var(--git-tree-node-y, 22px);
+  height: var(--git-tree-bridge-span);
+}
+
+.graph-svg-bridge-run {
+  top: var(--git-tree-node-y, 22px);
+  height: max(0px, calc(100% - var(--git-tree-node-y, 22px)));
+}
+
+.graph-svg-tail {
+  top: calc(var(--git-tree-node-y, 22px) + var(--git-tree-bridge-span));
+  height: max(0px, calc(100% - var(--git-tree-node-y, 22px) - var(--git-tree-bridge-span)));
+}
+
+.graph-line {
+  fill: none;
+  stroke: var(--git-tree-color, var(--main));
+  stroke-width: 2.5;
+  stroke-linecap: butt;
+  stroke-linejoin: round;
+}
+
+.graph-line.is-dashed {
+  opacity: 0.78;
+  stroke-dasharray: 4 5;
+  stroke-linecap: round;
+}
+
+:root[data-graph-style="soft"] .graph-line {
+  opacity: 0.5;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.graph-bridge {
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.graph-node {
+  position: absolute;
+  z-index: 1;
+  width: 15px;
+  height: 15px;
+  display: grid;
+  place-items: center;
+  border: 2.5px solid var(--git-tree-color, var(--main));
+  border-radius: var(--radius-pill);
+  background: var(--panel-solid);
+  box-shadow: 0 0 0 2px var(--panel-solid);
+  transform: translate(-50%, -50%);
+}
+
+.graph-node.is-current-head {
+  border-width: 2.5px;
+}
+
+.graph-node.is-dashed {
+  border-style: dashed;
+}
+
+.graph-node-core {
+  width: 5px;
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--git-tree-color, var(--main));
+}
+
+:root[data-graph-style="soft"] .timeline-cell {
+  background-image: radial-gradient(color-mix(in srgb, var(--border) 52%, transparent) 0.7px, transparent 0.7px);
+  background-size: 16px 16px;
+}
+
+:root[data-graph-style="soft"] .graph-node {
+  width: 13px;
+  height: 13px;
+  border-width: 2px;
+  background: color-mix(in srgb, var(--panel-solid) 76%, var(--git-tree-color, var(--main)));
+  box-shadow: 0 0 0 3px var(--panel-solid);
+}
+
+:root[data-graph-style="soft"] .graph-node-core {
+  width: 4px;
+  height: 4px;
+}
+
+.commit-content {
+  min-width: 0;
+  padding: 9px 0 7px 8px;
+  border-bottom: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.commit-row.is-selected .commit-content {
+  padding: 9px 10px 8px 10px;
+  border: 1px solid var(--focus);
+  background: var(--focus-soft);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.commit-select {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.commit-select:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.commit-title-line {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.commit-title-text {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--type-body-strong-size);
+  font-weight: var(--font-weight-strong);
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-row.is-selected .commit-title-text {
+  white-space: normal;
+}
+
+.ref-pill {
+  padding: 3px 7px;
+  background: color-mix(in srgb, var(--branch-color, var(--main)) 22%, transparent);
+  color: var(--branch-color, var(--main));
+  font-size: var(--type-caption-size);
+}
+
+.commit-meta {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-size: var(--type-micro-size);
+}
+
+.commit-meta code {
+  font-family: var(--mono-font);
+  font-size: var(--type-micro-size);
+}
+
+.commit-meta span,
+.commit-meta code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-meta span::before {
+  content: "";
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  margin: 0 6px 2px 0;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+}
+
+.merge-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--text);
+  font-weight: 680;
+}
+
+.merge-indicator svg {
+  width: 12px;
+  height: 12px;
+  color: var(--text-muted);
+}
+
+.commit-stats {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-top: 6px;
+  font-size: var(--type-micro-size);
+  font-weight: var(--font-weight-strong);
+}
+
+.additions {
+  color: var(--success);
+}
+
+.deletions {
+  color: var(--danger);
+}
+
+.files {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+}
+
+.files svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.commit-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.commit-actions button {
+  min-width: 0;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px;
+  border-right: 1px solid var(--border-soft);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--type-caption-size);
+  font-weight: 650;
+}
+
+.commit-actions button:last-child {
+  border-right: 0;
+}
+
+.commit-actions button:hover {
+  background: var(--surface-hover);
+}
+
+.commit-actions button:disabled {
+  cursor: not-allowed;
+  color: var(--text-subtle);
+  background: color-mix(in srgb, var(--surface) 86%, var(--border));
+}
+
+.commit-actions button:disabled svg {
+  color: var(--text-subtle);
+}
+
+.commit-actions svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+  color: var(--text-muted);
+}
+
+.commit-message-popover {
+  position: absolute;
+  z-index: 4;
+  top: calc(100% - 6px);
+  right: 8px;
+  left: calc(var(--git-tree-rail-width) + 8px);
+  max-height: 118px;
+  overflow: hidden;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-strong);
+  box-shadow: 0 12px 28px rgba(16, 24, 40, 0.18);
+  color: var(--text);
+  font-size: var(--type-caption-size);
+  font-weight: 560;
+  line-height: 1.35;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity 140ms ease, transform 140ms ease;
+  white-space: pre-wrap;
+}
+
+:root[data-theme="dark"] .commit-message-popover {
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.36);
+}
+
+.commit-row.is-selected:hover .commit-message-popover {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.commit-hover-panel.changed-side-panel {
+  position: fixed;
+  z-index: 18;
+  top: var(--commit-hover-panel-top, 88px);
+  right: calc(var(--panel-width) + 28px);
+  bottom: auto;
+  width: min(348px, calc(100vw - var(--panel-width) - 48px));
+  max-width: 348px;
+  max-height: min(164px, calc(100vh - 20px));
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
+  border-color: color-mix(in srgb, var(--text) 24%, transparent);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--panel-solid) 94%, transparent);
+  pointer-events: none;
+  animation: commit-hover-panel-in 140ms ease both;
+}
+
+.commit-hover-body {
+  min-width: 0;
+  height: 100%;
+  display: grid;
+  align-content: start;
+  grid-template-rows: auto auto auto minmax(0, auto);
+  overflow: hidden;
+  padding: 7px 9px 8px;
+}
+
+.commit-hover-section {
+  min-width: 0;
+  padding: 4px 0;
+}
+
+.commit-hover-section + .commit-hover-section {
+  border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.commit-hover-primary {
+  display: grid;
+  gap: 3px;
+  padding-top: 0;
+  padding-bottom: 4px;
+}
+
+.commit-hover-hash-section {
+  padding-bottom: 0;
+}
+
+.commit-hover-header {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+  font-weight: var(--type-caption-weight);
+  line-height: var(--type-caption-line);
+}
+
+.commit-hover-header svg,
+.commit-hover-refs svg,
+.commit-hover-hash svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+  flex: 0 0 auto;
+}
+
+.commit-hover-title,
+.commit-hover-author,
+.commit-hover-time,
+.commit-hover-hash code,
+.commit-hover-ref-pill span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-hover-author {
+  flex: 0 0 auto;
+  color: var(--text);
+  font-weight: var(--type-body-strong-weight);
+}
+
+.commit-hover-time {
+  flex: 1 1 auto;
+  color: var(--text-muted);
+}
+
+.commit-hover-title {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--type-body-size);
+  font-weight: var(--type-body-strong-weight);
+  line-height: var(--type-body-line);
+  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-hover-stats {
+  color: var(--text-muted);
+  font-size: var(--type-body-size);
+  font-weight: var(--type-body-strong-weight);
+  line-height: var(--type-body-line);
+}
+
+.commit-hover-refs {
+  min-width: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 5px;
+  overflow: hidden;
+}
+
+.commit-hover-ref-pill {
+  min-width: 0;
+  max-width: min(100%, 214px);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border: 1px solid color-mix(in srgb, var(--branch-color, var(--main)) 12%, transparent);
+  background: color-mix(in srgb, var(--branch-color, var(--main)) 12%, transparent);
+  font-size: var(--type-caption-size);
+  font-weight: var(--type-body-strong-weight);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.commit-hover-ref-pill.is-detached-worktree {
+  border-color: color-mix(in srgb, var(--text-muted) 18%, transparent);
+  background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+  color: var(--text-muted);
+}
+
+.commit-hover-hash {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-faint);
+  font-size: var(--type-caption-size);
+  font-weight: var(--type-caption-weight);
+  line-height: 1.1;
+}
+
+.commit-hover-hash code {
+  flex: 1 1 auto;
+  font-family: var(--mono-font);
+  font-size: var(--type-caption-size);
+  font-weight: var(--type-caption-weight);
+}
+
+.commit-hover-hash-copy {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.commit-hover-hash-copy:hover,
+.commit-hover-hash-copy:focus-visible {
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: var(--text);
+}
+
+.commit-hover-hash-copy:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+@keyframes commit-hover-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (max-width: 760px) {
+  .commit-hover-panel.changed-side-panel {
+    right: auto;
+    left: 10px;
+    width: min(336px, calc(100vw - 20px));
+    max-width: calc(100vw - 20px);
+  }
+}
