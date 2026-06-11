@@ -14,6 +14,8 @@
 @import "./styles/worktree-context.css";
 @import "./styles/activity.css";
 @import "./styles/commits.css";
+@import "./styles/commit-details.css";
+@import "./styles/commit-actions.css";
 @import "./styles/commit-graph.css";
 @import "./styles/commit-hover.css";
 @import "./styles/changed.css";
