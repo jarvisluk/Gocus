@@ -158,7 +158,7 @@ export function repositoryBranchSwitchActionView(
   const disabledReason = externalWorktree
     ? `This branch is already checked out in another worktree: ${externalWorktree.path}. Open that worktree to work on it.`
     : "";
-  const title = disabled ? disabledReason : `Switch to ${branch.name}`;
+  const title = disabled ? "Checked out in another worktree" : `Switch to ${branch.name}`;
 
   return {
     show,

@@ -148,11 +148,7 @@ export function RepositoryControls({
                       <span>{itemView.label}</span>
                     </button>
                     {itemView.switchAction.show ? (
-                      <span
-                        className={itemView.switchAction.tooltipClassName}
-                        data-tooltip={itemView.switchAction.disabled ? itemView.switchAction.title : undefined}
-                        title={itemView.switchAction.title}
-                      >
+                      <span className={itemView.switchAction.tooltipClassName} title={itemView.switchAction.title}>
                         <button
                           className={itemView.switchAction.className}
                           type="button"
@@ -164,6 +160,12 @@ export function RepositoryControls({
                         >
                           {repositoryControlIcon(itemView.switchAction.icon)}
                         </button>
+                        {itemView.switchAction.disabled ? (
+                          <span className="branch-switch-tooltip-bubble" role="tooltip" aria-hidden="true">
+                            <strong>Checked out elsewhere</strong>
+                            <span>Open that worktree before switching.</span>
+                          </span>
+                        ) : null}
                       </span>
                     ) : null}
                   </div>

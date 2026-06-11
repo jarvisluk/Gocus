@@ -1667,31 +1667,40 @@ async function testSwitchBranchFromBranchMenu(browser, baseUrl) {
   }
 }
 
-async function testBranchSwitchExplainsExternalWorktreeDisable(browser, baseUrl) {
+async function testBranchSwitchDisabledTooltipIsCompact(browser, baseUrl) {
   const { page, errors } = await openMockedPage(browser, baseUrl, dismissableMenuScenario());
   try {
     await assertHealthyPage(page, errors);
 
     await page.getByRole("button", { name: "Choose branch view" }).click();
-    const disabledTitle =
-      "This branch is already checked out in another worktree: " +
-      "/Users/junrong/codespace/git-tree-vis-linked. Open that worktree to work on it.";
     const disabledSwitch = page.getByRole("menuitem", { name: /^Cannot switch to feature\/footer-toggle:/ });
     await disabledSwitch.waitFor();
     assert.equal(await disabledSwitch.isDisabled(), true);
-    assert.equal(await disabledSwitch.getAttribute("title"), disabledTitle);
-    const disabledTooltip = page.locator(".branch-switch-tooltip", { has: disabledSwitch });
-    assert.equal(await disabledTooltip.getAttribute("data-tooltip"), disabledTitle);
-    await disabledTooltip.hover();
-    const tooltipStyle = await disabledTooltip.evaluate((element) => {
-      const style = window.getComputedStyle(element, "::after");
+    assert.equal(await disabledSwitch.getAttribute("title"), "Checked out in another worktree");
+
+    const tooltip = page.locator(".branch-switch-tooltip", { has: disabledSwitch });
+    await tooltip.hover();
+    await page.waitForFunction(() => {
+      const bubble = document.querySelector(".branch-switch-tooltip-bubble");
+      return bubble && Number(window.getComputedStyle(bubble).opacity) > 0.95;
+    });
+    const bubbleMetrics = await tooltip.locator(".branch-switch-tooltip-bubble").evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
+
       return {
-        content: style.content,
+        text: element.textContent?.trim() ?? "",
         opacity: style.opacity,
+        width: rect.width,
+        height: rect.height,
       };
     });
-    assert.match(tooltipStyle.content, /already checked out in another worktree/);
-    assert.equal(tooltipStyle.opacity, "1");
+    assert.match(bubbleMetrics.text, /Checked out elsewhere/);
+    assert.match(bubbleMetrics.text, /Open that worktree before switching/);
+    assert.doesNotMatch(bubbleMetrics.text, /\/Users|git-tree-vis-linked/);
+    assert.ok(Number(bubbleMetrics.opacity) >= 0.95, `tooltip should be visible: ${JSON.stringify(bubbleMetrics)}`);
+    assert.ok(bubbleMetrics.width <= 196, `tooltip should stay compact: ${JSON.stringify(bubbleMetrics)}`);
+    assert.ok(bubbleMetrics.height <= 64, `tooltip should stay compact: ${JSON.stringify(bubbleMetrics)}`);
 
     await page.getByRole("menuitem", { name: "feature/footer-toggle", exact: true }).click();
     await page.getByLabel("Viewing branch feature/footer-toggle").waitFor();
@@ -2100,7 +2109,7 @@ async function main() {
     await testEmptyRepositoryRecentOverflow(browser, baseUrl);
     await testBranchViewDoesNotCheckout(browser, baseUrl);
     await testSwitchBranchFromBranchMenu(browser, baseUrl);
-    await testBranchSwitchExplainsExternalWorktreeDisable(browser, baseUrl);
+    await testBranchSwitchDisabledTooltipIsCompact(browser, baseUrl);
     await testMergeTargetDropdownShowsPriorityBranches(browser, baseUrl);
     await testOpenWorktreeKeepsCommitView(browser, baseUrl);
     await testRefreshFailureRecovers(browser, baseUrl);
