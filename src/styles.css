@@ -3019,15 +3019,6 @@ button:disabled {
   box-shadow: none;
 }
 
-.peek-panel.is-zen-panel .commit-row:hover .commit-content,
-.peek-panel.is-zen-panel .commit-row.is-selected .commit-content {
-  padding: 9px 0 7px 8px;
-  border: 0;
-  border-bottom: 1px solid var(--border-soft);
-  background: transparent;
-  box-shadow: none;
-}
-
 .peek-panel.is-zen-panel .commit-title-line {
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
