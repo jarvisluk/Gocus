@@ -49,6 +49,7 @@ const stylesheetImportPattern = /^\s*@import\s+["']\.\/styles\/([^"']+\.css)["']
 const backdropFilterDeclarationPattern = /^\s*(-webkit-)?backdrop-filter\s*:\s*([^;]+);/;
 const boxShadowDeclarationPattern = /^\s*box-shadow\s*:\s*([^;]+);/;
 const cssRawColorLiteralPattern = /#[0-9a-fA-F]{3,8}\b|(?:rgb|hsl)a?\(/;
+const themeTokenStylesheets = new Set(["src/styles/theme.css", "src/styles/theme-presets.css"]);
 const maxCssFileLines = 200;
 const minDuplicateCssDeclarationCount = 3;
 
@@ -200,8 +201,12 @@ function checkBoxShadowTokens(relativeFilePath, content) {
   });
 }
 
+function isThemeTokenStylesheet(relativeFilePath) {
+  return themeTokenStylesheets.has(relativeFilePath.replaceAll("\\", "/"));
+}
+
 function checkRawCssColorTokens(relativeFilePath, content) {
-  if (!relativeFilePath.endsWith(".css") || relativeFilePath === "src/styles/theme.css") return [];
+  if (!relativeFilePath.endsWith(".css") || isThemeTokenStylesheet(relativeFilePath)) return [];
 
   return stripCssComments(content)
     .split("\n")
@@ -390,6 +395,7 @@ module.exports = {
   hasInlinePoliteStatusViewLiteral,
   hasReactImport,
   hasRendererRuntimeImport,
+  isThemeTokenStylesheet,
   isRendererSourceFile,
   isSrcLibFile,
   isViewModelFile,

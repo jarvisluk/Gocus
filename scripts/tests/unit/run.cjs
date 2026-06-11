@@ -277,6 +277,7 @@ function testSourceHygieneScript() {
     hasRendererRuntimeImport,
     isRendererSourceFile,
     isSrcLibFile,
+    isThemeTokenStylesheet,
     isViewModelFile,
     maxCssFileLines,
     maxLineLength,
@@ -291,6 +292,9 @@ function testSourceHygieneScript() {
   assert.equal(isRendererSourceFile("src/components/RecentCommits.tsx"), true);
   assert.equal(isRendererSourceFile("electron/main.cjs"), false);
   assert.equal(isRendererSourceFile("scripts/dev.cjs"), false);
+  assert.equal(isThemeTokenStylesheet("src/styles/theme.css"), true);
+  assert.equal(isThemeTokenStylesheet("src/styles/theme-presets.css"), true);
+  assert.equal(isThemeTokenStylesheet("src/styles/base.css"), false);
   assert.equal(isViewModelFile("src/lib/commitListView.ts"), true);
   assert.equal(isViewModelFile("src/git-tree/gitTreeCellView.ts"), true);
   assert.equal(isViewModelFile("src/lib/useDismissableLayer.ts"), false);
@@ -356,6 +360,7 @@ function testSourceHygieneScript() {
   ]);
   assert.deepEqual(checkRawCssColorTokens("src/components/Example.tsx", "color: #fff;\n"), []);
   assert.deepEqual(checkRawCssColorTokens("src/styles/theme.css", "--surface: rgba(255, 255, 255, 0.72);\n"), []);
+  assert.deepEqual(checkRawCssColorTokens("src/styles/theme-presets.css", "--surface: #fff;\n"), []);
   assert.deepEqual(
     checkRawCssColorTokens(
       "src/styles/example.css",
