@@ -259,6 +259,7 @@ function testWorkspaceModule() {
 function testSourceHygieneScript() {
   const {
     checkBackdropFilterTokens,
+    checkBoxShadowTokens,
     checkContent,
     checkCssFileSize,
     checkDuplicateCssDeclarationBlocks,
@@ -344,6 +345,13 @@ function testSourceHygieneScript() {
   assert.deepEqual(checkBackdropFilterTokens("src/styles/example.css", "-webkit-backdrop-filter: var(--panel-backdrop-filter);\n"), []);
   assert.deepEqual(checkBackdropFilterTokens("src/styles/example.css", "backdrop-filter: blur(24px) saturate(1.18);\n"), [
     "src/styles/example.css:1: use a backdrop-filter custom property or none",
+  ]);
+  assert.deepEqual(checkBoxShadowTokens("src/components/Example.tsx", "box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);\n"), []);
+  assert.deepEqual(checkBoxShadowTokens("src/styles/theme.css", "box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);\n"), []);
+  assert.deepEqual(checkBoxShadowTokens("src/styles/example.css", "box-shadow: var(--popover-shadow);\n"), []);
+  assert.deepEqual(checkBoxShadowTokens("src/styles/example.css", "box-shadow: 0 0 0 2px var(--focus-soft);\n"), []);
+  assert.deepEqual(checkBoxShadowTokens("src/styles/example.css", "box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);\n"), [
+    "src/styles/example.css:1: move rgba box-shadow values into theme custom properties",
   ]);
   assert.deepEqual(cssCustomPropertyDefinitions("src/styles/example.css", ":root {\n  --unused-token: red;\n}\n"), [
     { name: "--unused-token", relativeFilePath: "src/styles/example.css", lineNumber: 2 },

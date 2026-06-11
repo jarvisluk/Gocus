@@ -47,6 +47,7 @@ const cssCommentPattern = /\/\*[\s\S]*?\*\//g;
 const cssRulePattern = /([^{}]+)\{([^{}]+)\}/g;
 const stylesheetImportPattern = /^\s*@import\s+["']\.\/styles\/([^"']+\.css)["'];\s*$/;
 const backdropFilterDeclarationPattern = /^\s*(-webkit-)?backdrop-filter\s*:\s*([^;]+);/;
+const boxShadowDeclarationPattern = /^\s*box-shadow\s*:\s*([^;]+);/;
 const maxCssFileLines = 300;
 const minDuplicateCssDeclarationCount = 3;
 
@@ -181,6 +182,20 @@ function checkBackdropFilterTokens(relativeFilePath, content) {
     if (value === "none" || value.startsWith("var(")) return [];
 
     return [`${relativeFilePath}:${index + 1}: use a backdrop-filter custom property or none`];
+  });
+}
+
+function checkBoxShadowTokens(relativeFilePath, content) {
+  if (!relativeFilePath.endsWith(".css") || relativeFilePath === "src/styles/theme.css") return [];
+
+  return content.split("\n").flatMap((line, index) => {
+    const match = line.match(boxShadowDeclarationPattern);
+    if (!match) return [];
+
+    const value = match[1].trim();
+    if (!value.includes("rgba(")) return [];
+
+    return [`${relativeFilePath}:${index + 1}: move rgba box-shadow values into theme custom properties`];
   });
 }
 
@@ -319,6 +334,7 @@ function runHygieneCheck() {
       ...fileContents.flatMap(({ relativeFilePath, content }) => checkContent(relativeFilePath, content)),
       ...fileContents.flatMap(({ relativeFilePath, content }) => checkCssFileSize(relativeFilePath, content)),
       ...fileContents.flatMap(({ relativeFilePath, content }) => checkBackdropFilterTokens(relativeFilePath, content)),
+      ...fileContents.flatMap(({ relativeFilePath, content }) => checkBoxShadowTokens(relativeFilePath, content)),
       ...checkUnusedCssCustomProperties(fileContents),
       ...checkDuplicateCssDeclarationBlocks(fileContents),
       ...checkStylesheetManifest(fileContents),
@@ -344,6 +360,7 @@ if (require.main === module) {
 
 module.exports = {
   checkBackdropFilterTokens,
+  checkBoxShadowTokens,
   checkContent,
   checkCssFileSize,
   checkDuplicateCssDeclarationBlocks,
