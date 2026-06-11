@@ -4835,6 +4835,7 @@ async function testPanelHeaderView(server) {
     canSwitchRepository: false,
     repositoryTitle: "Git Peek",
     repositoryPathLabel: "No working folder",
+    repositoryPathTitle: undefined,
   });
 
   assert.deepEqual(panelHeaderView(snapshot, [sameRepositoryDifferentPath, other]), {
@@ -4861,6 +4862,7 @@ async function testPanelHeaderView(server) {
     canSwitchRepository: true,
     repositoryTitle: "git-tree-vis",
     repositoryPathLabel: current.path,
+    repositoryPathTitle: current.path,
   });
   assert.equal(repositoryOptionActive(sameRepositoryDifferentPath, current), true);
   assert.equal(repositoryOptionActive(other, current), false);

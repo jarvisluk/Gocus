@@ -71,6 +71,11 @@ const assets = createAssetLoader({
   electronDir: __dirname,
 });
 
+function applyWindowShadow(targetWindow) {
+  if (!targetWindow || targetWindow.isDestroyed() || typeof targetWindow.setHasShadow !== "function") return;
+  targetWindow.setHasShadow(true);
+}
+
 const workspaceOpenMenuOptions = [
   { target: "vscode", label: "VS Code" },
   { target: "cursor", label: "Cursor" },
@@ -597,7 +602,7 @@ function ensureTemporaryInfoWindow() {
     frame: false,
     transparent: true,
     backgroundColor: "#00000000",
-    hasShadow: false,
+    hasShadow: true,
     resizable: false,
     movable: false,
     minimizable: false,
@@ -611,8 +616,10 @@ function ensureTemporaryInfoWindow() {
     },
   });
 
+  applyWindowShadow(temporaryInfoWindow);
   syncTemporaryInfoWindowLevel();
   temporaryInfoWindow.once("ready-to-show", () => {
+    applyWindowShadow(temporaryInfoWindow);
     positionTemporaryInfoWindow();
     syncTemporaryInfoWindowLevel();
     temporaryInfoWindow?.showInactive();
@@ -713,7 +720,7 @@ function ensureChangedFileInfoWindow() {
     frame: false,
     transparent: true,
     backgroundColor: "#00000000",
-    hasShadow: false,
+    hasShadow: true,
     resizable: false,
     movable: false,
     minimizable: false,
@@ -727,8 +734,10 @@ function ensureChangedFileInfoWindow() {
     },
   });
 
+  applyWindowShadow(changedFileInfoWindow);
   syncChangedFileInfoWindowLevel();
   changedFileInfoWindow.once("ready-to-show", () => {
+    applyWindowShadow(changedFileInfoWindow);
     positionChangedFileInfoWindow();
     syncChangedFileInfoWindowLevel();
     changedFileInfoWindow?.showInactive();
@@ -893,7 +902,7 @@ function ensureCommitInfoWindow() {
     frame: false,
     transparent: true,
     backgroundColor: "#00000000",
-    hasShadow: false,
+    hasShadow: true,
     resizable: false,
     movable: false,
     minimizable: false,
@@ -907,8 +916,10 @@ function ensureCommitInfoWindow() {
     },
   });
 
+  applyWindowShadow(commitInfoWindow);
   syncCommitInfoWindowLevel();
   commitInfoWindow.once("ready-to-show", () => {
+    applyWindowShadow(commitInfoWindow);
     positionCommitInfoWindow();
     syncCommitInfoWindowLevel();
     commitInfoWindow?.showInactive();
@@ -986,7 +997,7 @@ function createWindow({ showOnReady = true } = {}) {
     frame: false,
     transparent: true,
     backgroundColor: "#00000000",
-    hasShadow: false,
+    hasShadow: true,
     icon: appIcon,
     resizable: true,
     title: "Git Peek",
@@ -998,8 +1009,10 @@ function createWindow({ showOnReady = true } = {}) {
     },
   });
 
+  applyWindowShadow(mainWindow);
   positionWindow(mainWindow);
   mainWindow.once("ready-to-show", () => {
+    applyWindowShadow(mainWindow);
     if (showOnReady) mainWindow.show();
   });
   mainWindow.on("move", () => {

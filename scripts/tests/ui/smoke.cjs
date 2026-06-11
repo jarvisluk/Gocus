@@ -8,6 +8,7 @@ const compactViewport = { width: 390, height: 720 };
 const desktopViewport = { width: 960, height: 720 };
 const temporaryInfoViewport = { width: 280, height: 252 };
 const changedFileInfoViewport = { width: 280, height: 252 };
+const commitInfoViewport = { width: 348, height: 132 };
 const allWorkspaceTargets = ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"];
 const footerCommitFullHash = "d4e5f6a000000000000000000000000000000000";
 
@@ -917,13 +918,18 @@ async function testCommitHoverPanel(browser, baseUrl) {
 }
 
 async function testCommitInfoPanel(browser, baseUrl) {
-  const { page, errors } = await openMockedPage(browser, `${baseUrl}?window=commit-info`, {
-    ...mockedSnapshotScenario(mockCommits),
-    commitInfoPayload: {
-      kind: "commit",
-      commit: mockCommits[0],
+  const { page, errors } = await openMockedPage(
+    browser,
+    `${baseUrl}?window=commit-info`,
+    {
+      ...mockedSnapshotScenario(mockCommits),
+      commitInfoPayload: {
+        kind: "commit",
+        commit: mockCommits[0],
+      },
     },
-  });
+    { viewport: commitInfoViewport },
+  );
   try {
     assert.match(await page.title(), /Git Peek/);
     const hoverPanel = page.locator(".commit-hover-panel");

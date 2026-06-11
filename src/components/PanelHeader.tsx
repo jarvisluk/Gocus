@@ -58,6 +58,7 @@ export function PanelHeader({
     recentRepositoryOptions,
     canSwitchRepository,
     repositoryPathLabel,
+    repositoryPathTitle,
     repositoryTitle,
   } = panelView;
   const openRepositoryButton = panelHeaderOpenRepositoryButtonView();
@@ -98,7 +99,7 @@ export function PanelHeader({
             <ChevronDown aria-hidden="true" />
           </button>
         ) : (
-          <div className={panelView.staticRepositoryTitle.className}>
+          <div className={panelView.staticRepositoryTitle.className} title={repositoryPathTitle}>
             <strong>{repositoryTitle}</strong>
             <span>{repositoryPathLabel}</span>
           </div>

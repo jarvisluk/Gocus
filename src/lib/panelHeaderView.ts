@@ -167,5 +167,6 @@ export function panelHeaderView(snapshot: GitSnapshot | null, recentRepositories
     canSwitchRepository: Boolean(snapshot && recentRepositoryOptions.length > 1),
     repositoryTitle: currentRepository?.name || "Git Peek",
     repositoryPathLabel: snapshot?.repoPath || "No working folder",
+    repositoryPathTitle: snapshot?.repoPath || undefined,
   };
 }
