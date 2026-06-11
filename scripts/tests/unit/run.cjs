@@ -426,6 +426,13 @@ function testSourceHygieneScript() {
     ]),
     ["src/styles.css:2: remove duplicate stylesheet import src/styles/base.css"],
   );
+  assert.deepEqual(
+    checkStylesheetManifest([
+      { relativeFilePath: "src/styles.css", content: '@import "./styles/base.css";\n.peek-panel {}\n' },
+      { relativeFilePath: "src/styles/base.css", content: ".base {}\n" },
+    ]),
+    ["src/styles.css:2: keep stylesheet manifest import-only"],
+  );
 
   const checkedFileLabels = collectCheckedFiles().map((filePath) => path.relative(projectRoot, filePath));
   assert.ok(checkedFileLabels.includes("electron/main.cjs"));

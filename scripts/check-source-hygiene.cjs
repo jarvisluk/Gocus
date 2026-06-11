@@ -255,7 +255,10 @@ function checkStylesheetManifest(fileContents) {
   );
   const imports = stylesheetManifestImports(manifest.content);
   const importedFiles = new Set();
-  const failures = [];
+  const failures = manifest.content.split("\n").flatMap((line, index) => {
+    if (!line.trim() || stylesheetImportPattern.test(line)) return [];
+    return [`src/styles.css:${index + 1}: keep stylesheet manifest import-only`];
+  });
 
   for (const { lineNumber, relativeFilePath } of imports) {
     if (!stylesheetFiles.has(relativeFilePath)) {
