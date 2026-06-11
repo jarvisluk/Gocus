@@ -240,6 +240,34 @@ function parseRefs(refs) {
     .slice(0, 3);
 }
 
+function commitIsStash(commit) {
+  return commit?.lane === "stash";
+}
+
+function commitLooksLikeStashInternalParent(commit) {
+  const title = (commit?.title ?? "").toLowerCase();
+  return commit?.refs?.length === 0 && (title.startsWith("index on ") || title.startsWith("untracked files on "));
+}
+
+function filterStashInternalParents(commits) {
+  const internalParentHashes = new Set();
+
+  for (const commit of commits) {
+    if (!commitIsStash(commit)) continue;
+    commit.parents.slice(1).filter(Boolean).forEach((parentHash) => internalParentHashes.add(parentHash));
+  }
+
+  if (internalParentHashes.size === 0) return commits;
+  return commits.filter((commit) => {
+    return !internalParentHashes.has(commit.fullHash) || !commitLooksLikeStashInternalParent(commit);
+  });
+}
+
+function graphParentsForCommit(commit) {
+  if (commitIsStash(commit)) return [];
+  return commit.parents.filter(Boolean);
+}
+
 function buildCommitGraph(commits, graphContext = {}) {
   const commitsByHash = new Map(commits.map((commit) => [commit.fullHash, commit]));
   const context = graphContextWithReachability(normalizeGraphContext(graphContext), commits, commitsByHash);
@@ -306,7 +334,7 @@ function buildCommitGraph(commits, graphContext = {}) {
     const duplicatedCurrentLanes = before.filter((lane) => lane.column !== column && activeLanes[lane.column]?.hash === commit.fullHash);
     const currentColor = activeLanes[column]?.color ?? commit.branchColor;
     const currentLabel = activeLanes[column]?.label ?? commit.refs[0] ?? "";
-    const parents = commit.parents.filter(Boolean);
+    const parents = graphParentsForCommit(commit);
     const parentEntries = [];
     const bridges = [];
     const passThroughLimits = new Map();
@@ -448,7 +476,7 @@ function buildCommitGraph(commits, graphContext = {}) {
 
 function parseLog(rawLog, graphContext = {}) {
   const context = normalizeGraphContext(graphContext);
-  const commits = rawLog
+  const commits = filterStashInternalParents(rawLog
     .split("\x1e")
     .map((block) => block.trim())
     .filter(Boolean)
@@ -497,7 +525,7 @@ function parseLog(rawLog, graphContext = {}) {
         containedBranches: [],
         lane: branchKindFromRefs(refs, index),
       };
-    });
+    }));
 
   return buildCommitGraph(containedBranchesForCommits(assignBranchColors(commits), context), graphContext);
 }
@@ -507,7 +535,9 @@ module.exports = {
   branchKindFromRefs,
   buildCommitGraph,
   commitMessageMaxLength,
+  filterStashInternalParents,
   generatedBranchColor,
+  graphParentsForCommit,
   normalizeCommitMessage,
   normalizeBranchColorKey,
   parseLog,
