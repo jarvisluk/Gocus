@@ -1,0 +1,45 @@
+.ui-menu {
+  position: absolute;
+  z-index: 12;
+  width: min(var(--menu-width-sm), calc(100vw - 36px));
+  overflow: hidden;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--popover-surface);
+  box-shadow: var(--popover-shadow);
+  backdrop-filter: blur(24px) saturate(1.15);
+}
+
+.ui-layer-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  box-shadow: var(--dialog-shadow);
+  backdrop-filter: none;
+}
+
+.ui-menu-item {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--menu-row-height);
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  padding: 3px 5px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: var(--type-body-size);
+  font-weight: 610;
+  letter-spacing: 0;
+  text-align: left;
+}
+
+.ui-menu-item:hover,
+.ui-menu-item.is-active {
+  background: var(--surface-hover);
+}
