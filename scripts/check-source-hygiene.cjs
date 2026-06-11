@@ -49,7 +49,7 @@ const stylesheetImportPattern = /^\s*@import\s+["']\.\/styles\/([^"']+\.css)["']
 const backdropFilterDeclarationPattern = /^\s*(-webkit-)?backdrop-filter\s*:\s*([^;]+);/;
 const boxShadowDeclarationPattern = /^\s*box-shadow\s*:\s*([^;]+);/;
 const cssRawColorLiteralPattern = /#[0-9a-fA-F]{3,8}\b|(?:rgb|hsl)a?\(/;
-const maxCssFileLines = 300;
+const maxCssFileLines = 200;
 const minDuplicateCssDeclarationCount = 3;
 
 function isSrcLibFile(relativeFilePath) {
