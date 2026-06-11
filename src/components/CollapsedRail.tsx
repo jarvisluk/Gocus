@@ -1,6 +1,11 @@
 import { FolderOpen, GitBranch, PanelRightClose } from "lucide-react";
 import type { CSSProperties } from "react";
-import { collapsedRailView, type CollapsedRailRepositoryIcon } from "../lib/collapsedRailView";
+import {
+  collapsedRailBranchSlotHeight,
+  collapsedRailHeightForLabel,
+  collapsedRailView,
+  type CollapsedRailRepositoryIcon,
+} from "../lib/collapsedRailView";
 import type { GitSnapshot } from "../types";
 
 function collapsedRailRepositoryIcon(icon: CollapsedRailRepositoryIcon) {
@@ -21,7 +26,11 @@ export function CollapsedRail({
   onDock: () => void;
 }) {
   const view = collapsedRailView(snapshot, changedNowOpen);
-  const railStyle = view.branch.color ? ({ "--branch-color": view.branch.color } as CSSProperties) : undefined;
+  const railStyle = {
+    "--collapsed-rail-height": `${collapsedRailHeightForLabel(view.branch.label)}px`,
+    "--collapsed-rail-branch-slot-height": `${collapsedRailBranchSlotHeight(view.branch.label)}px`,
+    ...(view.branch.color ? { "--branch-color": view.branch.color } : {}),
+  } as CSSProperties;
 
   function openChangedNow() {
     onOpenChangedNow();

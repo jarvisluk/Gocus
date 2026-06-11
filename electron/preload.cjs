@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld("gitPeek", {
   getPreferences: () => ipcRenderer.invoke("preferences:get"),
   savePreferences: (preferences) => ipcRenderer.invoke("preferences:save", preferences),
   setCollapsed: (collapsed) => ipcRenderer.invoke("window:setCollapsed", collapsed),
+  setCollapsedRailHeight: (height) => ipcRenderer.invoke("window:setCollapsedRailHeight", height),
   getPinned: () => ipcRenderer.invoke("window:getPinned"),
   setPinned: (pinned) => ipcRenderer.invoke("window:setPinned", pinned),
   dockToEdge: (collapsed) => ipcRenderer.invoke("window:dockToEdge", collapsed),

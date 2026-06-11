@@ -3,8 +3,39 @@ import type { GitSnapshot, WorkingTreeCounts } from "../types";
 
 export type CollapsedRailRepositoryIcon = "branch" | "folder";
 
+const collapsedRailTopRowHeight = 30;
+const collapsedRailCountRowHeight = 28;
+const collapsedRailGapTotal = 10;
+const collapsedRailVerticalPadding = 10;
+const collapsedRailBranchIconHeight = 14;
+const collapsedRailBranchIconGap = 5;
+const collapsedRailCharacterHeight = 7;
+const collapsedRailMinimumBranchSlotHeight = 58;
+
 export function workingTreeChangeCount(counts: WorkingTreeCounts) {
   return counts.modified + counts.staged + counts.untracked;
+}
+
+export function collapsedRailBranchSlotHeight(label: string) {
+  const characterCount = Array.from(label).length;
+  return Math.max(
+    collapsedRailMinimumBranchSlotHeight,
+    collapsedRailBranchIconHeight + collapsedRailBranchIconGap + characterCount * collapsedRailCharacterHeight,
+  );
+}
+
+export function collapsedRailHeightForLabel(label: string) {
+  return (
+    collapsedRailTopRowHeight +
+    collapsedRailBranchSlotHeight(label) +
+    collapsedRailCountRowHeight +
+    collapsedRailGapTotal +
+    collapsedRailVerticalPadding
+  );
+}
+
+export function collapsedRailHeightForBranchName(branchName: string | undefined) {
+  return collapsedRailHeightForLabel(branchDisplayName(branchName?.trim() || "Open"));
 }
 
 function normalizeBranchColorKey(ref: string) {

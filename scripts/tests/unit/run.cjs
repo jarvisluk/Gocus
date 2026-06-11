@@ -382,6 +382,7 @@ function testShellSyntaxScript() {
 
 function testWindowGeometryModule() {
   const {
+    clampCollapsedRailHeight,
     collapsedSize,
     expandedMinimumSize,
     clampExpandedSize,
@@ -393,9 +394,13 @@ function testWindowGeometryModule() {
   } = require(path.join(projectRoot, "electron/lib/windowGeometry.cjs"));
   const display = { x: 0, y: 24, width: 1440, height: 876 };
 
-  assert.deepEqual(collapsedSize, { width: 38, height: 268 });
+  assert.deepEqual(collapsedSize, { width: 38, height: 136 });
   assert.deepEqual(commitInfoWindowSize, { width: 348, height: 132 });
   assert.deepEqual(expandedMinimumSize, { width: 320, height: 620 });
+  assert.equal(clampCollapsedRailHeight(96, display), 136);
+  assert.equal(clampCollapsedRailHeight(355, display), 355);
+  assert.equal(clampCollapsedRailHeight(9999, display), 420);
+  assert.equal(clampCollapsedRailHeight("bad", display), 136);
   assert.deepEqual(clampExpandedSize({ width: 1, height: 9999 }, display), { width: 320, height: 860 });
   assert.deepEqual(
     mainWindowBounds({
@@ -413,7 +418,17 @@ function testWindowGeometryModule() {
       collapsed: true,
       expandedSize: { width: 360, height: 700 },
     }),
-    { x: 1402, y: 328, width: 38, height: 268 },
+    { x: 1402, y: 394, width: 38, height: 136 },
+  );
+  assert.deepEqual(
+    mainWindowBounds({
+      currentBounds: null,
+      display,
+      collapsed: true,
+      collapsedWindowSize: { width: 38, height: 355 },
+      expandedSize: { width: 360, height: 700 },
+    }),
+    { x: 1402, y: 284, width: 38, height: 355 },
   );
   assert.deepEqual(
     temporaryInfoBounds({
@@ -2719,12 +2734,23 @@ async function testWorkspaceOpenOptions(server) {
 }
 
 async function testCollapsedRailView(server) {
-  const { collapsedRailBranchColor, collapsedRailView, workingTreeChangeCount } = await loadTsModule(
-    server,
-    "src/lib/collapsedRailView.ts",
-  );
+  const {
+    collapsedRailBranchColor,
+    collapsedRailBranchSlotHeight,
+    collapsedRailHeightForBranchName,
+    collapsedRailHeightForLabel,
+    collapsedRailView,
+    workingTreeChangeCount,
+  } = await loadTsModule(server, "src/lib/collapsedRailView.ts");
 
   assert.equal(workingTreeChangeCount({ modified: 2, staged: 3, untracked: 5 }), 10);
+  assert.equal(collapsedRailBranchSlotHeight("main"), 58);
+  assert.equal(collapsedRailHeightForLabel("main"), 136);
+  assert.equal(collapsedRailHeightForBranchName("main"), 136);
+  assert.equal(collapsedRailHeightForBranchName("fix/worktree-render"), 230);
+  assert.equal(collapsedRailBranchSlotHeight("refactor/codebase-optimization"), 229);
+  assert.equal(collapsedRailHeightForBranchName("refactor/codebase-optimization"), 307);
+  assert.equal(collapsedRailHeightForBranchName("feature/super-long-branch-name-v2"), 307);
   assert.deepEqual(collapsedRailView(null), {
     className: "collapsed-rail",
     ariaLabel: "Collapsed Git Peek",

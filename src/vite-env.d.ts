@@ -37,6 +37,7 @@ declare global {
       getPreferences: () => Promise<UiPreferences>;
       savePreferences: (preferences: UiPreferences) => Promise<void>;
       setCollapsed: (collapsed: boolean) => Promise<void>;
+      setCollapsedRailHeight?: (height: number) => Promise<void>;
       getPinned: () => Promise<boolean>;
       setPinned: (pinned: boolean) => Promise<void>;
       dockToEdge: (collapsed: boolean) => Promise<void>;
