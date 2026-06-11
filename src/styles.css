@@ -11,6 +11,7 @@
 @import "./styles/repository.css";
 @import "./styles/settings.css";
 @import "./styles/workspace.css";
+@import "./styles/workspace-menus.css";
 @import "./styles/worktree-context.css";
 @import "./styles/activity.css";
 @import "./styles/commits.css";
