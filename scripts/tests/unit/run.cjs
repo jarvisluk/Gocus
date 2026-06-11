@@ -1038,6 +1038,61 @@ function testGitGraphModule() {
   assert.equal(mergeGraph[0].graph.isMerge, true);
   assert.equal(mergeGraph[0].graph.isCurrentHead, false);
   assert.equal(mergeGraph[0].graph.bridges.length, 1);
+
+  const stashHash = "5a".repeat(20);
+  const stashBaseHash = "5b".repeat(20);
+  const stashIndexHash = "5c".repeat(20);
+  const stashRawLog = [
+    "\x1e",
+    [
+      stashHash,
+      "5a5a5a5",
+      `${stashBaseHash} ${stashIndexHash}`,
+      "Codex",
+      "7 minutes ago",
+      "2026-06-11T19:27:43+08:00",
+      "On feat/tempo-info: wip graph state",
+      "refs/stash",
+      "On feat/tempo-info: wip graph state",
+    ].join("\x1f"),
+    "\x1d\n",
+    "\x1e",
+    [
+      stashIndexHash,
+      "5c5c5c5",
+      stashBaseHash,
+      "Codex",
+      "7 minutes ago",
+      "2026-06-11T19:27:43+08:00",
+      "index on feat/tempo-info: e6cc86f fix graph state",
+      "",
+      "index on feat/tempo-info: e6cc86f fix graph state",
+    ].join("\x1f"),
+    "\x1d\n",
+    "\x1e",
+    [
+      stashBaseHash,
+      "5b5b5b5",
+      "",
+      "Codex",
+      "2 hours ago",
+      "2026-06-11T17:27:43+08:00",
+      "fix: tune changed row visual spacing",
+      "feat/tempo-info",
+      "fix: tune changed row visual spacing",
+    ].join("\x1f"),
+    "\x1d\n",
+  ].join("");
+  const stashGraph = parseLog(stashRawLog);
+  assert.deepEqual(
+    stashGraph.map((item) => item.fullHash),
+    [stashHash, stashBaseHash],
+  );
+  assert.deepEqual(stashGraph[0].parents, [stashBaseHash, stashIndexHash]);
+  assert.equal(stashGraph[0].graph.isMerge, false);
+  assert.deepEqual(stashGraph[0].graph.parentStems, []);
+  assert.deepEqual(stashGraph[0].graph.bridges, []);
+  assert.equal(stashGraph[1].graph.currentLabel, "feat/tempo-info");
 }
 
 async function testBranchNames(server) {
@@ -1832,6 +1887,7 @@ async function testCommitListView(server) {
     commitSearchClearButtonView,
     commitSearchInputKeyAction,
     commitSearchInputView,
+    commitScrollTopForSelection,
     commitSearchStateApplication,
     commitSearchStateAfterAvailability,
     commitSearchStateAfterClose,
@@ -2115,6 +2171,51 @@ async function testCommitListView(server) {
   );
   assert.equal(commitVirtualTotalHeight(200, 10), 12848);
   assert.equal(commitVirtualRowOffset(11, 200, 10), 752);
+  assert.equal(
+    commitScrollTopForSelection({
+      itemCount: 20,
+      selectedIndex: 10,
+      scrollTop: 0,
+      viewportHeight: 256,
+    }),
+    496,
+  );
+  assert.equal(
+    commitScrollTopForSelection({
+      itemCount: 20,
+      selectedIndex: 2,
+      scrollTop: 300,
+      viewportHeight: 256,
+    }),
+    128,
+  );
+  assert.equal(
+    commitScrollTopForSelection({
+      itemCount: 20,
+      selectedIndex: 2,
+      scrollTop: 100,
+      viewportHeight: 256,
+    }),
+    null,
+  );
+  assert.equal(
+    commitScrollTopForSelection({
+      itemCount: 20,
+      selectedIndex: 19,
+      scrollTop: 0,
+      viewportHeight: 256,
+    }),
+    1072,
+  );
+  assert.equal(
+    commitScrollTopForSelection({
+      itemCount: 20,
+      selectedIndex: -1,
+      scrollTop: 0,
+      viewportHeight: 256,
+    }),
+    null,
+  );
   assert.deepEqual(
     commitVirtualWindow({
       itemCount: 200,

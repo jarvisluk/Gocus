@@ -45,6 +45,13 @@ export interface CommitVirtualWindow {
   virtualized: boolean;
 }
 
+export interface CommitScrollSelectionOptions {
+  itemCount: number;
+  selectedIndex: number;
+  scrollTop: number;
+  viewportHeight: number;
+}
+
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -69,6 +76,31 @@ export function commitVirtualRowOffset(index: number, itemCount: number, selecte
   const selectedExtra = selected !== -1 && safeIndex > selected ? selectedCommitVirtualRowHeight - commitVirtualRowHeight : 0;
 
   return safeIndex * commitVirtualRowHeight + selectedExtra;
+}
+
+export function commitScrollTopForSelection({
+  itemCount,
+  selectedIndex,
+  scrollTop,
+  viewportHeight,
+}: CommitScrollSelectionOptions) {
+  const safeItemCount = Math.max(0, itemCount);
+  const selected = normalizedSelectedIndex(selectedIndex, safeItemCount);
+  if (selected === -1) return null;
+
+  const selectedTop = commitVirtualRowOffset(selected, safeItemCount, selected);
+  const selectedBottom = commitVirtualRowOffset(selected + 1, safeItemCount, selected);
+  const safeViewportHeight = Math.max(0, viewportHeight);
+  const safeScrollTop = Math.max(0, scrollTop);
+  const scrollBottom = safeScrollTop + safeViewportHeight;
+
+  if (selectedTop >= safeScrollTop && selectedBottom <= scrollBottom) return null;
+
+  const totalHeight = commitVirtualTotalHeight(safeItemCount, selected);
+  const maxScrollTop = Math.max(0, totalHeight - safeViewportHeight);
+  const nextScrollTop = selectedTop < safeScrollTop ? selectedTop : selectedBottom - safeViewportHeight;
+
+  return clampNumber(nextScrollTop, 0, maxScrollTop);
 }
 
 function commitVirtualIndexAtOffset(offset: number, itemCount: number, selectedIndex: number) {
