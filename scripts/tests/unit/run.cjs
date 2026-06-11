@@ -227,7 +227,10 @@ function testFileChecksUtility() {
 function testSourceHygieneScript() {
   const {
     checkContent,
+    checkUnusedCssCustomProperties,
     collectCheckedFiles,
+    cssCustomPropertyDefinitions,
+    cssCustomPropertyUsages,
     hasGitTreeBarrelImport,
     hasInlinePoliteStatusViewLiteral,
     hasReactImport,
@@ -285,6 +288,27 @@ function testSourceHygieneScript() {
     "src/components/Example.tsx:1: import git-tree modules directly instead of the barrel",
   ]);
   assert.deepEqual(checkContent("electron/preload.cjs", 'const { ipcRenderer } = require("electron");\n'), []);
+  assert.deepEqual(cssCustomPropertyDefinitions("src/styles/example.css", ":root {\n  --unused-token: red;\n}\n"), [
+    { name: "--unused-token", relativeFilePath: "src/styles/example.css", lineNumber: 2 },
+  ]);
+  assert.deepEqual(cssCustomPropertyDefinitions("src/components/Example.tsx", 'const style = "--unused-token";\n'), []);
+  assert.deepEqual([...cssCustomPropertyUsages("color: var(--used-token);\ncolor: var( --spaced-token, red);\n")], [
+    "--used-token",
+    "--spaced-token",
+  ]);
+  assert.deepEqual(
+    checkUnusedCssCustomProperties([
+      {
+        relativeFilePath: "src/styles/example.css",
+        content: ":root {\n  --used-token: red;\n  --unused-token: blue;\n}\n.foo { color: var(--used-token); }\n",
+      },
+      {
+        relativeFilePath: "src/components/Example.tsx",
+        content: 'const fallback = "var(--external-token)";\n',
+      },
+    ]),
+    ["src/styles/example.css:3: remove unused CSS custom property --unused-token"],
+  );
 
   const checkedFileLabels = collectCheckedFiles().map((filePath) => path.relative(projectRoot, filePath));
   assert.ok(checkedFileLabels.includes("electron/main.cjs"));

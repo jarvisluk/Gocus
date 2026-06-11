@@ -41,6 +41,8 @@ const rendererRuntimeImportPattern = new RegExp(
     `\\brequire\\(\\s*["'](?:${rendererRuntimeModulePattern})["']\\s*\\)`,
 );
 const gitTreeBarrelImportPattern = /^\s*import\b.*\bfrom\s*["'](?:\.\.\/git-tree|\.\/git-tree|src\/git-tree)["']/;
+const cssCustomPropertyDefinitionPattern = /^\s*(--[a-z0-9-]+)\s*:/;
+const cssCustomPropertyUsagePattern = /var\(\s*(--[a-z0-9-]+)\b/g;
 
 function isSrcLibFile(relativeFilePath) {
   return relativeFilePath.replaceAll("\\", "/").startsWith("src/lib/");
@@ -119,8 +121,30 @@ function checkContent(relativeFilePath, content) {
   return failures;
 }
 
-function checkFile(filePath) {
-  return checkContent(relativePath(projectRoot, filePath), fs.readFileSync(filePath, "utf8"));
+function cssCustomPropertyDefinitions(relativeFilePath, content) {
+  if (!relativeFilePath.endsWith(".css")) return [];
+
+  return content.split("\n").flatMap((line, index) => {
+    const match = line.match(cssCustomPropertyDefinitionPattern);
+    if (!match) return [];
+    return [{ name: match[1], relativeFilePath, lineNumber: index + 1 }];
+  });
+}
+
+function cssCustomPropertyUsages(content) {
+  return new Set([...content.matchAll(cssCustomPropertyUsagePattern)].map((match) => match[1]));
+}
+
+function checkUnusedCssCustomProperties(fileContents) {
+  const definitions = fileContents.flatMap(({ relativeFilePath, content }) => {
+    return cssCustomPropertyDefinitions(relativeFilePath, content);
+  });
+  const usedProperties = cssCustomPropertyUsages(fileContents.map(({ content }) => content).join("\n"));
+
+  return definitions.flatMap(({ name, relativeFilePath, lineNumber }) => {
+    if (usedProperties.has(name)) return [];
+    return [`${relativeFilePath}:${lineNumber}: remove unused CSS custom property ${name}`];
+  });
 }
 
 function collectCheckedFiles() {
@@ -134,9 +158,18 @@ function collectCheckedFiles() {
 
 function runHygieneCheck() {
   const checkedFiles = collectCheckedFiles();
+  const fileContents = checkedFiles.map((filePath) => ({
+    filePath,
+    relativeFilePath: relativePath(projectRoot, filePath),
+    content: fs.readFileSync(filePath, "utf8"),
+  }));
+
   return {
     checkedFiles,
-    failures: checkedFiles.flatMap(checkFile),
+    failures: [
+      ...fileContents.flatMap(({ relativeFilePath, content }) => checkContent(relativeFilePath, content)),
+      ...checkUnusedCssCustomProperties(fileContents),
+    ],
   };
 }
 
@@ -158,7 +191,10 @@ if (require.main === module) {
 
 module.exports = {
   checkContent,
+  checkUnusedCssCustomProperties,
   collectCheckedFiles,
+  cssCustomPropertyDefinitions,
+  cssCustomPropertyUsages,
   hasGitTreeBarrelImport,
   hasInlinePoliteStatusViewLiteral,
   hasReactImport,
