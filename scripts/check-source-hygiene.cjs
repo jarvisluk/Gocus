@@ -43,6 +43,9 @@ const rendererRuntimeImportPattern = new RegExp(
 const gitTreeBarrelImportPattern = /^\s*import\b.*\bfrom\s*["'](?:\.\.\/git-tree|\.\/git-tree|src\/git-tree)["']/;
 const cssCustomPropertyDefinitionPattern = /^\s*(--[a-z0-9-]+)\s*:/;
 const cssCustomPropertyUsagePattern = /var\(\s*(--[a-z0-9-]+)\b/g;
+const cssCommentPattern = /\/\*[\s\S]*?\*\//g;
+const cssRulePattern = /([^{}]+)\{([^{}]+)\}/g;
+const minDuplicateCssDeclarationCount = 3;
 
 function isSrcLibFile(relativeFilePath) {
   return relativeFilePath.replaceAll("\\", "/").startsWith("src/lib/");
@@ -147,6 +150,73 @@ function checkUnusedCssCustomProperties(fileContents) {
   });
 }
 
+function lineNumberFromIndex(content, index) {
+  return content.slice(0, index).split("\n").length;
+}
+
+function cssDeclarationSignature(ruleBody) {
+  return ruleBody
+    .split(";")
+    .map((declaration) => declaration.trim().replace(/\s+/g, " "))
+    .filter(Boolean)
+    .sort()
+    .join(";");
+}
+
+function stripCssComments(content) {
+  return content.replace(cssCommentPattern, (comment) => comment.replace(/[^\n]/g, ""));
+}
+
+function cssRuleDeclarationBlocks(relativeFilePath, content) {
+  if (!relativeFilePath.endsWith(".css")) return [];
+
+  const contentWithoutComments = stripCssComments(content);
+  return [...contentWithoutComments.matchAll(cssRulePattern)].flatMap((match) => {
+    const selector = match[1].trim().replace(/\s+/g, " ");
+    const signature = cssDeclarationSignature(match[2]);
+    if (!signature) return [];
+
+    const declarationCount = signature.split(";").length;
+    if (declarationCount < minDuplicateCssDeclarationCount) return [];
+
+    return [
+      {
+        declarationCount,
+        lineNumber: lineNumberFromIndex(contentWithoutComments, match.index + match[1].search(/\S/)),
+        relativeFilePath,
+        selector,
+        signature,
+      },
+    ];
+  });
+}
+
+function checkDuplicateCssDeclarationBlocks(fileContents) {
+  const declarationBlocksBySignature = new Map();
+
+  for (const { relativeFilePath, content } of fileContents) {
+    for (const block of cssRuleDeclarationBlocks(relativeFilePath, content)) {
+      if (!declarationBlocksBySignature.has(block.signature)) {
+        declarationBlocksBySignature.set(block.signature, []);
+      }
+      declarationBlocksBySignature.get(block.signature).push(block);
+    }
+  }
+
+  return [...declarationBlocksBySignature.values()].flatMap((blocks) => {
+    if (blocks.length < 2) return [];
+
+    const [firstBlock, ...duplicateBlocks] = blocks;
+    return duplicateBlocks.map((block) => {
+      const firstLocation = `${firstBlock.relativeFilePath}:${firstBlock.lineNumber} ${firstBlock.selector}`;
+      return (
+        `${block.relativeFilePath}:${block.lineNumber}: duplicate CSS declaration block ` +
+        `(${block.declarationCount} declarations) also used by ${firstLocation}`
+      );
+    });
+  });
+}
+
 function collectCheckedFiles() {
   return collectMatchingFiles({
     projectRoot,
@@ -169,6 +239,7 @@ function runHygieneCheck() {
     failures: [
       ...fileContents.flatMap(({ relativeFilePath, content }) => checkContent(relativeFilePath, content)),
       ...checkUnusedCssCustomProperties(fileContents),
+      ...checkDuplicateCssDeclarationBlocks(fileContents),
     ],
   };
 }
@@ -191,10 +262,13 @@ if (require.main === module) {
 
 module.exports = {
   checkContent,
+  checkDuplicateCssDeclarationBlocks,
   checkUnusedCssCustomProperties,
   collectCheckedFiles,
+  cssDeclarationSignature,
   cssCustomPropertyDefinitions,
   cssCustomPropertyUsages,
+  cssRuleDeclarationBlocks,
   hasGitTreeBarrelImport,
   hasInlinePoliteStatusViewLiteral,
   hasReactImport,
@@ -203,5 +277,6 @@ module.exports = {
   isSrcLibFile,
   isViewModelFile,
   maxLineLength,
+  minDuplicateCssDeclarationCount,
   runHygieneCheck,
 };

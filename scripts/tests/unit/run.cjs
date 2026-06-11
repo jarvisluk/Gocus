@@ -227,10 +227,13 @@ function testFileChecksUtility() {
 function testSourceHygieneScript() {
   const {
     checkContent,
+    checkDuplicateCssDeclarationBlocks,
     checkUnusedCssCustomProperties,
     collectCheckedFiles,
+    cssDeclarationSignature,
     cssCustomPropertyDefinitions,
     cssCustomPropertyUsages,
+    cssRuleDeclarationBlocks,
     hasGitTreeBarrelImport,
     hasInlinePoliteStatusViewLiteral,
     hasReactImport,
@@ -308,6 +311,47 @@ function testSourceHygieneScript() {
       },
     ]),
     ["src/styles/example.css:3: remove unused CSS custom property --unused-token"],
+  );
+  assert.equal(
+    cssDeclarationSignature("gap: 1px;\n  display: grid;\n  min-width: 0;\n"),
+    "display: grid;gap: 1px;min-width: 0",
+  );
+  assert.deepEqual(
+    cssRuleDeclarationBlocks(
+      "src/styles/example.css",
+      ".one {\n  display: grid;\n  gap: 1px;\n  min-width: 0;\n}\n.two {\n  display: grid;\n  gap: 1px;\n}\n",
+    ),
+    [
+      {
+        declarationCount: 3,
+        lineNumber: 1,
+        relativeFilePath: "src/styles/example.css",
+        selector: ".one",
+        signature: "display: grid;gap: 1px;min-width: 0",
+      },
+    ],
+  );
+  assert.equal(
+    cssRuleDeclarationBlocks(
+      "src/styles/example.css",
+      "/* shared pattern\n   kept here */\n.one {\n  display: grid;\n  gap: 1px;\n  min-width: 0;\n}\n",
+    )[0].lineNumber,
+    3,
+  );
+  assert.deepEqual(
+    checkDuplicateCssDeclarationBlocks([
+      {
+        relativeFilePath: "src/styles/a.css",
+        content: ".one {\n  display: grid;\n  gap: 1px;\n  min-width: 0;\n}\n",
+      },
+      {
+        relativeFilePath: "src/styles/b.css",
+        content: ".two {\n  min-width: 0;\n  display: grid;\n  gap: 1px;\n}\n.small {\n  display: grid;\n  gap: 1px;\n}\n",
+      },
+    ]),
+    [
+      "src/styles/b.css:1: duplicate CSS declaration block (3 declarations) also used by src/styles/a.css:1 .one",
+    ],
   );
 
   const checkedFileLabels = collectCheckedFiles().map((filePath) => path.relative(projectRoot, filePath));
