@@ -263,6 +263,7 @@ function testSourceHygieneScript() {
     checkContent,
     checkCssFileSize,
     checkDuplicateCssDeclarationBlocks,
+    checkRawCssColorTokens,
     checkStylesheetManifest,
     checkUnusedCssCustomProperties,
     collectCheckedFiles,
@@ -352,6 +353,24 @@ function testSourceHygieneScript() {
   assert.deepEqual(checkBoxShadowTokens("src/styles/example.css", "box-shadow: 0 0 0 2px var(--focus-soft);\n"), []);
   assert.deepEqual(checkBoxShadowTokens("src/styles/example.css", "box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);\n"), [
     "src/styles/example.css:1: move rgba box-shadow values into theme custom properties",
+  ]);
+  assert.deepEqual(checkRawCssColorTokens("src/components/Example.tsx", "color: #fff;\n"), []);
+  assert.deepEqual(checkRawCssColorTokens("src/styles/theme.css", "--surface: rgba(255, 255, 255, 0.72);\n"), []);
+  assert.deepEqual(
+    checkRawCssColorTokens(
+      "src/styles/example.css",
+      "color: var(--text);\nbackground: color-mix(in srgb, var(--panel) 80%, transparent);\n",
+    ),
+    [],
+  );
+  assert.deepEqual(checkRawCssColorTokens("src/styles/example.css", "/* color: #fff; */\n.foo { color: rgb(1, 2, 3); }\n"), [
+    "src/styles/example.css:2: move raw color values into theme custom properties",
+  ]);
+  assert.deepEqual(checkRawCssColorTokens("src/styles/example.css", ".foo { color: #fff; }\n"), [
+    "src/styles/example.css:1: move raw color values into theme custom properties",
+  ]);
+  assert.deepEqual(checkRawCssColorTokens("src/styles/example.css", ".foo { color: hsl(0 0% 100%); }\n"), [
+    "src/styles/example.css:1: move raw color values into theme custom properties",
   ]);
   assert.deepEqual(cssCustomPropertyDefinitions("src/styles/example.css", ":root {\n  --unused-token: red;\n}\n"), [
     { name: "--unused-token", relativeFilePath: "src/styles/example.css", lineNumber: 2 },

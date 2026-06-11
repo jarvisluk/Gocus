@@ -48,6 +48,7 @@ const cssRulePattern = /([^{}]+)\{([^{}]+)\}/g;
 const stylesheetImportPattern = /^\s*@import\s+["']\.\/styles\/([^"']+\.css)["'];\s*$/;
 const backdropFilterDeclarationPattern = /^\s*(-webkit-)?backdrop-filter\s*:\s*([^;]+);/;
 const boxShadowDeclarationPattern = /^\s*box-shadow\s*:\s*([^;]+);/;
+const cssRawColorLiteralPattern = /#[0-9a-fA-F]{3,8}\b|(?:rgb|hsl)a?\(/;
 const maxCssFileLines = 300;
 const minDuplicateCssDeclarationCount = 3;
 
@@ -199,6 +200,17 @@ function checkBoxShadowTokens(relativeFilePath, content) {
   });
 }
 
+function checkRawCssColorTokens(relativeFilePath, content) {
+  if (!relativeFilePath.endsWith(".css") || relativeFilePath === "src/styles/theme.css") return [];
+
+  return stripCssComments(content)
+    .split("\n")
+    .flatMap((line, index) => {
+      if (!cssRawColorLiteralPattern.test(line)) return [];
+      return [`${relativeFilePath}:${index + 1}: move raw color values into theme custom properties`];
+    });
+}
+
 function lineNumberFromIndex(content, index) {
   return content.slice(0, index).split("\n").length;
 }
@@ -335,6 +347,7 @@ function runHygieneCheck() {
       ...fileContents.flatMap(({ relativeFilePath, content }) => checkCssFileSize(relativeFilePath, content)),
       ...fileContents.flatMap(({ relativeFilePath, content }) => checkBackdropFilterTokens(relativeFilePath, content)),
       ...fileContents.flatMap(({ relativeFilePath, content }) => checkBoxShadowTokens(relativeFilePath, content)),
+      ...fileContents.flatMap(({ relativeFilePath, content }) => checkRawCssColorTokens(relativeFilePath, content)),
       ...checkUnusedCssCustomProperties(fileContents),
       ...checkDuplicateCssDeclarationBlocks(fileContents),
       ...checkStylesheetManifest(fileContents),
@@ -364,6 +377,7 @@ module.exports = {
   checkContent,
   checkCssFileSize,
   checkDuplicateCssDeclarationBlocks,
+  checkRawCssColorTokens,
   checkStylesheetManifest,
   checkUnusedCssCustomProperties,
   collectCheckedFiles,
