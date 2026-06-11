@@ -49,25 +49,6 @@
   color: var(--text);
 }
 
-.view-chip svg,
-.worktree-trigger svg,
-.branch-ref-menu-item svg,
-.worktree-menu-item svg {
-  width: var(--icon-xs);
-  height: var(--icon-xs);
-  flex: 0 0 auto;
-}
-
-.view-chip span,
-.worktree-trigger span,
-.branch-ref-menu-item span,
-.worktree-menu-item span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .selected-branch-view {
   min-width: 0;
   min-height: 30px;
@@ -83,12 +64,6 @@
   font-size: var(--type-caption-size);
   font-weight: var(--font-weight-strong);
   line-height: 1.2;
-}
-
-.selected-branch-view svg {
-  width: var(--icon-xs);
-  height: var(--icon-xs);
-  color: var(--text-muted);
 }
 
 .selected-branch-view span {

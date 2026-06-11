@@ -1,0 +1,128 @@
+/* Shared structural patterns used by multiple surface-specific styles. */
+.repo-title strong,
+.repo-title span,
+.ui-page-header h1,
+.ui-page-header span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changed-side-header h2,
+.changed-side-header div span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-path,
+.file-detail,
+.repo-menu-text strong,
+.repo-menu-text code,
+.repository-state-banner strong,
+.repository-state-banner span,
+.ui-disclosure-label,
+.ui-disclosure-value,
+.action-prefix-trigger > span,
+.action-merge-target-trigger > span,
+.view-chip span,
+.worktree-trigger span,
+.branch-ref-menu-item span,
+.worktree-menu-item span,
+.commit-hover-title,
+.commit-hover-author,
+.commit-hover-time,
+.commit-hover-hash code,
+.commit-hover-ref-pill span,
+.changed-side-facts dd,
+.workspace-target-toggle span:nth-child(2) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-meta span,
+.commit-meta code,
+.ui-menu-item span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repo-title span,
+.ui-page-header span,
+.changed-side-header div span {
+  margin-top: 3px;
+  color: var(--text-faint);
+  font-size: var(--type-caption-size);
+}
+
+.ui-label,
+.ui-toggle > span,
+.empty-recent-repos strong {
+  color: var(--text-faint);
+  font-size: var(--type-caption-size);
+  font-weight: 740;
+}
+
+.changed-side-facts dt,
+.action-branch-field span {
+  color: var(--text-faint);
+  font-size: var(--type-micro-size);
+  font-weight: var(--font-weight-strong);
+  text-transform: uppercase;
+}
+
+.ui-form-section,
+.action-merge-fields {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-md);
+}
+
+.repo-title-button svg,
+.ui-disclosure-button svg,
+.action-prefix-menu-item svg,
+.action-merge-target-menu-item svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  color: var(--text-muted);
+}
+
+.view-chip svg,
+.worktree-trigger svg,
+.branch-ref-menu-item svg,
+.worktree-menu-item svg,
+.commit-hover-header svg,
+.commit-hover-refs svg,
+.commit-hover-hash svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+  flex: 0 0 auto;
+}
+
+.commit-actions svg,
+.selected-branch-view svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+  color: var(--text-muted);
+}
+
+.changed-side-open-button .external-app-icon,
+.workspace-target-toggle .external-app-icon,
+.workspace-open-menu .external-app-icon {
+  width: var(--app-icon-menu);
+  height: var(--app-icon-menu);
+  border-radius: 4px;
+}
+
+.commit-actions button:disabled,
+.action-merge-target-trigger:disabled {
+  cursor: not-allowed;
+  color: var(--text-subtle);
+  background: color-mix(in srgb, var(--surface) 86%, var(--border));
+}

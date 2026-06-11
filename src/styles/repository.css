@@ -27,34 +27,14 @@
   background: var(--surface-hover);
 }
 
-.repo-title-button svg {
-  width: var(--icon-sm);
-  height: var(--icon-sm);
-  color: var(--text-muted);
-}
-
 .repo-title-copy {
   min-width: 0;
-}
-
-.repo-title strong,
-.repo-title span {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .repo-title strong {
   font-size: var(--type-heading-2-size);
   font-weight: var(--font-weight-title);
   line-height: 1.2;
-}
-
-.repo-title span {
-  margin-top: 3px;
-  color: var(--text-faint);
-  font-size: var(--type-caption-size);
 }
 
 .repo-title .repo-title-copy {
@@ -92,14 +72,6 @@
   min-width: 0;
   display: grid;
   gap: 2px;
-}
-
-.repo-menu-text strong,
-.repo-menu-text code {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .repo-menu-text strong {
@@ -159,14 +131,6 @@
   min-width: 0;
   display: grid;
   gap: 1px;
-}
-
-.repository-state-banner strong,
-.repository-state-banner span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .repository-state-banner strong {

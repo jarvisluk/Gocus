@@ -84,12 +84,6 @@
   padding-top: 2px;
 }
 
-.empty-recent-repos strong {
-  color: var(--text-faint);
-  font-size: var(--type-caption-size);
-  font-weight: 740;
-}
-
 .empty-recent-repos button {
   min-width: 0;
   height: 30px;

@@ -269,12 +269,6 @@
   bottom: auto;
 }
 
-.workspace-open-menu .external-app-icon {
-  width: var(--app-icon-menu);
-  height: var(--app-icon-menu);
-  border-radius: 4px;
-}
-
 .collapsed-rail {
   position: absolute;
   top: 28px;

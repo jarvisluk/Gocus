@@ -18,26 +18,12 @@
   -webkit-app-region: drag;
 }
 
-.ui-page-header h1,
-.ui-page-header span {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .ui-page-header h1 {
   margin: 0;
   color: var(--text);
   font-size: var(--type-page-title-size);
   font-weight: var(--font-weight-title);
   line-height: 1.2;
-}
-
-.ui-page-header span {
-  margin-top: 3px;
-  color: var(--text-faint);
-  font-size: var(--type-caption-size);
 }
 
 .ui-form {
@@ -57,13 +43,6 @@
   grid-template-columns: var(--form-label-width) minmax(0, 1fr);
   align-items: center;
   gap: var(--space-md);
-}
-
-.ui-label,
-.ui-toggle > span {
-  color: var(--text-faint);
-  font-size: var(--type-caption-size);
-  font-weight: 740;
 }
 
 .ui-icon-button {
@@ -154,14 +133,6 @@
   background: var(--surface-hover);
 }
 
-.ui-disclosure-label,
-.ui-disclosure-value {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .ui-disclosure-label {
   font-size: var(--type-body-size);
   font-weight: var(--font-weight-strong);
@@ -172,12 +143,6 @@
   color: var(--text-faint);
   font-size: var(--type-caption-size);
   font-weight: var(--font-weight-strong);
-}
-
-.ui-disclosure-button svg {
-  width: var(--icon-sm);
-  height: var(--icon-sm);
-  color: var(--text-muted);
 }
 
 .ui-input {
@@ -378,13 +343,6 @@
   gap: var(--space-xs);
 }
 
-.action-branch-field span {
-  color: var(--text-faint);
-  font-size: var(--type-micro-size);
-  font-weight: var(--font-weight-strong);
-  text-transform: uppercase;
-}
-
 .action-prefix-control {
   position: relative;
   min-width: 0;
@@ -420,14 +378,10 @@
 
 .action-prefix-trigger > span,
 .action-merge-target-trigger > span {
-  min-width: 0;
   color: inherit;
   font-size: inherit;
   font-weight: var(--font-weight-body);
-  overflow: hidden;
-  text-overflow: ellipsis;
   text-transform: none;
-  white-space: nowrap;
 }
 
 .ui-menu.action-prefix-menu {
@@ -450,21 +404,9 @@
   text-transform: none;
 }
 
-.action-merge-fields {
-  min-width: 0;
-  display: grid;
-  gap: var(--space-md);
-}
-
 .action-merge-target-control {
   position: relative;
   min-width: 0;
-}
-
-.action-merge-target-trigger:disabled {
-  cursor: not-allowed;
-  color: var(--text-subtle);
-  background: color-mix(in srgb, var(--surface) 86%, var(--border));
 }
 
 .ui-menu.action-merge-target-menu {
@@ -505,13 +447,6 @@
   text-overflow: clip;
   text-transform: none;
   white-space: normal;
-}
-
-.action-prefix-menu-item svg,
-.action-merge-target-menu-item svg {
-  width: var(--icon-sm);
-  height: var(--icon-sm);
-  color: var(--text-muted);
 }
 
 .action-dialog-error-block {
@@ -617,10 +552,4 @@
 .ui-menu-item:hover,
 .ui-menu-item.is-active {
   background: var(--surface-hover);
-}
-
-.ui-menu-item span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }

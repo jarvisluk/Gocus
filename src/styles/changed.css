@@ -67,20 +67,9 @@
   color: var(--text-muted);
 }
 
-.file-path {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .file-detail {
-  min-width: 0;
-  overflow: hidden;
   color: var(--text-faint);
   font-size: var(--type-micro-size);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .file-delta {
@@ -129,27 +118,12 @@
   gap: var(--space-md);
 }
 
-.changed-side-header h2,
-.changed-side-header div span {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .changed-side-header h2 {
   margin: 0;
   color: var(--text);
   font-size: var(--type-body-strong-size);
   font-weight: var(--font-weight-title);
   line-height: 1.2;
-}
-
-.changed-side-header div span {
-  margin-top: 3px;
-  color: var(--text-faint);
-  font-size: var(--type-caption-size);
 }
 
 .changed-side-header > .file-badge {
@@ -167,12 +141,6 @@
 .changed-side-actions .ui-icon-button {
   width: var(--control-sm);
   height: var(--control-sm);
-}
-
-.changed-side-open-button .external-app-icon {
-  width: var(--app-icon-menu);
-  height: var(--app-icon-menu);
-  border-radius: 4px;
 }
 
 .changed-side-facts {
@@ -194,24 +162,13 @@
   gap: var(--space-xxs);
 }
 
-.changed-side-facts dt {
-  color: var(--text-faint);
-  font-size: var(--type-micro-size);
-  font-weight: var(--font-weight-strong);
-  text-transform: uppercase;
-}
-
 .changed-side-facts dd {
-  min-width: 0;
   margin: 0;
-  overflow: hidden;
   color: var(--text-muted);
   font-family: var(--mono-font);
   font-size: var(--type-caption-size);
   font-weight: var(--font-weight-body);
   line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .changed-side-delta {

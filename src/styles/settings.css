@@ -3,12 +3,6 @@
   padding: 0 9px;
 }
 
-.ui-form-section {
-  min-width: 0;
-  display: grid;
-  gap: var(--space-md);
-}
-
 .ui-form-section + .ui-form-section {
   margin-top: var(--space-sm);
 }
@@ -79,17 +73,7 @@
   background: var(--surface-hover);
 }
 
-.workspace-target-toggle .external-app-icon {
-  width: var(--app-icon-menu);
-  height: var(--app-icon-menu);
-  border-radius: 4px;
-}
-
 .workspace-target-toggle span:nth-child(2) {
-  min-width: 0;
-  overflow: hidden;
   font-size: var(--type-body-size);
   font-weight: var(--font-weight-strong);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }

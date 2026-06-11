@@ -232,13 +232,6 @@
   font-size: var(--type-micro-size);
 }
 
-.commit-meta span,
-.commit-meta code {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .commit-meta span::before {
   content: "";
   display: inline-block;
@@ -325,20 +318,8 @@
   background: var(--surface-hover);
 }
 
-.commit-actions button:disabled {
-  cursor: not-allowed;
-  color: var(--text-subtle);
-  background: color-mix(in srgb, var(--surface) 86%, var(--border));
-}
-
 .commit-actions button:disabled svg {
   color: var(--text-subtle);
-}
-
-.commit-actions svg {
-  width: var(--icon-xs);
-  height: var(--icon-xs);
-  color: var(--text-muted);
 }
 
 .commit-message-popover {
@@ -434,25 +415,6 @@
   line-height: var(--type-caption-line);
 }
 
-.commit-hover-header svg,
-.commit-hover-refs svg,
-.commit-hover-hash svg {
-  width: var(--icon-xs);
-  height: var(--icon-xs);
-  flex: 0 0 auto;
-}
-
-.commit-hover-title,
-.commit-hover-author,
-.commit-hover-time,
-.commit-hover-hash code,
-.commit-hover-ref-pill span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .commit-hover-author {
   flex: 0 0 auto;
   color: var(--text);
@@ -466,7 +428,6 @@
 
 .commit-hover-title {
   margin: 0;
-  overflow: hidden;
   color: var(--text);
   font-size: var(--type-body-size);
   font-weight: var(--type-body-strong-weight);
