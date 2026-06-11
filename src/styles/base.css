@@ -115,15 +115,6 @@ svg {
   backdrop-filter: blur(24px) saturate(1.2);
 }
 
-.is-electron .peek-panel {
-  inset: 0;
-  width: auto;
-  min-height: 0;
-  border-radius: 0;
-  border: 0;
-  box-shadow: none;
-}
-
 .peek-header {
   height: 62px;
   flex: 0 0 auto;

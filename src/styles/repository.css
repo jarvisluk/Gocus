@@ -68,12 +68,6 @@
   height: var(--icon-xs);
 }
 
-.repo-menu-text {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
 .repo-menu-text strong {
   font-size: var(--type-caption-size);
   font-weight: var(--font-weight-strong);

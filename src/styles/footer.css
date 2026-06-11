@@ -289,15 +289,6 @@
   -webkit-app-region: drag;
 }
 
-.is-electron .collapsed-rail {
-  inset: 0;
-  min-height: 0;
-  width: auto;
-  border-radius: 0;
-  border: 0;
-  box-shadow: none;
-}
-
 .rail-branch {
   align-self: center;
   min-height: var(--collapsed-rail-branch-slot-height, 58px);
