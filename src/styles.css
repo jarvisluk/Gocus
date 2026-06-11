@@ -23,6 +23,7 @@
 @import "./styles/commit-graph.css";
 @import "./styles/commit-hover.css";
 @import "./styles/changed.css";
+@import "./styles/changed-side.css";
 @import "./styles/temporary.css";
 @import "./styles/footer.css";
 @import "./styles/zen.css";
