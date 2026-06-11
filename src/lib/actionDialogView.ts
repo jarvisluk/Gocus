@@ -239,6 +239,12 @@ export function mergeFailureAgentPrompt({
       "keep unrelated worktree changes intact, run the relevant tests/build, and leave a concise summary of what changed.",
       "If a merge is already in progress, continue from that state instead of starting over.",
     ].join(" "),
+    [
+      "After switching to the target/current branch, if git status shows uncommitted changes, first check whether each change",
+      "is already represented by the source ref/commit or the current merge result.",
+      "Do not stash changes that are already done;",
+      "stash or move only unrelated local changes that would otherwise block checkout or merge.",
+    ].join(" "),
   ];
 
   if (createMergeCommit) {

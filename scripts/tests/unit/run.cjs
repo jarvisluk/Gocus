@@ -1764,6 +1764,9 @@ async function testActionDialogView(server) {
   assert.match(failedMergeView.mergeFailurePrompt, /Target branch: main/);
   assert.match(failedMergeView.mergeFailurePrompt, /CONFLICT \(content\): Merge conflict in src\/App\.tsx/);
   assert.match(failedMergeView.mergeFailurePrompt, /keep unrelated worktree changes intact/);
+  assert.match(failedMergeView.mergeFailurePrompt, /if git status shows uncommitted changes/);
+  assert.match(failedMergeView.mergeFailurePrompt, /already represented by the source ref\/commit or the current merge result/);
+  assert.match(failedMergeView.mergeFailurePrompt, /Do not stash changes that are already done/);
   assert.doesNotMatch(failedMergeView.mergeFailurePrompt, /No-fast-forward merges are enabled/);
   const failedNoFastForwardMergeView = actionDialogView(
     {

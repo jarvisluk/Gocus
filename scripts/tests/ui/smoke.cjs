@@ -1239,6 +1239,8 @@ async function testMergeFailureStaysInDialog(browser, baseUrl) {
     assert.match(copiedPrompt, /Target branch: main/);
     assert.match(copiedPrompt, /CONFLICT \(content\): Merge conflict in src\/App\.tsx/);
     assert.match(copiedPrompt, /keep unrelated worktree changes intact/);
+    assert.match(copiedPrompt, /if git status shows uncommitted changes/);
+    assert.match(copiedPrompt, /Do not stash changes that are already done/);
     assert.doesNotMatch(copiedPrompt, /No-fast-forward merges are enabled/);
 
     const mergeTargetButton = page.getByRole("button", { name: "Merge target branch" });
