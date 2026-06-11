@@ -1,0 +1,252 @@
+.repo-title {
+  min-width: 0;
+}
+
+.header-repo-switcher {
+  position: relative;
+  min-width: 0;
+}
+
+.repo-title-button {
+  width: calc(100% + 10px);
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  margin-left: -5px;
+  padding: 5px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.repo-title-button:hover,
+.repo-title-button.is-open {
+  background: var(--surface-hover);
+}
+
+.repo-title-button svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  color: var(--text-muted);
+}
+
+.repo-title-copy {
+  min-width: 0;
+}
+
+.repo-title strong,
+.repo-title span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repo-title strong {
+  font-size: var(--type-heading-2-size);
+  font-weight: var(--font-weight-title);
+  line-height: 1.2;
+}
+
+.repo-title span {
+  margin-top: 3px;
+  color: var(--text-faint);
+  font-size: var(--type-caption-size);
+}
+
+.repo-title .repo-title-copy {
+  margin-top: 0;
+  color: inherit;
+}
+
+.repo-switch-menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 8px);
+  left: -5px;
+  width: min(280px, calc(100vw - 24px));
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.repo-menu-item {
+  grid-template-columns: 18px minmax(0, 1fr);
+  min-height: 42px;
+}
+
+.repo-menu-check {
+  display: grid;
+  place-items: center;
+}
+
+.repo-menu-check svg,
+.repo-menu-item svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.repo-menu-text {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.repo-menu-text strong,
+.repo-menu-text code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repo-menu-text strong {
+  font-size: var(--type-caption-size);
+  font-weight: var(--font-weight-strong);
+}
+
+.repo-menu-text code {
+  color: var(--text-faint);
+  font-family: var(--mono-font);
+  font-size: var(--type-micro-size);
+}
+
+.branch-pill,
+.ref-pill {
+  max-width: 112px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: var(--radius-pill);
+  color: var(--main);
+  background: var(--chip-amber);
+  font-size: var(--type-body-strong-size);
+  font-weight: var(--font-weight-strong);
+}
+
+.branch-pill {
+  padding: 7px 9px;
+  border: 1px solid var(--border-soft);
+}
+
+.repository-state-banner {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: var(--control-sm) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0 var(--space-xl) var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid color-mix(in srgb, var(--danger) 34%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  color: var(--text);
+}
+
+.repository-state-banner svg {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  justify-self: center;
+  color: var(--danger);
+}
+
+.repository-state-banner div {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.repository-state-banner strong,
+.repository-state-banner span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repository-state-banner strong {
+  font-size: var(--type-body-strong-size);
+  font-weight: var(--font-weight-strong);
+}
+
+.repository-state-banner span {
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+}
+
+.branch-pill svg,
+.ref-pill svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.icon-button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.icon-button:hover,
+.icon-button.is-active {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.icon-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.is-spinning {
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.repo-controls {
+  position: relative;
+  flex: 0 0 auto;
+  z-index: 18;
+  display: grid;
+  gap: 6px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--panel-solid);
+}
+
+.repo-controls::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  height: 18px;
+  background: linear-gradient(
+    to bottom,
+    var(--panel-solid) 0%,
+    color-mix(in srgb, var(--panel-solid) 58%, transparent) 44%,
+    transparent 100%
+  );
+  pointer-events: none;
+}

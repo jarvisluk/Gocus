@@ -1,0 +1,362 @@
+.commit-view-strip {
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(104px, 1.2fr);
+  overflow: visible;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.view-chip,
+.worktree-trigger {
+  min-width: 0;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--type-caption-size);
+  font-weight: var(--font-weight-strong);
+}
+
+.view-chip {
+  border-right: 1px solid var(--border-soft);
+}
+
+.branch-menu-control {
+  position: relative;
+  min-width: 0;
+}
+
+.branch-view-trigger {
+  width: 100%;
+  border-right: 0;
+}
+
+.view-chip:hover:not(:disabled),
+.view-chip.is-active,
+.view-chip.is-open,
+.worktree-trigger:hover,
+.worktree-trigger.is-open {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.view-chip svg,
+.worktree-trigger svg,
+.branch-ref-menu-item svg,
+.worktree-menu-item svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+  flex: 0 0 auto;
+}
+
+.view-chip span,
+.worktree-trigger span,
+.branch-ref-menu-item span,
+.worktree-menu-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selected-branch-view {
+  min-width: 0;
+  min-height: 30px;
+  display: grid;
+  grid-template-columns: var(--icon-xs) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--type-caption-size);
+  font-weight: var(--font-weight-strong);
+  line-height: 1.2;
+}
+
+.selected-branch-view svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+  color: var(--text-muted);
+}
+
+.selected-branch-view span {
+  color: var(--text-faint);
+}
+
+.selected-branch-view strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.branch-ref-menu,
+.worktree-menu {
+  position: absolute;
+  z-index: 35;
+  right: 0;
+  width: min(248px, calc(100vw - 24px));
+  max-height: 290px;
+  overflow-y: auto;
+}
+
+.branch-ref-menu {
+  top: calc(100% + 8px);
+}
+
+.branch-ref-menu-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 3px;
+}
+
+.branch-ref-menu-row.has-switch {
+  grid-template-columns: minmax(0, 1fr) 28px;
+}
+
+.branch-ref-menu-item,
+.worktree-menu-item {
+  grid-template-columns: 18px minmax(0, 1fr);
+}
+
+.branch-switch-tooltip {
+  position: relative;
+  width: 28px;
+  min-height: var(--menu-row-height);
+  display: grid;
+}
+
+.branch-switch-tooltip-bubble {
+  position: absolute;
+  top: 50%;
+  right: 32px;
+  z-index: 50;
+  width: 178px;
+  display: grid;
+  gap: 3px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
+  box-shadow: 0 10px 24px rgba(16, 24, 40, 0.2);
+  color: var(--text);
+  font-size: var(--type-caption-size);
+  line-height: 1.2;
+  opacity: 0;
+  pointer-events: none;
+  text-align: left;
+  transform: translateY(-50%) translateX(4px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.branch-switch-tooltip-bubble strong {
+  overflow: hidden;
+  font-weight: var(--font-weight-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.branch-switch-tooltip-bubble span {
+  color: var(--text-muted);
+  font-weight: var(--type-caption-weight);
+}
+
+.branch-switch-tooltip:hover .branch-switch-tooltip-bubble {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+.branch-switch-tooltip:hover .branch-switch-button:disabled {
+  background: var(--surface-hover);
+  color: var(--text);
+  opacity: 0.68;
+}
+
+.branch-switch-button {
+  width: 28px;
+  min-height: var(--menu-row-height);
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.branch-switch-button:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.branch-switch-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.branch-switch-button svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.worktree-compact {
+  position: relative;
+  min-width: 0;
+  width: 100%;
+  justify-self: stretch;
+}
+
+.worktree-trigger {
+  width: 100%;
+  min-height: 30px;
+  justify-content: flex-start;
+  padding-inline: 9px 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.worktree-trigger > svg:last-child {
+  margin-left: auto;
+}
+
+.worktree-trigger strong {
+  min-width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--surface-strong);
+  color: var(--text-muted);
+  font-size: var(--type-micro-size);
+  font-weight: var(--font-weight-strong);
+}
+
+.worktree-menu {
+  top: calc(100% + 6px);
+}
+
+.worktree-context {
+  position: relative;
+  flex: 0 0 auto;
+  z-index: 16;
+  margin: 12px 10px 0;
+  background: transparent;
+}
+
+.worktree-context-trigger,
+.worktree-context-static {
+  width: 100%;
+  min-height: 50px;
+  display: grid;
+  grid-template-columns: var(--icon-lg) minmax(0, 1fr) auto var(--icon-xs);
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  text-align: left;
+  -webkit-backdrop-filter: blur(18px) saturate(1.36);
+  backdrop-filter: blur(18px) saturate(1.36);
+}
+
+.worktree-context-trigger {
+  cursor: pointer;
+}
+
+.worktree-context-static {
+  grid-template-columns: var(--icon-lg) minmax(0, 1fr) auto;
+}
+
+.worktree-context-trigger:hover,
+.worktree-context-trigger.is-open {
+  border-color: color-mix(in srgb, var(--focus) 24%, var(--border));
+  background: color-mix(in srgb, var(--surface-strong) 94%, transparent);
+}
+
+.worktree-context-trigger > svg,
+.worktree-context-static > svg {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  color: var(--text-faint);
+}
+
+.worktree-context-trigger > svg:last-child {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+  color: var(--text-faint);
+}
+
+.worktree-context-copy {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+  line-height: 1.15;
+}
+
+.worktree-context-copy span {
+  color: var(--text-faint);
+  font-size: var(--type-micro-size);
+  font-weight: var(--font-weight-body);
+  letter-spacing: 0;
+}
+
+.worktree-context-copy strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--type-body-strong-size);
+  font-weight: var(--font-weight-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.worktree-context-count {
+  max-width: 92px;
+  overflow: hidden;
+  padding: 4px 7px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--type-micro-size);
+  font-weight: var(--font-weight-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.worktree-context-menu {
+  right: auto;
+  left: 0;
+  width: 100%;
+}
+
+.scroll-region {
+  min-height: 0;
+  flex: 1 1 auto;
+  position: relative;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.worktree-context + .scroll-region {
+  --worktree-context-placeholder-height: 70px;
+  --worktree-context-placeholder-lift: 24px;
+  margin-top: calc(var(--worktree-context-placeholder-height) * -1);
+  padding-top: var(--worktree-context-placeholder-height);
+}
