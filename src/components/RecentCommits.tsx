@@ -4,6 +4,7 @@ import { GitTreeCell } from "../git-tree/GitTreeCell";
 import { getGitTreeRailWidth, getGitTreeRequiredLaneCount } from "../git-tree/renderGraph";
 import {
   commitListView,
+  commitScrollTopForSelection,
   commitSearchInputKeyAction,
   commitSearchStateApplication,
   commitSearchStateAfterAvailability,
@@ -205,6 +206,7 @@ export function RecentCommits({
   const listRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchToggleRef = useRef<HTMLButtonElement>(null);
+  const previousSearchTermCountRef = useRef(0);
   const [scrollFrame, setScrollFrame] = useState({ scrollTop: 0, viewportHeight: 0 });
   const {
     canSearch,
@@ -217,6 +219,7 @@ export function RecentCommits({
     searchClearButton,
     searchForm,
     searchInput,
+    searchTerms,
     searchToggle,
     section,
     showCommits,
@@ -243,6 +246,28 @@ export function RecentCommits({
     () => filteredCommits.slice(virtualWindow.startIndex, virtualWindow.endIndex),
     [filteredCommits, virtualWindow.endIndex, virtualWindow.startIndex],
   );
+
+  useEffect(() => {
+    const previousSearchTermCount = previousSearchTermCountRef.current;
+    previousSearchTermCountRef.current = searchTerms.length;
+    if (previousSearchTermCount === 0 || searchTerms.length > 0 || !selectedId) return;
+
+    const listNode = listRef.current;
+    if (!listNode) return;
+
+    const scrollNode = commitScrollContainer(listNode);
+    const selectedIndex = filteredCommits.findIndex((commit) => commit.id === selectedId);
+    const nextScrollTop = commitScrollTopForSelection({
+      itemCount: filteredCommits.length,
+      selectedIndex,
+      scrollTop: scrollNode.scrollTop,
+      viewportHeight: scrollNode.clientHeight,
+    });
+
+    if (nextScrollTop === null) return;
+    scrollNode.scrollTo({ top: nextScrollTop, behavior: "auto" });
+    setScrollFrame({ scrollTop: nextScrollTop, viewportHeight: scrollNode.clientHeight });
+  }, [filteredCommits, searchTerms.length, selectedId]);
 
   useEffect(() => {
     if (!searchOpen) return;

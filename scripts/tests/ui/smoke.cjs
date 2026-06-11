@@ -1497,6 +1497,23 @@ async function testLargeCommitListVirtualizes(browser, baseUrl) {
     });
     await page.getByRole("button", { name: /Virtualized commit 160/ }).waitFor();
     assert.ok((await page.locator(".commit-row").count()) < 80, "scrolled large lists should stay virtualized");
+
+    await page.locator(".scroll-region").first().evaluate((node) => {
+      node.scrollTop = 0;
+      node.dispatchEvent(new Event("scroll", { bubbles: true }));
+    });
+    await page.getByRole("button", { name: "Search commits" }).click();
+    await page.getByRole("searchbox", { name: "Search commits" }).fill("159");
+    await page.getByRole("searchbox", { name: "Search commits" }).press("Enter");
+    assert.equal(await page.locator(".commit-row.is-selected .commit-title-text").innerText(), "Virtualized commit 159");
+    await page.getByRole("button", { name: "Clear commit search" }).click();
+    await page.getByRole("status").filter({ hasText: "Showing 160" }).waitFor();
+    await page.getByRole("button", { name: /Virtualized commit 159/ }).waitFor();
+    assert.equal(await page.locator(".commit-row.is-selected .commit-title-text").innerText(), "Virtualized commit 159");
+    assert.ok(
+      (await page.locator(".scroll-region").first().evaluate((node) => node.scrollTop)) > 0,
+      "clearing search should scroll the selected commit into view",
+    );
     assert.deepEqual(errors, []);
   } finally {
     await page.close();

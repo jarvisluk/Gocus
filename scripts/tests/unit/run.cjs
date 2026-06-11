@@ -1871,6 +1871,7 @@ async function testCommitListView(server) {
     commitSearchClearButtonView,
     commitSearchInputKeyAction,
     commitSearchInputView,
+    commitScrollTopForSelection,
     commitSearchStateApplication,
     commitSearchStateAfterAvailability,
     commitSearchStateAfterClose,
@@ -2154,6 +2155,51 @@ async function testCommitListView(server) {
   );
   assert.equal(commitVirtualTotalHeight(200, 10), 12848);
   assert.equal(commitVirtualRowOffset(11, 200, 10), 752);
+  assert.equal(
+    commitScrollTopForSelection({
+      itemCount: 20,
+      selectedIndex: 10,
+      scrollTop: 0,
+      viewportHeight: 256,
+    }),
+    496,
+  );
+  assert.equal(
+    commitScrollTopForSelection({
+      itemCount: 20,
+      selectedIndex: 2,
+      scrollTop: 300,
+      viewportHeight: 256,
+    }),
+    128,
+  );
+  assert.equal(
+    commitScrollTopForSelection({
+      itemCount: 20,
+      selectedIndex: 2,
+      scrollTop: 100,
+      viewportHeight: 256,
+    }),
+    null,
+  );
+  assert.equal(
+    commitScrollTopForSelection({
+      itemCount: 20,
+      selectedIndex: 19,
+      scrollTop: 0,
+      viewportHeight: 256,
+    }),
+    1072,
+  );
+  assert.equal(
+    commitScrollTopForSelection({
+      itemCount: 20,
+      selectedIndex: -1,
+      scrollTop: 0,
+      viewportHeight: 256,
+    }),
+    null,
+  );
   assert.deepEqual(
     commitVirtualWindow({
       itemCount: 200,
