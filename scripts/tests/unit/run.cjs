@@ -224,11 +224,44 @@ function testFileChecksUtility() {
   }
 }
 
+function testWorkspaceModule() {
+  const { __private } = require(path.join(projectRoot, "electron/lib/workspace.cjs"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-workspace-"));
+
+  try {
+    const nodeVersionsDir = path.join(tempDir, ".nvm", "versions", "node");
+    fs.mkdirSync(path.join(nodeVersionsDir, "v20.19.6", "bin"), { recursive: true });
+    fs.mkdirSync(path.join(nodeVersionsDir, "v24.14.1", "bin"), { recursive: true });
+
+    const expectedNvmPaths = [
+      path.join(nodeVersionsDir, "v24.14.1", "bin", "codex"),
+      path.join(nodeVersionsDir, "v20.19.6", "bin", "codex"),
+    ];
+    assert.deepEqual(__private.nvmCodexCliCandidatePaths(tempDir), expectedNvmPaths);
+    assert.deepEqual(__private.codexCliCandidatePaths({ env: {}, homeDir: tempDir }), [
+      "/opt/homebrew/bin/codex",
+      "/usr/local/bin/codex",
+      path.join(tempDir, ".local", "bin", "codex"),
+      ...expectedNvmPaths,
+    ]);
+    assert.deepEqual(__private.codexCliCandidatePaths({ env: { GIT_PEEK_CODEX_CLI: "/tmp/codex" }, homeDir: tempDir }), [
+      "/tmp/codex",
+      "/opt/homebrew/bin/codex",
+      "/usr/local/bin/codex",
+      path.join(tempDir, ".local", "bin", "codex"),
+      ...expectedNvmPaths,
+    ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
 function testSourceHygieneScript() {
   const {
     checkContent,
     checkCssFileSize,
     checkDuplicateCssDeclarationBlocks,
+    checkStylesheetManifest,
     checkUnusedCssCustomProperties,
     collectCheckedFiles,
     cssDeclarationSignature,
@@ -246,6 +279,7 @@ function testSourceHygieneScript() {
     maxLineLength,
     runHygieneCheck,
     sourceLineCount,
+    stylesheetManifestImports,
   } = require(path.join(projectRoot, "scripts/check-source-hygiene.cjs"));
   const longLine = "x".repeat(maxLineLength + 1);
 
@@ -364,6 +398,33 @@ function testSourceHygieneScript() {
     [
       "src/styles/b.css:1: duplicate CSS declaration block (3 declarations) also used by src/styles/a.css:1 .one",
     ],
+  );
+  assert.deepEqual(stylesheetManifestImports('@import "./styles/base.css";\n@import "./styles/theme.css";\n'), [
+    { lineNumber: 1, relativeFilePath: "src/styles/base.css" },
+    { lineNumber: 2, relativeFilePath: "src/styles/theme.css" },
+  ]);
+  assert.deepEqual(
+    checkStylesheetManifest([
+      { relativeFilePath: "src/styles.css", content: '@import "./styles/base.css";\n@import "./styles/theme.css";\n' },
+      { relativeFilePath: "src/styles/base.css", content: ".base {}\n" },
+      { relativeFilePath: "src/styles/theme.css", content: ".theme {}\n" },
+    ]),
+    [],
+  );
+  assert.deepEqual(
+    checkStylesheetManifest([
+      { relativeFilePath: "src/styles.css", content: '@import "./styles/base.css";\n@import "./styles/missing.css";\n' },
+      { relativeFilePath: "src/styles/base.css", content: ".base {}\n" },
+      { relativeFilePath: "src/styles/theme.css", content: ".theme {}\n" },
+    ]),
+    ["src/styles.css:2: import existing stylesheet src/styles/missing.css", "src/styles.css:1: import stylesheet src/styles/theme.css"],
+  );
+  assert.deepEqual(
+    checkStylesheetManifest([
+      { relativeFilePath: "src/styles.css", content: '@import "./styles/base.css";\n@import "./styles/base.css";\n' },
+      { relativeFilePath: "src/styles/base.css", content: ".base {}\n" },
+    ]),
+    ["src/styles.css:2: remove duplicate stylesheet import src/styles/base.css"],
   );
 
   const checkedFileLabels = collectCheckedFiles().map((filePath) => path.relative(projectRoot, filePath));
@@ -5790,6 +5851,7 @@ async function testClassNamesAndGraph(server) {
 
 async function main() {
   testFileChecksUtility();
+  testWorkspaceModule();
   testSourceHygieneScript();
   testSourceHelperUnitCoverage();
   testNodeSyntaxScript();

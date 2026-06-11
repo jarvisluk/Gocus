@@ -45,6 +45,7 @@ const cssCustomPropertyDefinitionPattern = /^\s*(--[a-z0-9-]+)\s*:/;
 const cssCustomPropertyUsagePattern = /var\(\s*(--[a-z0-9-]+)\b/g;
 const cssCommentPattern = /\/\*[\s\S]*?\*\//g;
 const cssRulePattern = /([^{}]+)\{([^{}]+)\}/g;
+const stylesheetImportPattern = /^\s*@import\s+["']\.\/styles\/([^"']+\.css)["'];\s*$/;
 const maxCssFileLines = 300;
 const minDuplicateCssDeclarationCount = 3;
 
@@ -235,6 +236,48 @@ function checkDuplicateCssDeclarationBlocks(fileContents) {
   });
 }
 
+function stylesheetManifestImports(content) {
+  return content.split("\n").flatMap((line, index) => {
+    const match = line.match(stylesheetImportPattern);
+    if (!match) return [];
+    return [{ lineNumber: index + 1, relativeFilePath: `src/styles/${match[1]}` }];
+  });
+}
+
+function checkStylesheetManifest(fileContents) {
+  const manifest = fileContents.find(({ relativeFilePath }) => relativeFilePath === "src/styles.css");
+  if (!manifest) return ["src/styles.css:1: missing stylesheet import manifest"];
+
+  const stylesheetFiles = new Set(
+    fileContents
+      .map(({ relativeFilePath }) => relativeFilePath)
+      .filter((relativeFilePath) => relativeFilePath.startsWith("src/styles/") && relativeFilePath.endsWith(".css")),
+  );
+  const imports = stylesheetManifestImports(manifest.content);
+  const importedFiles = new Set();
+  const failures = [];
+
+  for (const { lineNumber, relativeFilePath } of imports) {
+    if (!stylesheetFiles.has(relativeFilePath)) {
+      failures.push(`src/styles.css:${lineNumber}: import existing stylesheet ${relativeFilePath}`);
+    }
+
+    if (importedFiles.has(relativeFilePath)) {
+      failures.push(`src/styles.css:${lineNumber}: remove duplicate stylesheet import ${relativeFilePath}`);
+    }
+
+    importedFiles.add(relativeFilePath);
+  }
+
+  for (const relativeFilePath of [...stylesheetFiles].sort((left, right) => left.localeCompare(right))) {
+    if (!importedFiles.has(relativeFilePath)) {
+      failures.push(`src/styles.css:1: import stylesheet ${relativeFilePath}`);
+    }
+  }
+
+  return failures;
+}
+
 function collectCheckedFiles() {
   return collectMatchingFiles({
     projectRoot,
@@ -259,6 +302,7 @@ function runHygieneCheck() {
       ...fileContents.flatMap(({ relativeFilePath, content }) => checkCssFileSize(relativeFilePath, content)),
       ...checkUnusedCssCustomProperties(fileContents),
       ...checkDuplicateCssDeclarationBlocks(fileContents),
+      ...checkStylesheetManifest(fileContents),
     ],
   };
 }
@@ -283,12 +327,14 @@ module.exports = {
   checkContent,
   checkCssFileSize,
   checkDuplicateCssDeclarationBlocks,
+  checkStylesheetManifest,
   checkUnusedCssCustomProperties,
   collectCheckedFiles,
   cssDeclarationSignature,
   cssCustomPropertyDefinitions,
   cssCustomPropertyUsages,
   cssRuleDeclarationBlocks,
+  stylesheetManifestImports,
   hasGitTreeBarrelImport,
   hasInlinePoliteStatusViewLiteral,
   hasReactImport,
