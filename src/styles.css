@@ -32,6 +32,7 @@
 @import "./styles/footer.css";
 @import "./styles/zen.css";
 @import "./styles/workspace-open.css";
+@import "./styles/collapsed-rail.css";
 @import "./styles/empty.css";
 @import "./styles/empty-recent.css";
 @import "./styles/empty-actions.css";
