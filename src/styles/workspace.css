@@ -124,7 +124,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-strong);
-  box-shadow: 0 10px 24px rgba(16, 24, 40, 0.2);
+  box-shadow: var(--branch-tooltip-shadow);
   color: var(--text);
   font-size: var(--type-caption-size);
   line-height: 1.2;

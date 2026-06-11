@@ -53,7 +53,7 @@
   padding: 9px 10px 8px 10px;
   border: 1px solid var(--focus);
   background: var(--focus-soft);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  box-shadow: var(--commit-selected-shadow);
 }
 
 .commit-select {
@@ -222,7 +222,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-strong);
-  box-shadow: 0 12px 28px rgba(16, 24, 40, 0.18);
+  box-shadow: var(--commit-message-shadow);
   color: var(--text);
   font-size: var(--type-caption-size);
   font-weight: 560;
@@ -232,10 +232,6 @@
   transform: translateY(-4px);
   transition: opacity 140ms ease, transform 140ms ease;
   white-space: pre-wrap;
-}
-
-:root[data-theme="dark"] .commit-message-popover {
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.36);
 }
 
 .commit-row.is-selected:hover .commit-message-popover {

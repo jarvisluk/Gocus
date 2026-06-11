@@ -75,7 +75,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-strong);
-  box-shadow: 0 8px 18px rgba(16, 24, 40, 0.16);
+  box-shadow: var(--activity-popover-shadow);
   color: var(--text);
   font-size: var(--type-caption-size);
   font-weight: var(--font-weight-strong);

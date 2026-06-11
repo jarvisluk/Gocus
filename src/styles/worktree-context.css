@@ -18,7 +18,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  box-shadow: var(--worktree-context-shadow);
   color: var(--text);
   text-align: left;
   -webkit-backdrop-filter: var(--context-backdrop-filter);
