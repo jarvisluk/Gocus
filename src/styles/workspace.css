@@ -356,7 +356,6 @@
 
 .worktree-context + .scroll-region {
   --worktree-context-placeholder-height: 70px;
-  --worktree-context-placeholder-lift: 24px;
   margin-top: calc(var(--worktree-context-placeholder-height) * -1);
   padding-top: var(--worktree-context-placeholder-height);
 }

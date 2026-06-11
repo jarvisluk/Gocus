@@ -26,22 +26,10 @@
   --focus: #577da6;
   --focus-soft: rgba(87, 125, 166, 0.16);
   --main: #f0a400;
-  --develop: #477fae;
-  --feature: #29989a;
-  --fix: #3c9851;
-  --release: #7a67b4;
-  --stash: #8a6cc5;
-  --topic: #bd5f8e;
-  --remote: #517fae;
   --danger: #c8473f;
   --success: #2f7d42;
   --chip-amber: #fff1c8;
-  --chip-blue: #e5eef7;
-  --chip-teal: #e0f3f2;
   --chip-green: #e4f2e8;
-  --chip-violet: #ebe8f8;
-  --chip-stash: #ede7f8;
-  --chip-topic: #f8e3ee;
   --radius: 8px;
   --panel-width: 342px;
   --font-xxs: 10px;
@@ -53,28 +41,20 @@
   --font-page-title: 16px;
   --font-empty-title: 20px;
   --font-weight-body: 560;
-  --font-weight-control: 700;
   --font-weight-strong: 720;
   --font-weight-title: 760;
   --type-micro-size: var(--font-xxs);
-  --type-micro-line: 1.2;
   --type-caption-size: var(--font-xs);
   --type-caption-weight: var(--font-weight-body);
   --type-caption-line: 1.25;
   --type-body-size: var(--font-sm);
-  --type-body-weight: var(--font-weight-body);
   --type-body-line: 1.35;
   --type-body-strong-size: var(--font-md);
   --type-body-strong-weight: var(--font-weight-strong);
   --type-heading-2-size: var(--font-lg);
-  --type-heading-2-weight: var(--font-weight-title);
   --type-heading-1-size: var(--font-title);
-  --type-heading-1-weight: var(--font-weight-title);
-  --type-heading-line: 1.2;
   --type-page-title-size: var(--font-page-title);
-  --type-page-title-weight: var(--font-weight-title);
   --type-display-size: var(--font-empty-title);
-  --type-display-weight: var(--font-weight-title);
   --type-display-line: 1.15;
   --radius-sm: 6px;
   --radius-md: 7px;
@@ -95,7 +75,6 @@
   --icon-xl: 17px;
   --app-icon-menu: 18px;
   --app-icon-control: 22px;
-  --control-xs: 24px;
   --control-sm: 26px;
   --control-md: 30px;
   --control-lg: 32px;
@@ -153,22 +132,10 @@
   --focus: #4f7fa8;
   --focus-soft: rgba(79, 127, 168, 0.16);
   --main: #d79400;
-  --develop: #377cad;
-  --feature: #238f91;
-  --fix: #3b8f4e;
-  --release: #7760b5;
-  --stash: #8768c0;
-  --topic: #b95a89;
-  --remote: #4d7cad;
   --danger: #bf493f;
   --success: #2d7840;
   --chip-amber: #f9ebc5;
-  --chip-blue: #ddebf5;
-  --chip-teal: #dcefed;
   --chip-green: #deefe3;
-  --chip-violet: #e8e3f5;
-  --chip-stash: #ebe3f6;
-  --chip-topic: #f5deea;
 }
 
 :root[data-theme="light"][data-theme-preset="pearl"] {
@@ -187,22 +154,10 @@
   --focus: #7a7063;
   --focus-soft: rgba(122, 112, 99, 0.16);
   --main: #d28d00;
-  --develop: #53799b;
-  --feature: #3a8a83;
-  --fix: #52864c;
-  --release: #8068a7;
-  --stash: #8b70b3;
-  --topic: #b66382;
-  --remote: #637a96;
   --danger: #b44f45;
   --success: #4d7943;
   --chip-amber: #f7e8bd;
-  --chip-blue: #e4ebef;
-  --chip-teal: #e1efeb;
   --chip-green: #e5efdc;
-  --chip-violet: #ebe4f1;
-  --chip-stash: #ede4f2;
-  --chip-topic: #f2e0e6;
 }
 
 :root[data-theme="dark"],
@@ -235,22 +190,10 @@
   --focus: #a0a0a0;
   --focus-soft: rgba(160, 160, 160, 0.16);
   --main: #f0b43a;
-  --develop: #7aa4c7;
-  --feature: #63b0ad;
-  --fix: #7abd83;
-  --release: #a592d0;
-  --stash: #ad94d8;
-  --topic: #dc8bac;
-  --remote: #89a7c5;
   --danger: #e26f66;
   --success: #7bc087;
   --chip-amber: rgba(240, 180, 58, 0.16);
-  --chip-blue: rgba(122, 164, 199, 0.14);
-  --chip-teal: rgba(99, 176, 173, 0.14);
   --chip-green: rgba(122, 189, 131, 0.14);
-  --chip-violet: rgba(165, 146, 208, 0.15);
-  --chip-stash: rgba(173, 148, 216, 0.15);
-  --chip-topic: rgba(220, 139, 172, 0.14);
 }
 
 :root[data-theme="dark"][data-theme-preset="cursor"] {
@@ -269,22 +212,10 @@
   --focus: #2f8cff;
   --focus-soft: rgba(47, 140, 255, 0.2);
   --main: #f0b400;
-  --develop: #2f8cff;
-  --feature: #6db6b5;
-  --fix: #76b87d;
-  --release: #9a89c8;
-  --stash: #a18ad6;
-  --topic: #d486a2;
-  --remote: #84a9cf;
   --danger: #d96f65;
   --success: #78ba80;
   --chip-amber: rgba(240, 180, 0, 0.16);
-  --chip-blue: rgba(47, 140, 255, 0.16);
-  --chip-teal: rgba(109, 182, 181, 0.14);
   --chip-green: rgba(118, 184, 125, 0.14);
-  --chip-violet: rgba(154, 137, 200, 0.15);
-  --chip-stash: rgba(161, 138, 214, 0.15);
-  --chip-topic: rgba(212, 134, 162, 0.14);
 }
 
 :root[data-theme="dark"][data-theme-preset="matte"] {
@@ -303,20 +234,8 @@
   --focus: #8f8f8f;
   --focus-soft: rgba(143, 143, 143, 0.18);
   --main: #e8b336;
-  --develop: #8c9cac;
-  --feature: #76aaa6;
-  --fix: #82b37d;
-  --release: #a296bd;
-  --stash: #a795c7;
-  --topic: #cf8ba0;
-  --remote: #9ba6b1;
   --danger: #d9746d;
   --success: #85b980;
   --chip-amber: rgba(232, 179, 54, 0.15);
-  --chip-blue: rgba(140, 156, 172, 0.13);
-  --chip-teal: rgba(118, 170, 166, 0.13);
   --chip-green: rgba(130, 179, 125, 0.13);
-  --chip-violet: rgba(162, 150, 189, 0.14);
-  --chip-stash: rgba(167, 149, 199, 0.14);
-  --chip-topic: rgba(207, 139, 160, 0.13);
 }
