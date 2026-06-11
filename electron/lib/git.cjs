@@ -402,17 +402,32 @@ function normalizeMergeOptions(options) {
   };
 }
 
-function mergeArgs(ref, options) {
+function cleanMergeMessagePart(value, fallback) {
+  const clean = `${value ?? ""}`.replace(/\s+/g, " ").trim();
+  if (!clean) return fallback;
+  if (/^[0-9a-f]{12,}$/i.test(clean)) return clean.slice(0, 7);
+  return clean;
+}
+
+function mergeMessage(ref, targetBranch) {
+  const source = cleanMergeMessagePart(ref, "ref");
+  const target = cleanMergeMessagePart(targetBranch, "current branch");
+  return `chore: merge ${source} into ${target}`;
+}
+
+function mergeArgs(ref, targetBranch, options) {
   const normalizedOptions = normalizeMergeOptions(options);
-  if (!normalizedOptions.createMergeCommit) return ["merge", "--no-edit", ref];
-  return ["merge", "--no-ff", "--no-edit", ref];
+  const args = ["merge", "-m", mergeMessage(ref, targetBranch)];
+  if (normalizedOptions.createMergeCommit) args.push("--no-ff");
+  args.push(ref);
+  return args;
 }
 
 async function merge(repoPath, ref, targetBranch, view, options) {
   const root = await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
   await assertLocalBranch(root, targetBranch);
   await runGit(root, ["checkout", targetBranch]);
-  await runGit(root, mergeArgs(ref, options));
+  await runGit(root, mergeArgs(ref, targetBranch, options));
   return readGitSnapshot(root, view);
 }
 
@@ -462,6 +477,7 @@ module.exports = {
   logArgsForView,
   merge,
   mergeArgs,
+  mergeMessage,
   normalizeCommitLogLimit,
   normalizeView,
   openWorktree,

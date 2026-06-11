@@ -219,6 +219,13 @@ export function actionDialogAfterMergeError(dialog: ActionDialogState | null, er
   return dialog?.type === "merge" ? { ...dialog, error } : dialog;
 }
 
+function mergePromptSubjectPart(value: string, fallback: string) {
+  const clean = value.replace(/\s+/g, " ").trim();
+  if (!clean) return fallback;
+  if (/^[0-9a-f]{12,}$/i.test(clean)) return clean.slice(0, 7);
+  return clean;
+}
+
 export function mergeFailureAgentPrompt({
   createMergeCommit,
   error,
@@ -233,6 +240,12 @@ export function mergeFailureAgentPrompt({
   const sourceRef = ref?.trim() || "unknown";
   const target = targetBranch.trim() || "unknown";
   const errorText = error.trim() || "No error output was captured.";
+  const fallbackMergeSubject = [
+    "chore: merge",
+    mergePromptSubjectPart(sourceRef, "ref"),
+    "into",
+    mergePromptSubjectPart(target, "current branch"),
+  ].join(" ");
   const mergeInstructions = [
     [
       "Please inspect the current repository state with git status, resolve the merge conflict or blocker,",
@@ -244,6 +257,12 @@ export function mergeFailureAgentPrompt({
       "is already represented by the source ref/commit or the current merge result.",
       "Do not stash changes that are already done;",
       "stash or move only unrelated local changes that would otherwise block checkout or merge.",
+    ].join(" "),
+    [
+      "Before creating or finalizing the merge commit, check for documented commit-message rules;",
+      "if none are present, use Conventional Commits.",
+      `For this attempted merge, a valid fallback subject is \`${fallbackMergeSubject}\`;`,
+      "do not use Git's default `Merge branch ...` or `Merge commit ...` subject.",
     ].join(" "),
   ];
 

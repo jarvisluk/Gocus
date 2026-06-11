@@ -576,6 +576,7 @@ async function testGitModule() {
     defaultCommitLogLimit,
     logArgsForView,
     mergeArgs,
+    mergeMessage,
     normalizeCommitLogLimit,
     repositoryStateForGit,
   } = require(path.join(projectRoot, "electron/lib/git.cjs"));
@@ -587,18 +588,52 @@ async function testGitModule() {
   assert.equal(normalizeCommitLogLimit("0"), defaultCommitLogLimit);
   assert.ok(logArgsForView({ mode: "all" }).args.includes(`--max-count=${defaultCommitLogLimit}`));
   assert.deepEqual(logArgsForView({ mode: "branch", ref: "main" }).args.slice(-1), ["main"]);
-  assert.deepEqual(mergeArgs("feature/footer-toggle"), ["merge", "--no-ff", "--no-edit", "feature/footer-toggle"]);
-  assert.deepEqual(mergeArgs("feature/footer-toggle", { createMergeCommit: true }), [
+  assert.equal(mergeMessage("feature/footer-toggle", "main"), "chore: merge feature/footer-toggle into main");
+  assert.equal(mergeMessage("71a6953196b80d5abc4263b476ee2c603f5e4468", "main"), "chore: merge 71a6953 into main");
+  assert.deepEqual(mergeArgs("feature/footer-toggle", "main"), [
     "merge",
+    "-m",
+    "chore: merge feature/footer-toggle into main",
     "--no-ff",
-    "--no-edit",
     "feature/footer-toggle",
   ]);
-  assert.deepEqual(mergeArgs("feature/footer-toggle", { createMergeCommit: false }), [
+  assert.deepEqual(mergeArgs("feature/footer-toggle", "main", { createMergeCommit: true }), [
     "merge",
-    "--no-edit",
+    "-m",
+    "chore: merge feature/footer-toggle into main",
+    "--no-ff",
     "feature/footer-toggle",
   ]);
+  assert.deepEqual(mergeArgs("feature/footer-toggle", "main", { createMergeCommit: false }), [
+    "merge",
+    "-m",
+    "chore: merge feature/footer-toggle into main",
+    "feature/footer-toggle",
+  ]);
+
+  const mergeMessageDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-merge-message-"));
+  try {
+    runGitFixture(mergeMessageDir, ["init"]);
+    runGitFixture(mergeMessageDir, ["checkout", "-b", "main"]);
+    runGitFixture(mergeMessageDir, ["config", "user.name", "Git Peek Test"]);
+    runGitFixture(mergeMessageDir, ["config", "user.email", "git-peek@example.com"]);
+    fs.writeFileSync(path.join(mergeMessageDir, "base.txt"), "base\n", "utf8");
+    runGitFixture(mergeMessageDir, ["add", "base.txt"]);
+    runGitFixture(mergeMessageDir, ["commit", "-m", "base"]);
+    runGitFixture(mergeMessageDir, ["checkout", "-b", "feature/footer-toggle"]);
+    fs.writeFileSync(path.join(mergeMessageDir, "feature.txt"), "feature\n", "utf8");
+    runGitFixture(mergeMessageDir, ["add", "feature.txt"]);
+    runGitFixture(mergeMessageDir, ["commit", "-m", "feature"]);
+    runGitFixture(mergeMessageDir, ["checkout", "main"]);
+    fs.writeFileSync(path.join(mergeMessageDir, "main.txt"), "main\n", "utf8");
+    runGitFixture(mergeMessageDir, ["add", "main.txt"]);
+    runGitFixture(mergeMessageDir, ["commit", "-m", "main"]);
+    runGitFixture(mergeMessageDir, mergeArgs("feature/footer-toggle", "main"));
+
+    assert.equal(runGitFixture(mergeMessageDir, ["log", "-1", "--pretty=%s"]), "chore: merge feature/footer-toggle into main");
+  } finally {
+    fs.rmSync(mergeMessageDir, { force: true, recursive: true });
+  }
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-merge-state-"));
   try {
@@ -1822,6 +1857,10 @@ async function testActionDialogView(server) {
   assert.match(failedMergeView.mergeFailurePrompt, /if git status shows uncommitted changes/);
   assert.match(failedMergeView.mergeFailurePrompt, /already represented by the source ref\/commit or the current merge result/);
   assert.match(failedMergeView.mergeFailurePrompt, /Do not stash changes that are already done/);
+  assert.match(failedMergeView.mergeFailurePrompt, /check for documented commit-message rules/);
+  assert.match(failedMergeView.mergeFailurePrompt, /if none are present, use Conventional Commits/);
+  assert.match(failedMergeView.mergeFailurePrompt, /valid fallback subject is `chore: merge abc1234 into main`/);
+  assert.match(failedMergeView.mergeFailurePrompt, /do not use Git's default `Merge branch \.\.\.` or `Merge commit \.\.\.` subject/);
   assert.doesNotMatch(failedMergeView.mergeFailurePrompt, /No-fast-forward merges are enabled/);
   const failedNoFastForwardMergeView = actionDialogView(
     {

@@ -1241,6 +1241,9 @@ async function testMergeFailureStaysInDialog(browser, baseUrl) {
     assert.match(copiedPrompt, /keep unrelated worktree changes intact/);
     assert.match(copiedPrompt, /if git status shows uncommitted changes/);
     assert.match(copiedPrompt, /Do not stash changes that are already done/);
+    assert.match(copiedPrompt, /if none are present, use Conventional Commits/);
+    assert.match(copiedPrompt, /valid fallback subject is `chore: merge d4e5f6a into main`/);
+    assert.match(copiedPrompt, /do not use Git's default `Merge branch \.\.\.` or `Merge commit \.\.\.` subject/);
     assert.doesNotMatch(copiedPrompt, /No-fast-forward merges are enabled/);
 
     const mergeTargetButton = page.getByRole("button", { name: "Merge target branch" });
@@ -1276,6 +1279,8 @@ async function testMergeFailurePromptHonorsNoFastForwardSetting(browser, baseUrl
     const copiedPrompt = await page.evaluate(() => window.__gitPeekCopiedText);
     assert.match(copiedPrompt, /No-fast-forward merges are enabled in Settings/);
     assert.match(copiedPrompt, /do not complete this as a fast-forward merge/);
+    assert.match(copiedPrompt, /if none are present, use Conventional Commits/);
+    assert.match(copiedPrompt, /valid fallback subject is `chore: merge d4e5f6a into main`/);
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
