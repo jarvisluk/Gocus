@@ -1,0 +1,106 @@
+.ui-icon-button {
+  width: var(--control-md);
+  height: var(--control-md);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.ui-icon-button:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.ui-icon-button svg {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+}
+
+.ui-segmented {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.ui-segmented.compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ui-segmented button {
+  min-width: 0;
+  min-height: var(--control-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 var(--space-md);
+  border: 0;
+  border-right: 1px solid var(--border-soft);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--type-caption-size);
+  font-weight: var(--font-weight-strong);
+}
+
+.ui-segmented button:last-child {
+  border-right: 0;
+}
+
+.ui-segmented button.is-active,
+.ui-segmented button:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.ui-segmented svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.ui-button {
+  min-width: 0;
+  min-height: var(--control-lg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 var(--space-lg);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--type-body-size);
+  font-weight: var(--font-weight-strong);
+}
+
+.ui-button:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.ui-button.primary {
+  background: var(--text);
+  color: var(--panel-solid);
+}
+
+.ui-button.primary:hover:not(:disabled),
+.primary-action:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.ui-button svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
