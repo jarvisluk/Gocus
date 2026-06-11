@@ -46,6 +46,21 @@ export function CommitInfoPanel({ commit }: { commit: CommitItem }) {
             </div>
           </div>
         ) : null}
+        {view.showContainedBranches ? (
+          <div className={view.containedSectionClassName}>
+            <div className={view.containedClassName}>
+              <GitBranch aria-hidden="true" />
+              <span className={view.containedLabelClassName}>{view.containedBranchesLabel}</span>
+              <span className={view.containedBranchesClassName}>
+                {view.containedBranches.map((branch) => (
+                  <span key={branch} className={view.containedBranchClassName} title={branch}>
+                    {branch}
+                  </span>
+                ))}
+              </span>
+            </div>
+          </div>
+        ) : null}
         <div className={view.hashSectionClassName}>
           <div className={view.hashClassName}>
             <Hash aria-hidden="true" />

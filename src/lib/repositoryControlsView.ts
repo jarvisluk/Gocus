@@ -20,6 +20,7 @@ export interface RepositoryBranchSwitchActionView {
   show: boolean;
   disabled: boolean;
   branchName: string;
+  tooltipClassName: string;
   className: string;
   icon: RepositoryControlIcon;
   ariaLabel: string;
@@ -154,15 +155,19 @@ export function repositoryBranchSwitchActionView(
   const current = branch.current || branch.name === currentBranchName;
   const show = branch.type === "local" && Boolean(branch.name) && !current;
   const disabled = Boolean(externalWorktree);
-  const title = disabled ? "This branch is checked out in another worktree." : `Switch to ${branch.name}`;
+  const disabledReason = externalWorktree
+    ? `This branch is already checked out in another worktree: ${externalWorktree.path}. Open that worktree to work on it.`
+    : "";
+  const title = disabled ? disabledReason : `Switch to ${branch.name}`;
 
   return {
     show,
     disabled,
     branchName: branch.name,
+    tooltipClassName: "branch-switch-tooltip",
     className: "branch-switch-button",
     icon: "switch",
-    ariaLabel: `Switch to ${branch.name}`,
+    ariaLabel: disabled ? `Cannot switch to ${branch.name}: ${disabledReason}` : `Switch to ${branch.name}`,
     title,
   };
 }

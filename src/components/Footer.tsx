@@ -21,6 +21,8 @@ export function Footer({
   onEnterZen,
   onOpenSettings,
   onOpenWorkspace,
+  activeWorkspaceTarget,
+  onActiveWorkspaceTargetChange,
   hasRepository,
   changedNowOpen,
   changedNowCount,
@@ -34,6 +36,8 @@ export function Footer({
   onEnterZen: () => void;
   onOpenSettings: () => void;
   onOpenWorkspace: (target: WorkspaceOpenTarget) => void;
+  activeWorkspaceTarget: WorkspaceOpenTarget;
+  onActiveWorkspaceTargetChange: (target: WorkspaceOpenTarget) => void;
   hasRepository: boolean;
   changedNowOpen: boolean;
   changedNowCount: number;
@@ -42,7 +46,6 @@ export function Footer({
   showZenEntry: boolean;
   notice: string;
 }) {
-  const [activeTarget, setActiveTarget] = useState<WorkspaceOpenTarget>("cursor");
   const [menuOpen, setMenuOpen] = useState(false);
   const workspaceControlRef = useRef<HTMLDivElement>(null);
   const actionsView = footerActionsView({ changedNowOpen, hasRepository, showZenEntry });
@@ -51,7 +54,7 @@ export function Footer({
     options: workspaceOpenOptions,
     availableTargets: availableWorkspaceTargets,
     enabledTargets: preferences.workspaceOpenTargets,
-    activeTarget,
+    activeTarget: activeWorkspaceTarget,
     hasRepository,
   });
   const workspaceMenuToggle = footerWorkspaceMenuToggleView(menuOpen);
@@ -66,7 +69,7 @@ export function Footer({
 
   function openWorkspace(target: WorkspaceOpenTarget) {
     const selection = footerWorkspaceSelection(target);
-    setActiveTarget(selection.activeTarget);
+    onActiveWorkspaceTargetChange(selection.activeTarget);
     setMenuOpen(selection.menuOpen);
     onOpenWorkspace(selection.openTarget);
   }

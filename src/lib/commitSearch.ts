@@ -18,6 +18,7 @@ export function commitMatchesSearch(commit: CommitItem, terms: string[]) {
     commit.author,
     commit.relativeTime,
     ...commit.refs,
+    ...(commit.containedBranches ?? []),
     ...commit.parents,
     worktreeText,
   ]

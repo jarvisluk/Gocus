@@ -22,6 +22,7 @@ function registerIpcHandlers({
   normalizeView,
   openRepositoryPath,
   openWorkspace,
+  openWorkspaceFile,
   openWorktree,
   readPreferences,
   readRecentRepositories,
@@ -29,6 +30,7 @@ function registerIpcHandlers({
   saveRepositoryPath,
   sendPreferences,
   sendSnapshotResponse,
+  setCollapsedRailHeight,
   setCollapsedWindow,
   setCommitInfoPanel,
   setCurrentView,
@@ -153,6 +155,10 @@ function registerIpcHandlers({
     return openWorkspace(repositoryPathForAction(), target);
   });
 
+  ipcMain.handle("workspace:openFile", async (_event, target, filePath) => {
+    return openWorkspaceFile(repositoryPathForAction(), target, filePath);
+  });
+
   ipcMain.handle("workspace:getAvailableTargets", () => {
     return getAvailableWorkspaceTargets();
   });
@@ -181,6 +187,10 @@ function registerIpcHandlers({
 
   ipcMain.handle("window:setCollapsed", (_event, collapsed) => {
     setCollapsedWindow(Boolean(collapsed));
+  });
+
+  ipcMain.handle("window:setCollapsedRailHeight", (_event, height) => {
+    setCollapsedRailHeight(height);
   });
 
   ipcMain.handle("window:setPinned", (_event, pinned) => {

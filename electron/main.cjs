@@ -11,6 +11,7 @@ const {
   commitInfoWindowSize,
   expandedMinimumSize,
   expandedSizeFromConfig,
+  clampCollapsedRailHeight,
   clampExpandedSize,
   mainWindowBounds,
   temporaryInfoBounds,
@@ -29,7 +30,7 @@ const {
   readGitSnapshot,
 } = require("./lib/git.cjs");
 const { createRepositoryWatcher } = require("./lib/gitWatcher.cjs");
-const { getAvailableWorkspaceTargets, openWorkspace } = require("./lib/workspace.cjs");
+const { getAvailableWorkspaceTargets, openWorkspace, openWorkspaceFile } = require("./lib/workspace.cjs");
 
 installOutputErrorGuard();
 
@@ -39,6 +40,7 @@ let mainWindow;
 let tray;
 let currentRepository = null;
 let collapsedState = false;
+let collapsedWindowSize = { ...collapsedSize };
 let pinnedState = false;
 let currentView = { mode: "all" };
 let applyingWindowBounds = false;
@@ -406,9 +408,10 @@ function scheduleExpandedWindowSizeSave(win) {
 function positionWindow(win, collapsed = false) {
   if (!win) return;
   const display = screen.getPrimaryDisplay().workArea;
+  const nextCollapsedSize = collapsed ? collapsedWindowSize : collapsedSize;
   win.setMinimumSize(
-    collapsed ? collapsedSize.width : expandedMinimumSize.width,
-    collapsed ? collapsedSize.height : expandedMinimumSize.height,
+    collapsed ? nextCollapsedSize.width : expandedMinimumSize.width,
+    collapsed ? nextCollapsedSize.height : expandedMinimumSize.height,
   );
   setWindowBounds(
     win,
@@ -416,10 +419,20 @@ function positionWindow(win, collapsed = false) {
       currentBounds: win.getBounds(),
       display,
       collapsed,
+      collapsedWindowSize: nextCollapsedSize,
       expandedSize: readExpandedSize(display),
     }),
     true,
   );
+}
+
+function setCollapsedRailHeight(height) {
+  const display = screen.getPrimaryDisplay().workArea;
+  const nextHeight = clampCollapsedRailHeight(height, display);
+  if (collapsedWindowSize.height === nextHeight) return;
+
+  collapsedWindowSize = { ...collapsedSize, height: nextHeight };
+  if (collapsedState && mainWindow && !mainWindow.isDestroyed()) positionWindow(mainWindow, true);
 }
 
 function setCollapsedWindow(collapsed) {
@@ -1036,6 +1049,7 @@ registerIpcHandlers({
   normalizeView,
   openRepositoryPath,
   openWorkspace,
+  openWorkspaceFile,
   openWorktree,
   readPreferences,
   readRecentRepositories,
@@ -1043,6 +1057,7 @@ registerIpcHandlers({
   saveRepositoryPath,
   sendPreferences,
   sendSnapshotResponse,
+  setCollapsedRailHeight,
   setCollapsedWindow,
   setCommitInfoPanel,
   setCurrentView: (view) => {

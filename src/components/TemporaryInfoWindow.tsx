@@ -9,7 +9,8 @@ import {
 } from "../lib/preferences";
 import { runTemporaryInfoPanelBridgeSideEffect } from "../lib/temporaryInfoPanelBridge";
 import { changedFilesSelectedFileKey, temporaryInfoWindowView } from "../lib/temporaryInfoSelection";
-import type { TemporaryInfoPayload, Theme, UiPreferences } from "../types";
+import { workspaceOpenOptions } from "../lib/workspaceOpenOptions";
+import type { TemporaryInfoPayload, Theme, UiPreferences, WorkspaceOpenTarget } from "../types";
 import { ChangedFileInfoPanel, ChangedNow } from "./ChangedNow";
 
 export function TemporaryInfoWindow() {
@@ -56,6 +57,23 @@ export function TemporaryInfoWindow() {
     runTemporaryInfoPanelBridgeSideEffect("close", (nextPayload) => window.gitPeek?.setTemporaryInfoPanel(nextPayload));
   }
 
+  async function openChangedFile(filePath: string, target: WorkspaceOpenTarget | "") {
+    if (!target) return;
+
+    try {
+      const response = await window.gitPeek?.openWorkspaceFile(target, filePath);
+      if (response && !response.ok) {
+        logBridgeWarning("Unable to open file in selected app.", response.error ?? response);
+      }
+    } catch (error) {
+      logBridgeWarning("Unable to open file in selected app.", error);
+    }
+  }
+
+  const workspaceOpenTarget = view.changedFilesPayload?.workspaceOpenTarget ?? "";
+  const workspaceOpenOption =
+    workspaceOpenTarget === "" ? null : workspaceOpenOptions.find((option) => option.target === workspaceOpenTarget) ?? null;
+
   return (
     <main className={view.viewport.className}>
       {view.changedFilesPayload ? (
@@ -68,7 +86,14 @@ export function TemporaryInfoWindow() {
             onClose={closeTemporaryInfoPanel}
             onSelectFile={setSelectedFileKey}
           />
-          {view.selectedFile ? <ChangedFileInfoPanel file={view.selectedFile} onClose={() => setSelectedFileKey("")} /> : null}
+          {view.selectedFile ? (
+            <ChangedFileInfoPanel
+              file={view.selectedFile}
+              workspaceOpenOption={workspaceOpenOption}
+              onClose={() => setSelectedFileKey("")}
+              onOpenFile={(filePath) => openChangedFile(filePath, workspaceOpenTarget)}
+            />
+          ) : null}
         </section>
       ) : (
         <section
