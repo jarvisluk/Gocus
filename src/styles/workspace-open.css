@@ -11,8 +11,7 @@
   -webkit-app-region: no-drag;
 }
 
-.workspace-open-trigger,
-.workspace-open-menu-toggle {
+:is(.workspace-open-trigger, .workspace-open-menu-toggle) {
   min-width: 0;
   height: calc(var(--workspace-open-height) - 2px);
   display: grid;
@@ -31,9 +30,7 @@
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
 }
 
-.workspace-open-trigger:focus-visible,
-.workspace-open-menu-toggle:focus-visible,
-.workspace-open-menu-item:focus-visible {
+:is(.workspace-open-trigger, .workspace-open-menu-toggle, .workspace-open-menu-item):focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
