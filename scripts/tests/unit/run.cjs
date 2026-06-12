@@ -4107,7 +4107,7 @@ function changedFile(overrides = {}) {
 
 async function testCommitPrompt(server) {
   const { changedFileKey } = await loadTsModule(server, "src/lib/changedFileIdentity.ts");
-  const { changedFilePromptLine, changedFilesCommitPrompt } = await loadTsModule(server, "src/lib/commitPrompt.ts");
+  const { changedFilesCommitPrompt } = await loadTsModule(server, "src/lib/commitPrompt.ts");
   const modified = changedFile();
   const renamed = changedFile({
     path: "src/components/ChangedFiles.tsx",
@@ -4119,39 +4119,23 @@ async function testCommitPrompt(server) {
     additions: 1,
     deletions: 1,
   });
-  const zeroDelta = changedFile({
-    path: "README.md",
-    statusLabel: "Touched",
-    additions: 0,
-    deletions: 0,
-  });
-  const conflicted = changedFile({
-    path: "src/conflict.ts",
-    status: "UU",
-    indexStatus: "U",
-    workingTreeStatus: "U",
-    statusLabel: "Conflicted",
-    additions: 0,
-    deletions: 0,
-  });
 
   assert.equal(changedFileKey(modified), " M-src/components/ChangedNow.tsx-");
   assert.equal(changedFileKey(renamed), "R -src/components/ChangedFiles.tsx-src/components/ChangedNow.tsx");
-  assert.equal(changedFilePromptLine(modified), "- [M] src/components/ChangedNow.tsx: Modified (+12 -2)");
-  assert.equal(changedFilePromptLine(renamed), "- [R] src/components/ChangedFiles.tsx from src/components/ChangedNow.tsx: Renamed (+1 -1)");
-  assert.equal(changedFilePromptLine(zeroDelta), "- [M] README.md: Touched");
 
-  const englishPrompt = changedFilesCommitPrompt([modified, renamed], "modified", "en");
+  const englishPrompt = changedFilesCommitPrompt("en");
   assert.ok(englishPrompt.includes("Run or review the necessary git status / git diff"));
+  assert.ok(englishPrompt.includes("use the current working tree as the source of truth"));
   assert.ok(englishPrompt.includes("Do not run git commit before Yes"));
-  assert.ok(englishPrompt.includes("Current Changed Now list (filter: modified, files: 2):"));
-  assert.ok(englishPrompt.includes("- [R] src/components/ChangedFiles.tsx from src/components/ChangedNow.tsx: Renamed (+1 -1)"));
+  assert.doesNotMatch(englishPrompt, /Current Changed Now list/);
+  assert.doesNotMatch(englishPrompt, /src\/components\/ChangedFiles\.tsx/);
 
-  const chinesePrompt = changedFilesCommitPrompt([], "staged", "zh");
+  const chinesePrompt = changedFilesCommitPrompt("zh");
   assert.ok(chinesePrompt.includes("先运行或阅读必要的 git status / git diff"));
+  assert.ok(chinesePrompt.includes("以当前 working tree 为准"));
   assert.ok(chinesePrompt.includes("在 Yes 前不要执行 git commit"));
-  assert.ok(chinesePrompt.includes("Changed Now 当前列表（filter: staged, files: 0）："));
-  assert.ok(chinesePrompt.includes("- No files in the current Changed Now filter."));
+  assert.doesNotMatch(chinesePrompt, /Changed Now 当前列表/);
+  assert.doesNotMatch(chinesePrompt, /No files in the current Changed Now filter/);
 }
 
 async function testCopyText(server) {

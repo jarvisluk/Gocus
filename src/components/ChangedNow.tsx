@@ -135,7 +135,7 @@ export function ChangedNow({
   }
 
   async function copyCommitPrompt() {
-    const prompt = changedFilesCommitPrompt(changedFiles.filteredFiles, filter, promptLanguage);
+    const prompt = changedFilesCommitPrompt(promptLanguage);
 
     try {
       await copyTextWithFallback(prompt, { bridge: window.gitPeek, clipboard: navigator.clipboard });
