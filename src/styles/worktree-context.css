@@ -3,7 +3,6 @@
   flex: 0 0 auto;
   z-index: 16;
   margin: 12px 10px 0;
-  background: transparent;
 }
 
 .worktree-context-trigger,
@@ -49,5 +48,4 @@
 .worktree-context-trigger > svg:last-child {
   width: var(--icon-xs);
   height: var(--icon-xs);
-  color: var(--text-faint);
 }

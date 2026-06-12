@@ -40,7 +40,6 @@
 .peek-panel.is-zen-panel .commit-row.is-selected .commit-title-text {
   display: block;
   overflow: visible;
-  text-overflow: clip;
   white-space: pre-wrap;
   -webkit-line-clamp: unset;
 }
