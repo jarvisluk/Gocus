@@ -46,6 +46,7 @@ const starterGitIgnore = [
 
 const defaultCommitLogLimit = 300;
 const maxCommitLogLimit = 2000;
+const dirtyWorkspaceMergeNotice = "Workspace has uncommitted changes. Commit them before merging.";
 
 function normalizeCommitLogLimit(value = process.env.GIT_PEEK_COMMIT_LOG_LIMIT) {
   const parsed = Number.parseInt(`${value ?? ""}`, 10);
@@ -423,9 +424,19 @@ function mergeArgs(ref, targetBranch, options) {
   return args;
 }
 
+function statusHasUncommittedChanges(status) {
+  return Boolean(status.files.length || status.counts.modified || status.counts.staged || status.counts.untracked);
+}
+
+async function assertCleanWorkspaceForMerge(root) {
+  const shortStatus = await runGit(root, ["status", "--porcelain=v1", "-b"]);
+  if (statusHasUncommittedChanges(parseStatus(shortStatus))) throw new Error(dirtyWorkspaceMergeNotice);
+}
+
 async function merge(repoPath, ref, targetBranch, view, options) {
   const root = await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
   await assertLocalBranch(root, targetBranch);
+  await assertCleanWorkspaceForMerge(root);
   await runGit(root, ["checkout", targetBranch]);
   await runGit(root, mergeArgs(ref, targetBranch, options));
   return readGitSnapshot(root, view);
@@ -471,6 +482,7 @@ module.exports = {
   checkout,
   createBranch,
   defaultCommitLogLimit,
+  dirtyWorkspaceMergeNotice,
   graphContextForWorktrees,
   initializeRepository,
   isNotGitRepositoryError,

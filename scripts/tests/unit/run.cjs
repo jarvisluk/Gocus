@@ -886,7 +886,9 @@ function testGitStatusModule() {
 async function testGitModule() {
   const {
     defaultCommitLogLimit,
+    dirtyWorkspaceMergeNotice,
     logArgsForView,
+    merge,
     mergeArgs,
     mergeMessage,
     normalizeCommitLogLimit,
@@ -945,6 +947,32 @@ async function testGitModule() {
     assert.equal(runGitFixture(mergeMessageDir, ["log", "-1", "--pretty=%s"]), "chore: merge feature/footer-toggle into main");
   } finally {
     fs.rmSync(mergeMessageDir, { force: true, recursive: true });
+  }
+
+  const dirtyMergeDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-dirty-merge-"));
+  try {
+    runGitFixture(dirtyMergeDir, ["init"]);
+    runGitFixture(dirtyMergeDir, ["checkout", "-b", "main"]);
+    runGitFixture(dirtyMergeDir, ["config", "user.name", "Git Peek Test"]);
+    runGitFixture(dirtyMergeDir, ["config", "user.email", "git-peek@example.com"]);
+    fs.writeFileSync(path.join(dirtyMergeDir, "base.txt"), "base\n", "utf8");
+    runGitFixture(dirtyMergeDir, ["add", "base.txt"]);
+    runGitFixture(dirtyMergeDir, ["commit", "-m", "base"]);
+    runGitFixture(dirtyMergeDir, ["checkout", "-b", "feature/footer-toggle"]);
+    fs.writeFileSync(path.join(dirtyMergeDir, "feature.txt"), "feature\n", "utf8");
+    runGitFixture(dirtyMergeDir, ["add", "feature.txt"]);
+    runGitFixture(dirtyMergeDir, ["commit", "-m", "feature"]);
+    fs.writeFileSync(path.join(dirtyMergeDir, "local-notes.txt"), "local\n", "utf8");
+
+    await assert.rejects(
+      () => merge(dirtyMergeDir, "feature/footer-toggle", "main", { mode: "current" }),
+      { message: dirtyWorkspaceMergeNotice },
+    );
+    assert.equal(runGitFixture(dirtyMergeDir, ["branch", "--show-current"]), "feature/footer-toggle");
+    assert.notEqual(runGitFixture(dirtyMergeDir, ["rev-parse", "--verify", "MERGE_HEAD"], { allowFailure: true }).status, 0);
+    assert.match(runGitFixture(dirtyMergeDir, ["status", "--porcelain=v1"]), /\?\? local-notes\.txt/);
+  } finally {
+    fs.rmSync(dirtyMergeDir, { force: true, recursive: true });
   }
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-merge-state-"));
@@ -3052,6 +3080,17 @@ async function testActionResponseView(server) {
   assert.equal(actionResponseSnapshot(canceledResponse), null);
   assert.deepEqual(actionResponseSnapshot(okSnapshotResponse), snapshot);
   assert.deepEqual(actionResponseSnapshot(failedSnapshotResponse), snapshot);
+}
+
+async function testMergeGuard(server) {
+  const { dirtyWorkspaceMergeNotice, snapshotHasUncommittedChanges } = await loadTsModule(server, "src/lib/mergeGuard.ts");
+
+  assert.equal(dirtyWorkspaceMergeNotice, "Workspace has uncommitted changes. Commit them before merging.");
+  assert.equal(snapshotHasUncommittedChanges(null), false);
+  assert.equal(snapshotHasUncommittedChanges(gitSnapshot()), false);
+  assert.equal(snapshotHasUncommittedChanges(gitSnapshot({ changedFiles: [{ path: "src/App.tsx" }] })), true);
+  assert.equal(snapshotHasUncommittedChanges(gitSnapshot({ counts: { modified: 0, staged: 1, untracked: 0 } })), true);
+  assert.equal(snapshotHasUncommittedChanges(gitSnapshot({ counts: { modified: 0, staged: 0, untracked: 1 } })), true);
 }
 
 async function testAutoRefresh(server) {
@@ -6052,6 +6091,7 @@ async function main() {
     await testSnapshotResponseView(server);
     await testRepositoryStateView(server);
     await testActionResponseView(server);
+    await testMergeGuard(server);
     await testAutoRefresh(server);
     await testPreferences(server);
     await testWorkspaceOpenOptions(server);

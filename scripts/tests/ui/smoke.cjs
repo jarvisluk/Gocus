@@ -207,6 +207,14 @@ function snapshotForCommits(commits, overrides = {}) {
   };
 }
 
+function cleanWorkspaceOverrides(overrides = {}) {
+  return {
+    counts: { modified: 0, staged: 0, untracked: 0 },
+    changedFiles: [],
+    ...overrides,
+  };
+}
+
 function installGitPeekMock(config) {
   const initialResponse = config.initialResponse;
   const initializedResponse = config.initializedResponse ?? initialResponse;
@@ -546,24 +554,27 @@ function crowdedMergeTargetScenario() {
 
 function mergeFailureScenario() {
   return {
-    ...mockedSnapshotScenario(mockCommits, {
-      branches: [
-        {
-          name: "main",
-          fullName: "refs/heads/main",
-          type: "local",
-          current: true,
-          upstream: "origin/main",
-        },
-        {
-          name: "feature/footer-toggle",
-          fullName: "refs/heads/feature/footer-toggle",
-          type: "local",
-          current: false,
-          upstream: "",
-        },
-      ],
-    }),
+    ...mockedSnapshotScenario(
+      mockCommits,
+      cleanWorkspaceOverrides({
+        branches: [
+          {
+            name: "main",
+            fullName: "refs/heads/main",
+            type: "local",
+            current: true,
+            upstream: "origin/main",
+          },
+          {
+            name: "feature/footer-toggle",
+            fullName: "refs/heads/feature/footer-toggle",
+            type: "local",
+            current: false,
+            upstream: "",
+          },
+        ],
+      }),
+    ),
     mergeError: [
       "Auto-merging src/App.tsx",
       "CONFLICT (content): Merge conflict in src/App.tsx",
@@ -981,7 +992,7 @@ async function testCommitSearch(browser, baseUrl) {
   const { page, errors } = await openMockedPage(
     browser,
     baseUrl,
-    mockedSnapshotScenario(mockCommits, {
+    mockedSnapshotScenario(mockCommits, cleanWorkspaceOverrides({
       branches: [
         {
           name: "main",
@@ -998,7 +1009,7 @@ async function testCommitSearch(browser, baseUrl) {
           upstream: "",
         },
       ],
-    }),
+    })),
   );
   try {
     const createdBranchAction = expectedCreateBranchAction("feat/d4e5f6a");
@@ -1201,7 +1212,7 @@ async function testCommitSearch(browser, baseUrl) {
     await closeChangedNow.waitFor();
     assert.equal(await closeChangedNow.getAttribute("aria-pressed"), "true");
     assert.deepEqual(await page.evaluate(() => window.__gitPeekTemporaryInfoPayload?.kind), "changed-files");
-    assert.equal(await page.evaluate(() => window.__gitPeekTemporaryInfoPayload?.files?.length), 2);
+    assert.equal(await page.evaluate(() => window.__gitPeekTemporaryInfoPayload?.files?.length), 0);
 
     await closeChangedNow.click();
     assert.equal(await page.getByRole("button", { name: "Open Changed now" }).getAttribute("aria-pressed"), "false");
@@ -1256,6 +1267,51 @@ async function testMergeFailureStaysInDialog(browser, baseUrl) {
     await mergeTargetButton.click();
     await page.locator("#action-merge-target-menu").getByRole("menuitem", { name: "feature/footer-toggle" }).click();
     assert.equal(await page.locator("#action-dialog-error").count(), 0);
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
+async function testMergeConfirmBlocksDirtyWorkspace(browser, baseUrl) {
+  const { page, errors } = await openMockedPage(
+    browser,
+    baseUrl,
+    mockedSnapshotScenario(mockCommits, {
+      branches: [
+        {
+          name: "main",
+          fullName: "refs/heads/main",
+          type: "local",
+          current: true,
+          upstream: "origin/main",
+        },
+        {
+          name: "feature/footer-toggle",
+          fullName: "refs/heads/feature/footer-toggle",
+          type: "local",
+          current: false,
+          upstream: "",
+        },
+      ],
+    }),
+  );
+  try {
+    await assertHealthyPage(page, errors);
+
+    await page.getByRole("button", { name: /Fix footer changed now toggle/ }).click();
+    await page.getByRole("button", { name: "Merge", exact: true }).click();
+    const mergeDialog = page.getByRole("dialog", { name: "Merge commit" });
+    await mergeDialog.waitFor();
+    await page.getByRole("button", { name: "Confirm" }).click();
+
+    await mergeDialog.waitFor();
+    const error = page.locator("#action-dialog-error");
+    await error.waitFor();
+    assert.equal(await error.getAttribute("role"), "alert");
+    assert.equal(await error.innerText(), "Workspace has uncommitted changes. Commit them before merging.");
+    assert.equal(await page.getByRole("button", { name: "Copy agent prompt" }).count(), 0);
+    assert.deepEqual(await page.evaluate(() => window.__gitPeekActions), []);
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -2264,6 +2320,7 @@ async function main() {
     await testCommitInfoPanel(browser, baseUrl);
     await testCommitSearch(browser, baseUrl);
     await testLargeCommitListVirtualizes(browser, baseUrl);
+    await testMergeConfirmBlocksDirtyWorkspace(browser, baseUrl);
     await testMergeFailureStaysInDialog(browser, baseUrl);
     await testMergeFailurePromptHonorsNoFastForwardSetting(browser, baseUrl);
     await testMergeStateSurvivesStartup(browser, baseUrl);

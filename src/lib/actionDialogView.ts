@@ -6,6 +6,7 @@ import {
   type BranchPrefix,
 } from "./branchNames";
 import type { CommitAction, CommitItem, GitBranchRef } from "../types";
+import { dirtyWorkspaceMergeNotice } from "./mergeGuard";
 
 export type { BranchPrefix } from "./branchNames";
 export type { CommitAction } from "../types";
@@ -378,7 +379,7 @@ export function actionDialogView(dialog: ActionDialogState, { createMergeCommit 
   const actionErrorMessage = isMerge ? dialog.error?.trim() ?? "" : "";
   const actionErrorId = actionErrorMessage ? actionDialogErrorId : undefined;
   const mergeFailurePrompt =
-    isMerge && actionErrorMessage
+    isMerge && actionErrorMessage && actionErrorMessage !== dirtyWorkspaceMergeNotice
       ? mergeFailureAgentPrompt({
           createMergeCommit,
           error: actionErrorMessage,

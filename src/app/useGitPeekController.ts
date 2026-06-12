@@ -30,6 +30,7 @@ import {
 import { selectedCommitFromSnapshot, selectedCommitIdAfterToggle } from "../lib/commitListView";
 import { commitViewChangeDecision, defaultCommitView } from "../lib/commitView";
 import { errorMessage, runBridgeSideEffect } from "../lib/errorMessages";
+import { dirtyWorkspaceMergeNotice, snapshotHasUncommittedChanges } from "../lib/mergeGuard";
 import { panelPinnedNotice, panelPinnedStateAfterToggle } from "../lib/panelHeaderView";
 import {
   applyPreferences,
@@ -334,6 +335,12 @@ export function useGitPeekController() {
     }
 
     if (confirmation.type === "merge") {
+      if (snapshotHasUncommittedChanges(snapshot)) {
+        setActionDialog((current) => actionDialogAfterMergeError(current, dirtyWorkspaceMergeNotice));
+        setNotice(dirtyWorkspaceMergeNotice);
+        return;
+      }
+
       markGitRequest();
       try {
         const response = await bridge.merge(
