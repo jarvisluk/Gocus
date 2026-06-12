@@ -19,7 +19,6 @@
   color: var(--text);
 }
 
-.commit-actions button:hover,
 .repo-title-button:hover,
 .repo-title-button.is-open,
 .ui-disclosure-button:hover,

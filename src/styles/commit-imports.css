@@ -3,10 +3,5 @@
 @import "./activity-tooltips.css";
 @import "./commit-search.css";
 @import "./commits.css";
-@import "./commit-details.css";
-@import "./commit-row-meta.css";
-@import "./commit-stats.css";
-@import "./commit-actions.css";
-@import "./commit-message-popover.css";
 @import "./commit-graph.css";
 @import "./commit-hover.css";
