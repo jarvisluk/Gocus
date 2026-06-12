@@ -317,6 +317,11 @@ function hasStylesheetImport(content) {
   return content.split("\n").some((line) => stylesheetImportPattern.test(line));
 }
 
+function isGroupedStylesheetManifest(relativeFilePath) {
+  return normalizedRelativeFilePath(relativeFilePath).startsWith("src/styles/") &&
+    normalizedRelativeFilePath(relativeFilePath).endsWith("-imports.css");
+}
+
 function checkStylesheetManifest(fileContents) {
   const fileContentsByPath = new Map(
     fileContents.map(({ relativeFilePath, content }) => [normalizedRelativeFilePath(relativeFilePath), content]),
@@ -344,6 +349,10 @@ function checkStylesheetManifest(fileContents) {
     traversedManifests.add(relativeFilePath);
 
     const content = fileContentsByPath.get(relativeFilePath) ?? "";
+    if (relativeFilePath !== "src/styles.css" && !isGroupedStylesheetManifest(relativeFilePath)) {
+      failures.push(`${relativeFilePath}:1: name stylesheet manifest with -imports.css suffix`);
+    }
+
     failures.push(...checkImportOnlyStylesheet(relativeFilePath, content));
 
     for (const [index, line] of content.split("\n").entries()) {
@@ -369,8 +378,12 @@ function checkStylesheetManifest(fileContents) {
       }
 
       importedFiles.add(importedFilePath);
+      if (relativeFilePath === "src/styles.css" && !isGroupedStylesheetManifest(importedFilePath)) {
+        failures.push(`${relativeFilePath}:${lineNumber}: import grouped stylesheet manifest ${importedFilePath}`);
+      }
+
       const importedContent = fileContentsByPath.get(importedFilePath) ?? "";
-      if (hasStylesheetImport(importedContent)) {
+      if (hasStylesheetImport(importedContent) || isGroupedStylesheetManifest(importedFilePath)) {
         walkStylesheetManifest(importedFilePath, [...ancestry, importedFilePath]);
       }
     }
@@ -456,6 +469,7 @@ module.exports = {
   hasRendererRuntimeImport,
   isThemeTokenStylesheet,
   isRendererSourceFile,
+  isGroupedStylesheetManifest,
   resolveStylesheetImport,
   isSrcLibFile,
   isViewModelFile,
