@@ -3,10 +3,6 @@
   padding-top: 6px;
 }
 
-.commit-list-spacer {
-  pointer-events: none;
-}
-
 .commit-empty-state {
   min-height: 72px;
   display: grid;
@@ -46,7 +42,7 @@
 }
 
 .commit-row.is-selected .commit-content {
-  padding: 9px 10px 8px 10px;
+  padding: 9px 10px 8px;
   border: 1px solid var(--focus);
   background: var(--focus-soft);
   box-shadow: var(--commit-selected-shadow);

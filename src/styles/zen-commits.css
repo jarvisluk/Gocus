@@ -2,10 +2,6 @@
   padding: 0 10px;
 }
 
-.peek-panel.is-zen-panel .section-heading {
-  display: none;
-}
-
 .peek-panel.is-zen-panel .commit-list {
   padding-top: 0;
 }
@@ -44,10 +40,13 @@
   -webkit-line-clamp: unset;
 }
 
-.peek-panel.is-zen-panel .ref-pill,
-.peek-panel.is-zen-panel .commit-meta,
-.peek-panel.is-zen-panel .commit-stats,
-.peek-panel.is-zen-panel .commit-message-popover,
-.peek-panel.is-zen-panel .commit-actions {
+.peek-panel.is-zen-panel :is(
+  .section-heading,
+  .ref-pill,
+  .commit-meta,
+  .commit-stats,
+  .commit-message-popover,
+  .commit-actions
+) {
   display: none;
 }
