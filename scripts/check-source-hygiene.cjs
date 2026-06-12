@@ -45,7 +45,7 @@ const cssCustomPropertyDefinitionPattern = /^\s*(--[a-z0-9-]+)\s*:/;
 const cssCustomPropertyUsagePattern = /var\(\s*(--[a-z0-9-]+)\b/g;
 const cssCommentPattern = /\/\*[\s\S]*?\*\//g;
 const cssRulePattern = /([^{}]+)\{([^{}]+)\}/g;
-const stylesheetImportPattern = /^\s*@import\s+["']\.\/styles\/([^"']+\.css)["'];\s*$/;
+const stylesheetImportPattern = /^\s*@import\s+["']([^"']+\.css)["'];\s*$/;
 const backdropFilterDeclarationPattern = /^\s*(-webkit-)?backdrop-filter\s*:\s*([^;]+);/;
 const boxShadowDeclarationPattern = /^\s*box-shadow\s*:\s*([^;]+);/;
 const cssRawColorLiteralPattern = /#[0-9a-fA-F]{3,8}\b|(?:rgb|hsl)a?\(/;
@@ -288,41 +288,95 @@ function checkDuplicateCssDeclarationBlocks(fileContents) {
   });
 }
 
-function stylesheetManifestImports(content) {
+function normalizedRelativeFilePath(relativeFilePath) {
+  return relativeFilePath.replaceAll("\\", "/");
+}
+
+function resolveStylesheetImport(importerRelativeFilePath, importSpecifier) {
+  if (!importSpecifier.startsWith(".")) return "";
+
+  const importerDirectory = path.posix.dirname(normalizedRelativeFilePath(importerRelativeFilePath));
+  const importedFilePath = path.posix.normalize(path.posix.join(importerDirectory, importSpecifier));
+
+  if (path.posix.isAbsolute(importedFilePath) || importedFilePath.startsWith("../")) return "";
+  if (!importedFilePath.startsWith("src/styles/")) return "";
+  return importedFilePath;
+}
+
+function stylesheetManifestImports(content, importerRelativeFilePath = "src/styles.css") {
   return content.split("\n").flatMap((line, index) => {
     const match = line.match(stylesheetImportPattern);
     if (!match) return [];
-    return [{ lineNumber: index + 1, relativeFilePath: `src/styles/${match[1]}` }];
+    const relativeFilePath = resolveStylesheetImport(importerRelativeFilePath, match[1]);
+    if (!relativeFilePath) return [];
+    return [{ lineNumber: index + 1, relativeFilePath }];
   });
 }
 
+function hasStylesheetImport(content) {
+  return content.split("\n").some((line) => stylesheetImportPattern.test(line));
+}
+
 function checkStylesheetManifest(fileContents) {
-  const manifest = fileContents.find(({ relativeFilePath }) => relativeFilePath === "src/styles.css");
+  const fileContentsByPath = new Map(
+    fileContents.map(({ relativeFilePath, content }) => [normalizedRelativeFilePath(relativeFilePath), content]),
+  );
+  const manifest = fileContentsByPath.get("src/styles.css");
   if (!manifest) return ["src/styles.css:1: missing stylesheet import manifest"];
 
   const stylesheetFiles = new Set(
-    fileContents
-      .map(({ relativeFilePath }) => relativeFilePath)
+    [...fileContentsByPath.keys()]
       .filter((relativeFilePath) => relativeFilePath.startsWith("src/styles/") && relativeFilePath.endsWith(".css")),
   );
-  const imports = stylesheetManifestImports(manifest.content);
+  const failures = [];
   const importedFiles = new Set();
-  const failures = manifest.content.split("\n").flatMap((line, index) => {
-    if (!line.trim() || stylesheetImportPattern.test(line)) return [];
-    return [`src/styles.css:${index + 1}: keep stylesheet manifest import-only`];
-  });
+  const traversedManifests = new Set();
 
-  for (const { lineNumber, relativeFilePath } of imports) {
-    if (!stylesheetFiles.has(relativeFilePath)) {
-      failures.push(`src/styles.css:${lineNumber}: import existing stylesheet ${relativeFilePath}`);
-    }
-
-    if (importedFiles.has(relativeFilePath)) {
-      failures.push(`src/styles.css:${lineNumber}: remove duplicate stylesheet import ${relativeFilePath}`);
-    }
-
-    importedFiles.add(relativeFilePath);
+  function checkImportOnlyStylesheet(relativeFilePath, content) {
+    return content.split("\n").flatMap((line, index) => {
+      if (!line.trim() || stylesheetImportPattern.test(line)) return [];
+      return [`${relativeFilePath}:${index + 1}: keep stylesheet manifest import-only`];
+    });
   }
+
+  function walkStylesheetManifest(relativeFilePath, ancestry = []) {
+    if (traversedManifests.has(relativeFilePath)) return;
+    traversedManifests.add(relativeFilePath);
+
+    const content = fileContentsByPath.get(relativeFilePath) ?? "";
+    failures.push(...checkImportOnlyStylesheet(relativeFilePath, content));
+
+    for (const [index, line] of content.split("\n").entries()) {
+      const match = line.match(stylesheetImportPattern);
+      if (!match) continue;
+
+      const lineNumber = index + 1;
+      const importedFilePath = resolveStylesheetImport(relativeFilePath, match[1]);
+      if (!importedFilePath || !stylesheetFiles.has(importedFilePath)) {
+        const fallbackFilePath = importedFilePath || match[1];
+        failures.push(`${relativeFilePath}:${lineNumber}: import existing stylesheet ${fallbackFilePath}`);
+        continue;
+      }
+
+      if (ancestry.includes(importedFilePath)) {
+        failures.push(`${relativeFilePath}:${lineNumber}: remove cyclic stylesheet import ${importedFilePath}`);
+        continue;
+      }
+
+      if (importedFiles.has(importedFilePath)) {
+        failures.push(`${relativeFilePath}:${lineNumber}: remove duplicate stylesheet import ${importedFilePath}`);
+        continue;
+      }
+
+      importedFiles.add(importedFilePath);
+      const importedContent = fileContentsByPath.get(importedFilePath) ?? "";
+      if (hasStylesheetImport(importedContent)) {
+        walkStylesheetManifest(importedFilePath, [...ancestry, importedFilePath]);
+      }
+    }
+  }
+
+  walkStylesheetManifest("src/styles.css", ["src/styles.css"]);
 
   for (const relativeFilePath of [...stylesheetFiles].sort((left, right) => left.localeCompare(right))) {
     if (!importedFiles.has(relativeFilePath)) {
@@ -402,6 +456,7 @@ module.exports = {
   hasRendererRuntimeImport,
   isThemeTokenStylesheet,
   isRendererSourceFile,
+  resolveStylesheetImport,
   isSrcLibFile,
   isViewModelFile,
   maxCssFileLines,

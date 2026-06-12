@@ -281,6 +281,7 @@ function testSourceHygieneScript() {
     isViewModelFile,
     maxCssFileLines,
     maxLineLength,
+    resolveStylesheetImport,
     runHygieneCheck,
     sourceLineCount,
     stylesheetManifestImports,
@@ -447,9 +448,24 @@ function testSourceHygieneScript() {
     { lineNumber: 1, relativeFilePath: "src/styles/base.css" },
     { lineNumber: 2, relativeFilePath: "src/styles/theme.css" },
   ]);
+  assert.equal(resolveStylesheetImport("src/styles.css", "./styles/base.css"), "src/styles/base.css");
+  assert.equal(resolveStylesheetImport("src/styles/foundation.css", "./base.css"), "src/styles/base.css");
+  assert.equal(resolveStylesheetImport("src/styles/foundation.css", "../styles.css"), "");
+  assert.deepEqual(stylesheetManifestImports('@import "./base.css";\n', "src/styles/foundation.css"), [
+    { lineNumber: 1, relativeFilePath: "src/styles/base.css" },
+  ]);
   assert.deepEqual(
     checkStylesheetManifest([
       { relativeFilePath: "src/styles.css", content: '@import "./styles/base.css";\n@import "./styles/theme.css";\n' },
+      { relativeFilePath: "src/styles/base.css", content: ".base {}\n" },
+      { relativeFilePath: "src/styles/theme.css", content: ".theme {}\n" },
+    ]),
+    [],
+  );
+  assert.deepEqual(
+    checkStylesheetManifest([
+      { relativeFilePath: "src/styles.css", content: '@import "./styles/foundation.css";\n' },
+      { relativeFilePath: "src/styles/foundation.css", content: '@import "./base.css";\n@import "./theme.css";\n' },
       { relativeFilePath: "src/styles/base.css", content: ".base {}\n" },
       { relativeFilePath: "src/styles/theme.css", content: ".theme {}\n" },
     ]),
@@ -469,6 +485,14 @@ function testSourceHygieneScript() {
       { relativeFilePath: "src/styles/base.css", content: ".base {}\n" },
     ]),
     ["src/styles.css:2: remove duplicate stylesheet import src/styles/base.css"],
+  );
+  assert.deepEqual(
+    checkStylesheetManifest([
+      { relativeFilePath: "src/styles.css", content: '@import "./styles/a.css";\n' },
+      { relativeFilePath: "src/styles/a.css", content: '@import "./b.css";\n' },
+      { relativeFilePath: "src/styles/b.css", content: '@import "./a.css";\n' },
+    ]),
+    ["src/styles/b.css:1: remove cyclic stylesheet import src/styles/a.css"],
   );
   assert.deepEqual(
     checkStylesheetManifest([
