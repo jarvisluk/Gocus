@@ -1,18 +1,7 @@
-.icon-button,
-.repo-title-button,
-.repo-menu-item,
-.heading-tools button,
-.commit-actions button,
-.footer-changed-now,
-.footer-primary,
-.rail-count,
-.ui-disclosure-button,
-.workspace-open-trigger,
-.workspace-open-menu-toggle,
-.workspace-open-menu-item,
-.empty-recent-repos button,
-.primary-action,
-.secondary-action {
+:is(.icon-button, .repo-title-button, .repo-menu-item, .footer-changed-now, .footer-primary, .rail-count,
+    .ui-disclosure-button, .workspace-open-trigger, .workspace-open-menu-toggle, .workspace-open-menu-item, .primary-action,
+    .secondary-action),
+:is(.heading-tools, .commit-actions, .empty-recent-repos) button {
   border: 0;
   color: inherit;
   cursor: pointer;
