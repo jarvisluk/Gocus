@@ -2,8 +2,7 @@
 @import "./theme.css";
 @import "./base.css";
 @import "./base-controls.css";
-@import "./app-frame.css";
-@import "./panel-shell.css";
+@import "./app-shell.css";
 @import "./patterns.css";
 @import "./icon-patterns.css";
 @import "./interactive-states.css";
