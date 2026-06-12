@@ -4,13 +4,8 @@
 @import "./changed-side-header.css";
 @import "./changed-side-details.css";
 @import "./temporary.css";
-@import "./temporary-changed.css";
-@import "./temporary-changed-detail.css";
-@import "./temporary-commit.css";
 @import "./footer.css";
-@import "./footer-changed-now.css";
 @import "./zen.css";
-@import "./zen-commits.css";
 @import "./workspace-open.css";
 @import "./collapsed-rail.css";
 @import "./empty-repository.css";

@@ -12,3 +12,49 @@
 .peek-panel.is-zen-panel .zen-scroll-region {
   flex: 1 1 auto;
 }
+
+.peek-panel.is-zen-panel .commits-section {
+  padding: 0 10px;
+}
+
+.peek-panel.is-zen-panel .commit-list {
+  padding-top: 0;
+}
+
+.peek-panel.is-zen-panel .commit-row {
+  --git-tree-node-y: 17px;
+  min-height: 52px;
+}
+
+.peek-panel.is-zen-panel .commit-content {
+  padding: 9px 0 7px 8px;
+  border: 0;
+  border-bottom: 1px solid var(--border-soft);
+  background: transparent;
+  box-shadow: none;
+}
+
+.peek-panel.is-zen-panel .commit-title-line {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+.peek-panel.is-zen-panel .commit-title-text {
+  display: -webkit-box;
+  line-height: 1.32;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.peek-panel.is-zen-panel .commit-row.is-selected .commit-title-text {
+  display: block;
+  overflow: visible;
+  white-space: pre-wrap;
+  -webkit-line-clamp: unset;
+}
+
+.peek-panel.is-zen-panel :is(.section-heading, .ref-pill, .commit-meta, .commit-stats, .commit-message-popover, .commit-actions) {
+  display: none;
+}

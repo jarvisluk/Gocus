@@ -9,7 +9,4 @@
 @import "./commit-actions.css";
 @import "./commit-message-popover.css";
 @import "./commit-graph.css";
-@import "./commit-graph-lines.css";
-@import "./commit-graph-nodes.css";
-@import "./commit-graph-soft.css";
 @import "./commit-hover.css";
