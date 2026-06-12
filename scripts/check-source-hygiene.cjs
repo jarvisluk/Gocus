@@ -55,7 +55,7 @@ const themeTokenStylesheets = new Set([
   "src/styles/theme-presets-dark-variants.css",
   "src/styles/theme-presets-light.css",
 ]);
-const maxCssFileLines = 60;
+const maxCssFileLines = 59;
 const minDuplicateCssDeclarationCount = 3;
 
 function isSrcLibFile(relativeFilePath) {
