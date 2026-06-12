@@ -1,8 +1,2 @@
-@import "./action-branch-fields.css";
-@import "./action-dialog-feedback.css";
-@import "./action-branch-result.css";
-@import "./action-dialog-blocker.css";
-@import "./action-menu-triggers.css";
-@import "./action-prefix-menu.css";
-@import "./action-merge-target-menu.css";
 @import "./menus.css";
+@import "./action-dialog.css";

@@ -1,5 +1,4 @@
-:is(.action-dialog-copy-prompt, .commit-search, .empty-gitignore-note, .primary-action,
-    .secondary-action, .settings-refresh-menu-item, .ui-button) svg {
+:is(.commit-search, .empty-gitignore-note, .primary-action, .secondary-action, .settings-refresh-menu-item, .ui-button) svg {
   width: var(--icon-sm);
   height: var(--icon-sm);
 }

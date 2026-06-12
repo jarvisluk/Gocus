@@ -22,12 +22,6 @@
   color: var(--text);
 }
 
-.action-prefix-trigger:hover,
-.action-prefix-trigger:focus-visible,
-.action-prefix-trigger.is-open,
-.action-merge-target-trigger:hover,
-.action-merge-target-trigger:focus-visible,
-.action-merge-target-trigger.is-open,
 .commit-actions button:hover,
 .empty-recent-repos button:hover:not(:disabled),
 .repo-title-button:hover,

@@ -1,8 +1,0 @@
-.native-dialog-blocker {
-  position: absolute;
-  inset: 0;
-  z-index: 30;
-  cursor: default;
-  pointer-events: auto;
-  -webkit-app-region: no-drag;
-}
