@@ -23,9 +23,6 @@
   justify-items: start;
 }
 
-.settings-launch-at-login-toggle,
-.settings-menu-bar-icon-toggle,
-.settings-merge-commit-toggle,
-.settings-zen-entry-toggle {
+:is(.settings-launch-at-login-toggle, .settings-menu-bar-icon-toggle, .settings-merge-commit-toggle, .settings-zen-entry-toggle) {
   justify-content: flex-end;
 }
