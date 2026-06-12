@@ -32,6 +32,18 @@ function execOpen(command, args) {
   });
 }
 
+function execOutput(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    execFile(command, args, { encoding: "utf8", timeout: 3000, ...options }, (error, stdout) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve(String(stdout ?? "").trim());
+    });
+  });
+}
+
 function commandExists(command) {
   return new Promise((resolve) => {
     const lookupCommand = process.platform === "win32" ? "where" : "which";
@@ -73,6 +85,72 @@ async function openDarwinApp(appNames, repositoryPath) {
   }
 
   throw lastError;
+}
+
+function nvmCodexCliCandidatePaths(homeDir = os.homedir()) {
+  const versionsDir = path.join(homeDir, ".nvm", "versions", "node");
+  if (!fs.existsSync(versionsDir)) return [];
+
+  return fs
+    .readdirSync(versionsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(versionsDir, entry.name, "bin", "codex"))
+    .sort()
+    .reverse();
+}
+
+function codexCliCandidatePaths({ env = process.env, homeDir = os.homedir() } = {}) {
+  return [
+    env.GIT_PEEK_CODEX_CLI,
+    "/opt/homebrew/bin/codex",
+    "/usr/local/bin/codex",
+    path.join(homeDir, ".local", "bin", "codex"),
+    ...nvmCodexCliCandidatePaths(homeDir),
+  ].filter(Boolean);
+}
+
+function isExecutableFile(filePath) {
+  try {
+    fs.accessSync(filePath, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function resolveCommandFromLoginShell(command) {
+  const shellPath = process.env.SHELL || "/bin/zsh";
+  const output = await execOutput(shellPath, ["-lc", `command -v ${command}`]);
+  const commandPath = output.split(/\r?\n/).find(Boolean);
+  if (!commandPath || !path.isAbsolute(commandPath) || !isExecutableFile(commandPath)) return null;
+  return commandPath;
+}
+
+async function resolveCodexCliCommand() {
+  if (await commandExists("codex")) return "codex";
+
+  try {
+    const shellCommand = await resolveCommandFromLoginShell("codex");
+    if (shellCommand) return shellCommand;
+  } catch {
+    // GUI-launched apps may not have a usable login shell environment.
+  }
+
+  for (const candidatePath of codexCliCandidatePaths()) {
+    if (isExecutableFile(candidatePath)) return candidatePath;
+  }
+
+  return null;
+}
+
+async function openCodexDesktop(targetPath) {
+  const codexCommand = await resolveCodexCliCommand();
+  if (codexCommand) {
+    await execOpen(codexCommand, ["app", targetPath]);
+    return;
+  }
+
+  await openDarwinApp(["Codex"], targetPath);
 }
 
 function targetLabel(target) {
@@ -158,7 +236,7 @@ async function openWorkspace(repositoryPath, target) {
         return { ok: false, reason: "action_failed", error: "Codex is only available as a macOS app target here." };
       }
 
-      await openDarwinApp(["Codex"], repositoryPath);
+      await openCodexDesktop(repositoryPath);
       return { ok: true, message: "Opened workspace in Codex." };
     }
 
@@ -253,7 +331,7 @@ async function openWorkspaceFile(repositoryPath, target, filePath) {
         return { ok: false, reason: "action_failed", error: "Codex is only available as a macOS app target here." };
       }
 
-      await openDarwinApp(["Codex"], targetPath);
+      await openCodexDesktop(targetPath);
       return { ok: true, message: "Opened file in Codex." };
     }
 
@@ -306,4 +384,12 @@ async function openWorkspaceFile(repositoryPath, target, filePath) {
   }
 }
 
-module.exports = { getAvailableWorkspaceTargets, openWorkspace, openWorkspaceFile };
+module.exports = {
+  getAvailableWorkspaceTargets,
+  openWorkspace,
+  openWorkspaceFile,
+  __private: {
+    codexCliCandidatePaths,
+    nvmCodexCliCandidatePaths,
+  },
+};
