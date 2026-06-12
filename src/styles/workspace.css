@@ -28,12 +28,3 @@
   width: 100%;
   border-right: 0;
 }
-
-.view-chip:hover:not(:disabled),
-.view-chip.is-active,
-.view-chip.is-open,
-.worktree-trigger:hover,
-.worktree-trigger.is-open {
-  background: var(--surface-hover);
-  color: var(--text);
-}

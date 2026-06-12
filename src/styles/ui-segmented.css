@@ -33,12 +33,6 @@
   border-right: 0;
 }
 
-.ui-segmented button.is-active,
-.ui-segmented button:hover {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
 .ui-segmented svg {
   width: var(--icon-xs);
   height: var(--icon-xs);

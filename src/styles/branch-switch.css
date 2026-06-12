@@ -16,11 +16,6 @@
   cursor: pointer;
 }
 
-.branch-switch-button:hover:not(:disabled) {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
 .branch-switch-button:disabled {
   cursor: not-allowed;
   opacity: 0.42;

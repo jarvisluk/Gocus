@@ -15,11 +15,6 @@
   font-weight: var(--font-weight-strong);
 }
 
-.ui-button:hover {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
 .ui-button.primary {
   background: var(--text);
   color: var(--panel-solid);

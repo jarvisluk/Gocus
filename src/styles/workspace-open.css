@@ -31,13 +31,6 @@
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
 }
 
-.workspace-open-trigger:hover:not(:disabled),
-.workspace-open-menu-toggle:hover:not(:disabled),
-.workspace-open-menu-item:hover {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
 .workspace-open-trigger:focus-visible,
 .workspace-open-menu-toggle:focus-visible,
 .workspace-open-menu-item:focus-visible {

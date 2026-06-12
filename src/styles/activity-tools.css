@@ -30,16 +30,6 @@
   color: var(--text-muted);
 }
 
-.heading-tools button:hover {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
-.heading-tools .commit-search-toggle.is-active {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
 .heading-tools svg {
   width: 16px;
   height: 16px;

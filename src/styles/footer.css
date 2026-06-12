@@ -36,11 +36,6 @@
   white-space: nowrap;
 }
 
-.footer-primary:hover {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
 .footer-primary svg {
   width: var(--icon-xl);
   height: var(--icon-xl);

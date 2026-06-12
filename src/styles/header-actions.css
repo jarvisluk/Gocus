@@ -15,12 +15,6 @@
   color: var(--text-muted);
 }
 
-.icon-button:hover,
-.icon-button.is-active {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
 .icon-button svg {
   width: 16px;
   height: 16px;
