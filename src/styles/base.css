@@ -20,46 +20,8 @@ body {
   user-select: none;
 }
 
-button,
-input,
-select {
-  font: inherit;
-}
-
-input,
-textarea {
-  -webkit-user-select: text;
-  user-select: text;
-}
-
 svg {
   width: 18px;
   height: 18px;
   stroke-width: 2;
-}
-
-.icon-button,
-.repo-title-button,
-.repo-menu-item,
-.heading-tools button,
-.commit-actions button,
-.footer-changed-now,
-.footer-primary,
-.rail-count,
-.ui-disclosure-button,
-.workspace-open-trigger,
-.workspace-open-menu-toggle,
-.workspace-open-menu-item,
-.empty-recent-repos button,
-.primary-action,
-.secondary-action {
-  border: 0;
-  color: inherit;
-  cursor: pointer;
-  -webkit-app-region: no-drag;
-}
-
-button:disabled {
-  cursor: default;
-  opacity: 0.42;
 }

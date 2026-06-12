@@ -8,8 +8,12 @@
 @import "./theme-presets-dark-variants.css";
 @import "./density-comfortable.css";
 @import "./base.css";
+@import "./base-controls.css";
+@import "./base-buttons.css";
 @import "./app-frame.css";
 @import "./panel-shell.css";
 @import "./patterns.css";
+@import "./icon-patterns.css";
+@import "./disabled-controls.css";
 @import "./text-patterns.css";
 @import "./text-labels.css";
