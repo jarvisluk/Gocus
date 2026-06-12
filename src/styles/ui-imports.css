@@ -1,9 +1,3 @@
 @import "./ui.css";
-@import "./ui-pills.css";
-@import "./ui-controls.css";
-@import "./ui-segmented.css";
-@import "./ui-buttons.css";
-@import "./ui-form-controls.css";
-@import "./ui-disclosures.css";
-@import "./ui-toggles.css";
+@import "./ui-components.css";
 @import "./dialog.css";
