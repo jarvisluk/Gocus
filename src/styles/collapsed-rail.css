@@ -38,27 +38,3 @@
   width: 14px;
   height: 14px;
 }
-
-.rail-count {
-  width: 24px;
-  height: 24px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border-radius: var(--radius-pill);
-  border: 1px solid color-mix(in srgb, var(--branch-color, var(--main)) 38%, transparent);
-  background: color-mix(in srgb, var(--branch-color, var(--main)) 22%, transparent);
-  color: var(--branch-color, var(--main));
-  font-size: var(--type-body-size);
-  font-weight: 800;
-  line-height: 1;
-}
-
-.rail-count:hover {
-  background: color-mix(in srgb, var(--branch-color, var(--main)) 30%, transparent);
-}
-
-.rail-count:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--branch-color, var(--main)) 45%, transparent);
-  outline-offset: 2px;
-}
