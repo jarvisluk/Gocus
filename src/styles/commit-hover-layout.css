@@ -1,0 +1,29 @@
+.commit-hover-body {
+  min-width: 0;
+  height: 100%;
+  display: grid;
+  align-content: start;
+  grid-template-rows: auto auto auto minmax(0, auto);
+  overflow: hidden;
+  padding: 7px 9px 8px;
+}
+
+.commit-hover-section {
+  min-width: 0;
+  padding: 4px 0;
+}
+
+.commit-hover-section + .commit-hover-section {
+  border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.commit-hover-primary {
+  display: grid;
+  gap: 3px;
+  padding-top: 0;
+  padding-bottom: 4px;
+}
+
+.commit-hover-hash-section {
+  padding-bottom: 0;
+}
