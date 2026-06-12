@@ -29,10 +29,6 @@
   border-radius: var(--radius);
 }
 
-.commit-row + .commit-row {
-  margin-top: 0;
-}
-
 .commit-row:hover .commit-content {
   background: var(--surface);
 }
