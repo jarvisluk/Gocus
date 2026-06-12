@@ -982,6 +982,7 @@ async function testGitModule() {
 function testGitGraphModule() {
   const {
     buildCommitGraph,
+    branchKindFromRefs,
     commitMessageMaxLength,
     normalizeCommitMessage,
     parseLog,
@@ -994,6 +995,8 @@ function testGitGraphModule() {
   assert.equal(normalizeCommitMessage("", "Fallback"), "Fallback");
   assert.equal(normalizeCommitMessage(longCommitMessage, "").length, commitMessageMaxLength);
   assert.ok(normalizeCommitMessage(longCommitMessage, "").endsWith("..."));
+  assert.equal(branchKindFromRefs("feat/search-scroll-stash-graph", 0), "feature");
+  assert.equal(branchKindFromRefs("refs/stash", 0), "stash");
   const rawLog = [
     "\x1e",
     [
@@ -1247,6 +1250,44 @@ function testGitGraphModule() {
   ]);
   assert.equal(featureJoiningMainGraph[1].graph.currentColor, "#f0a400");
   assert.equal(featureJoiningMainGraph[1].graph.currentLabel, "main");
+
+  const stashNamedFeatureTipHash = "5f".repeat(20);
+  const stashNamedFeatureParentHash = "6f".repeat(20);
+  const stashNamedFeatureGraph = parseLog(
+    [
+      "\x1e",
+      [
+        stashNamedFeatureTipHash,
+        "5f5f5f5",
+        stashNamedFeatureParentHash,
+        "Codex",
+        "2 minutes ago",
+        "2026-06-11T19:27:43+08:00",
+        "Keep selected commit visible after search clears",
+        "feat/search-scroll-stash-graph",
+        "Keep selected commit visible after search clears",
+      ].join("\x1f"),
+      "\x1d\n",
+      "\x1e",
+      [
+        stashNamedFeatureParentHash,
+        "6f6f6f6",
+        "",
+        "Codex",
+        "3 minutes ago",
+        "2026-06-11T19:24:43+08:00",
+        "Render stash as auxiliary graph node",
+        "main",
+        "Render stash as auxiliary graph node",
+      ].join("\x1f"),
+      "\x1d\n",
+    ].join(""),
+  );
+  assert.equal(stashNamedFeatureGraph[0].lane, "feature");
+  assert.deepEqual(stashNamedFeatureGraph[0].parents, [stashNamedFeatureParentHash]);
+  assert.deepEqual(stashNamedFeatureGraph[0].graph.parentStems, [
+    { column: 0, color: "#2f86d8", variant: "solid" },
+  ]);
 
   const localOnlyHeadHash = "1".repeat(40);
   const graphWithDetachedExternalInsideLocalBranch = buildCommitGraph(

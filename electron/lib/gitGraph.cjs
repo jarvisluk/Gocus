@@ -32,8 +32,9 @@ function normalizeCommitMessage(message, fallback) {
 }
 
 function branchKindFromRefs(refs, index) {
+  const parsedRefs = parseRefs(refs);
   const lowerRefs = refs.toLowerCase();
-  if (lowerRefs.includes("stash")) return "stash";
+  if (parsedRefs.some(refLooksLikeStashRef)) return "stash";
   if (lowerRefs.includes("release")) return "release";
   if (lowerRefs.includes("develop") || lowerRefs.includes("dev")) return "develop";
   if (lowerRefs.includes("fix") || lowerRefs.includes("hotfix")) return "fix";
@@ -41,6 +42,11 @@ function branchKindFromRefs(refs, index) {
   if (lowerRefs.includes("feature") || lowerRefs.includes("feat")) return "feature";
   if (refs.trim()) return "topic";
   return branchKindForIndex(index);
+}
+
+function refLooksLikeStashRef(ref) {
+  const normalized = ref.trim().toLowerCase();
+  return normalized === "refs/stash" || normalized.startsWith("stash@{") || normalized.startsWith("refs/stash@{");
 }
 
 function branchKindForIndex(index) {
