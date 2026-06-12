@@ -50,19 +50,14 @@ const stylesheetImportPattern = /^\s*@import\s+["']([^"']+\.css)["'];\s*$/;
 const backdropFilterDeclarationPattern = /^\s*(-webkit-)?backdrop-filter\s*:\s*([^;]+);/;
 const boxShadowDeclarationPattern = /^\s*box-shadow\s*:\s*([^;]+);/;
 const cssRawColorLiteralPattern = /#[0-9a-fA-F]{3,8}\b|(?:rgb|hsl)a?\(/;
-const themeTokenStylesheets = new Set([
-  "src/styles/theme.css",
-  "src/styles/theme-presets-dark.css",
-  "src/styles/theme-presets-dark-variants.css",
-  "src/styles/theme-presets-light.css",
-]);
+const themeTokenStylesheets = new Set(["src/styles/theme.css"]);
 const rootStylesheetManifestFiles = [
   "src/styles/foundation-imports.css",
   "src/styles/ui-imports.css",
   "src/styles/actions-imports.css",
   "src/styles/repo-workspace-imports.css",
   "src/styles/commit-imports.css",
-  "src/styles/changed-shell-imports.css",
+  "src/styles/panel-imports.css",
 ];
 const minDuplicateCssDeclarationCount = 3;
 
