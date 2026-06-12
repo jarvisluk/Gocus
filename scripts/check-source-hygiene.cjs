@@ -50,7 +50,7 @@ const backdropFilterDeclarationPattern = /^\s*(-webkit-)?backdrop-filter\s*:\s*(
 const boxShadowDeclarationPattern = /^\s*box-shadow\s*:\s*([^;]+);/;
 const cssRawColorLiteralPattern = /#[0-9a-fA-F]{3,8}\b|(?:rgb|hsl)a?\(/;
 const themeTokenStylesheets = new Set(["src/styles/theme.css", "src/styles/theme-presets.css"]);
-const maxCssFileLines = 150;
+const maxCssFileLines = 130;
 const minDuplicateCssDeclarationCount = 3;
 
 function isSrcLibFile(relativeFilePath) {
