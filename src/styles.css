@@ -9,11 +9,14 @@
 @import "./styles/text-patterns.css";
 @import "./styles/ui.css";
 @import "./styles/ui-controls.css";
+@import "./styles/ui-segmented.css";
+@import "./styles/ui-buttons.css";
 @import "./styles/ui-form-controls.css";
 @import "./styles/ui-toggles.css";
 @import "./styles/dialogs.css";
 @import "./styles/actions.css";
 @import "./styles/action-menus.css";
+@import "./styles/action-merge-target-menu.css";
 @import "./styles/menus.css";
 @import "./styles/repository.css";
 @import "./styles/repository-menu.css";
@@ -37,8 +40,10 @@
 @import "./styles/commit-graph-soft.css";
 @import "./styles/commit-hover.css";
 @import "./styles/commit-hover-content.css";
+@import "./styles/commit-hover-meta.css";
 @import "./styles/changed.css";
 @import "./styles/changed-side.css";
+@import "./styles/changed-side-details.css";
 @import "./styles/temporary.css";
 @import "./styles/temporary-changed.css";
 @import "./styles/temporary-commit.css";

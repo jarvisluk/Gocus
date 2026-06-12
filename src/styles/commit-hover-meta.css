@@ -1,0 +1,71 @@
+.commit-hover-refs {
+  min-width: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 5px;
+  overflow: hidden;
+}
+
+.commit-hover-ref-pill {
+  min-width: 0;
+  max-width: min(100%, 214px);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border: 1px solid color-mix(in srgb, var(--branch-color, var(--main)) 12%, transparent);
+  background: color-mix(in srgb, var(--branch-color, var(--main)) 12%, transparent);
+  font-size: var(--type-caption-size);
+  font-weight: var(--type-body-strong-weight);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.commit-hover-ref-pill.is-detached-worktree {
+  border-color: color-mix(in srgb, var(--text-muted) 18%, transparent);
+  background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+  color: var(--text-muted);
+}
+
+.commit-hover-hash {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-faint);
+  font-size: var(--type-caption-size);
+  font-weight: var(--type-caption-weight);
+  line-height: 1.1;
+}
+
+.commit-hover-hash code {
+  flex: 1 1 auto;
+  font-family: var(--mono-font);
+  font-size: var(--type-caption-size);
+  font-weight: var(--type-caption-weight);
+}
+
+.commit-hover-hash-copy {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.commit-hover-hash-copy:hover,
+.commit-hover-hash-copy:focus-visible {
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: var(--text);
+}
+
+.commit-hover-hash-copy:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}

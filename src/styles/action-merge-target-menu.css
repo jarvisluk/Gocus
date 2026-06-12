@@ -1,0 +1,44 @@
+.action-merge-target-control {
+  position: relative;
+  min-width: 0;
+}
+
+.ui-menu.action-merge-target-menu {
+  z-index: 45;
+  top: auto;
+  bottom: calc(100% + 6px);
+  left: 0;
+  width: 100%;
+  max-height: min(332px, calc(100vh - 220px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-color: var(--text-subtle) transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.ui-menu.action-merge-target-menu::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ui-menu.action-merge-target-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ui-menu.action-merge-target-menu::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--text-subtle) 72%, transparent);
+  background-clip: content-box;
+}
+
+.action-merge-target-menu .action-merge-target-menu-item span:last-child {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  text-transform: none;
+  white-space: normal;
+}
