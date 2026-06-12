@@ -1,3 +1,10 @@
+.commit-actions button:disabled,
+.action-merge-target-trigger:disabled {
+  cursor: not-allowed;
+  color: var(--text-subtle);
+  background: color-mix(in srgb, var(--surface) 86%, var(--border));
+}
+
 .heading-tools button:hover,
 .heading-tools .commit-search-toggle.is-active,
 .branch-switch-button:hover:not(:disabled),

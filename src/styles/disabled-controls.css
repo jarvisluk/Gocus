@@ -1,6 +1,0 @@
-.commit-actions button:disabled,
-.action-merge-target-trigger:disabled {
-  cursor: not-allowed;
-  color: var(--text-subtle);
-  background: color-mix(in srgb, var(--surface) 86%, var(--border));
-}
