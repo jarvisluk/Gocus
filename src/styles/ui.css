@@ -45,6 +45,13 @@
   gap: var(--space-md);
 }
 
+.ui-form-section,
+.action-merge-fields {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-md);
+}
+
 .empty-state {
   padding: 16px 2px 18px;
   color: var(--text-faint);

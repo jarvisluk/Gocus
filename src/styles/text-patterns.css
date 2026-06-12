@@ -17,6 +17,13 @@
   white-space: nowrap;
 }
 
+.file-copy,
+.repo-menu-text {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
 .file-path,
 .repo-menu-text strong,
 .repo-menu-text code,

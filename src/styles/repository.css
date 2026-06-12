@@ -32,6 +32,11 @@
   color: inherit;
 }
 
+.header-repo-switcher {
+  position: relative;
+  min-width: 0;
+}
+
 .repo-switch-menu {
   position: absolute;
   z-index: 40;

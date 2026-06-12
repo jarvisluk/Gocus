@@ -63,6 +63,16 @@
   backdrop-filter: var(--window-backdrop-filter);
 }
 
+.is-electron .peek-panel,
+.is-electron .collapsed-rail {
+  inset: 0;
+  width: auto;
+  min-height: 0;
+  border-radius: 0;
+  border: 0;
+  box-shadow: none;
+}
+
 .peek-header {
   height: 62px;
   flex: 0 0 auto;
