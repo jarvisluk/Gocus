@@ -4,9 +4,7 @@
   height: 100vh;
   min-height: 720px;
   overflow: hidden;
-  background:
-    var(--editor-stage-gradient),
-    var(--stage-bg);
+  background: var(--editor-stage-gradient), var(--stage-bg);
 }
 
 .app-viewport.is-electron {
