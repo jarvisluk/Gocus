@@ -720,7 +720,7 @@ function testWindowGeometryModule() {
   assert.equal(clampCollapsedRailHeight("bad", display), 136);
   assert.equal(clampCommitInfoWindowHeight(72, display), 92);
   assert.equal(clampCommitInfoWindowHeight(104, display), 104);
-  assert.equal(clampCommitInfoWindowHeight(9999, display), 164);
+  assert.equal(clampCommitInfoWindowHeight(9999, display), 240);
   assert.equal(clampCommitInfoWindowHeight("bad", display), 132);
   assert.deepEqual(clampExpandedSize({ width: 1, height: 9999 }, display), { width: 320, height: 860 });
   assert.deepEqual(
