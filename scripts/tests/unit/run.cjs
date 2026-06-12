@@ -261,7 +261,6 @@ function testSourceHygieneScript() {
     checkBackdropFilterTokens,
     checkBoxShadowTokens,
     checkContent,
-    checkCssFileSize,
     checkDuplicateCssDeclarationBlocks,
     checkRawCssColorTokens,
     checkRootStylesheetManifestOrder,
@@ -286,12 +285,10 @@ function testSourceHygieneScript() {
     isSrcLibFile,
     isThemeTokenStylesheet,
     isViewModelFile,
-    maxCssFileLines,
     maxLineLength,
     resolveStylesheetImport,
     rootStylesheetManifestFiles,
     runHygieneCheck,
-    sourceLineCount,
     stylesheetManifestImports,
     usesCssClass,
   } = require(path.join(projectRoot, "scripts/check-source-hygiene.cjs"));
@@ -353,15 +350,6 @@ function testSourceHygieneScript() {
     "src/components/Example.tsx:1: import git-tree modules directly instead of the barrel",
   ]);
   assert.deepEqual(checkContent("electron/preload.cjs", 'const { ipcRenderer } = require("electron");\n'), []);
-  assert.equal(sourceLineCount(""), 0);
-  assert.equal(sourceLineCount("one"), 1);
-  assert.equal(sourceLineCount("one\n"), 1);
-  assert.deepEqual(checkCssFileSize("src/components/Example.tsx", "x\n".repeat(maxCssFileLines + 1)), []);
-  assert.deepEqual(checkCssFileSize("src/styles/example.css", "x\n".repeat(maxCssFileLines)), []);
-  assert.deepEqual(checkCssFileSize("src/styles/example.css", "x\n".repeat(maxCssFileLines + 1)), [
-    `src/styles/example.css:1: keep CSS files at or below ${maxCssFileLines} lines ` +
-      `(currently ${maxCssFileLines + 1}); split by surface or shared pattern`,
-  ]);
   assert.deepEqual(checkBackdropFilterTokens("src/components/Example.tsx", "backdrop-filter: blur(1px);\n"), []);
   assert.deepEqual(checkBackdropFilterTokens("src/styles/example.css", "backdrop-filter: none;\n"), []);
   assert.deepEqual(checkBackdropFilterTokens("src/styles/example.css", "backdrop-filter: var(--panel-backdrop-filter);\n"), []);

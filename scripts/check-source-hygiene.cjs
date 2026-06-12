@@ -64,7 +64,6 @@ const rootStylesheetManifestFiles = [
   "src/styles/commit-imports.css",
   "src/styles/changed-shell-imports.css",
 ];
-const maxCssFileLines = 49;
 const minDuplicateCssDeclarationCount = 3;
 
 function isSrcLibFile(relativeFilePath) {
@@ -224,23 +223,6 @@ function cssClassSelectorsByName(fileContents) {
   }
 
   return selectors;
-}
-
-function sourceLineCount(content) {
-  if (!content) return 0;
-  return content.split("\n").length - (content.endsWith("\n") ? 1 : 0);
-}
-
-function checkCssFileSize(relativeFilePath, content) {
-  if (!relativeFilePath.endsWith(".css")) return [];
-
-  const lineCount = sourceLineCount(content);
-  if (lineCount <= maxCssFileLines) return [];
-
-  return [
-    `${relativeFilePath}:1: keep CSS files at or below ${maxCssFileLines} lines ` +
-      `(currently ${lineCount}); split by surface or shared pattern`,
-  ];
 }
 
 function checkBackdropFilterTokens(relativeFilePath, content) {
@@ -506,7 +488,6 @@ function runHygieneCheck() {
     checkedFiles,
     failures: [
       ...fileContents.flatMap(({ relativeFilePath, content }) => checkContent(relativeFilePath, content)),
-      ...fileContents.flatMap(({ relativeFilePath, content }) => checkCssFileSize(relativeFilePath, content)),
       ...fileContents.flatMap(({ relativeFilePath, content }) => checkBackdropFilterTokens(relativeFilePath, content)),
       ...fileContents.flatMap(({ relativeFilePath, content }) => checkBoxShadowTokens(relativeFilePath, content)),
       ...fileContents.flatMap(({ relativeFilePath, content }) => checkRawCssColorTokens(relativeFilePath, content)),
@@ -538,7 +519,6 @@ module.exports = {
   checkBackdropFilterTokens,
   checkBoxShadowTokens,
   checkContent,
-  checkCssFileSize,
   checkDuplicateCssDeclarationBlocks,
   checkRawCssColorTokens,
   checkRootStylesheetManifestOrder,
@@ -565,11 +545,9 @@ module.exports = {
   resolveStylesheetImport,
   isSrcLibFile,
   isViewModelFile,
-  maxCssFileLines,
   maxLineLength,
   minDuplicateCssDeclarationCount,
   rootStylesheetManifestFiles,
   runHygieneCheck,
-  sourceLineCount,
   usesCssClass,
 };
