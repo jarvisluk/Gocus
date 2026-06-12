@@ -1,6 +1,7 @@
 @import "./styles/tokens.css";
 @import "./styles/theme.css";
-@import "./styles/theme-presets.css";
+@import "./styles/theme-presets-light.css";
+@import "./styles/theme-presets-dark.css";
 @import "./styles/base.css";
 @import "./styles/app-frame.css";
 @import "./styles/panel-shell.css";
