@@ -1,4 +1,4 @@
-import { FileDiff, Focus, FolderOpen, Settings } from "lucide-react";
+import { FileDiff, FolderOpen, Settings } from "lucide-react";
 import {
   footerActionsView,
   footerNoticeView,
@@ -9,7 +9,6 @@ import { WorkspaceOpenControl } from "./WorkspaceOpenControl";
 export function Footer({
   onOpenRepo,
   onOpenChangedNow,
-  onEnterZen,
   onOpenSettings,
   onOpenWorkspace,
   activeWorkspaceTarget,
@@ -19,12 +18,10 @@ export function Footer({
   changedNowCount,
   preferences,
   availableWorkspaceTargets,
-  showZenEntry,
   notice,
 }: {
   onOpenRepo: () => void;
   onOpenChangedNow: () => void;
-  onEnterZen: () => void;
   onOpenSettings: () => void;
   onOpenWorkspace: (target: WorkspaceOpenTarget) => void;
   activeWorkspaceTarget: WorkspaceOpenTarget;
@@ -34,10 +31,9 @@ export function Footer({
   changedNowCount: number;
   preferences: UiPreferences;
   availableWorkspaceTargets: WorkspaceOpenTarget[];
-  showZenEntry: boolean;
   notice: string;
 }) {
-  const actionsView = footerActionsView({ changedNowOpen, hasRepository, showZenEntry });
+  const actionsView = footerActionsView({ changedNowOpen, hasRepository });
   const noticeView = footerNoticeView({ hasRepository, notice });
 
   return (
@@ -75,18 +71,6 @@ export function Footer({
             <span>{changedNowCount}</span>
           </button>
         )}
-        {actionsView.showZenButton ? (
-          <button
-            className={actionsView.zenButton.className}
-            type="button"
-            aria-label={actionsView.zenButton.ariaLabel}
-            title={actionsView.zenButton.title}
-            onClick={onEnterZen}
-            disabled={actionsView.zenButton.disabled}
-          >
-            <Focus aria-hidden="true" />
-          </button>
-        ) : null}
         <WorkspaceOpenControl
           activeWorkspaceTarget={activeWorkspaceTarget}
           availableWorkspaceTargets={availableWorkspaceTargets}

@@ -385,17 +385,6 @@ export function SettingsPanel({
               </label>
             </div>
             <div className={view.mainPanel.rowClassName}>
-              <span className={view.mainPanel.labelClassName}>{sections.behavior.rows.zenEntry}</span>
-              <label className={view.mainPanel.zenEntryToggleClassName}>
-                <input
-                  type="checkbox"
-                  aria-label={sections.behavior.showZenEntryAriaLabel}
-                  checked={preferences.showZenEntry}
-                  onChange={(event) => onChange({ ...preferences, showZenEntry: event.target.checked })}
-                />
-              </label>
-            </div>
-            <div className={view.mainPanel.rowClassName}>
               <span className={view.mainPanel.labelClassName}>{sections.behavior.rows.prompt}</span>
               <div className={view.mainPanel.compactSegmentedClassName}>
                 {preferenceView.promptLanguageOptions.map((option) => (

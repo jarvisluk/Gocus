@@ -50,11 +50,9 @@ export interface UiPreferences {
   fontFamily: "system" | "inter" | "mono";
   graphStyle: "solid" | "soft";
   workspaceOpenTargets: WorkspaceOpenTarget[];
-  showZenEntry: boolean;
   showMenuBarIcon: boolean;
   launchAtLogin: boolean;
   createMergeCommit: boolean;
-  zenMode: boolean;
   autoRefreshInterval: AutoRefreshInterval;
   promptLanguage: PromptLanguage;
 }

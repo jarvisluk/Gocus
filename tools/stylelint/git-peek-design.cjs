@@ -40,7 +40,6 @@ const compactUiSelectorPattern = new RegExp(
     "\\.settings-row",
     "\\.summary-chip",
     "\\.workspace-open",
-    "\\.zen-exit-button",
   ].join("|"),
 );
 
