@@ -1,0 +1,25 @@
+.action-dialog-error-block {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.action-dialog-error {
+  max-height: 116px;
+  margin: 0;
+  overflow: auto;
+  padding: 9px 10px;
+  border-color: color-mix(in srgb, var(--danger) 36%, var(--border));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.action-dialog-copy-prompt {
+  justify-self: start;
+  gap: var(--space-xs);
+}
+
+.action-dialog-copy-prompt svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}

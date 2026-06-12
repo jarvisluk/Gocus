@@ -13,4 +13,5 @@
 @import "./commit-graph-soft.css";
 @import "./commit-hover.css";
 @import "./commit-hover-content.css";
-@import "./commit-hover-meta.css";
+@import "./commit-hover-refs.css";
+@import "./commit-hover-hash.css";
