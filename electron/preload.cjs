@@ -31,6 +31,8 @@ contextBridge.exposeInMainWorld("gitPeek", {
   setChangedFileInfoPanel: (payload) => ipcRenderer.invoke("window:setChangedFileInfoPanel", payload),
   getCommitInfoPayload: () => ipcRenderer.invoke("window:getCommitInfoPayload"),
   setCommitInfoPanel: (payload) => ipcRenderer.invoke("window:setCommitInfoPanel", payload),
+  holdCommitInfoPanelInteraction: (durationMs) => ipcRenderer.invoke("window:holdCommitInfoPanelInteraction", durationMs),
+  isCommitInfoPanelActive: () => ipcRenderer.invoke("window:isCommitInfoPanelActive"),
   setCommitInfoPanelHeight: (height) => ipcRenderer.invoke("window:setCommitInfoPanelHeight", height),
   copyText: (text) => ipcRenderer.invoke("clipboard:writeText", text),
   getSystemTheme: () => ipcRenderer.invoke("theme:getSystemTheme"),

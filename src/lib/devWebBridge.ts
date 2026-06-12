@@ -98,6 +98,8 @@ export function installDevWebBridge() {
       commitInfoPayload = payload;
       setPayload(payload, commitInfoCallbacks);
     },
+    holdCommitInfoPanelInteraction: async (_durationMs?: number) => {},
+    isCommitInfoPanelActive: async () => false,
     setCommitInfoPanelHeight: async (_height: number) => {},
     copyText: async (text: string) => navigator.clipboard?.writeText(text),
     getSystemTheme: async () => (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"),

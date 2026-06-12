@@ -52,6 +52,8 @@ declare global {
       setChangedFileInfoPanel: (payload: ChangedFileInfoPayload) => Promise<void>;
       getCommitInfoPayload: () => Promise<CommitInfoPayload>;
       setCommitInfoPanel: (payload: CommitInfoPayload) => Promise<void>;
+      holdCommitInfoPanelInteraction?: (durationMs?: number) => Promise<void>;
+      isCommitInfoPanelActive?: () => Promise<boolean>;
       setCommitInfoPanelHeight?: (height: number) => Promise<void>;
       copyText: (text: string) => Promise<void>;
       getSystemTheme: () => Promise<"light" | "dark">;

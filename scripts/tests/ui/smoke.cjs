@@ -226,6 +226,7 @@ function installGitPeekMock(config) {
   window.__gitPeekTemporaryInfoPayload = config.temporaryInfoPayload ?? null;
   window.__gitPeekChangedFileInfoPayload = config.changedFileInfoPayload ?? null;
   window.__gitPeekCommitInfoPayload = config.commitInfoPayload ?? null;
+  window.__gitPeekCommitInfoSetCalls = [];
   window.__gitPeekWorkspaceOpenMenuPayload = null;
   window.__gitPeekTemporaryInfoListeners = [];
   window.__gitPeekChangedFileInfoListeners = [];
@@ -233,6 +234,8 @@ function installGitPeekMock(config) {
   window.__gitPeekCommitInfoListeners = [];
   window.__gitPeekPreferencesListeners = [];
   window.__gitPeekPinnedListeners = [];
+  window.__gitPeekCommitInfoPanelActive = Boolean(config.commitInfoPanelActive);
+  window.__gitPeekCommitInfoInteractionHolds = [];
   window.__gitPeekPinnedState = Boolean(config.pinned);
   window.__gitPeekActiveWorkspaceTarget =
     config.activeWorkspaceTarget ??
@@ -372,9 +375,15 @@ function installGitPeekMock(config) {
     },
     setCommitInfoPanel: async (payload) => {
       if (config.setCommitInfoPanelError) throw new Error(config.setCommitInfoPanelError);
+      window.__gitPeekCommitInfoSetCalls.push(payload?.commit?.hash ?? null);
       window.__gitPeekCommitInfoPayload = payload;
       window.__gitPeekCommitInfoListeners.forEach((callback) => callback(payload));
     },
+    holdCommitInfoPanelInteraction: async (durationMs) => {
+      window.__gitPeekCommitInfoInteractionHolds.push(durationMs);
+      window.__gitPeekCommitInfoPanelActive = true;
+    },
+    isCommitInfoPanelActive: async () => window.__gitPeekCommitInfoPanelActive,
     setCommitInfoPanelHeight: async (height) => {
       window.__gitPeekCommitInfoPanelHeights.push(height);
     },
@@ -690,7 +699,7 @@ async function openMockedPage(browser, baseUrl, scenario, options = {}) {
   });
   page.on("pageerror", (error) => errors.push(`page error: ${error.message}`));
 
-  await page.addInitScript(installGitPeekMock, scenario);
+  await page.addInitScript(installGitPeekMock, { ...scenario, ...options });
   await page.goto(baseUrl, { waitUntil: "networkidle" });
 
   return { page, errors };
@@ -928,6 +937,37 @@ async function testCommitHoverPanel(browser, baseUrl) {
   }
 }
 
+async function testCommitPreviewBlurKeepsActiveInfoPanel(browser, baseUrl) {
+  const { page, errors } = await openMockedPage(browser, baseUrl, mockedSnapshotScenario(mockCommits), {
+    commitInfoPanelActive: true,
+  });
+  try {
+    await assertHealthyPage(page, errors);
+
+    await page.getByRole("button", { name: /Add commit search polish/ }).click();
+    await page.waitForFunction(() => window.__gitPeekCommitInfoPayload?.commit?.hash === "a1b2c3d");
+    assert.deepEqual(await page.evaluate(() => window.__gitPeekCommitInfoSetCalls), ["a1b2c3d"]);
+    await page.evaluate(() => {
+      const button = document.querySelector(".commit-row.is-selected .commit-select");
+      button?.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: null }));
+    });
+    await page.waitForTimeout(120);
+    assert.equal(await page.evaluate(() => window.__gitPeekCommitInfoPayload?.commit?.hash), "a1b2c3d");
+    assert.deepEqual(await page.evaluate(() => window.__gitPeekCommitInfoSetCalls), ["a1b2c3d"]);
+
+    await page.evaluate(() => {
+      window.__gitPeekCommitInfoPanelActive = false;
+      const button = document.querySelector(".commit-row.is-selected .commit-select");
+      button?.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: null }));
+    });
+    await page.waitForFunction(() => window.__gitPeekCommitInfoPayload === null);
+    assert.deepEqual(await page.evaluate(() => window.__gitPeekCommitInfoSetCalls), ["a1b2c3d", null]);
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
 async function testCommitInfoPanel(browser, baseUrl) {
   const { page, errors } = await openMockedPage(
     browser,
@@ -964,6 +1004,7 @@ async function testCommitInfoPanel(browser, baseUrl) {
     await page.getByRole("button", { name: "Copy commit hash" }).click();
     await page.getByRole("button", { name: "Copied commit hash" }).waitFor();
     assert.equal(await page.evaluate(() => window.__gitPeekCopiedText), mockCommits[0].fullHash);
+    assert.deepEqual(await page.evaluate(() => window.__gitPeekCommitInfoInteractionHolds), [700]);
     await page.evaluate(
       (commit) => window.gitPeek.setCommitInfoPanel({ kind: "commit", commit }),
       commit({
@@ -2317,6 +2358,7 @@ async function main() {
   try {
     await testSelectedCommitGraphAnchor(browser, baseUrl);
     await testCommitHoverPanel(browser, baseUrl);
+    await testCommitPreviewBlurKeepsActiveInfoPanel(browser, baseUrl);
     await testCommitInfoPanel(browser, baseUrl);
     await testCommitSearch(browser, baseUrl);
     await testLargeCommitListVirtualizes(browser, baseUrl);

@@ -58,6 +58,7 @@ let changedFileInfoPayload = null;
 let commitInfoWindow = null;
 let commitInfoPayload = null;
 let commitInfoWindowHeight = commitInfoWindowSize.height;
+let commitInfoInteractionHoldUntil = 0;
 let activeWorkspaceOpenTarget = "cursor";
 let workspaceOpenMenuActive = false;
 let repositoryWatcher = null;
@@ -386,6 +387,16 @@ function isWindowFocused(win) {
   return Boolean(win && !win.isDestroyed() && win.isFocused());
 }
 
+function holdCommitInfoPanelInteraction(durationMs = 500) {
+  const requestedDurationMs = Number(durationMs);
+  const holdDurationMs = Number.isFinite(requestedDurationMs) ? Math.min(Math.max(requestedDurationMs, 0), 2000) : 500;
+  commitInfoInteractionHoldUntil = Math.max(commitInfoInteractionHoldUntil, Date.now() + holdDurationMs);
+}
+
+function isCommitInfoPanelActive() {
+  return isWindowFocused(commitInfoWindow) || Date.now() < commitInfoInteractionHoldUntil;
+}
+
 function sendSystemTheme() {
   for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow]) {
     sendToWindow(win, "theme:changed", getSystemTheme());
@@ -570,7 +581,7 @@ function closeTemporaryInfoWindowIfAppInactive() {
       isWindowFocused(mainWindow) ||
       isWindowFocused(temporaryInfoWindow) ||
       isWindowFocused(changedFileInfoWindow) ||
-      isWindowFocused(commitInfoWindow) ||
+      isCommitInfoPanelActive() ||
       workspaceOpenMenuActive;
     if (!appFocused) {
       closeTemporaryInfoWindow();
@@ -608,6 +619,7 @@ function ensureTemporaryInfoWindow() {
     minimizable: false,
     maximizable: false,
     skipTaskbar: true,
+    acceptFirstMouse: true,
     title: "Git Peek Info",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -689,7 +701,7 @@ function closeChangedFileInfoWindowIfAppInactive() {
       isWindowFocused(mainWindow) ||
       isWindowFocused(temporaryInfoWindow) ||
       isWindowFocused(changedFileInfoWindow) ||
-      isWindowFocused(commitInfoWindow) ||
+      isCommitInfoPanelActive() ||
       workspaceOpenMenuActive;
     if (!appFocused) {
       closeChangedFileInfoWindow();
@@ -726,6 +738,7 @@ function ensureChangedFileInfoWindow() {
     minimizable: false,
     maximizable: false,
     skipTaskbar: true,
+    acceptFirstMouse: true,
     title: "Git Peek Changed File Info",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -871,7 +884,7 @@ function closeCommitInfoWindowIfAppInactive() {
       isWindowFocused(mainWindow) ||
       isWindowFocused(temporaryInfoWindow) ||
       isWindowFocused(changedFileInfoWindow) ||
-      isWindowFocused(commitInfoWindow) ||
+      isCommitInfoPanelActive() ||
       workspaceOpenMenuActive;
     if (!appFocused) {
       closeCommitInfoWindow();
@@ -908,6 +921,7 @@ function ensureCommitInfoWindow() {
     minimizable: false,
     maximizable: false,
     skipTaskbar: true,
+    acceptFirstMouse: true,
     title: "Git Peek Commit Info",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -1318,6 +1332,8 @@ registerIpcHandlers({
   getChangedFileInfoPayload: () => changedFileInfoPayload,
   getCommitInfoPayload: () => commitInfoPayload,
   getPinnedState: () => pinnedState,
+  holdCommitInfoPanelInteraction,
+  isCommitInfoPanelActive,
   getSnapshotResponse,
   getSystemTheme,
   getTemporaryInfoPayload: () => temporaryInfoPayload,

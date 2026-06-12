@@ -13,6 +13,8 @@ function registerIpcHandlers({
   getChangedFileInfoPayload,
   getPinnedState,
   getCommitInfoPayload,
+  holdCommitInfoPanelInteraction,
+  isCommitInfoPanelActive,
   getSnapshotResponse,
   getSystemTheme,
   getTemporaryInfoPayload,
@@ -240,6 +242,12 @@ function registerIpcHandlers({
   ipcMain.handle("window:setCommitInfoPanel", (_event, payload) => {
     setCommitInfoPanel(payload);
   });
+
+  ipcMain.handle("window:holdCommitInfoPanelInteraction", (_event, durationMs) => {
+    holdCommitInfoPanelInteraction(durationMs);
+  });
+
+  ipcMain.handle("window:isCommitInfoPanelActive", () => isCommitInfoPanelActive());
 
   ipcMain.handle("window:setCommitInfoPanelHeight", (_event, height) => {
     setCommitInfoPanelHeight(height);

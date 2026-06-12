@@ -1,6 +1,6 @@
 import { Check, Clock3, Copy, GitBranch, GitFork, Hash, UserCircle, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, MouseEvent } from "react";
 import { commitHoverPanelView } from "../lib/commitRowView";
 import { copyTextWithFallback } from "../lib/copyText";
 import { logBridgeWarning } from "../lib/errorMessages";
@@ -9,6 +9,7 @@ import type { CommitItem } from "../types";
 type CopyHashState = "idle" | "copied" | "failed";
 
 const copyHashStateResetDelayMs = 1400;
+const commitInfoInteractionHoldMs = 700;
 const commitInfoWindowVerticalPadding = 8;
 
 function commitInfoRefIcon(icon: "branch" | "worktree") {
@@ -32,6 +33,8 @@ export function CommitInfoPanel({ commit }: { commit: CommitItem }) {
   const [copyHashState, setCopyHashState] = useState<CopyHashState>("idle");
   const panelRef = useRef<HTMLElement | null>(null);
   const copyHashResetTimerRef = useRef<number | null>(null);
+  const copyHashMouseStartedRef = useRef(false);
+  const copyHashMouseResetTimerRef = useRef<number | null>(null);
   const reportedHeightRef = useRef<number | null>(null);
   const view = commitHoverPanelView(commit);
   const copyHashLabel = commitHashCopyLabel(copyHashState);
@@ -71,6 +74,7 @@ export function CommitInfoPanel({ commit }: { commit: CommitItem }) {
   useEffect(
     () => () => {
       if (copyHashResetTimerRef.current !== null) window.clearTimeout(copyHashResetTimerRef.current);
+      if (copyHashMouseResetTimerRef.current !== null) window.clearTimeout(copyHashMouseResetTimerRef.current);
     },
     [],
   );
@@ -94,8 +98,49 @@ export function CommitInfoPanel({ commit }: { commit: CommitItem }) {
     }
   }
 
+  function holdCommitInfoPanelInteraction() {
+    void window.gitPeek?.holdCommitInfoPanelInteraction?.(commitInfoInteractionHoldMs);
+  }
+
+  function markCopyStartedByMouse() {
+    copyHashMouseStartedRef.current = true;
+    if (copyHashMouseResetTimerRef.current !== null) window.clearTimeout(copyHashMouseResetTimerRef.current);
+    copyHashMouseResetTimerRef.current = window.setTimeout(() => {
+      copyHashMouseStartedRef.current = false;
+      copyHashMouseResetTimerRef.current = null;
+    }, 500);
+  }
+
+  function clearCopyStartedByMouse() {
+    copyHashMouseStartedRef.current = false;
+    if (copyHashMouseResetTimerRef.current === null) return;
+    window.clearTimeout(copyHashMouseResetTimerRef.current);
+    copyHashMouseResetTimerRef.current = null;
+  }
+
+  function handleCopyHashMouseDown(event: MouseEvent<HTMLButtonElement>) {
+    if (event.button !== 0) return;
+    markCopyStartedByMouse();
+    void copyCommitHash();
+  }
+
+  function handleCopyHashClick() {
+    if (copyHashMouseStartedRef.current) {
+      clearCopyStartedByMouse();
+      return;
+    }
+
+    void copyCommitHash();
+  }
+
   return (
-    <aside ref={panelRef} className={view.panel.className} role={view.panel.role} aria-label={view.panel.ariaLabel}>
+    <aside
+      ref={panelRef}
+      className={view.panel.className}
+      role={view.panel.role}
+      aria-label={view.panel.ariaLabel}
+      onPointerDownCapture={holdCommitInfoPanelInteraction}
+    >
       <div className={view.bodyClassName}>
         <div className={view.primarySectionClassName}>
           <div className={view.headerClassName}>
@@ -143,7 +188,8 @@ export function CommitInfoPanel({ commit }: { commit: CommitItem }) {
               type="button"
               aria-label={copyHashLabel}
               title={copyHashLabel}
-              onClick={copyCommitHash}
+              onMouseDown={handleCopyHashMouseDown}
+              onClick={handleCopyHashClick}
             >
               {commitHashCopyIcon(copyHashState)}
             </button>
