@@ -38,23 +38,3 @@
   font-weight: var(--font-weight-body);
   text-transform: none;
 }
-
-.ui-menu.action-prefix-menu {
-  z-index: 45;
-  top: auto;
-  bottom: calc(100% + 6px);
-  left: 0;
-  width: min(174px, calc(100vw - 40px));
-}
-
-.action-prefix-menu-item,
-.action-merge-target-menu-item {
-  grid-template-columns: 18px minmax(0, 1fr);
-}
-
-.action-prefix-menu-item span {
-  color: inherit;
-  font-size: inherit;
-  font-weight: inherit;
-  text-transform: none;
-}

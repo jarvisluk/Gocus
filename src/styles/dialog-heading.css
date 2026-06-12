@@ -1,0 +1,23 @@
+.ui-dialog-heading {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) var(--control-sm);
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.ui-dialog-heading h2 {
+  margin: 0;
+  font-size: var(--type-heading-2-size);
+  line-height: 1.2;
+}
+
+.ui-dialog-heading > svg {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  color: var(--text-muted);
+}
+
+.ui-dialog-heading .ui-icon-button {
+  width: var(--control-sm);
+  height: var(--control-sm);
+}
