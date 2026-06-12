@@ -1,9 +1,0 @@
-.branch-ref-menu,
-.worktree-menu {
-  position: absolute;
-  z-index: 35;
-  right: 0;
-  width: min(248px, calc(100vw - 24px));
-  max-height: 290px;
-  overflow-y: auto;
-}

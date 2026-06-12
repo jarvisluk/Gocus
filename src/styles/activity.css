@@ -30,3 +30,110 @@
   font-size: var(--type-caption-size);
   font-weight: var(--font-weight-strong);
 }
+
+.heading-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: var(--type-body-size);
+}
+
+.heading-tools.has-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.commit-count {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.heading-tools button {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.heading-tools svg {
+  width: 16px;
+  height: 16px;
+}
+
+.heading-tools button[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  z-index: 20;
+  min-width: max-content;
+  max-width: 148px;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
+  box-shadow: var(--activity-popover-shadow);
+  color: var(--text);
+  font-size: var(--type-caption-size);
+  font-weight: var(--font-weight-strong);
+  line-height: 1.2;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-2px);
+  transition: opacity 120ms ease, transform 120ms ease;
+  white-space: nowrap;
+}
+
+:is(.heading-tools button[data-tooltip]:hover, .heading-tools button[data-tooltip]:focus-visible)::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.commit-search {
+  min-width: 0;
+  width: min(148px, 42vw);
+  height: 26px;
+  display: grid;
+  grid-template-columns: 17px minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 2px;
+  padding: 0 2px 0 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+.commit-search:focus-within {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 2px var(--focus-soft);
+}
+
+.commit-search input {
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+}
+
+.commit-search input::placeholder {
+  color: var(--text-faint);
+}
+
+.commit-search .commit-search-clear {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+}

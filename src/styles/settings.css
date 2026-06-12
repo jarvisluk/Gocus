@@ -26,3 +26,33 @@
 :is(.settings-launch-at-login-toggle, .settings-menu-bar-icon-toggle, .settings-merge-commit-toggle, .settings-zen-entry-toggle) {
   justify-content: flex-end;
 }
+
+.settings-refresh-menu {
+  z-index: 24;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 100%;
+}
+
+.workspace-target-list {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.workspace-target-toggle {
+  min-width: 0;
+  min-height: var(--control-md);
+  display: grid;
+  grid-template-columns: var(--app-icon-control) minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.workspace-target-toggle span:nth-child(2) {
+  font-size: var(--type-body-size);
+  font-weight: var(--font-weight-strong);
+}

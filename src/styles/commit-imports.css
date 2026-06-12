@@ -1,7 +1,4 @@
 @import "./activity.css";
-@import "./activity-tools.css";
-@import "./activity-tooltips.css";
-@import "./commit-search.css";
 @import "./commits.css";
 @import "./commit-graph.css";
 @import "./commit-hover.css";
