@@ -18,8 +18,3 @@
   justify-self: start;
   gap: var(--space-xs);
 }
-
-.action-dialog-copy-prompt svg {
-  width: var(--icon-sm);
-  height: var(--icon-sm);
-}

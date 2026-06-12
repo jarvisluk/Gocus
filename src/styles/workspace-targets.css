@@ -16,10 +16,6 @@
   cursor: pointer;
 }
 
-.workspace-target-toggle:hover {
-  background: var(--surface-hover);
-}
-
 .workspace-target-toggle span:nth-child(2) {
   font-size: var(--type-body-size);
   font-weight: var(--font-weight-strong);

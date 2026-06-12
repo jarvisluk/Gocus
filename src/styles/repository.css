@@ -2,11 +2,6 @@
   min-width: 0;
 }
 
-.header-repo-switcher {
-  position: relative;
-  min-width: 0;
-}
-
 .repo-title-button {
   width: calc(100% + 10px);
   min-width: 0;
@@ -20,11 +15,6 @@
   background: transparent;
   color: var(--text);
   text-align: left;
-}
-
-.repo-title-button:hover,
-.repo-title-button.is-open {
-  background: var(--surface-hover);
 }
 
 .repo-title-copy {

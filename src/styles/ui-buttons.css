@@ -24,8 +24,3 @@
 .primary-action:hover:not(:disabled) {
   filter: brightness(0.94);
 }
-
-.ui-button svg {
-  width: var(--icon-sm);
-  height: var(--icon-sm);
-}

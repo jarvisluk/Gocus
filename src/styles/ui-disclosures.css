@@ -15,11 +15,6 @@
   text-align: left;
 }
 
-.ui-disclosure-button:hover,
-.ui-disclosure-button.is-open {
-  background: var(--surface-hover);
-}
-
 .ui-disclosure-label {
   font-size: var(--type-body-size);
   font-weight: var(--font-weight-strong);

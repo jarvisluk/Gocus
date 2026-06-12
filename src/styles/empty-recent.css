@@ -21,10 +21,6 @@
   text-align: left;
 }
 
-.empty-recent-repos button:hover:not(:disabled) {
-  background: var(--surface-hover);
-}
-
 .empty-recent-repos svg {
   width: var(--icon-md);
   height: var(--icon-md);

@@ -21,8 +21,3 @@
   gap: 5px;
   color: var(--text-muted);
 }
-
-.files svg {
-  width: var(--icon-xs);
-  height: var(--icon-xs);
-}

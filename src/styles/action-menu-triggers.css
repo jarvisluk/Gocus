@@ -1,8 +1,3 @@
-.action-prefix-control {
-  position: relative;
-  min-width: 0;
-}
-
 .action-prefix-trigger,
 .action-merge-target-trigger {
   height: var(--dialog-field-height);
@@ -13,15 +8,6 @@
   background: var(--surface);
   color: var(--text);
   font-size: var(--type-body-size);
-}
-
-.action-prefix-trigger:hover,
-.action-prefix-trigger:focus-visible,
-.action-prefix-trigger.is-open,
-.action-merge-target-trigger:hover,
-.action-merge-target-trigger:focus-visible,
-.action-merge-target-trigger.is-open {
-  background: var(--surface-hover);
 }
 
 .action-prefix-trigger:focus-visible,

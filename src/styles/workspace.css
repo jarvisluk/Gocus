@@ -19,11 +19,6 @@
   border-right: 1px solid var(--border-soft);
 }
 
-.branch-menu-control {
-  position: relative;
-  min-width: 0;
-}
-
 .branch-view-trigger {
   width: 100%;
   border-right: 0;

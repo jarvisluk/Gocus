@@ -39,7 +39,10 @@
   text-align: left;
 }
 
-.ui-menu-item:hover,
-.ui-menu-item.is-active {
-  background: var(--surface-hover);
+.action-prefix-menu-item,
+.action-merge-target-menu-item,
+.branch-ref-menu-item,
+.settings-refresh-menu-item,
+.worktree-menu-item {
+  grid-template-columns: 18px minmax(0, 1fr);
 }

@@ -21,3 +21,21 @@
   background: var(--surface-hover);
   color: var(--text);
 }
+
+.action-prefix-trigger:hover,
+.action-prefix-trigger:focus-visible,
+.action-prefix-trigger.is-open,
+.action-merge-target-trigger:hover,
+.action-merge-target-trigger:focus-visible,
+.action-merge-target-trigger.is-open,
+.commit-actions button:hover,
+.empty-recent-repos button:hover:not(:disabled),
+.repo-title-button:hover,
+.repo-title-button.is-open,
+.ui-disclosure-button:hover,
+.ui-disclosure-button.is-open,
+.ui-menu-item:hover,
+.ui-menu-item.is-active,
+.workspace-target-toggle:hover {
+  background: var(--surface-hover);
+}

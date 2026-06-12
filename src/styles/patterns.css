@@ -12,6 +12,15 @@
   gap: 2px;
 }
 
+.action-merge-target-control,
+.action-prefix-control,
+.branch-menu-control,
+.header-repo-switcher,
+.settings-refresh-control {
+  position: relative;
+  min-width: 0;
+}
+
 .is-electron .peek-panel,
 .is-electron .collapsed-rail {
   inset: 0;

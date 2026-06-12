@@ -7,8 +7,3 @@
   max-height: 290px;
   overflow-y: auto;
 }
-
-.branch-ref-menu-item,
-.worktree-menu-item {
-  grid-template-columns: 18px minmax(0, 1fr);
-}

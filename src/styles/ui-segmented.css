@@ -32,8 +32,3 @@
 .ui-segmented button:last-child {
   border-right: 0;
 }
-
-.ui-segmented svg {
-  width: var(--icon-xs);
-  height: var(--icon-xs);
-}

@@ -18,12 +18,6 @@
   place-items: center;
 }
 
-.repo-menu-check svg,
-.repo-menu-item svg {
-  width: var(--icon-xs);
-  height: var(--icon-xs);
-}
-
 .repo-menu-text strong {
   font-size: var(--type-caption-size);
   font-weight: var(--font-weight-strong);
