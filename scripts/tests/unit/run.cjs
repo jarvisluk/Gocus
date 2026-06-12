@@ -264,6 +264,7 @@ function testSourceHygieneScript() {
     checkCssFileSize,
     checkDuplicateCssDeclarationBlocks,
     checkRawCssColorTokens,
+    checkRootStylesheetManifestOrder,
     checkStylesheetManifest,
     checkUnusedCssClassSelectors,
     checkUnusedCssCustomProperties,
@@ -288,6 +289,7 @@ function testSourceHygieneScript() {
     maxCssFileLines,
     maxLineLength,
     resolveStylesheetImport,
+    rootStylesheetManifestFiles,
     runHygieneCheck,
     sourceLineCount,
     stylesheetManifestImports,
@@ -493,16 +495,43 @@ function testSourceHygieneScript() {
     { lineNumber: 1, relativeFilePath: "src/styles/base.css" },
     { lineNumber: 2, relativeFilePath: "src/styles/theme.css" },
   ]);
+  assert.deepEqual(
+    checkRootStylesheetManifestOrder(
+      rootStylesheetManifestFiles.map((relativeFilePath, index) => ({ lineNumber: index + 1, relativeFilePath })),
+    ),
+    [],
+  );
+  assert.deepEqual(
+    checkRootStylesheetManifestOrder([
+      { lineNumber: 1, relativeFilePath: "src/styles/ui-imports.css" },
+      { lineNumber: 2, relativeFilePath: "src/styles/foundation-imports.css" },
+    ]),
+    [
+      "src/styles.css:1: keep root stylesheet imports ordered as " +
+        rootStylesheetManifestFiles.join(", "),
+    ],
+  );
+  assert.deepEqual(
+    checkRootStylesheetManifestOrder([{ lineNumber: 1, relativeFilePath: "src/styles/base.css" }]),
+    [],
+  );
   assert.equal(resolveStylesheetImport("src/styles.css", "./styles/base.css"), "src/styles/base.css");
   assert.equal(resolveStylesheetImport("src/styles/foundation.css", "./base.css"), "src/styles/base.css");
   assert.equal(resolveStylesheetImport("src/styles/foundation.css", "../styles.css"), "");
   assert.deepEqual(stylesheetManifestImports('@import "./base.css";\n', "src/styles/foundation.css"), [
     { lineNumber: 1, relativeFilePath: "src/styles/base.css" },
   ]);
+  const rootStylesheetManifestContent =
+    rootStylesheetManifestFiles.map((relativeFilePath) => `@import "./styles/${path.basename(relativeFilePath)}";`).join("\n") +
+    "\n";
+  const groupedManifestFixtureFiles = rootStylesheetManifestFiles.map((relativeFilePath) => ({
+    relativeFilePath,
+    content: relativeFilePath === "src/styles/foundation-imports.css" ? '@import "./base.css";\n@import "./theme.css";\n' : "",
+  }));
   assert.deepEqual(
     checkStylesheetManifest([
-      { relativeFilePath: "src/styles.css", content: '@import "./styles/foundation-imports.css";\n' },
-      { relativeFilePath: "src/styles/foundation-imports.css", content: '@import "./base.css";\n@import "./theme.css";\n' },
+      { relativeFilePath: "src/styles.css", content: rootStylesheetManifestContent },
+      ...groupedManifestFixtureFiles,
       { relativeFilePath: "src/styles/base.css", content: ".base {}\n" },
       { relativeFilePath: "src/styles/theme.css", content: ".theme {}\n" },
     ]),
@@ -521,8 +550,11 @@ function testSourceHygieneScript() {
   );
   assert.deepEqual(
     checkStylesheetManifest([
-      { relativeFilePath: "src/styles.css", content: '@import "./styles/foundation-imports.css";\n' },
-      { relativeFilePath: "src/styles/foundation-imports.css", content: '@import "./base.css";\n' },
+      { relativeFilePath: "src/styles.css", content: rootStylesheetManifestContent },
+      ...rootStylesheetManifestFiles.map((relativeFilePath) => ({
+        relativeFilePath,
+        content: relativeFilePath === "src/styles/foundation-imports.css" ? '@import "./base.css";\n' : "",
+      })),
       { relativeFilePath: "src/styles/base.css", content: '@import "./theme.css";\n' },
       { relativeFilePath: "src/styles/theme.css", content: ".theme {}\n" },
     ]),
@@ -559,7 +591,11 @@ function testSourceHygieneScript() {
   );
   assert.deepEqual(
     checkStylesheetManifest([
-      { relativeFilePath: "src/styles.css", content: '@import "./styles/a-imports.css";\n' },
+      { relativeFilePath: "src/styles.css", content: rootStylesheetManifestContent },
+      ...rootStylesheetManifestFiles.map((relativeFilePath) => ({
+        relativeFilePath,
+        content: relativeFilePath === "src/styles/foundation-imports.css" ? '@import "./a-imports.css";\n' : "",
+      })),
       { relativeFilePath: "src/styles/a-imports.css", content: '@import "./b-imports.css";\n' },
       { relativeFilePath: "src/styles/b-imports.css", content: '@import "./a-imports.css";\n' },
     ]),
@@ -567,12 +603,15 @@ function testSourceHygieneScript() {
   );
   assert.deepEqual(
     checkStylesheetManifest([
-      { relativeFilePath: "src/styles.css", content: '@import "./styles/base-imports.css";\n.peek-panel {}\n' },
-      { relativeFilePath: "src/styles/base-imports.css", content: ".base {}\n" },
+      { relativeFilePath: "src/styles.css", content: `${rootStylesheetManifestContent}.peek-panel {}\n` },
+      ...rootStylesheetManifestFiles.map((relativeFilePath) => ({
+        relativeFilePath,
+        content: relativeFilePath === "src/styles/foundation-imports.css" ? ".base {}\n" : "",
+      })),
     ]),
     [
-      "src/styles.css:2: keep stylesheet manifest import-only",
-      "src/styles/base-imports.css:1: keep stylesheet manifest import-only",
+      "src/styles.css:7: keep stylesheet manifest import-only",
+      "src/styles/foundation-imports.css:1: keep stylesheet manifest import-only",
     ],
   );
 

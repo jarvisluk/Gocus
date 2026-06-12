@@ -56,6 +56,14 @@ const themeTokenStylesheets = new Set([
   "src/styles/theme-presets-dark-variants.css",
   "src/styles/theme-presets-light.css",
 ]);
+const rootStylesheetManifestFiles = [
+  "src/styles/foundation-imports.css",
+  "src/styles/ui-imports.css",
+  "src/styles/actions-imports.css",
+  "src/styles/repo-workspace-imports.css",
+  "src/styles/commit-imports.css",
+  "src/styles/changed-shell-imports.css",
+];
 const maxCssFileLines = 59;
 const minDuplicateCssDeclarationCount = 3;
 
@@ -379,6 +387,24 @@ function isGroupedStylesheetManifest(relativeFilePath) {
     normalizedRelativeFilePath(relativeFilePath).endsWith("-imports.css");
 }
 
+function checkRootStylesheetManifestOrder(imports) {
+  const importedFiles = imports.map(({ relativeFilePath }) => relativeFilePath);
+  if (!importedFiles.length || importedFiles.some((relativeFilePath) => !isGroupedStylesheetManifest(relativeFilePath))) {
+    return [];
+  }
+
+  const matchesExpectedOrder =
+    importedFiles.length === rootStylesheetManifestFiles.length &&
+    importedFiles.every((relativeFilePath, index) => relativeFilePath === rootStylesheetManifestFiles[index]);
+
+  if (matchesExpectedOrder) return [];
+
+  return [
+    "src/styles.css:1: keep root stylesheet imports ordered as " +
+      rootStylesheetManifestFiles.join(", "),
+  ];
+}
+
 function checkStylesheetManifest(fileContents) {
   const fileContentsByPath = new Map(
     fileContents.map(({ relativeFilePath, content }) => [normalizedRelativeFilePath(relativeFilePath), content]),
@@ -393,6 +419,8 @@ function checkStylesheetManifest(fileContents) {
   const failures = [];
   const importedFiles = new Set();
   const traversedManifests = new Set();
+  const rootImports = stylesheetManifestImports(manifest, "src/styles.css");
+  failures.push(...checkRootStylesheetManifestOrder(rootImports));
 
   function checkImportOnlyStylesheet(relativeFilePath, content) {
     return content.split("\n").flatMap((line, index) => {
@@ -513,6 +541,7 @@ module.exports = {
   checkCssFileSize,
   checkDuplicateCssDeclarationBlocks,
   checkRawCssColorTokens,
+  checkRootStylesheetManifestOrder,
   checkStylesheetManifest,
   checkUnusedCssClassSelectors,
   checkUnusedCssCustomProperties,
@@ -539,6 +568,7 @@ module.exports = {
   maxCssFileLines,
   maxLineLength,
   minDuplicateCssDeclarationCount,
+  rootStylesheetManifestFiles,
   runHygieneCheck,
   sourceLineCount,
   usesCssClass,
