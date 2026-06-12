@@ -6,6 +6,4 @@
 @import "./ui-form-controls.css";
 @import "./ui-disclosures.css";
 @import "./ui-toggles.css";
-@import "./dialog-shell.css";
-@import "./dialog-heading.css";
-@import "./dialog-content.css";
+@import "./dialog.css";
