@@ -1,7 +1,6 @@
 @media (max-height: 760px) {
   .peek-panel {
-    top: 12px;
-    bottom: 12px;
+    inset-block: 12px;
     min-height: 0;
   }
 
@@ -20,8 +19,7 @@
 
 @media (max-width: 460px) {
   .peek-panel {
-    right: 8px;
-    left: 8px;
+    inset-inline: 8px;
     width: auto;
   }
 

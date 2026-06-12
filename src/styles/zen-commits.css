@@ -40,13 +40,6 @@
   -webkit-line-clamp: unset;
 }
 
-.peek-panel.is-zen-panel :is(
-  .section-heading,
-  .ref-pill,
-  .commit-meta,
-  .commit-stats,
-  .commit-message-popover,
-  .commit-actions
-) {
+.peek-panel.is-zen-panel :is(.section-heading, .ref-pill, .commit-meta, .commit-stats, .commit-message-popover, .commit-actions) {
   display: none;
 }

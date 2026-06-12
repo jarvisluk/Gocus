@@ -16,16 +16,10 @@
   --editor-backdrop-color: rgba(82, 94, 112, 0.52);
   --editor-tab-border: rgba(126, 139, 155, 0.16);
   --editor-tab-surface: rgba(255, 255, 255, 0.48);
-  --mac-window-shadow:
-    0 34px 78px rgba(16, 20, 28, 0.24),
-    0 14px 34px rgba(16, 20, 28, 0.16),
-    0 2px 8px rgba(16, 20, 28, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  --mac-rail-window-shadow:
-    -20px 24px 48px rgba(16, 20, 28, 0.22),
-    -8px 10px 22px rgba(16, 20, 28, 0.16),
-    -1px 0 4px rgba(16, 20, 28, 0.1),
-    inset 1px 0 0 rgba(255, 255, 255, 0.08);
+  --mac-window-shadow: 0 34px 78px rgba(16, 20, 28, 0.24), 0 14px 34px rgba(16, 20, 28, 0.16),
+    0 2px 8px rgba(16, 20, 28, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --mac-rail-window-shadow: -20px 24px 48px rgba(16, 20, 28, 0.22), -8px 10px 22px rgba(16, 20, 28, 0.16),
+    -1px 0 4px rgba(16, 20, 28, 0.1), inset 1px 0 0 rgba(255, 255, 255, 0.08);
   --focus: #577da6;
   --focus-soft: rgba(87, 125, 166, 0.16);
   --main: #f0a400;

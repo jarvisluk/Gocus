@@ -5,8 +5,7 @@
   margin: 12px 10px 0;
 }
 
-.worktree-context-trigger,
-.worktree-context-static {
+.worktree-context-trigger, .worktree-context-static {
   width: 100%;
   min-height: 50px;
   display: grid;
@@ -32,14 +31,12 @@
   grid-template-columns: var(--icon-lg) minmax(0, 1fr) auto;
 }
 
-.worktree-context-trigger:hover,
-.worktree-context-trigger.is-open {
+.worktree-context-trigger:hover, .worktree-context-trigger.is-open {
   border-color: color-mix(in srgb, var(--focus) 24%, var(--border));
   background: color-mix(in srgb, var(--surface-strong) 94%, transparent);
 }
 
-.worktree-context-trigger > svg,
-.worktree-context-static > svg {
+.worktree-context-trigger > svg, .worktree-context-static > svg {
   width: var(--icon-lg);
   height: var(--icon-lg);
   color: var(--text-faint);
