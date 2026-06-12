@@ -1,0 +1,17 @@
+:root[data-graph-style="soft"] .timeline-cell {
+  background-image: radial-gradient(color-mix(in srgb, var(--border) 52%, transparent) 0.7px, transparent 0.7px);
+  background-size: 16px 16px;
+}
+
+:root[data-graph-style="soft"] .graph-node {
+  width: 13px;
+  height: 13px;
+  border-width: 2px;
+  background: color-mix(in srgb, var(--panel-solid) 76%, var(--git-tree-color, var(--main)));
+  box-shadow: 0 0 0 3px var(--panel-solid);
+}
+
+:root[data-graph-style="soft"] .graph-node-core {
+  width: 4px;
+  height: 4px;
+}
