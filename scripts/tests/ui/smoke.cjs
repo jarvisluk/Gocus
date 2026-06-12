@@ -2206,17 +2206,55 @@ async function testTemporaryInfoStartupFailuresDoNotBreakWindow(browser, baseUrl
   }
 }
 
+async function testStaticRepositoryPathTooltip(browser, baseUrl) {
+  const { page, errors } = await openMockedPage(browser, baseUrl, mockedSnapshotScenario(mockCommits), { viewport: compactViewport });
+  try {
+    await assertHealthyPage(page, errors);
+
+    const repoTitle = page.locator(".repo-title");
+    const repoPathTooltip = page.locator("#repo-title-path-tooltip");
+    assert.equal(
+      await repoTitle.evaluate((title) => window.getComputedStyle(title).getPropertyValue("-webkit-app-region")),
+      "no-drag",
+    );
+    await repoTitle.hover();
+    await page.waitForFunction(() => {
+      const tooltip = document.querySelector("#repo-title-path-tooltip");
+      if (!tooltip) return false;
+      const style = window.getComputedStyle(tooltip);
+      return style.opacity === "1" && style.visibility === "visible";
+    });
+    assert.equal(await repoPathTooltip.innerText(), "/Users/junrong/codespace/git-tree-vis");
+    await assertVisibleWithinViewport(page, repoPathTooltip, "static repository path tooltip");
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
 async function testDismissableMenus(browser, baseUrl) {
   const { page, errors } = await openMockedPage(browser, baseUrl, dismissableMenuScenario(), { viewport: desktopViewport });
   try {
     await assertHealthyPage(page, errors);
 
     const repoMenuButton = page.getByRole("button", { name: "Switch recent repository" });
+    const repoPathTooltip = page.locator("#repo-title-path-tooltip");
+    await repoMenuButton.hover();
+    await page.waitForFunction(() => {
+      const tooltip = document.querySelector("#repo-title-path-tooltip");
+      if (!tooltip) return false;
+      const style = window.getComputedStyle(tooltip);
+      return style.opacity === "1" && style.visibility === "visible";
+    });
+    assert.equal(await repoMenuButton.getAttribute("aria-describedby"), "repo-title-path-tooltip");
+    assert.equal(await repoPathTooltip.innerText(), "/Users/junrong/codespace/git-tree-vis");
+    await assertVisibleWithinViewport(page, repoPathTooltip, "repository path tooltip");
     await repoMenuButton.click();
     await page.locator("#repo-switch-menu").waitFor();
     assert.equal(await repoMenuButton.getAttribute("id"), "repo-switch-trigger");
     assert.equal(await repoMenuButton.getAttribute("aria-expanded"), "true");
     assert.equal(await page.locator("#repo-switch-menu").getAttribute("aria-labelledby"), "repo-switch-trigger");
+    assert.equal(await repoPathTooltip.evaluate((tooltip) => window.getComputedStyle(tooltip).visibility), "hidden");
     await page.keyboard.press("Escape");
     assert.equal(await page.locator("#repo-switch-menu").count(), 0);
     assert.equal(await repoMenuButton.getAttribute("aria-expanded"), "false");
@@ -2410,6 +2448,7 @@ async function main() {
     await testPreviewRefreshWithoutBridge(browser, baseUrl);
     await testOptionalStartupFailuresDoNotBreakMainWindow(browser, baseUrl);
     await testTemporaryInfoStartupFailuresDoNotBreakWindow(browser, baseUrl);
+    await testStaticRepositoryPathTooltip(browser, baseUrl);
     await testDismissableMenus(browser, baseUrl);
     await testFocusedViewEscapeControls(browser, baseUrl);
     await testSettingsOpenInEmptyState(browser, baseUrl);

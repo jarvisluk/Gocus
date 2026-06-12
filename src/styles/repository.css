@@ -1,5 +1,7 @@
 .repo-title {
+  position: relative;
   min-width: 0;
+  -webkit-app-region: no-drag;
 }
 
 .repo-title-button {
@@ -35,6 +37,45 @@
 .header-repo-switcher {
   position: relative;
   min-width: 0;
+}
+
+.repo-title-tooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: -5px;
+  z-index: 45;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
+  box-shadow: var(--activity-popover-shadow);
+  color: var(--text);
+  font-family: var(--mono-font);
+  font-size: var(--type-caption-size);
+  font-weight: var(--font-weight-strong);
+  line-height: 1.35;
+  opacity: 0;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  transform: translateY(-3px);
+  transition: opacity 120ms ease, transform 120ms ease;
+  visibility: hidden;
+  white-space: normal;
+}
+
+.repo-title:hover + .repo-title-tooltip,
+.header-repo-switcher:focus-within .repo-title-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+}
+
+.header-repo-switcher.is-open .repo-title-tooltip {
+  opacity: 0;
+  transform: translateY(-3px);
+  visibility: hidden;
 }
 
 .repo-switch-menu {

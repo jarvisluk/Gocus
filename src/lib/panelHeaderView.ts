@@ -13,6 +13,7 @@ export interface PanelRepositorySelection {
 
 const repositoryTriggerId = "repo-switch-trigger";
 const repositoryMenuId = "repo-switch-menu";
+const repositoryPathTooltipId = "repo-title-path-tooltip";
 
 export function repositoryOptionActive(repository: RecentRepository, currentRepository: RecentRepository | null) {
   return currentRepository ? isSameRecentRepository(repository, currentRepository) : false;
@@ -95,7 +96,7 @@ export function panelRepositoryTriggerView({
     ariaHasPopup: "menu" as const,
     ariaExpanded: repoMenuOpen,
     ariaControls: repositoryMenuId,
-    title: repositoryPath || undefined,
+    ariaDescribedBy: repositoryPath ? repositoryPathTooltipId : undefined,
   };
 }
 
@@ -147,6 +148,7 @@ export function panelHeaderBranchPillView(snapshot: GitSnapshot | null) {
 export function panelHeaderView(snapshot: GitSnapshot | null, recentRepositories: readonly RecentRepository[]) {
   const currentRepository = snapshot ? recentRepositoryFromSnapshot(snapshot) : null;
   const recentRepositoryOptions = recentRepositoriesWithCurrent(snapshot, [...recentRepositories]);
+  const repositoryPath = snapshot?.repoPath || "";
 
   return {
     header: {
@@ -166,7 +168,13 @@ export function panelHeaderView(snapshot: GitSnapshot | null, recentRepositories
     recentRepositoryOptions,
     canSwitchRepository: Boolean(snapshot && recentRepositoryOptions.length > 1),
     repositoryTitle: currentRepository?.name || "Git Peek",
-    repositoryPathLabel: snapshot?.repoPath || "No working folder",
-    repositoryPathTitle: snapshot?.repoPath || undefined,
+    repositoryPathLabel: repositoryPath || "No working folder",
+    repositoryPathTooltip: repositoryPath
+      ? {
+          id: repositoryPathTooltipId,
+          className: "repo-title-tooltip",
+          text: repositoryPath,
+        }
+      : null,
   };
 }
