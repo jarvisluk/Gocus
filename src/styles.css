@@ -2,6 +2,7 @@
 @import "./styles/theme.css";
 @import "./styles/theme-presets-light.css";
 @import "./styles/theme-presets-dark.css";
+@import "./styles/density-comfortable.css";
 @import "./styles/base.css";
 @import "./styles/app-frame.css";
 @import "./styles/panel-shell.css";
@@ -26,6 +27,7 @@
 @import "./styles/workspace.css";
 @import "./styles/workspace-menus.css";
 @import "./styles/branch-menu.css";
+@import "./styles/branch-switch.css";
 @import "./styles/worktree-menu.css";
 @import "./styles/worktree-context.css";
 @import "./styles/worktree-context-summary.css";
@@ -38,6 +40,8 @@
 @import "./styles/commit-row-meta.css";
 @import "./styles/commit-actions.css";
 @import "./styles/commit-graph.css";
+@import "./styles/commit-graph-lines.css";
+@import "./styles/commit-graph-nodes.css";
 @import "./styles/commit-graph-soft.css";
 @import "./styles/commit-hover.css";
 @import "./styles/commit-hover-content.css";
@@ -49,6 +53,7 @@
 @import "./styles/temporary-changed.css";
 @import "./styles/temporary-commit.css";
 @import "./styles/footer.css";
+@import "./styles/footer-changed-now.css";
 @import "./styles/zen.css";
 @import "./styles/workspace-open.css";
 @import "./styles/collapsed-rail.css";
