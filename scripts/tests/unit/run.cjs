@@ -294,6 +294,7 @@ function testSourceHygieneScript() {
   assert.equal(isRendererSourceFile("scripts/dev.cjs"), false);
   assert.equal(isThemeTokenStylesheet("src/styles/theme.css"), true);
   assert.equal(isThemeTokenStylesheet("src/styles/theme-presets-dark.css"), true);
+  assert.equal(isThemeTokenStylesheet("src/styles/theme-presets-dark-variants.css"), true);
   assert.equal(isThemeTokenStylesheet("src/styles/theme-presets-light.css"), true);
   assert.equal(isThemeTokenStylesheet("src/styles/base.css"), false);
   assert.equal(isViewModelFile("src/lib/commitListView.ts"), true);
@@ -362,6 +363,7 @@ function testSourceHygieneScript() {
   assert.deepEqual(checkRawCssColorTokens("src/components/Example.tsx", "color: #fff;\n"), []);
   assert.deepEqual(checkRawCssColorTokens("src/styles/theme.css", "--surface: rgba(255, 255, 255, 0.72);\n"), []);
   assert.deepEqual(checkRawCssColorTokens("src/styles/theme-presets-dark.css", "--surface: #111;\n"), []);
+  assert.deepEqual(checkRawCssColorTokens("src/styles/theme-presets-dark-variants.css", "--surface: #111;\n"), []);
   assert.deepEqual(checkRawCssColorTokens("src/styles/theme-presets-light.css", "--surface: #fff;\n"), []);
   assert.deepEqual(
     checkRawCssColorTokens(

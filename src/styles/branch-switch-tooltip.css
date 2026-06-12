@@ -1,0 +1,46 @@
+.branch-switch-tooltip {
+  position: relative;
+  width: 28px;
+  min-height: var(--menu-row-height);
+  display: grid;
+}
+
+.branch-switch-tooltip-bubble {
+  position: absolute;
+  top: 50%;
+  right: 32px;
+  z-index: 50;
+  width: 178px;
+  display: grid;
+  gap: 3px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
+  box-shadow: var(--branch-tooltip-shadow);
+  color: var(--text);
+  font-size: var(--type-caption-size);
+  line-height: 1.2;
+  opacity: 0;
+  pointer-events: none;
+  text-align: left;
+  transform: translateY(-50%) translateX(4px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.branch-switch-tooltip-bubble strong {
+  overflow: hidden;
+  font-weight: var(--font-weight-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.branch-switch-tooltip-bubble span {
+  color: var(--text-muted);
+  font-weight: var(--type-caption-weight);
+}
+
+.branch-switch-tooltip:hover .branch-switch-tooltip-bubble {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
