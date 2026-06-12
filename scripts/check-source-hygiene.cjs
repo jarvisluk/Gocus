@@ -64,7 +64,7 @@ const rootStylesheetManifestFiles = [
   "src/styles/commit-imports.css",
   "src/styles/changed-shell-imports.css",
 ];
-const maxCssFileLines = 59;
+const maxCssFileLines = 58;
 const minDuplicateCssDeclarationCount = 3;
 
 function isSrcLibFile(relativeFilePath) {
