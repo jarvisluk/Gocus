@@ -1,5 +1,4 @@
 .file-path,
-.file-detail,
 .repo-menu-text strong,
 .repo-menu-text code,
 .repository-state-banner strong,
@@ -16,7 +15,6 @@
 .commit-title-text,
 .commit-hover-hash code,
 .commit-hover-ref-pill span,
-.changed-side-facts dd,
 .branch-switch-tooltip-bubble strong,
 .notice-line,
 .worktree-context-copy strong,
