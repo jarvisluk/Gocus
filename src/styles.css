@@ -1,4 +1,7 @@
 @import "./styles/tokens.css";
+@import "./styles/typography-tokens.css";
+@import "./styles/control-tokens.css";
+@import "./styles/density-tokens.css";
 @import "./styles/theme.css";
 @import "./styles/theme-presets-light.css";
 @import "./styles/theme-presets-dark.css";
@@ -9,6 +12,7 @@
 @import "./styles/panel-shell.css";
 @import "./styles/patterns.css";
 @import "./styles/text-patterns.css";
+@import "./styles/text-labels.css";
 @import "./styles/ui.css";
 @import "./styles/ui-controls.css";
 @import "./styles/ui-segmented.css";
@@ -29,6 +33,7 @@
 @import "./styles/settings-refresh.css";
 @import "./styles/workspace-targets.css";
 @import "./styles/workspace.css";
+@import "./styles/workspace-branch-view.css";
 @import "./styles/workspace-menus.css";
 @import "./styles/branch-menu.css";
 @import "./styles/branch-switch.css";
@@ -39,6 +44,7 @@
 @import "./styles/scroll-region.css";
 @import "./styles/activity.css";
 @import "./styles/activity-tools.css";
+@import "./styles/activity-tooltips.css";
 @import "./styles/commit-search.css";
 @import "./styles/commits.css";
 @import "./styles/commit-details.css";

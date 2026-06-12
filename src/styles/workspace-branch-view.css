@@ -1,0 +1,36 @@
+.commit-view-strip {
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(104px, 1.2fr);
+  overflow: visible;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.selected-branch-view {
+  min-width: 0;
+  min-height: 30px;
+  display: grid;
+  grid-template-columns: var(--icon-xs) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--type-caption-size);
+  font-weight: var(--font-weight-strong);
+  line-height: 1.2;
+}
+
+.selected-branch-view span {
+  color: var(--text-faint);
+}
+
+.selected-branch-view strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

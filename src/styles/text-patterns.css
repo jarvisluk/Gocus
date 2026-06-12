@@ -51,27 +51,3 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-.repo-title span,
-.ui-page-header span,
-.changed-side-header div span {
-  margin-top: 3px;
-  color: var(--text-faint);
-  font-size: var(--type-caption-size);
-}
-
-.ui-label,
-.ui-toggle > span,
-.empty-recent-repos strong {
-  color: var(--text-faint);
-  font-size: var(--type-caption-size);
-  font-weight: 740;
-}
-
-.changed-side-facts dt,
-.action-branch-field span {
-  color: var(--text-faint);
-  font-size: var(--type-micro-size);
-  font-weight: var(--font-weight-strong);
-  text-transform: uppercase;
-}

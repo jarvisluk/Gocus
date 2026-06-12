@@ -1,0 +1,11 @@
+:root[data-density="comfortable"],
+:root[data-theme][data-density="comfortable"],
+:root[data-theme][data-theme-preset][data-density="comfortable"] {
+  --control-md: 34px;
+  --control-lg: 38px;
+  --control-xl: 38px;
+  --field-height: 36px;
+  --form-row-min-height: 38px;
+  --menu-row-height: 34px;
+  --footer-height: 54px;
+}
