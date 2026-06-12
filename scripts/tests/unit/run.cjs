@@ -5220,7 +5220,7 @@ async function testPanelHeaderView(server) {
     canSwitchRepository: false,
     repositoryTitle: "Git Peek",
     repositoryPathLabel: "No working folder",
-    repositoryPathTitle: undefined,
+    repositoryPathTooltip: null,
   });
 
   assert.deepEqual(panelHeaderView(snapshot, [sameRepositoryDifferentPath, other]), {
@@ -5247,7 +5247,11 @@ async function testPanelHeaderView(server) {
     canSwitchRepository: true,
     repositoryTitle: "git-tree-vis",
     repositoryPathLabel: current.path,
-    repositoryPathTitle: current.path,
+    repositoryPathTooltip: {
+      id: "repo-title-path-tooltip",
+      className: "repo-title-tooltip",
+      text: current.path,
+    },
   });
   assert.equal(repositoryOptionActive(sameRepositoryDifferentPath, current), true);
   assert.equal(repositoryOptionActive(other, current), false);
@@ -5319,7 +5323,7 @@ async function testPanelHeaderView(server) {
     ariaHasPopup: "menu",
     ariaExpanded: true,
     ariaControls: "repo-switch-menu",
-    title: current.path,
+    ariaDescribedBy: "repo-title-path-tooltip",
   });
   assert.deepEqual(panelRepositoryTriggerView({ canSwitchRepository: false, repoMenuOpen: false, repositoryPath: "" }), {
     id: "repo-switch-trigger",
@@ -5329,7 +5333,7 @@ async function testPanelHeaderView(server) {
     ariaHasPopup: "menu",
     ariaExpanded: false,
     ariaControls: "repo-switch-menu",
-    title: undefined,
+    ariaDescribedBy: undefined,
   });
   assert.deepEqual(panelHeaderActionsView({ pinned: false, refreshing: false, hasRepository: false }), {
     className: "header-actions",
