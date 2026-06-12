@@ -20,3 +20,4 @@
  - [ ] style.css refactor
  - [ ] a web socket, for using the tool in browser. so can see git tree in codex sidebar
  - [ ] remove some settings like lines, fonts, and theme style (no one would use light theme for coding tools)
+ - [ ] feat: Auto update. Auto fetch update from github release.
