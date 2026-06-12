@@ -1,12 +1,5 @@
 @import "./tokens.css";
-@import "./typography-tokens.css";
-@import "./control-tokens.css";
-@import "./density-tokens.css";
 @import "./theme.css";
-@import "./theme-presets-light.css";
-@import "./theme-presets-dark.css";
-@import "./theme-presets-dark-variants.css";
-@import "./density-comfortable.css";
 @import "./base.css";
 @import "./base-controls.css";
 @import "./app-frame.css";
