@@ -1,0 +1,28 @@
+.peek-panel {
+  position: absolute;
+  top: 24px;
+  right: 18px;
+  bottom: 24px;
+  width: min(var(--panel-width), calc(100vw - 24px));
+  min-height: 620px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--mac-window-shadow);
+  backdrop-filter: var(--window-backdrop-filter);
+}
+
+.peek-header {
+  height: 62px;
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border-soft);
+  -webkit-app-region: drag;
+}
