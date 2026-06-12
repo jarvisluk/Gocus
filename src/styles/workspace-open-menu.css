@@ -1,6 +1,4 @@
 .external-app-icon {
-  width: var(--app-icon-control);
-  height: var(--app-icon-control);
   display: grid;
   place-items: center;
   flex: 0 0 auto;

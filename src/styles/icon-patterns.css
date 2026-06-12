@@ -1,50 +1,39 @@
-.action-dialog-copy-prompt svg,
-.commit-search svg,
-.empty-gitignore-note svg,
-.primary-action svg,
-.secondary-action svg,
-.settings-refresh-menu-item svg,
-.ui-button svg {
+:is(.action-dialog-copy-prompt, .commit-search, .empty-gitignore-note, .primary-action,
+    .secondary-action, .settings-refresh-menu-item, .ui-button) svg {
   width: var(--icon-sm);
   height: var(--icon-sm);
 }
 
-.branch-switch-button svg,
 .commit-search .commit-search-clear svg,
-.files svg,
-.repo-menu-check svg,
-.repo-menu-item svg,
-.ui-segmented svg {
+:is(.branch-switch-button, .files, .repo-menu-check, .repo-menu-item, .ui-segmented) svg {
   width: var(--icon-xs);
   height: var(--icon-xs);
 }
 
-.repo-title-button svg,
-.ui-disclosure-button svg,
-.action-prefix-menu-item svg,
-.action-merge-target-menu-item svg {
+:is(.repo-title-button, .ui-disclosure-button, .action-prefix-menu-item,
+    .action-merge-target-menu-item) svg {
   width: var(--icon-sm);
   height: var(--icon-sm);
   color: var(--text-muted);
 }
 
-.view-chip svg,
-.worktree-trigger svg,
-.branch-ref-menu-item svg,
-.worktree-menu-item svg,
-.commit-hover-header svg,
-.commit-hover-refs svg,
-.commit-hover-hash svg {
+:is(.view-chip, .worktree-trigger, .branch-ref-menu-item, .worktree-menu-item,
+    .commit-hover-header, .commit-hover-refs, .commit-hover-hash) svg {
   width: var(--icon-xs);
   height: var(--icon-xs);
   flex: 0 0 auto;
 }
 
-.commit-actions svg,
-.selected-branch-view svg {
+:is(.commit-actions, .selected-branch-view) svg {
   width: var(--icon-xs);
   height: var(--icon-xs);
   color: var(--text-muted);
+}
+
+.empty-icon svg,
+.external-app-icon {
+  width: var(--app-icon-control);
+  height: var(--app-icon-control);
 }
 
 .changed-side-open-button .external-app-icon,
