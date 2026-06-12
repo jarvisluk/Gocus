@@ -28,6 +28,7 @@
 @import "./styles/branch-menu.css";
 @import "./styles/worktree-menu.css";
 @import "./styles/worktree-context.css";
+@import "./styles/worktree-context-summary.css";
 @import "./styles/scroll-region.css";
 @import "./styles/activity.css";
 @import "./styles/activity-tools.css";
