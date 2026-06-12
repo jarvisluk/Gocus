@@ -3996,6 +3996,15 @@ async function testBridgeAvailability(server) {
   );
 }
 
+async function testDevWebBridge(server) {
+  const { devWebBridgeUrl, isLocalDevBridgeHost } = await loadTsModule(server, "src/lib/devWebBridge.ts");
+
+  assert.equal(isLocalDevBridgeHost("localhost"), true);
+  assert.equal(isLocalDevBridgeHost("127.0.0.1"), true);
+  assert.equal(isLocalDevBridgeHost("example.com"), false);
+  assert.equal(devWebBridgeUrl("getSnapshot"), "/__git_peek_dev_bridge/getSnapshot");
+}
+
 async function testPathAndFileStatus(server) {
   const { parentPathName, pathName, recentRepositoryLabel } = await loadTsModule(server, "src/lib/pathLabels.ts");
   const { fileKind, formatPath, statusLetter } = await loadTsModule(server, "src/lib/fileStatus.ts");
@@ -6068,6 +6077,7 @@ async function main() {
     await testSettingsPanelView(server);
     await testErrorMessages(server);
     await testBridgeAvailability(server);
+    await testDevWebBridge(server);
     await testPathAndFileStatus(server);
     await testCommitPrompt(server);
     await testCopyText(server);
