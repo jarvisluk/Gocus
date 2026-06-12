@@ -1,0 +1,178 @@
+.repo-controls {
+  position: relative;
+  flex: 0 0 auto;
+  z-index: 18;
+  display: grid;
+  gap: 6px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--panel-solid);
+}
+
+.repo-controls::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  height: 18px;
+  background: linear-gradient(
+    to bottom,
+    var(--panel-solid) 0%,
+    color-mix(in srgb, var(--panel-solid) 58%, transparent) 44%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+.branch-menu-control {
+  position: relative;
+  min-width: 0;
+}
+
+.commit-view-strip {
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(104px, 1.2fr);
+  overflow: visible;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.view-chip {
+  min-width: 0;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 6px;
+  border: 0;
+  border-right: 1px solid var(--border-soft);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--type-caption-size);
+  font-weight: var(--font-weight-strong);
+}
+
+.branch-view-trigger {
+  width: 100%;
+  border-right: 0;
+}
+
+.branch-ref-menu {
+  position: absolute;
+  z-index: 35;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(248px, calc(100vw - 24px));
+  max-height: 290px;
+  overflow-y: auto;
+}
+
+.branch-ref-menu-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 3px;
+}
+
+.branch-ref-menu-row.has-switch {
+  grid-template-columns: minmax(0, 1fr) 28px;
+}
+
+.branch-switch-tooltip {
+  position: relative;
+  width: 28px;
+  min-height: var(--menu-row-height);
+  display: grid;
+}
+
+.branch-switch-tooltip:hover .branch-switch-button:disabled {
+  background: var(--surface-hover);
+  color: var(--text);
+  opacity: 0.68;
+}
+
+.branch-switch-button {
+  width: 28px;
+  min-height: var(--menu-row-height);
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.branch-switch-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.branch-switch-tooltip-bubble {
+  position: absolute;
+  top: 50%;
+  right: 32px;
+  z-index: 50;
+  width: 178px;
+  display: grid;
+  gap: 3px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-strong);
+  box-shadow: var(--branch-tooltip-shadow);
+  color: var(--text);
+  font-size: var(--type-caption-size);
+  line-height: 1.2;
+  opacity: 0;
+  pointer-events: none;
+  text-align: left;
+  transform: translateY(-50%) translateX(4px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.branch-switch-tooltip-bubble strong {
+  font-weight: var(--font-weight-strong);
+}
+
+.branch-switch-tooltip-bubble span {
+  color: var(--text-muted);
+  font-weight: var(--type-caption-weight);
+}
+
+.branch-switch-tooltip:hover .branch-switch-tooltip-bubble {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+.selected-branch-view {
+  min-width: 0;
+  min-height: 30px;
+  display: grid;
+  grid-template-columns: var(--icon-xs) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--type-caption-size);
+  font-weight: var(--font-weight-strong);
+  line-height: 1.2;
+}
+
+.selected-branch-view span {
+  color: var(--text-faint);
+}
+
+.selected-branch-view strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

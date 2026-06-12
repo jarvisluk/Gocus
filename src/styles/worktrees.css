@@ -1,0 +1,136 @@
+.worktree-compact {
+  position: relative;
+  min-width: 0;
+  width: 100%;
+  justify-self: stretch;
+}
+
+.worktree-trigger {
+  min-width: 0;
+  width: 100%;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  padding: 0 7px 0 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--type-caption-size);
+  font-weight: var(--font-weight-strong);
+}
+
+.worktree-trigger > svg:last-child {
+  margin-left: auto;
+}
+
+.worktree-trigger strong {
+  min-width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--surface-strong);
+  color: var(--text-muted);
+  font-size: var(--type-micro-size);
+  font-weight: var(--font-weight-strong);
+}
+
+.worktree-menu {
+  position: absolute;
+  z-index: 35;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(248px, calc(100vw - 24px));
+  max-height: 290px;
+  overflow-y: auto;
+}
+
+.worktree-context {
+  position: relative;
+  flex: 0 0 auto;
+  z-index: 16;
+  margin: 12px 10px 0;
+}
+
+:is(.worktree-context-trigger, .worktree-context-static) {
+  width: 100%;
+  min-height: 50px;
+  display: grid;
+  grid-template-columns: var(--icon-lg) minmax(0, 1fr) auto var(--icon-xs);
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+  box-shadow: var(--worktree-context-shadow);
+  color: var(--text);
+  text-align: left;
+  -webkit-backdrop-filter: var(--context-backdrop-filter);
+  backdrop-filter: var(--context-backdrop-filter);
+}
+
+.worktree-context-trigger {
+  cursor: pointer;
+}
+
+.worktree-context-static {
+  grid-template-columns: var(--icon-lg) minmax(0, 1fr) auto;
+}
+
+:is(.worktree-context-trigger:hover, .worktree-context-trigger.is-open) {
+  border-color: color-mix(in srgb, var(--focus) 24%, var(--border));
+  background: color-mix(in srgb, var(--surface-strong) 94%, transparent);
+}
+
+:is(.worktree-context-trigger, .worktree-context-static) > svg {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  color: var(--text-faint);
+}
+
+.worktree-context-trigger > svg:last-child {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.worktree-context-copy {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+  line-height: 1.15;
+}
+
+.worktree-context-copy span {
+  color: var(--text-faint);
+  font-size: var(--type-micro-size);
+  font-weight: var(--font-weight-body);
+  letter-spacing: 0;
+}
+
+.worktree-context-copy strong {
+  color: var(--text);
+  font-size: var(--type-body-strong-size);
+  font-weight: var(--font-weight-body);
+}
+
+.worktree-context-count {
+  max-width: 92px;
+  padding: 4px 7px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--type-micro-size);
+  font-weight: var(--font-weight-body);
+}
+
+.worktree-context-menu {
+  right: auto;
+  left: 0;
+  width: 100%;
+}

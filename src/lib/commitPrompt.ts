@@ -1,8 +1,7 @@
-import type { ChangedFile, FileFilter, PromptLanguage } from "../types";
-import { statusLetter } from "./fileStatus";
+import type { PromptLanguage } from "../types";
 
 const zhCommitPromptRequirements = [
-  "1. 先运行或阅读必要的 git status / git diff；下面的文件列表只作为线索。",
+  "1. 先运行或阅读必要的 git status / git diff，并以当前 working tree 为准。",
   "2. 简洁说明变动意图、主要文件、风险或未完成点，以及是否 ready。",
   "3. 只给出一个可执行 commit 方案：你自己决定是单个 commit，还是一组按顺序执行的分段 commits；" +
     "如需分段，列出每段包含的文件和 commit message。" +
@@ -14,7 +13,7 @@ const zhCommitPromptRequirements = [
 ];
 
 const enCommitPromptRequirements = [
-  "1. Run or review the necessary git status / git diff; treat the file list below only as a clue.",
+  "1. Run or review the necessary git status / git diff, and use the current working tree as the source of truth.",
   "2. Briefly summarize the change intent, key files, risks or unfinished work, and whether it is ready.",
   "3. Provide exactly one executable commit plan: decide yourself whether it should be one commit " +
     "or one ordered sequence of split commits; if split commits are needed, list the files and commit message for each. " +
@@ -25,31 +24,16 @@ const enCommitPromptRequirements = [
     "Do not run git commit before Yes, and do not ask for any other decisions.",
 ];
 
-export function changedFilePromptLine(file: ChangedFile) {
-  const delta = [file.additions ? `+${file.additions}` : "", file.deletions ? `-${file.deletions}` : ""].filter(Boolean).join(" ");
-  const originalPath = file.originalPath ? ` from ${file.originalPath}` : "";
-  const deltaText = delta ? ` (${delta})` : "";
-  return `- [${statusLetter(file)}] ${file.path}${originalPath}: ${file.statusLabel}${deltaText}`;
-}
-
-export function changedFilesCommitPrompt(files: ChangedFile[], filter: FileFilter, language: PromptLanguage) {
-  const fileLines = files.length ? files.map(changedFilePromptLine).join("\n") : "- No files in the current Changed Now filter.";
-
+export function changedFilesCommitPrompt(language: PromptLanguage) {
   if (language === "zh") {
     return `请检查当前仓库的 working tree，并判断是否适合现在 commit。
 
 要求：
-${zhCommitPromptRequirements.join("\n")}
-
-Changed Now 当前列表（filter: ${filter}, files: ${files.length}）：
-${fileLines}`;
+${zhCommitPromptRequirements.join("\n")}`;
   }
 
   return `Please inspect the current repository working tree and decide whether it is ready to commit.
 
 Requirements:
-${enCommitPromptRequirements.join("\n")}
-
-Current Changed Now list (filter: ${filter}, files: ${files.length}):
-${fileLines}`;
+${enCommitPromptRequirements.join("\n")}`;
 }

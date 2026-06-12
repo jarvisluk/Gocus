@@ -1,0 +1,48 @@
+@media (max-height: 760px) {
+  .peek-panel {
+    inset-block: 12px;
+    min-height: 0;
+  }
+
+  .peek-header {
+    height: 68px;
+  }
+
+  .commit-row {
+    min-height: 60px;
+  }
+
+  .commit-row.is-selected {
+    min-height: 104px;
+  }
+}
+
+@media (max-width: 460px) {
+  .peek-panel {
+    inset-inline: 8px;
+    width: auto;
+  }
+
+  .peek-header {
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+  }
+
+  .branch-pill {
+    display: none;
+  }
+
+  .commit-row {
+    grid-template-columns: var(--git-tree-rail-width) minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+}

@@ -41,6 +41,25 @@ const rendererRuntimeImportPattern = new RegExp(
     `\\brequire\\(\\s*["'](?:${rendererRuntimeModulePattern})["']\\s*\\)`,
 );
 const gitTreeBarrelImportPattern = /^\s*import\b.*\bfrom\s*["'](?:\.\.\/git-tree|\.\/git-tree|src\/git-tree)["']/;
+const cssCustomPropertyDefinitionPattern = /^\s*(--[a-z0-9-]+)\s*:/;
+const cssCustomPropertyUsagePattern = /var\(\s*(--[a-z0-9-]+)\b/g;
+const cssCommentPattern = /\/\*[\s\S]*?\*\//g;
+const cssRulePattern = /([^{}]+)\{([^{}]+)\}/g;
+const cssClassSelectorPattern = /\.(-?[_a-zA-Z]+[_a-zA-Z0-9-]*)/g;
+const stylesheetImportPattern = /^\s*@import\s+["']([^"']+\.css)["'];\s*$/;
+const backdropFilterDeclarationPattern = /^\s*(-webkit-)?backdrop-filter\s*:\s*([^;]+);/;
+const boxShadowDeclarationPattern = /^\s*box-shadow\s*:\s*([^;]+);/;
+const cssRawColorLiteralPattern = /#[0-9a-fA-F]{3,8}\b|(?:rgb|hsl)a?\(/;
+const themeTokenStylesheets = new Set(["src/styles/theme.css"]);
+const rootStylesheetManifestFiles = [
+  "src/styles/foundation-imports.css",
+  "src/styles/ui-imports.css",
+  "src/styles/actions-imports.css",
+  "src/styles/repo-workspace-imports.css",
+  "src/styles/commit-imports.css",
+  "src/styles/panel-imports.css",
+];
+const minDuplicateCssDeclarationCount = 3;
 
 function isSrcLibFile(relativeFilePath) {
   return relativeFilePath.replaceAll("\\", "/").startsWith("src/lib/");
@@ -119,8 +138,328 @@ function checkContent(relativeFilePath, content) {
   return failures;
 }
 
-function checkFile(filePath) {
-  return checkContent(relativePath(projectRoot, filePath), fs.readFileSync(filePath, "utf8"));
+function cssCustomPropertyDefinitions(relativeFilePath, content) {
+  if (!relativeFilePath.endsWith(".css")) return [];
+
+  return content.split("\n").flatMap((line, index) => {
+    const match = line.match(cssCustomPropertyDefinitionPattern);
+    if (!match) return [];
+    return [{ name: match[1], relativeFilePath, lineNumber: index + 1 }];
+  });
+}
+
+function cssCustomPropertyUsages(content) {
+  return new Set([...content.matchAll(cssCustomPropertyUsagePattern)].map((match) => match[1]));
+}
+
+function checkUnusedCssCustomProperties(fileContents) {
+  const definitions = fileContents.flatMap(({ relativeFilePath, content }) => {
+    return cssCustomPropertyDefinitions(relativeFilePath, content);
+  });
+  const usedProperties = cssCustomPropertyUsages(fileContents.map(({ content }) => content).join("\n"));
+
+  return definitions.flatMap(({ name, relativeFilePath, lineNumber }) => {
+    if (usedProperties.has(name)) return [];
+    return [`${relativeFilePath}:${lineNumber}: remove unused CSS custom property ${name}`];
+  });
+}
+
+function isCssStateClassSelector(className) {
+  return className.startsWith("is-") || className.startsWith("has-");
+}
+
+function cssClassSelectors(relativeFilePath, content) {
+  if (!relativeFilePath.endsWith(".css")) return [];
+
+  return [...stripCssComments(content).matchAll(cssClassSelectorPattern)].flatMap((match) => {
+    const name = match[1];
+    if (isCssStateClassSelector(name)) return [];
+    return [{ name, relativeFilePath, lineNumber: lineNumberFromIndex(content, match.index) }];
+  });
+}
+
+function cssClassUsageContent(fileContents) {
+  return fileContents
+    .filter(({ relativeFilePath }) => {
+      const normalizedFilePath = normalizedRelativeFilePath(relativeFilePath);
+      return normalizedFilePath === "index.html" || (normalizedFilePath.startsWith("src/") && /\.(ts|tsx)$/.test(normalizedFilePath));
+    })
+    .map(({ content }) => content)
+    .join("\n");
+}
+
+function usesCssClass(content, className) {
+  const escapedClassName = className.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^_a-zA-Z0-9-])${escapedClassName}($|[^_a-zA-Z0-9-])`).test(content);
+}
+
+function checkUnusedCssClassSelectors(fileContents) {
+  const usageContent = cssClassUsageContent(fileContents);
+  const selectors = cssClassSelectorsByName(fileContents);
+
+  return [...selectors.entries()].flatMap(([name, definitions]) => {
+    if (usesCssClass(usageContent, name)) return [];
+    return definitions.map(({ relativeFilePath, lineNumber }) => {
+      return `${relativeFilePath}:${lineNumber}: remove unused CSS class selector .${name}`;
+    });
+  });
+}
+
+function cssClassSelectorsByName(fileContents) {
+  const selectors = new Map();
+
+  for (const { relativeFilePath, content } of fileContents) {
+    for (const selector of cssClassSelectors(relativeFilePath, content)) {
+      if (!selectors.has(selector.name)) {
+        selectors.set(selector.name, []);
+      }
+      selectors.get(selector.name).push(selector);
+    }
+  }
+
+  return selectors;
+}
+
+function checkBackdropFilterTokens(relativeFilePath, content) {
+  if (!relativeFilePath.endsWith(".css")) return [];
+
+  return content.split("\n").flatMap((line, index) => {
+    const match = line.match(backdropFilterDeclarationPattern);
+    if (!match) return [];
+
+    const value = match[2].trim();
+    if (value === "none" || value.startsWith("var(")) return [];
+
+    return [`${relativeFilePath}:${index + 1}: use a backdrop-filter custom property or none`];
+  });
+}
+
+function checkBoxShadowTokens(relativeFilePath, content) {
+  if (!relativeFilePath.endsWith(".css") || relativeFilePath === "src/styles/theme.css") return [];
+
+  return content.split("\n").flatMap((line, index) => {
+    const match = line.match(boxShadowDeclarationPattern);
+    if (!match) return [];
+
+    const value = match[1].trim();
+    if (!value.includes("rgba(")) return [];
+
+    return [`${relativeFilePath}:${index + 1}: move rgba box-shadow values into theme custom properties`];
+  });
+}
+
+function isThemeTokenStylesheet(relativeFilePath) {
+  return themeTokenStylesheets.has(relativeFilePath.replaceAll("\\", "/"));
+}
+
+function checkRawCssColorTokens(relativeFilePath, content) {
+  if (!relativeFilePath.endsWith(".css") || isThemeTokenStylesheet(relativeFilePath)) return [];
+
+  return stripCssComments(content)
+    .split("\n")
+    .flatMap((line, index) => {
+      if (!cssRawColorLiteralPattern.test(line)) return [];
+      return [`${relativeFilePath}:${index + 1}: move raw color values into theme custom properties`];
+    });
+}
+
+function lineNumberFromIndex(content, index) {
+  return content.slice(0, index).split("\n").length;
+}
+
+function cssDeclarationSignature(ruleBody) {
+  return ruleBody
+    .split(";")
+    .map((declaration) => declaration.trim().replace(/\s+/g, " "))
+    .filter(Boolean)
+    .sort()
+    .join(";");
+}
+
+function stripCssComments(content) {
+  return content.replace(cssCommentPattern, (comment) => comment.replace(/[^\n]/g, ""));
+}
+
+function cssRuleDeclarationBlocks(relativeFilePath, content) {
+  if (!relativeFilePath.endsWith(".css")) return [];
+
+  const contentWithoutComments = stripCssComments(content);
+  return [...contentWithoutComments.matchAll(cssRulePattern)].flatMap((match) => {
+    const selector = match[1].trim().replace(/\s+/g, " ");
+    const signature = cssDeclarationSignature(match[2]);
+    if (!signature) return [];
+
+    const declarationCount = signature.split(";").length;
+    if (declarationCount < minDuplicateCssDeclarationCount) return [];
+
+    return [
+      {
+        declarationCount,
+        lineNumber: lineNumberFromIndex(contentWithoutComments, match.index + match[1].search(/\S/)),
+        relativeFilePath,
+        selector,
+        signature,
+      },
+    ];
+  });
+}
+
+function checkDuplicateCssDeclarationBlocks(fileContents) {
+  const declarationBlocksBySignature = new Map();
+
+  for (const { relativeFilePath, content } of fileContents) {
+    for (const block of cssRuleDeclarationBlocks(relativeFilePath, content)) {
+      if (!declarationBlocksBySignature.has(block.signature)) {
+        declarationBlocksBySignature.set(block.signature, []);
+      }
+      declarationBlocksBySignature.get(block.signature).push(block);
+    }
+  }
+
+  return [...declarationBlocksBySignature.values()].flatMap((blocks) => {
+    if (blocks.length < 2) return [];
+
+    const [firstBlock, ...duplicateBlocks] = blocks;
+    return duplicateBlocks.map((block) => {
+      const firstLocation = `${firstBlock.relativeFilePath}:${firstBlock.lineNumber} ${firstBlock.selector}`;
+      return (
+        `${block.relativeFilePath}:${block.lineNumber}: duplicate CSS declaration block ` +
+        `(${block.declarationCount} declarations) also used by ${firstLocation}`
+      );
+    });
+  });
+}
+
+function normalizedRelativeFilePath(relativeFilePath) {
+  return relativeFilePath.replaceAll("\\", "/");
+}
+
+function resolveStylesheetImport(importerRelativeFilePath, importSpecifier) {
+  if (!importSpecifier.startsWith(".")) return "";
+
+  const importerDirectory = path.posix.dirname(normalizedRelativeFilePath(importerRelativeFilePath));
+  const importedFilePath = path.posix.normalize(path.posix.join(importerDirectory, importSpecifier));
+
+  if (path.posix.isAbsolute(importedFilePath) || importedFilePath.startsWith("../")) return "";
+  if (!importedFilePath.startsWith("src/styles/")) return "";
+  return importedFilePath;
+}
+
+function stylesheetManifestImports(content, importerRelativeFilePath = "src/styles.css") {
+  return content.split("\n").flatMap((line, index) => {
+    const match = line.match(stylesheetImportPattern);
+    if (!match) return [];
+    const relativeFilePath = resolveStylesheetImport(importerRelativeFilePath, match[1]);
+    if (!relativeFilePath) return [];
+    return [{ lineNumber: index + 1, relativeFilePath }];
+  });
+}
+
+function hasStylesheetImport(content) {
+  return content.split("\n").some((line) => stylesheetImportPattern.test(line));
+}
+
+function isGroupedStylesheetManifest(relativeFilePath) {
+  return normalizedRelativeFilePath(relativeFilePath).startsWith("src/styles/") &&
+    normalizedRelativeFilePath(relativeFilePath).endsWith("-imports.css");
+}
+
+function checkRootStylesheetManifestOrder(imports) {
+  const importedFiles = imports.map(({ relativeFilePath }) => relativeFilePath);
+  if (!importedFiles.length || importedFiles.some((relativeFilePath) => !isGroupedStylesheetManifest(relativeFilePath))) {
+    return [];
+  }
+
+  const matchesExpectedOrder =
+    importedFiles.length === rootStylesheetManifestFiles.length &&
+    importedFiles.every((relativeFilePath, index) => relativeFilePath === rootStylesheetManifestFiles[index]);
+
+  if (matchesExpectedOrder) return [];
+
+  return [
+    "src/styles.css:1: keep root stylesheet imports ordered as " +
+      rootStylesheetManifestFiles.join(", "),
+  ];
+}
+
+function checkStylesheetManifest(fileContents) {
+  const fileContentsByPath = new Map(
+    fileContents.map(({ relativeFilePath, content }) => [normalizedRelativeFilePath(relativeFilePath), content]),
+  );
+  const manifest = fileContentsByPath.get("src/styles.css");
+  if (!manifest) return ["src/styles.css:1: missing stylesheet import manifest"];
+
+  const stylesheetFiles = new Set(
+    [...fileContentsByPath.keys()]
+      .filter((relativeFilePath) => relativeFilePath.startsWith("src/styles/") && relativeFilePath.endsWith(".css")),
+  );
+  const failures = [];
+  const importedFiles = new Set();
+  const traversedManifests = new Set();
+  const rootImports = stylesheetManifestImports(manifest, "src/styles.css");
+  failures.push(...checkRootStylesheetManifestOrder(rootImports));
+
+  function checkImportOnlyStylesheet(relativeFilePath, content) {
+    return content.split("\n").flatMap((line, index) => {
+      if (!line.trim() || stylesheetImportPattern.test(line)) return [];
+      return [`${relativeFilePath}:${index + 1}: keep stylesheet manifest import-only`];
+    });
+  }
+
+  function walkStylesheetManifest(relativeFilePath, ancestry = []) {
+    if (traversedManifests.has(relativeFilePath)) return;
+    traversedManifests.add(relativeFilePath);
+
+    const content = fileContentsByPath.get(relativeFilePath) ?? "";
+    if (relativeFilePath !== "src/styles.css" && !isGroupedStylesheetManifest(relativeFilePath)) {
+      failures.push(`${relativeFilePath}:1: name stylesheet manifest with -imports.css suffix`);
+    }
+
+    failures.push(...checkImportOnlyStylesheet(relativeFilePath, content));
+
+    for (const [index, line] of content.split("\n").entries()) {
+      const match = line.match(stylesheetImportPattern);
+      if (!match) continue;
+
+      const lineNumber = index + 1;
+      const importedFilePath = resolveStylesheetImport(relativeFilePath, match[1]);
+      if (!importedFilePath || !stylesheetFiles.has(importedFilePath)) {
+        const fallbackFilePath = importedFilePath || match[1];
+        failures.push(`${relativeFilePath}:${lineNumber}: import existing stylesheet ${fallbackFilePath}`);
+        continue;
+      }
+
+      if (ancestry.includes(importedFilePath)) {
+        failures.push(`${relativeFilePath}:${lineNumber}: remove cyclic stylesheet import ${importedFilePath}`);
+        continue;
+      }
+
+      if (importedFiles.has(importedFilePath)) {
+        failures.push(`${relativeFilePath}:${lineNumber}: remove duplicate stylesheet import ${importedFilePath}`);
+        continue;
+      }
+
+      importedFiles.add(importedFilePath);
+      if (relativeFilePath === "src/styles.css" && !isGroupedStylesheetManifest(importedFilePath)) {
+        failures.push(`${relativeFilePath}:${lineNumber}: import grouped stylesheet manifest ${importedFilePath}`);
+      }
+
+      const importedContent = fileContentsByPath.get(importedFilePath) ?? "";
+      if (hasStylesheetImport(importedContent) || isGroupedStylesheetManifest(importedFilePath)) {
+        walkStylesheetManifest(importedFilePath, [...ancestry, importedFilePath]);
+      }
+    }
+  }
+
+  walkStylesheetManifest("src/styles.css", ["src/styles.css"]);
+
+  for (const relativeFilePath of [...stylesheetFiles].sort((left, right) => left.localeCompare(right))) {
+    if (!importedFiles.has(relativeFilePath)) {
+      failures.push(`src/styles.css:1: import stylesheet ${relativeFilePath}`);
+    }
+  }
+
+  return failures;
 }
 
 function collectCheckedFiles() {
@@ -134,9 +473,24 @@ function collectCheckedFiles() {
 
 function runHygieneCheck() {
   const checkedFiles = collectCheckedFiles();
+  const fileContents = checkedFiles.map((filePath) => ({
+    filePath,
+    relativeFilePath: relativePath(projectRoot, filePath),
+    content: fs.readFileSync(filePath, "utf8"),
+  }));
+
   return {
     checkedFiles,
-    failures: checkedFiles.flatMap(checkFile),
+    failures: [
+      ...fileContents.flatMap(({ relativeFilePath, content }) => checkContent(relativeFilePath, content)),
+      ...fileContents.flatMap(({ relativeFilePath, content }) => checkBackdropFilterTokens(relativeFilePath, content)),
+      ...fileContents.flatMap(({ relativeFilePath, content }) => checkBoxShadowTokens(relativeFilePath, content)),
+      ...fileContents.flatMap(({ relativeFilePath, content }) => checkRawCssColorTokens(relativeFilePath, content)),
+      ...checkUnusedCssCustomProperties(fileContents),
+      ...checkUnusedCssClassSelectors(fileContents),
+      ...checkDuplicateCssDeclarationBlocks(fileContents),
+      ...checkStylesheetManifest(fileContents),
+    ],
   };
 }
 
@@ -157,15 +511,38 @@ if (require.main === module) {
 }
 
 module.exports = {
+  checkBackdropFilterTokens,
+  checkBoxShadowTokens,
   checkContent,
+  checkDuplicateCssDeclarationBlocks,
+  checkRawCssColorTokens,
+  checkRootStylesheetManifestOrder,
+  checkStylesheetManifest,
+  checkUnusedCssClassSelectors,
+  checkUnusedCssCustomProperties,
   collectCheckedFiles,
+  cssDeclarationSignature,
+  cssCustomPropertyDefinitions,
+  cssCustomPropertyUsages,
+  cssClassSelectors,
+  cssClassSelectorsByName,
+  cssClassUsageContent,
+  cssRuleDeclarationBlocks,
+  stylesheetManifestImports,
   hasGitTreeBarrelImport,
   hasInlinePoliteStatusViewLiteral,
   hasReactImport,
   hasRendererRuntimeImport,
+  isCssStateClassSelector,
+  isThemeTokenStylesheet,
   isRendererSourceFile,
+  isGroupedStylesheetManifest,
+  resolveStylesheetImport,
   isSrcLibFile,
   isViewModelFile,
   maxLineLength,
+  minDuplicateCssDeclarationCount,
+  rootStylesheetManifestFiles,
   runHygieneCheck,
+  usesCssClass,
 };

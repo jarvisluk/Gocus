@@ -1,0 +1,106 @@
+.repo-title {
+  min-width: 0;
+}
+
+.repo-title-button {
+  width: calc(100% + 10px);
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  margin-left: -5px;
+  padding: 5px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.repo-title-copy {
+  min-width: 0;
+}
+
+.repo-title strong {
+  font-size: var(--type-heading-2-size);
+  font-weight: var(--font-weight-title);
+  line-height: 1.2;
+}
+
+.repo-title .repo-title-copy {
+  margin-top: 0;
+  color: inherit;
+}
+
+.header-repo-switcher {
+  position: relative;
+  min-width: 0;
+}
+
+.repo-switch-menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 8px);
+  left: -5px;
+  width: min(280px, calc(100vw - 24px));
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.repo-menu-item {
+  grid-template-columns: 18px minmax(0, 1fr);
+  min-height: 42px;
+}
+
+.repo-menu-check {
+  display: grid;
+  place-items: center;
+}
+
+.repo-menu-text strong {
+  font-size: var(--type-caption-size);
+  font-weight: var(--font-weight-strong);
+}
+
+.repo-menu-text code {
+  color: var(--text-faint);
+  font-family: var(--mono-font);
+  font-size: var(--type-micro-size);
+}
+
+.repository-state-banner {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: var(--control-sm) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0 var(--space-xl) var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid color-mix(in srgb, var(--danger) 34%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  color: var(--text);
+}
+
+.repository-state-banner svg {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  justify-self: center;
+  color: var(--danger);
+}
+
+.repository-state-banner div {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.repository-state-banner strong {
+  font-size: var(--type-body-strong-size);
+  font-weight: var(--font-weight-strong);
+}
+
+.repository-state-banner span {
+  color: var(--text-muted);
+  font-size: var(--type-caption-size);
+}

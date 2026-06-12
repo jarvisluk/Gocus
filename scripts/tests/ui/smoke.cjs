@@ -1411,8 +1411,8 @@ async function testTemporaryInfoCopyPrompt(browser, baseUrl) {
     const copiedPrompt = await page.evaluate(() => window.__gitPeekCopiedText);
     assert.match(copiedPrompt, /Run or review the necessary git status \/ git diff/);
     assert.match(copiedPrompt, /Do not run git commit before Yes/);
-    assert.match(copiedPrompt, /Current Changed Now list \(filter: all, files: 2\):/);
-    assert.match(copiedPrompt, /\- \[M\] src\/components\/RecentCommits\.tsx: Modified \(\+12 -2\)/);
+    assert.doesNotMatch(copiedPrompt, /Current Changed Now list/);
+    assert.doesNotMatch(copiedPrompt, /src\/components\/RecentCommits\.tsx/);
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -1462,7 +1462,8 @@ async function testTemporaryInfoCopyFallback(browser, baseUrl) {
     assert.equal(await page.evaluate(() => window.__gitPeekCopiedText), "");
     const fallbackPrompt = await page.evaluate(() => window.__gitPeekClipboardText);
     assert.match(fallbackPrompt, /Run or review the necessary git status \/ git diff/);
-    assert.match(fallbackPrompt, /Current Changed Now list \(filter: all, files: 2\):/);
+    assert.doesNotMatch(fallbackPrompt, /Current Changed Now list/);
+    assert.doesNotMatch(fallbackPrompt, /src\/components\/RecentCommits\.tsx/);
     assert.deepEqual(errors, []);
   } finally {
     await page.close();

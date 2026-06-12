@@ -224,19 +224,73 @@ function testFileChecksUtility() {
   }
 }
 
+function testWorkspaceModule() {
+  const { __private } = require(path.join(projectRoot, "electron/lib/workspace.cjs"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-workspace-"));
+
+  try {
+    const nodeVersionsDir = path.join(tempDir, ".nvm", "versions", "node");
+    fs.mkdirSync(path.join(nodeVersionsDir, "v20.19.6", "bin"), { recursive: true });
+    fs.mkdirSync(path.join(nodeVersionsDir, "v24.14.1", "bin"), { recursive: true });
+
+    const expectedNvmPaths = [
+      path.join(nodeVersionsDir, "v24.14.1", "bin", "codex"),
+      path.join(nodeVersionsDir, "v20.19.6", "bin", "codex"),
+    ];
+    assert.deepEqual(__private.nvmCodexCliCandidatePaths(tempDir), expectedNvmPaths);
+    assert.deepEqual(__private.codexCliCandidatePaths({ env: {}, homeDir: tempDir }), [
+      "/opt/homebrew/bin/codex",
+      "/usr/local/bin/codex",
+      path.join(tempDir, ".local", "bin", "codex"),
+      ...expectedNvmPaths,
+    ]);
+    assert.deepEqual(__private.codexCliCandidatePaths({ env: { GIT_PEEK_CODEX_CLI: "/tmp/codex" }, homeDir: tempDir }), [
+      "/tmp/codex",
+      "/opt/homebrew/bin/codex",
+      "/usr/local/bin/codex",
+      path.join(tempDir, ".local", "bin", "codex"),
+      ...expectedNvmPaths,
+    ]);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
 function testSourceHygieneScript() {
   const {
+    checkBackdropFilterTokens,
+    checkBoxShadowTokens,
     checkContent,
+    checkDuplicateCssDeclarationBlocks,
+    checkRawCssColorTokens,
+    checkRootStylesheetManifestOrder,
+    checkStylesheetManifest,
+    checkUnusedCssClassSelectors,
+    checkUnusedCssCustomProperties,
     collectCheckedFiles,
+    cssClassSelectors,
+    cssClassSelectorsByName,
+    cssClassUsageContent,
+    cssDeclarationSignature,
+    cssCustomPropertyDefinitions,
+    cssCustomPropertyUsages,
+    cssRuleDeclarationBlocks,
     hasGitTreeBarrelImport,
     hasInlinePoliteStatusViewLiteral,
     hasReactImport,
     hasRendererRuntimeImport,
+    isCssStateClassSelector,
     isRendererSourceFile,
+    isGroupedStylesheetManifest,
     isSrcLibFile,
+    isThemeTokenStylesheet,
     isViewModelFile,
     maxLineLength,
+    resolveStylesheetImport,
+    rootStylesheetManifestFiles,
     runHygieneCheck,
+    stylesheetManifestImports,
+    usesCssClass,
   } = require(path.join(projectRoot, "scripts/check-source-hygiene.cjs"));
   const longLine = "x".repeat(maxLineLength + 1);
 
@@ -245,6 +299,15 @@ function testSourceHygieneScript() {
   assert.equal(isRendererSourceFile("src/components/RecentCommits.tsx"), true);
   assert.equal(isRendererSourceFile("electron/main.cjs"), false);
   assert.equal(isRendererSourceFile("scripts/dev.cjs"), false);
+  assert.equal(isThemeTokenStylesheet("src/styles/theme.css"), true);
+  assert.equal(isThemeTokenStylesheet("src/styles/theme-presets-dark.css"), false);
+  assert.equal(isThemeTokenStylesheet("src/styles/base.css"), false);
+  assert.equal(isCssStateClassSelector("is-open"), true);
+  assert.equal(isCssStateClassSelector("has-conflicts"), true);
+  assert.equal(isCssStateClassSelector("ui-button"), false);
+  assert.equal(isGroupedStylesheetManifest("src/styles/foundation-imports.css"), true);
+  assert.equal(isGroupedStylesheetManifest("src/styles/foundation.css"), false);
+  assert.equal(isGroupedStylesheetManifest("src/styles.css"), false);
   assert.equal(isViewModelFile("src/lib/commitListView.ts"), true);
   assert.equal(isViewModelFile("src/git-tree/gitTreeCellView.ts"), true);
   assert.equal(isViewModelFile("src/lib/useDismissableLayer.ts"), false);
@@ -285,6 +348,255 @@ function testSourceHygieneScript() {
     "src/components/Example.tsx:1: import git-tree modules directly instead of the barrel",
   ]);
   assert.deepEqual(checkContent("electron/preload.cjs", 'const { ipcRenderer } = require("electron");\n'), []);
+  assert.deepEqual(checkBackdropFilterTokens("src/components/Example.tsx", "backdrop-filter: blur(1px);\n"), []);
+  assert.deepEqual(checkBackdropFilterTokens("src/styles/example.css", "backdrop-filter: none;\n"), []);
+  assert.deepEqual(checkBackdropFilterTokens("src/styles/example.css", "backdrop-filter: var(--panel-backdrop-filter);\n"), []);
+  assert.deepEqual(checkBackdropFilterTokens("src/styles/example.css", "-webkit-backdrop-filter: var(--panel-backdrop-filter);\n"), []);
+  assert.deepEqual(checkBackdropFilterTokens("src/styles/example.css", "backdrop-filter: blur(24px) saturate(1.18);\n"), [
+    "src/styles/example.css:1: use a backdrop-filter custom property or none",
+  ]);
+  assert.deepEqual(checkBoxShadowTokens("src/components/Example.tsx", "box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);\n"), []);
+  assert.deepEqual(checkBoxShadowTokens("src/styles/theme.css", "box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);\n"), []);
+  assert.deepEqual(checkBoxShadowTokens("src/styles/example.css", "box-shadow: var(--popover-shadow);\n"), []);
+  assert.deepEqual(checkBoxShadowTokens("src/styles/example.css", "box-shadow: 0 0 0 2px var(--focus-soft);\n"), []);
+  assert.deepEqual(checkBoxShadowTokens("src/styles/example.css", "box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);\n"), [
+    "src/styles/example.css:1: move rgba box-shadow values into theme custom properties",
+  ]);
+  assert.deepEqual(checkRawCssColorTokens("src/components/Example.tsx", "color: #fff;\n"), []);
+  assert.deepEqual(checkRawCssColorTokens("src/styles/theme.css", "--surface: rgba(255, 255, 255, 0.72);\n"), []);
+  assert.deepEqual(
+    checkRawCssColorTokens(
+      "src/styles/example.css",
+      "color: var(--text);\nbackground: color-mix(in srgb, var(--panel) 80%, transparent);\n",
+    ),
+    [],
+  );
+  assert.deepEqual(checkRawCssColorTokens("src/styles/example.css", "/* color: #fff; */\n.foo { color: rgb(1, 2, 3); }\n"), [
+    "src/styles/example.css:2: move raw color values into theme custom properties",
+  ]);
+  assert.deepEqual(checkRawCssColorTokens("src/styles/example.css", ".foo { color: #fff; }\n"), [
+    "src/styles/example.css:1: move raw color values into theme custom properties",
+  ]);
+  assert.deepEqual(checkRawCssColorTokens("src/styles/example.css", ".foo { color: hsl(0 0% 100%); }\n"), [
+    "src/styles/example.css:1: move raw color values into theme custom properties",
+  ]);
+  assert.deepEqual(cssCustomPropertyDefinitions("src/styles/example.css", ":root {\n  --unused-token: red;\n}\n"), [
+    { name: "--unused-token", relativeFilePath: "src/styles/example.css", lineNumber: 2 },
+  ]);
+  assert.deepEqual(cssCustomPropertyDefinitions("src/components/Example.tsx", 'const style = "--unused-token";\n'), []);
+  assert.deepEqual([...cssCustomPropertyUsages("color: var(--used-token);\ncolor: var( --spaced-token, red);\n")], [
+    "--used-token",
+    "--spaced-token",
+  ]);
+  assert.deepEqual(
+    checkUnusedCssCustomProperties([
+      {
+        relativeFilePath: "src/styles/example.css",
+        content: ":root {\n  --used-token: red;\n  --unused-token: blue;\n}\n.foo { color: var(--used-token); }\n",
+      },
+      {
+        relativeFilePath: "src/components/Example.tsx",
+        content: 'const fallback = "var(--external-token)";\n',
+      },
+    ]),
+    ["src/styles/example.css:3: remove unused CSS custom property --unused-token"],
+  );
+  assert.deepEqual(
+    cssClassSelectors("src/styles/example.css", ".used-class,\n.is-active,\n.has-state .also-used {\n  color: var(--text);\n}\n"),
+    [
+      { name: "used-class", relativeFilePath: "src/styles/example.css", lineNumber: 1 },
+      { name: "also-used", relativeFilePath: "src/styles/example.css", lineNumber: 3 },
+    ],
+  );
+  assert.deepEqual(cssClassSelectors("src/components/Example.tsx", ".unused-class { color: red; }\n"), []);
+  assert.deepEqual(
+    cssClassUsageContent([
+      { relativeFilePath: "src/components/Example.tsx", content: 'const className = "used-class";\n' },
+      { relativeFilePath: "src/styles/example.css", content: ".ignored-css-only {}\n" },
+      { relativeFilePath: "README.md", content: "ignored-doc-class\n" },
+    ]),
+    'const className = "used-class";\n',
+  );
+  assert.equal(usesCssClass('const className = "used-class";', "used-class"), true);
+  assert.equal(usesCssClass('const className = "unused-classic";', "unused-class"), false);
+  assert.deepEqual(
+    [...cssClassSelectorsByName([
+      { relativeFilePath: "src/styles/a.css", content: ".used-class {}\n" },
+      { relativeFilePath: "src/styles/b.css", content: ".used-class {}\n" },
+    ]).keys()],
+    ["used-class"],
+  );
+  assert.deepEqual(
+    checkUnusedCssClassSelectors([
+      { relativeFilePath: "src/styles/example.css", content: ".used-class {}\n.unused-class {}\n.is-open {}\n" },
+      { relativeFilePath: "src/components/Example.tsx", content: 'const className = "used-class";\n' },
+    ]),
+    ["src/styles/example.css:2: remove unused CSS class selector .unused-class"],
+  );
+  assert.equal(
+    cssDeclarationSignature("gap: 1px;\n  display: grid;\n  min-width: 0;\n"),
+    "display: grid;gap: 1px;min-width: 0",
+  );
+  assert.deepEqual(
+    cssRuleDeclarationBlocks(
+      "src/styles/example.css",
+      ".one {\n  display: grid;\n  gap: 1px;\n  min-width: 0;\n}\n.two {\n  display: grid;\n  gap: 1px;\n}\n",
+    ),
+    [
+      {
+        declarationCount: 3,
+        lineNumber: 1,
+        relativeFilePath: "src/styles/example.css",
+        selector: ".one",
+        signature: "display: grid;gap: 1px;min-width: 0",
+      },
+    ],
+  );
+  assert.equal(
+    cssRuleDeclarationBlocks(
+      "src/styles/example.css",
+      "/* shared pattern\n   kept here */\n.one {\n  display: grid;\n  gap: 1px;\n  min-width: 0;\n}\n",
+    )[0].lineNumber,
+    3,
+  );
+  assert.deepEqual(
+    checkDuplicateCssDeclarationBlocks([
+      {
+        relativeFilePath: "src/styles/a.css",
+        content: ".one {\n  display: grid;\n  gap: 1px;\n  min-width: 0;\n}\n",
+      },
+      {
+        relativeFilePath: "src/styles/b.css",
+        content: ".two {\n  min-width: 0;\n  display: grid;\n  gap: 1px;\n}\n.small {\n  display: grid;\n  gap: 1px;\n}\n",
+      },
+    ]),
+    [
+      "src/styles/b.css:1: duplicate CSS declaration block (3 declarations) also used by src/styles/a.css:1 .one",
+    ],
+  );
+  assert.deepEqual(stylesheetManifestImports('@import "./styles/base.css";\n@import "./styles/theme.css";\n'), [
+    { lineNumber: 1, relativeFilePath: "src/styles/base.css" },
+    { lineNumber: 2, relativeFilePath: "src/styles/theme.css" },
+  ]);
+  assert.deepEqual(
+    checkRootStylesheetManifestOrder(
+      rootStylesheetManifestFiles.map((relativeFilePath, index) => ({ lineNumber: index + 1, relativeFilePath })),
+    ),
+    [],
+  );
+  assert.deepEqual(
+    checkRootStylesheetManifestOrder([
+      { lineNumber: 1, relativeFilePath: "src/styles/ui-imports.css" },
+      { lineNumber: 2, relativeFilePath: "src/styles/foundation-imports.css" },
+    ]),
+    [
+      "src/styles.css:1: keep root stylesheet imports ordered as " +
+        rootStylesheetManifestFiles.join(", "),
+    ],
+  );
+  assert.deepEqual(
+    checkRootStylesheetManifestOrder([{ lineNumber: 1, relativeFilePath: "src/styles/base.css" }]),
+    [],
+  );
+  assert.equal(resolveStylesheetImport("src/styles.css", "./styles/base.css"), "src/styles/base.css");
+  assert.equal(resolveStylesheetImport("src/styles/foundation.css", "./base.css"), "src/styles/base.css");
+  assert.equal(resolveStylesheetImport("src/styles/foundation.css", "../styles.css"), "");
+  assert.deepEqual(stylesheetManifestImports('@import "./base.css";\n', "src/styles/foundation.css"), [
+    { lineNumber: 1, relativeFilePath: "src/styles/base.css" },
+  ]);
+  const rootStylesheetManifestContent =
+    rootStylesheetManifestFiles.map((relativeFilePath) => `@import "./styles/${path.basename(relativeFilePath)}";`).join("\n") +
+    "\n";
+  const groupedManifestFixtureFiles = rootStylesheetManifestFiles.map((relativeFilePath) => ({
+    relativeFilePath,
+    content: relativeFilePath === "src/styles/foundation-imports.css" ? '@import "./base.css";\n@import "./theme.css";\n' : "",
+  }));
+  assert.deepEqual(
+    checkStylesheetManifest([
+      { relativeFilePath: "src/styles.css", content: rootStylesheetManifestContent },
+      ...groupedManifestFixtureFiles,
+      { relativeFilePath: "src/styles/base.css", content: ".base {}\n" },
+      { relativeFilePath: "src/styles/theme.css", content: ".theme {}\n" },
+    ]),
+    [],
+  );
+  assert.deepEqual(
+    checkStylesheetManifest([
+      { relativeFilePath: "src/styles.css", content: '@import "./styles/foundation.css";\n' },
+      { relativeFilePath: "src/styles/foundation.css", content: '@import "./base.css";\n' },
+      { relativeFilePath: "src/styles/base.css", content: ".base {}\n" },
+    ]),
+    [
+      "src/styles.css:1: import grouped stylesheet manifest src/styles/foundation.css",
+      "src/styles/foundation.css:1: name stylesheet manifest with -imports.css suffix",
+    ],
+  );
+  assert.deepEqual(
+    checkStylesheetManifest([
+      { relativeFilePath: "src/styles.css", content: rootStylesheetManifestContent },
+      ...rootStylesheetManifestFiles.map((relativeFilePath) => ({
+        relativeFilePath,
+        content: relativeFilePath === "src/styles/foundation-imports.css" ? '@import "./base.css";\n' : "",
+      })),
+      { relativeFilePath: "src/styles/base.css", content: '@import "./theme.css";\n' },
+      { relativeFilePath: "src/styles/theme.css", content: ".theme {}\n" },
+    ]),
+    ["src/styles/base.css:1: name stylesheet manifest with -imports.css suffix"],
+  );
+  assert.deepEqual(
+    checkStylesheetManifest([
+      { relativeFilePath: "src/styles.css", content: '@import "./styles/base.css";\n' },
+      { relativeFilePath: "src/styles/base.css", content: ".base {}\n" },
+    ]),
+    ["src/styles.css:1: import grouped stylesheet manifest src/styles/base.css"],
+  );
+  assert.deepEqual(
+    checkStylesheetManifest([
+      { relativeFilePath: "src/styles.css", content: '@import "./styles/base.css";\n@import "./styles/missing.css";\n' },
+      { relativeFilePath: "src/styles/base.css", content: ".base {}\n" },
+      { relativeFilePath: "src/styles/theme.css", content: ".theme {}\n" },
+    ]),
+    [
+      "src/styles.css:1: import grouped stylesheet manifest src/styles/base.css",
+      "src/styles.css:2: import existing stylesheet src/styles/missing.css",
+      "src/styles.css:1: import stylesheet src/styles/theme.css",
+    ],
+  );
+  assert.deepEqual(
+    checkStylesheetManifest([
+      { relativeFilePath: "src/styles.css", content: '@import "./styles/base.css";\n@import "./styles/base.css";\n' },
+      { relativeFilePath: "src/styles/base.css", content: ".base {}\n" },
+    ]),
+    [
+      "src/styles.css:1: import grouped stylesheet manifest src/styles/base.css",
+      "src/styles.css:2: remove duplicate stylesheet import src/styles/base.css",
+    ],
+  );
+  assert.deepEqual(
+    checkStylesheetManifest([
+      { relativeFilePath: "src/styles.css", content: rootStylesheetManifestContent },
+      ...rootStylesheetManifestFiles.map((relativeFilePath) => ({
+        relativeFilePath,
+        content: relativeFilePath === "src/styles/foundation-imports.css" ? '@import "./a-imports.css";\n' : "",
+      })),
+      { relativeFilePath: "src/styles/a-imports.css", content: '@import "./b-imports.css";\n' },
+      { relativeFilePath: "src/styles/b-imports.css", content: '@import "./a-imports.css";\n' },
+    ]),
+    ["src/styles/b-imports.css:1: remove cyclic stylesheet import src/styles/a-imports.css"],
+  );
+  assert.deepEqual(
+    checkStylesheetManifest([
+      { relativeFilePath: "src/styles.css", content: `${rootStylesheetManifestContent}.peek-panel {}\n` },
+      ...rootStylesheetManifestFiles.map((relativeFilePath) => ({
+        relativeFilePath,
+        content: relativeFilePath === "src/styles/foundation-imports.css" ? ".base {}\n" : "",
+      })),
+    ]),
+    [
+      "src/styles.css:7: keep stylesheet manifest import-only",
+      "src/styles/foundation-imports.css:1: keep stylesheet manifest import-only",
+    ],
+  );
 
   const checkedFileLabels = collectCheckedFiles().map((filePath) => path.relative(projectRoot, filePath));
   assert.ok(checkedFileLabels.includes("electron/main.cjs"));
@@ -3684,6 +3996,15 @@ async function testBridgeAvailability(server) {
   );
 }
 
+async function testDevWebBridge(server) {
+  const { devWebBridgeUrl, isLocalDevBridgeHost } = await loadTsModule(server, "src/lib/devWebBridge.ts");
+
+  assert.equal(isLocalDevBridgeHost("localhost"), true);
+  assert.equal(isLocalDevBridgeHost("127.0.0.1"), true);
+  assert.equal(isLocalDevBridgeHost("example.com"), false);
+  assert.equal(devWebBridgeUrl("getSnapshot"), "/__git_peek_dev_bridge/getSnapshot");
+}
+
 async function testPathAndFileStatus(server) {
   const { parentPathName, pathName, recentRepositoryLabel } = await loadTsModule(server, "src/lib/pathLabels.ts");
   const { fileKind, formatPath, statusLetter } = await loadTsModule(server, "src/lib/fileStatus.ts");
@@ -3786,7 +4107,7 @@ function changedFile(overrides = {}) {
 
 async function testCommitPrompt(server) {
   const { changedFileKey } = await loadTsModule(server, "src/lib/changedFileIdentity.ts");
-  const { changedFilePromptLine, changedFilesCommitPrompt } = await loadTsModule(server, "src/lib/commitPrompt.ts");
+  const { changedFilesCommitPrompt } = await loadTsModule(server, "src/lib/commitPrompt.ts");
   const modified = changedFile();
   const renamed = changedFile({
     path: "src/components/ChangedFiles.tsx",
@@ -3798,39 +4119,23 @@ async function testCommitPrompt(server) {
     additions: 1,
     deletions: 1,
   });
-  const zeroDelta = changedFile({
-    path: "README.md",
-    statusLabel: "Touched",
-    additions: 0,
-    deletions: 0,
-  });
-  const conflicted = changedFile({
-    path: "src/conflict.ts",
-    status: "UU",
-    indexStatus: "U",
-    workingTreeStatus: "U",
-    statusLabel: "Conflicted",
-    additions: 0,
-    deletions: 0,
-  });
 
   assert.equal(changedFileKey(modified), " M-src/components/ChangedNow.tsx-");
   assert.equal(changedFileKey(renamed), "R -src/components/ChangedFiles.tsx-src/components/ChangedNow.tsx");
-  assert.equal(changedFilePromptLine(modified), "- [M] src/components/ChangedNow.tsx: Modified (+12 -2)");
-  assert.equal(changedFilePromptLine(renamed), "- [R] src/components/ChangedFiles.tsx from src/components/ChangedNow.tsx: Renamed (+1 -1)");
-  assert.equal(changedFilePromptLine(zeroDelta), "- [M] README.md: Touched");
 
-  const englishPrompt = changedFilesCommitPrompt([modified, renamed], "modified", "en");
+  const englishPrompt = changedFilesCommitPrompt("en");
   assert.ok(englishPrompt.includes("Run or review the necessary git status / git diff"));
+  assert.ok(englishPrompt.includes("use the current working tree as the source of truth"));
   assert.ok(englishPrompt.includes("Do not run git commit before Yes"));
-  assert.ok(englishPrompt.includes("Current Changed Now list (filter: modified, files: 2):"));
-  assert.ok(englishPrompt.includes("- [R] src/components/ChangedFiles.tsx from src/components/ChangedNow.tsx: Renamed (+1 -1)"));
+  assert.doesNotMatch(englishPrompt, /Current Changed Now list/);
+  assert.doesNotMatch(englishPrompt, /src\/components\/ChangedFiles\.tsx/);
 
-  const chinesePrompt = changedFilesCommitPrompt([], "staged", "zh");
+  const chinesePrompt = changedFilesCommitPrompt("zh");
   assert.ok(chinesePrompt.includes("先运行或阅读必要的 git status / git diff"));
+  assert.ok(chinesePrompt.includes("以当前 working tree 为准"));
   assert.ok(chinesePrompt.includes("在 Yes 前不要执行 git commit"));
-  assert.ok(chinesePrompt.includes("Changed Now 当前列表（filter: staged, files: 0）："));
-  assert.ok(chinesePrompt.includes("- No files in the current Changed Now filter."));
+  assert.doesNotMatch(chinesePrompt, /Changed Now 当前列表/);
+  assert.doesNotMatch(chinesePrompt, /No files in the current Changed Now filter/);
 }
 
 async function testCopyText(server) {
@@ -5710,6 +6015,7 @@ async function testClassNamesAndGraph(server) {
 
 async function main() {
   testFileChecksUtility();
+  testWorkspaceModule();
   testSourceHygieneScript();
   testSourceHelperUnitCoverage();
   testNodeSyntaxScript();
@@ -5755,6 +6061,7 @@ async function main() {
     await testSettingsPanelView(server);
     await testErrorMessages(server);
     await testBridgeAvailability(server);
+    await testDevWebBridge(server);
     await testPathAndFileStatus(server);
     await testCommitPrompt(server);
     await testCopyText(server);

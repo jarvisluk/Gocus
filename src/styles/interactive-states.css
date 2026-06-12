@@ -1,0 +1,37 @@
+.commit-actions button:disabled,
+.action-merge-target-trigger:disabled {
+  cursor: not-allowed;
+  color: var(--text-subtle);
+  background: color-mix(in srgb, var(--surface) 86%, var(--border));
+}
+
+.heading-tools button:hover,
+.heading-tools .commit-search-toggle.is-active,
+.branch-switch-button:hover:not(:disabled),
+.icon-button:hover,
+.icon-button.is-active,
+.ui-button:hover,
+.ui-icon-button:hover,
+.ui-segmented button.is-active,
+.ui-segmented button:hover,
+.workspace-open-trigger:hover:not(:disabled),
+.workspace-open-menu-toggle:hover:not(:disabled),
+.workspace-open-menu-item:hover,
+.view-chip:hover:not(:disabled),
+.view-chip.is-active,
+.view-chip.is-open,
+.worktree-trigger:hover,
+.worktree-trigger.is-open {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.repo-title-button:hover,
+.repo-title-button.is-open,
+.ui-disclosure-button:hover,
+.ui-disclosure-button.is-open,
+.ui-menu-item:hover,
+.ui-menu-item.is-active,
+.workspace-target-toggle:hover {
+  background: var(--surface-hover);
+}

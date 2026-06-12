@@ -1,0 +1,59 @@
+.ui-page {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+}
+
+.ui-page-header {
+  height: var(--panel-header-height);
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: var(--control-md) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-lg);
+  padding: 0 var(--space-3xl);
+  border-bottom: 1px solid var(--border-soft);
+  -webkit-app-region: drag;
+}
+
+.ui-page-header h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--type-page-title-size);
+  font-weight: var(--font-weight-title);
+  line-height: 1.2;
+}
+
+.ui-form {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: grid;
+  align-content: start;
+  gap: var(--space-md);
+  padding: var(--space-2xl);
+  background: var(--surface-wash);
+  overflow: auto;
+}
+
+.ui-form-row {
+  min-height: var(--form-row-min-height);
+  display: grid;
+  grid-template-columns: var(--form-label-width) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.ui-form-section,
+.action-merge-fields {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-md);
+}
+
+.empty-state {
+  padding: 16px 2px 18px;
+  color: var(--text-faint);
+  font-size: var(--type-body-size);
+}

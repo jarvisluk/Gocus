@@ -1,0 +1,164 @@
+.empty-repository {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 12px;
+  padding: 28px 22px;
+  color: var(--text-muted);
+}
+
+.empty-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.empty-icon svg {
+  width: var(--app-icon-control);
+  height: var(--app-icon-control);
+}
+
+.empty-repository h2 {
+  margin: 8px 0 0;
+  color: var(--text);
+  font-size: var(--type-display-size);
+  line-height: var(--type-display-line);
+}
+
+.empty-repository p {
+  margin: 0;
+  font-size: var(--type-body-strong-size);
+  line-height: 1.45;
+}
+
+.empty-folder-path {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 5px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: var(--type-caption-size);
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-repository span {
+  color: var(--text-faint);
+  font-size: var(--type-caption-size);
+  line-height: 1.35;
+}
+
+.empty-actions {
+  max-width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.empty-gitignore-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-faint);
+}
+
+.primary-action {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--text);
+  color: var(--panel-solid);
+  cursor: pointer;
+  font-size: var(--type-body-strong-size);
+  font-weight: var(--font-weight-strong);
+  -webkit-app-region: no-drag;
+}
+
+.secondary-action {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--type-body-strong-size);
+  font-weight: 700;
+  -webkit-app-region: no-drag;
+}
+
+:is(.empty-gitignore-note, .primary-action, .secondary-action) svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+:is(.primary-action, .secondary-action):hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.empty-recent-repos {
+  width: 100%;
+  display: grid;
+  gap: 5px;
+  padding-top: 2px;
+}
+
+.empty-recent-repos button {
+  min-width: 0;
+  height: 30px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-size: var(--type-body-size);
+  font-weight: 650;
+  text-align: left;
+  -webkit-app-region: no-drag;
+}
+
+.empty-recent-repos button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.empty-recent-repos svg {
+  width: var(--icon-md);
+  height: var(--icon-md);
+  color: var(--text-muted);
+}
+
+.empty-recent-repos span {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-recent-repos-more {
+  padding: 3px 7px 0;
+  color: var(--text-faint);
+  font-size: var(--type-caption-size);
+}

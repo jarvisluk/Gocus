@@ -1,0 +1,96 @@
+:root {
+  --radius: 8px;
+  --panel-width: 342px;
+  --radius-sm: 6px;
+  --radius-md: 7px;
+  --radius-lg: 8px;
+  --radius-pill: 999px;
+  --font-xxs: 10px;
+  --font-xs: 11px;
+  --font-sm: 12px;
+  --font-md: 13px;
+  --font-lg: 14px;
+  --font-title: 15px;
+  --font-page-title: 16px;
+  --font-empty-title: 20px;
+  --font-weight-body: 560;
+  --font-weight-strong: 720;
+  --font-weight-title: 760;
+  --type-micro-size: var(--font-xxs);
+  --type-caption-size: var(--font-xs);
+  --type-caption-weight: var(--font-weight-body);
+  --type-caption-line: 1.25;
+  --type-body-size: var(--font-sm);
+  --type-body-line: 1.35;
+  --type-body-strong-size: var(--font-md);
+  --type-body-strong-weight: var(--font-weight-strong);
+  --type-heading-2-size: var(--font-lg);
+  --type-heading-1-size: var(--font-title);
+  --type-page-title-size: var(--font-page-title);
+  --type-display-size: var(--font-empty-title);
+  --type-display-line: 1.15;
+  --user-font:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  --mono-font: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --space-xxs: 2px;
+  --space-xs: 4px;
+  --space-sm: 6px;
+  --space-md: 8px;
+  --space-lg: 10px;
+  --space-xl: 12px;
+  --space-2xl: 14px;
+  --space-3xl: 16px;
+  --icon-xs: 13px;
+  --icon-sm: 14px;
+  --icon-md: 15px;
+  --icon-lg: 16px;
+  --icon-xl: 17px;
+  --app-icon-menu: 18px;
+  --app-icon-control: 22px;
+  --control-sm: 26px;
+  --control-md: 30px;
+  --control-lg: 32px;
+  --control-xl: 34px;
+  --field-height: 31px;
+  --dialog-field-height: 34px;
+  --panel-header-height: 62px;
+  --footer-height: 48px;
+  --form-label-width: 58px;
+  --form-row-min-height: 30px;
+  --menu-row-height: 30px;
+  --menu-width-sm: 156px;
+  --workspace-open-width: 78px;
+  --workspace-open-height: 28px;
+  --transition-fast: 140ms ease;
+}
+
+:root[data-density="comfortable"],
+:root[data-theme][data-density="comfortable"],
+:root[data-theme][data-theme-preset][data-density="comfortable"] {
+  --control-md: 34px;
+  --control-lg: 38px;
+  --control-xl: 38px;
+  --field-height: 36px;
+  --form-row-min-height: 38px;
+  --menu-row-height: 34px;
+  --footer-height: 54px;
+}
+
+:root[data-density="comfortable"] .commit-row {
+  --git-tree-node-y: 27px;
+  min-height: 84px;
+}
+
+:root[data-density="comfortable"] .commit-row.is-selected {
+  min-height: 142px;
+}
+
+:root[data-density="comfortable"] .commit-content {
+  padding-top: 15px;
+  padding-bottom: 13px;
+}
+
+:root[data-density="comfortable"] .file-row {
+  min-height: 46px;
+}

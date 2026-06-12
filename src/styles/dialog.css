@@ -1,0 +1,59 @@
+.ui-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  align-items: end;
+  padding: var(--space-xl);
+  background: var(--overlay-scrim);
+  -webkit-app-region: no-drag;
+}
+
+.ui-dialog {
+  display: grid;
+  gap: var(--space-lg);
+  padding: var(--space-xl);
+}
+
+.ui-dialog-heading {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) var(--control-sm);
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.ui-dialog-heading h2 {
+  margin: 0;
+  font-size: var(--type-heading-2-size);
+  line-height: 1.2;
+}
+
+.ui-dialog-heading > svg {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  color: var(--text-muted);
+}
+
+.ui-dialog-heading .ui-icon-button {
+  width: var(--control-sm);
+  height: var(--control-sm);
+}
+
+.ui-dialog-body {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-body-size);
+  line-height: 1.4;
+}
+
+.ui-code-block {
+  font-family: var(--mono-font);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+
+.ui-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-md);
+}

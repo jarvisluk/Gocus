@@ -1,0 +1,84 @@
+.repo-title strong,
+.repo-title span,
+.ui-page-header h1,
+.ui-page-header span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changed-side-header h2,
+.changed-side-header div span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-copy,
+.repo-menu-text {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.file-path,
+.repo-menu-text strong,
+.repo-menu-text code,
+.repository-state-banner strong,
+.repository-state-banner span,
+.ui-disclosure-label,
+.ui-disclosure-value,
+.view-chip span,
+.worktree-trigger span,
+.branch-ref-menu-item span,
+.worktree-menu-item span,
+.commit-hover-title,
+.commit-hover-author,
+.commit-hover-time,
+.commit-hover-hash code,
+.commit-hover-ref-pill span,
+.branch-switch-tooltip-bubble strong,
+.notice-line,
+.worktree-context-copy strong,
+.worktree-context-count,
+.workspace-target-toggle span:nth-child(2) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repo-title span,
+.ui-page-header span,
+.changed-side-header div span {
+  margin-top: 3px;
+  color: var(--text-faint);
+  font-size: var(--type-caption-size);
+}
+
+.ui-label,
+.ui-toggle > span,
+.empty-recent-repos strong {
+  color: var(--text-faint);
+  font-size: var(--type-caption-size);
+  font-weight: 740;
+}
+
+.changed-side-facts dt,
+.action-branch-field span {
+  color: var(--text-faint);
+  font-size: var(--type-micro-size);
+  font-weight: var(--font-weight-strong);
+  text-transform: uppercase;
+}
+
+.commit-meta span,
+.commit-meta code,
+.ui-menu-item span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
