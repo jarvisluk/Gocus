@@ -13,18 +13,13 @@
 }
 
 .worktree-context-copy strong {
-  min-width: 0;
-  overflow: hidden;
   color: var(--text);
   font-size: var(--type-body-strong-size);
   font-weight: var(--font-weight-body);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .worktree-context-count {
   max-width: 92px;
-  overflow: hidden;
   padding: 4px 7px;
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-pill);
@@ -32,8 +27,6 @@
   color: var(--text-muted);
   font-size: var(--type-micro-size);
   font-weight: var(--font-weight-body);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .worktree-context-menu {

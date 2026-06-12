@@ -29,10 +29,7 @@
 }
 
 .branch-switch-tooltip-bubble strong {
-  overflow: hidden;
   font-weight: var(--font-weight-strong);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .branch-switch-tooltip-bubble span {

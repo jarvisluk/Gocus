@@ -27,13 +27,10 @@
 
 .commit-title-text {
   margin: 0;
-  overflow: hidden;
   color: var(--text);
   font-size: var(--type-body-strong-size);
   font-weight: var(--font-weight-strong);
   line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .commit-row.is-selected .commit-title-text {

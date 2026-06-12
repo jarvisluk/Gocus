@@ -42,7 +42,4 @@
   border-top: 1px solid var(--border-soft);
   color: var(--text-faint);
   font-size: var(--type-caption-size);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }

@@ -1,0 +1,19 @@
+.repo-title strong,
+.repo-title span,
+.ui-page-header h1,
+.ui-page-header span,
+.empty-folder-path {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changed-side-header h2,
+.changed-side-header div span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

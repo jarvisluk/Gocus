@@ -1,7 +1,5 @@
 .action-branch-preview {
   grid-column: 1 / -1;
-  min-width: 0;
-  overflow: hidden;
   padding: var(--space-sm) var(--space-md);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-md);
@@ -9,8 +7,6 @@
   color: var(--text-muted);
   font-family: var(--mono-font);
   font-size: var(--type-caption-size);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .action-branch-error {

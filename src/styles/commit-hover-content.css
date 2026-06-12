@@ -27,8 +27,6 @@
   font-weight: var(--type-body-strong-weight);
   line-height: var(--type-body-line);
   overflow-wrap: anywhere;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .commit-hover-stats {

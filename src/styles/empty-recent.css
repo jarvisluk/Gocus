@@ -28,12 +28,9 @@
 }
 
 .empty-recent-repos span {
-  overflow: hidden;
   color: inherit;
   font-size: inherit;
   line-height: inherit;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .empty-recent-repos-more {
