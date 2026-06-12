@@ -34,6 +34,8 @@
 @import "./styles/changed.css";
 @import "./styles/changed-side.css";
 @import "./styles/temporary.css";
+@import "./styles/temporary-changed.css";
+@import "./styles/temporary-commit.css";
 @import "./styles/footer.css";
 @import "./styles/zen.css";
 @import "./styles/workspace-open.css";

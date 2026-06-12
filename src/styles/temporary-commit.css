@@ -1,0 +1,22 @@
+.temporary-info-panel.is-commit {
+  align-content: start;
+  box-sizing: border-box;
+  padding: 4px;
+  pointer-events: none;
+}
+
+.temporary-info-panel .commit-hover-panel.changed-side-panel {
+  align-self: start;
+  height: auto;
+  overflow: hidden;
+  border: 0;
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--panel-solid) 94%, transparent);
+  animation: none;
+  backdrop-filter: var(--panel-backdrop-filter);
+  pointer-events: auto;
+}
+
+.temporary-info-panel .commit-hover-body {
+  height: auto;
+}
