@@ -1744,7 +1744,6 @@ async function testResponsiveShell(browser, baseUrl) {
       await assertNoHorizontalOverflow(page, `${name} shell`);
       await assertVisibleWithinViewport(page, page.getByRole("button", { name: "Settings" }), `${name} settings button`);
       await assertVisibleWithinViewport(page, page.getByRole("button", { name: "Open Changed now" }), `${name} Changed now button`);
-      await assertVisibleWithinViewport(page, page.getByRole("button", { name: "Enter Zen mode" }), `${name} Zen button`);
 
       await page.getByRole("button", { name: "Search commits" }).click();
       await page.getByRole("searchbox", { name: "Search commits" }).fill("footer");
@@ -2310,7 +2309,6 @@ async function testFocusedViewEscapeControls(browser, baseUrl) {
       "Launch at login",
       "Show menu bar icon",
       "Disable fast-forward merges",
-      "Show Zen mode entry",
     ];
     const behaviorToggleBounds = await Promise.all(
       behaviorToggleLabels.map(async (name) => {
@@ -2326,23 +2324,10 @@ async function testFocusedViewEscapeControls(browser, baseUrl) {
         `${toggle.name} should align with ${firstBehaviorToggle.name}: ${JSON.stringify(behaviorToggleBounds)}`,
       );
     });
-    await page.evaluate(() => {
-      window.__gitPeekPreferencesListeners.forEach((callback) => callback({ zenMode: true }));
-    });
-    await page.getByRole("button", { name: "Exit Zen mode" }).waitFor();
-    assert.equal(await page.getByRole("heading", { name: "Settings" }).count(), 0);
-    assert.equal(await page.evaluate(() => document.documentElement.dataset.zenMode), "true");
     assert.deepEqual(
       await page.evaluate(() => window.__gitPeekSavedPreferences.map((preferences) => preferences.autoRefreshInterval)),
       ["5m"],
     );
-    await page.keyboard.press("Escape");
-    await page.getByRole("heading", { name: "Settings" }).waitFor();
-    assert.equal(await page.evaluate(() => document.documentElement.dataset.zenMode), "false");
-    assert.deepEqual(await page.evaluate(() => window.__gitPeekSavedPreferences.map((preferences) => preferences.zenMode)), [
-      false,
-      false,
-    ]);
 
     await page.getByRole("button", { name: "Open external app settings" }).click();
     await page.getByRole("heading", { name: "Open in" }).waitFor();
@@ -2353,24 +2338,6 @@ async function testFocusedViewEscapeControls(browser, baseUrl) {
     assert.equal(await page.getByRole("heading", { name: "Open in" }).count(), 0);
     await page.keyboard.press("Escape");
     await page.getByRole("heading", { name: "Commits" }).waitFor();
-
-    await page.getByRole("button", { name: "Enter Zen mode" }).click();
-    await page.getByRole("button", { name: "Exit Zen mode" }).waitFor();
-    assert.equal(await page.evaluate(() => document.documentElement.dataset.zenMode), "true");
-    assert.deepEqual(await page.evaluate(() => window.__gitPeekSavedPreferences.map((preferences) => preferences.zenMode)), [
-      false,
-      false,
-      true,
-    ]);
-    await page.keyboard.press("Escape");
-    await page.getByRole("heading", { name: "Commits" }).waitFor();
-    assert.equal(await page.evaluate(() => document.documentElement.dataset.zenMode), "false");
-    assert.deepEqual(await page.evaluate(() => window.__gitPeekSavedPreferences.map((preferences) => preferences.zenMode)), [
-      false,
-      false,
-      true,
-      false,
-    ]);
     assert.deepEqual(errors, []);
   } finally {
     await page.close();

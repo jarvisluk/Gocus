@@ -10,10 +10,6 @@
   border-top: 1px solid var(--border-soft);
 }
 
-.peek-footer.has-zen-entry {
-  grid-template-columns: var(--control-xl) minmax(58px, max-content) var(--control-xl) minmax(0, 1fr) var(--workspace-open-width);
-}
-
 .footer-icon {
   width: var(--control-xl);
   height: var(--control-xl);

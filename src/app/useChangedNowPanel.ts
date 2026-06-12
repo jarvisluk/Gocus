@@ -15,13 +15,11 @@ export function useChangedNowPanel({
   collapsed,
   settingsOpen,
   workspaceOpenTarget,
-  zenActive,
 }: {
   snapshot: GitSnapshot | null;
   collapsed: boolean;
   settingsOpen: boolean;
   workspaceOpenTarget: WorkspaceOpenTarget | "";
-  zenActive: boolean;
 }) {
   const [changedNowState, setChangedNowState] = useState(closedChangedNowWindowState);
   const { collapsedRailOpen: collapsedRailChangedNowOpen, windowOpen: changedNowWindowOpen } = changedNowState;
@@ -35,9 +33,8 @@ export function useChangedNowPanel({
         collapsedRailChangedNowOpen,
         settingsOpen,
         workspaceOpenTarget,
-        zenActive,
       }),
-    [changedNowWindowOpen, collapsed, collapsedRailChangedNowOpen, settingsOpen, snapshot, workspaceOpenTarget, zenActive],
+    [changedNowWindowOpen, collapsed, collapsedRailChangedNowOpen, settingsOpen, snapshot, workspaceOpenTarget],
   );
 
   const runTemporaryInfoPanelBridgeAction = useCallback((action: TemporaryInfoPanelBridgeAction, payload: TemporaryInfoPayload = null) => {

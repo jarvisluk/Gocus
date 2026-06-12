@@ -831,11 +831,10 @@ function testIpcHandlersModule() {
   const preferences = {
     launchAtLogin: false,
     showMenuBarIcon: true,
-    zenMode: false,
   };
 
   assert.deepEqual(
-    preferencesSaveSideEffects(preferences, preferences, { ...preferences, zenMode: true }),
+    preferencesSaveSideEffects(preferences, preferences, { ...preferences }),
     {
       syncLaunchAtLogin: false,
       syncMenuBarIcon: false,
@@ -1579,50 +1578,33 @@ async function testAppShellView(server) {
     appNativeDialogBlockerView,
     appPanelContentView,
     appPanelView,
-    appPreferencesWithZenMode,
     appScrollRegionView,
-    appShouldCloseSettingsAfterPreferencesChange,
     appShouldCloseSettingsOnKey,
     appShouldShowRepositoryControls,
     appShouldCloseTemporaryInfoOnPointer,
-    appShouldExitZenOnKey,
     appTemporaryInfoDismissView,
     appViewportView,
-    appZenExitButtonView,
-    appZenSnapshot,
   } = await loadTsModule(server, "src/lib/appShellView.ts");
-  const { defaultPreferences } = await loadTsModule(server, "src/lib/preferences.ts");
 
-  assert.deepEqual(appViewportView({ electron: false, collapsed: false, zenActive: false }), {
+  assert.deepEqual(appViewportView({ electron: false, collapsed: false }), {
     className: "app-viewport",
   });
-  assert.deepEqual(appViewportView({ electron: true, collapsed: true, zenActive: true }), {
-    className: "app-viewport is-electron is-collapsed is-zen",
+  assert.deepEqual(appViewportView({ electron: true, collapsed: true }), {
+    className: "app-viewport is-electron is-collapsed",
   });
-  assert.deepEqual(appPanelView(false), {
+  assert.deepEqual(appPanelView(), {
     className: "peek-panel",
     ariaLabel: "Git Peek side panel",
   });
-  assert.deepEqual(appPanelView(true), {
-    className: "peek-panel is-zen-panel",
-    ariaLabel: "Git Peek zen commit view",
-  });
   const snapshot = gitSnapshot();
-  assert.deepEqual(appPanelContentView({ snapshot, settingsOpen: true, zenMode: true }), {
-    mode: "zen",
-    snapshot,
-  });
-  assert.deepEqual(appPanelContentView({ snapshot, settingsOpen: true, zenMode: false }), {
+  assert.deepEqual(appPanelContentView({ snapshot, settingsOpen: true }), {
     mode: "settings",
   });
-  assert.deepEqual(appPanelContentView({ snapshot, settingsOpen: false, zenMode: false }), {
+  assert.deepEqual(appPanelContentView({ snapshot, settingsOpen: false }), {
     mode: "repository",
     snapshot,
   });
-  assert.deepEqual(appPanelContentView({ snapshot: null, settingsOpen: false, zenMode: true }), {
-    mode: "empty",
-  });
-  assert.deepEqual(appPanelContentView({ snapshot: null, settingsOpen: false, zenMode: false }), {
+  assert.deepEqual(appPanelContentView({ snapshot: null, settingsOpen: false }), {
     mode: "empty",
   });
   const editorBackdrop = appEditorBackdropView();
@@ -1633,16 +1615,8 @@ async function testAppShellView(server) {
   assert.equal(editorBackdrop.className, "editor-backdrop");
   assert.equal(editorBackdrop.ariaHidden, true);
   assert.match(editorBackdrop.previewCode, /className="menu-item"/);
-  assert.deepEqual(appScrollRegionView(false), {
+  assert.deepEqual(appScrollRegionView(), {
     className: "scroll-region",
-  });
-  assert.deepEqual(appScrollRegionView(true), {
-    className: "scroll-region zen-scroll-region",
-  });
-  assert.deepEqual(appZenExitButtonView(), {
-    className: "ui-icon-button zen-exit-button",
-    ariaLabel: "Exit Zen mode",
-    title: "Exit Zen mode",
   });
   assert.deepEqual(appNativeDialogBlockerView(), {
     className: "native-dialog-blocker",
@@ -1651,30 +1625,14 @@ async function testAppShellView(server) {
   assert.deepEqual(appTemporaryInfoDismissView(), {
     exemptSelector: ".footer-changed-now, .rail-count",
   });
-  assert.equal(appZenSnapshot({ snapshot, zenMode: true }), snapshot);
-  assert.equal(appZenSnapshot({ snapshot, zenMode: false }), null);
-  assert.equal(appZenSnapshot({ snapshot: null, zenMode: true }), null);
   assert.equal(appChangedNowCount(null), 0);
   assert.equal(appChangedNowCount(gitSnapshot({ changedFiles: [] })), 0);
   assert.equal(appChangedNowCount(gitSnapshot({ changedFiles: [{ path: "src/App.tsx" }, { path: "README.md" }] })), 2);
-  const preferences = { ...defaultPreferences, themeMode: "light", zenMode: false, showZenEntry: false };
-  const zenPreferences = appPreferencesWithZenMode(preferences, true);
-  assert.notEqual(zenPreferences, preferences);
-  assert.deepEqual(zenPreferences, { ...preferences, zenMode: true });
-  assert.deepEqual(appPreferencesWithZenMode(zenPreferences, false), preferences);
-  assert.equal(appShouldShowRepositoryControls({ snapshot: null, zenActive: false }), false);
-  assert.equal(appShouldShowRepositoryControls({ snapshot, zenActive: true }), false);
-  assert.equal(appShouldShowRepositoryControls({ snapshot, zenActive: false }), true);
-  assert.equal(appShouldCloseSettingsOnKey({ key: "Escape", settingsOpen: true, zenActive: false }), true);
-  assert.equal(appShouldCloseSettingsOnKey({ key: "Enter", settingsOpen: true, zenActive: false }), false);
-  assert.equal(appShouldCloseSettingsOnKey({ key: "Escape", settingsOpen: false, zenActive: false }), false);
-  assert.equal(appShouldCloseSettingsOnKey({ key: "Escape", settingsOpen: true, zenActive: true }), false);
-  assert.equal(appShouldCloseSettingsAfterPreferencesChange({ settingsOpen: true, nextZenMode: true }), true);
-  assert.equal(appShouldCloseSettingsAfterPreferencesChange({ settingsOpen: true, nextZenMode: false }), false);
-  assert.equal(appShouldCloseSettingsAfterPreferencesChange({ settingsOpen: false, nextZenMode: true }), false);
-  assert.equal(appShouldExitZenOnKey({ key: "Escape", zenActive: true }), true);
-  assert.equal(appShouldExitZenOnKey({ key: "Enter", zenActive: true }), false);
-  assert.equal(appShouldExitZenOnKey({ key: "Escape", zenActive: false }), false);
+  assert.equal(appShouldShowRepositoryControls({ snapshot: null }), false);
+  assert.equal(appShouldShowRepositoryControls({ snapshot }), true);
+  assert.equal(appShouldCloseSettingsOnKey({ key: "Escape", settingsOpen: true }), true);
+  assert.equal(appShouldCloseSettingsOnKey({ key: "Enter", settingsOpen: true }), false);
+  assert.equal(appShouldCloseSettingsOnKey({ key: "Escape", settingsOpen: false }), false);
 
   const exemptSelector = appTemporaryInfoDismissView().exemptSelector;
   const exemptTarget = { closest: (selector) => (selector === exemptSelector ? { nodeType: 1 } : null) };
@@ -3292,11 +3250,9 @@ async function testPreferences(server) {
       fontFamily: "mono",
       graphStyle: "wire",
       workspaceOpenTargets: ["codex", "codex", "bad", "terminal"],
-      showZenEntry: false,
       showMenuBarIcon: false,
       launchAtLogin: "yes",
       createMergeCommit: false,
-      zenMode: true,
       autoRefreshInterval: "2m",
       promptLanguage: "zh",
     }),
@@ -3306,10 +3262,8 @@ async function testPreferences(server) {
       darkThemePreset: "matte",
       fontFamily: "mono",
       workspaceOpenTargets: ["codex", "terminal"],
-      showZenEntry: false,
       showMenuBarIcon: false,
       createMergeCommit: false,
-      zenMode: true,
       promptLanguage: "zh",
     },
   );
@@ -3556,7 +3510,6 @@ async function testFooterWorkspaceView(server) {
     footerWorkspaceOpenButtonView,
     footerWorkspaceSelection,
     footerWorkspaceView,
-    footerZenButtonView,
   } = await loadTsModule(server, "src/lib/footerWorkspaceView.ts");
   const options = [
     { target: "vscode", label: "VS Code", iconSrc: "vscode.png" },
@@ -3698,18 +3651,6 @@ async function testFooterWorkspaceView(server) {
     className: "footer-primary",
     label: "Open folder",
   });
-  assert.deepEqual(footerZenButtonView(false), {
-    className: "ui-icon-button footer-icon footer-zen",
-    ariaLabel: "Enter Zen mode",
-    title: "Zen mode",
-    disabled: true,
-  });
-  assert.deepEqual(footerZenButtonView(true), {
-    className: "ui-icon-button footer-icon footer-zen",
-    ariaLabel: "Enter Zen mode",
-    title: "Zen mode",
-    disabled: false,
-  });
   assert.deepEqual(footerNoticeView({ hasRepository: true, notice: " Git status refreshed. " }), {
     className: "notice-line",
     role: "status",
@@ -3718,8 +3659,8 @@ async function testFooterWorkspaceView(server) {
   });
   assert.equal(footerNoticeView({ hasRepository: true, notice: "   " }), null);
   assert.equal(footerNoticeView({ hasRepository: false, notice: "Choose a working folder first." }), null);
-  assert.deepEqual(footerActionsView({ changedNowOpen: false, hasRepository: false, showZenEntry: true }), {
-    className: "peek-footer has-zen-entry",
+  assert.deepEqual(footerActionsView({ changedNowOpen: false, hasRepository: false }), {
+    className: "peek-footer",
     showOpenRepositoryButton: true,
     showChangedNowButton: false,
     settingsButton: {
@@ -3737,15 +3678,8 @@ async function testFooterWorkspaceView(server) {
       ariaPressed: false,
       title: "Changed now",
     },
-    showZenButton: true,
-    zenButton: {
-      className: "ui-icon-button footer-icon footer-zen",
-      ariaLabel: "Enter Zen mode",
-      title: "Zen mode",
-      disabled: true,
-    },
   });
-  assert.deepEqual(footerActionsView({ changedNowOpen: true, hasRepository: true, showZenEntry: false }), {
+  assert.deepEqual(footerActionsView({ changedNowOpen: true, hasRepository: true }), {
     className: "peek-footer",
     showOpenRepositoryButton: false,
     showChangedNowButton: true,
@@ -3763,13 +3697,6 @@ async function testFooterWorkspaceView(server) {
       ariaLabel: "Close Changed now",
       ariaPressed: true,
       title: "Close Changed now",
-    },
-    showZenButton: false,
-    zenButton: {
-      className: "ui-icon-button footer-icon footer-zen",
-      ariaLabel: "Enter Zen mode",
-      title: "Zen mode",
-      disabled: false,
     },
   });
 }
@@ -3816,19 +3743,17 @@ async function testSettingsPanelView(server) {
     behavior: {
       titleId: "settings-behavior-title",
       title: "Behavior",
-      rows: {
-        refresh: "Refresh",
-        startup: "Startup",
-        menuBar: "Menu bar",
-        merge: "No-FF",
-        zenEntry: "Zen entry",
-        prompt: "Prompt",
-      },
+        rows: {
+          refresh: "Refresh",
+          startup: "Startup",
+          menuBar: "Menu bar",
+          merge: "No-FF",
+          prompt: "Prompt",
+        },
       autoRefreshAriaLabel: "Auto refresh interval",
       launchAtLoginAriaLabel: "Launch at login",
       showMenuBarIconAriaLabel: "Show menu bar icon",
       createMergeCommitAriaLabel: "Disable fast-forward merges",
-      showZenEntryAriaLabel: "Show Zen mode entry",
     },
     workspace: {
       titleId: "settings-workspace-title",
@@ -3888,7 +3813,6 @@ async function testSettingsPanelView(server) {
       launchAtLoginToggleClassName: "ui-toggle settings-launch-at-login-toggle",
       menuBarIconToggleClassName: "ui-toggle settings-menu-bar-icon-toggle",
       mergeCommitToggleClassName: "ui-toggle settings-merge-commit-toggle",
-      zenEntryToggleClassName: "ui-toggle settings-zen-entry-toggle",
       disclosureFrameClassName: "ui-select-frame ui-disclosure-frame",
       disclosureButtonClassName: "ui-disclosure-button",
       disclosureLabelClassName: "ui-disclosure-label",
@@ -4620,7 +4544,6 @@ async function testChangedFilesTemporaryInfo(server) {
     collapsedRailChangedNowOpen: false,
     settingsOpen: false,
     workspaceOpenTarget: "cursor",
-    zenActive: false,
   };
 
   assert.deepEqual(changedFilesTemporaryInfoPayload(baseOptions), {
@@ -4642,7 +4565,6 @@ async function testChangedFilesTemporaryInfo(server) {
     [modified],
   );
   assert.equal(changedFilesTemporaryInfoPayload({ ...baseOptions, settingsOpen: true }), null);
-  assert.equal(changedFilesTemporaryInfoPayload({ ...baseOptions, zenActive: true }), null);
 }
 
 async function testTemporaryInfoPanelBridge(server) {

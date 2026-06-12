@@ -37,15 +37,6 @@ export function footerOpenRepositoryButtonView() {
   };
 }
 
-export function footerZenButtonView(hasRepository: boolean) {
-  return {
-    className: "ui-icon-button footer-icon footer-zen",
-    ariaLabel: "Enter Zen mode",
-    title: "Zen mode",
-    disabled: !hasRepository,
-  };
-}
-
 export function footerNoticeView({ hasRepository, notice }: { hasRepository: boolean; notice: string }) {
   const message = notice.trim();
   if (!hasRepository || !message) return null;
@@ -59,21 +50,17 @@ export function footerNoticeView({ hasRepository, notice }: { hasRepository: boo
 export function footerActionsView({
   changedNowOpen,
   hasRepository,
-  showZenEntry,
 }: {
   changedNowOpen: boolean;
   hasRepository: boolean;
-  showZenEntry: boolean;
 }) {
   return {
-    className: joinClass("peek-footer", showZenEntry && "has-zen-entry"),
+    className: "peek-footer",
     showOpenRepositoryButton: !hasRepository,
     showChangedNowButton: hasRepository,
     settingsButton: footerSettingsButtonView(),
     openRepositoryButton: footerOpenRepositoryButtonView(),
     changedNowButton: footerChangedNowButtonView(changedNowOpen),
-    showZenButton: showZenEntry,
-    zenButton: footerZenButtonView(hasRepository),
   };
 }
 

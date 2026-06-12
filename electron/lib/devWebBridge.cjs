@@ -20,11 +20,9 @@ const defaultPreferences = {
   fontFamily: "system",
   graphStyle: "solid",
   workspaceOpenTargets: ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"],
-  showZenEntry: true,
   showMenuBarIcon: true,
   launchAtLogin: false,
   createMergeCommit: true,
-  zenMode: false,
   autoRefreshInterval: "off",
   promptLanguage: "en",
 };

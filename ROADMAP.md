@@ -8,7 +8,6 @@
  - [x] more detailed Changed Now content
  - [x] git tree refinement, the current tree is broken and not consistent and smooth
  - [x] full commit message on hover
- - [x] ZEN mode only show git tree
  - [ ] macOS widget feasibility: possible via native WidgetKit companion target, not Electron-only
  - [x] fast switch between repositories that opened before
  - [x] Folder without Git support: help users initialize the folder as a Git repository and provide a starter `.gitignore`
