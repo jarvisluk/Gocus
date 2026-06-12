@@ -44,3 +44,13 @@
 .workspace-open-menu-toggle.is-open svg {
   transform: rotate(180deg);
 }
+
+.workspace-open-menu {
+  right: 0;
+  bottom: calc(100% + 8px);
+}
+
+.workspace-open-control.opens-below .workspace-open-menu {
+  top: calc(100% + 8px);
+  bottom: auto;
+}

@@ -12,10 +12,6 @@
 @import "./zen.css";
 @import "./zen-commits.css";
 @import "./workspace-open.css";
-@import "./workspace-open-menu.css";
 @import "./collapsed-rail.css";
-@import "./collapsed-rail-count.css";
-@import "./empty.css";
-@import "./empty-recent.css";
-@import "./empty-actions.css";
+@import "./empty-repository.css";
 @import "./responsive.css";

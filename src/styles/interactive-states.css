@@ -23,7 +23,6 @@
 }
 
 .commit-actions button:hover,
-.empty-recent-repos button:hover:not(:disabled),
 .repo-title-button:hover,
 .repo-title-button.is-open,
 .ui-disclosure-button:hover,

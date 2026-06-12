@@ -1,7 +1,6 @@
-:is(.icon-button, .repo-title-button, .repo-menu-item, .footer-changed-now, .footer-primary, .rail-count,
-    .ui-disclosure-button, .workspace-open-trigger, .workspace-open-menu-toggle, .workspace-open-menu-item, .primary-action,
-    .secondary-action),
-:is(.heading-tools, .commit-actions, .empty-recent-repos) button {
+:is(.icon-button, .repo-title-button, .repo-menu-item, .footer-changed-now, .footer-primary,
+    .ui-disclosure-button, .workspace-open-trigger, .workspace-open-menu-toggle, .workspace-open-menu-item),
+:is(.heading-tools, .commit-actions) button {
   border: 0;
   color: inherit;
   cursor: pointer;

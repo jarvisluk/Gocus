@@ -12,9 +12,4 @@
 @import "./commit-graph-lines.css";
 @import "./commit-graph-nodes.css";
 @import "./commit-graph-soft.css";
-@import "./commit-hover-panel.css";
-@import "./commit-hover-layout.css";
-@import "./commit-hover-motion.css";
-@import "./commit-hover-content.css";
-@import "./commit-hover-refs.css";
-@import "./commit-hover-hash.css";
+@import "./commit-hover.css";

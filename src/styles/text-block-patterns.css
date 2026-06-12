@@ -1,8 +1,7 @@
 .repo-title strong,
 .repo-title span,
 .ui-page-header h1,
-.ui-page-header span,
-.empty-folder-path {
+.ui-page-header span {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
