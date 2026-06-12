@@ -47,6 +47,7 @@
 @import "./styles/commit-hover-content.css";
 @import "./styles/commit-hover-meta.css";
 @import "./styles/changed.css";
+@import "./styles/changed-file-details.css";
 @import "./styles/changed-side.css";
 @import "./styles/changed-side-details.css";
 @import "./styles/temporary.css";
@@ -56,6 +57,7 @@
 @import "./styles/footer-changed-now.css";
 @import "./styles/zen.css";
 @import "./styles/workspace-open.css";
+@import "./styles/workspace-open-menu.css";
 @import "./styles/collapsed-rail.css";
 @import "./styles/empty.css";
 @import "./styles/empty-recent.css";

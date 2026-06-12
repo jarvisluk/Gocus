@@ -54,30 +54,3 @@
 .workspace-open-menu-toggle.is-open svg {
   transform: rotate(180deg);
 }
-
-.external-app-icon {
-  width: var(--app-icon-control);
-  height: var(--app-icon-control);
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  overflow: hidden;
-  border-radius: 5px;
-}
-
-.external-app-icon img {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: contain;
-}
-
-.workspace-open-menu {
-  right: 0;
-  bottom: calc(100% + 8px);
-}
-
-.workspace-open-control.opens-below .workspace-open-menu {
-  top: calc(100% + 8px);
-  bottom: auto;
-}
