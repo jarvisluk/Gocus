@@ -45,6 +45,7 @@ const cssCustomPropertyDefinitionPattern = /^\s*(--[a-z0-9-]+)\s*:/;
 const cssCustomPropertyUsagePattern = /var\(\s*(--[a-z0-9-]+)\b/g;
 const cssCommentPattern = /\/\*[\s\S]*?\*\//g;
 const cssRulePattern = /([^{}]+)\{([^{}]+)\}/g;
+const cssClassSelectorPattern = /\.(-?[_a-zA-Z]+[_a-zA-Z0-9-]*)/g;
 const stylesheetImportPattern = /^\s*@import\s+["']([^"']+\.css)["'];\s*$/;
 const backdropFilterDeclarationPattern = /^\s*(-webkit-)?backdrop-filter\s*:\s*([^;]+);/;
 const boxShadowDeclarationPattern = /^\s*box-shadow\s*:\s*([^;]+);/;
@@ -159,6 +160,62 @@ function checkUnusedCssCustomProperties(fileContents) {
     if (usedProperties.has(name)) return [];
     return [`${relativeFilePath}:${lineNumber}: remove unused CSS custom property ${name}`];
   });
+}
+
+function isCssStateClassSelector(className) {
+  return className.startsWith("is-") || className.startsWith("has-");
+}
+
+function cssClassSelectors(relativeFilePath, content) {
+  if (!relativeFilePath.endsWith(".css")) return [];
+
+  return [...stripCssComments(content).matchAll(cssClassSelectorPattern)].flatMap((match) => {
+    const name = match[1];
+    if (isCssStateClassSelector(name)) return [];
+    return [{ name, relativeFilePath, lineNumber: lineNumberFromIndex(content, match.index) }];
+  });
+}
+
+function cssClassUsageContent(fileContents) {
+  return fileContents
+    .filter(({ relativeFilePath }) => {
+      const normalizedFilePath = normalizedRelativeFilePath(relativeFilePath);
+      return normalizedFilePath === "index.html" || (normalizedFilePath.startsWith("src/") && /\.(ts|tsx)$/.test(normalizedFilePath));
+    })
+    .map(({ content }) => content)
+    .join("\n");
+}
+
+function usesCssClass(content, className) {
+  const escapedClassName = className.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^_a-zA-Z0-9-])${escapedClassName}($|[^_a-zA-Z0-9-])`).test(content);
+}
+
+function checkUnusedCssClassSelectors(fileContents) {
+  const usageContent = cssClassUsageContent(fileContents);
+  const selectors = cssClassSelectorsByName(fileContents);
+
+  return [...selectors.entries()].flatMap(([name, definitions]) => {
+    if (usesCssClass(usageContent, name)) return [];
+    return definitions.map(({ relativeFilePath, lineNumber }) => {
+      return `${relativeFilePath}:${lineNumber}: remove unused CSS class selector .${name}`;
+    });
+  });
+}
+
+function cssClassSelectorsByName(fileContents) {
+  const selectors = new Map();
+
+  for (const { relativeFilePath, content } of fileContents) {
+    for (const selector of cssClassSelectors(relativeFilePath, content)) {
+      if (!selectors.has(selector.name)) {
+        selectors.set(selector.name, []);
+      }
+      selectors.get(selector.name).push(selector);
+    }
+  }
+
+  return selectors;
 }
 
 function sourceLineCount(content) {
@@ -426,6 +483,7 @@ function runHygieneCheck() {
       ...fileContents.flatMap(({ relativeFilePath, content }) => checkBoxShadowTokens(relativeFilePath, content)),
       ...fileContents.flatMap(({ relativeFilePath, content }) => checkRawCssColorTokens(relativeFilePath, content)),
       ...checkUnusedCssCustomProperties(fileContents),
+      ...checkUnusedCssClassSelectors(fileContents),
       ...checkDuplicateCssDeclarationBlocks(fileContents),
       ...checkStylesheetManifest(fileContents),
     ],
@@ -456,17 +514,22 @@ module.exports = {
   checkDuplicateCssDeclarationBlocks,
   checkRawCssColorTokens,
   checkStylesheetManifest,
+  checkUnusedCssClassSelectors,
   checkUnusedCssCustomProperties,
   collectCheckedFiles,
   cssDeclarationSignature,
   cssCustomPropertyDefinitions,
   cssCustomPropertyUsages,
+  cssClassSelectors,
+  cssClassSelectorsByName,
+  cssClassUsageContent,
   cssRuleDeclarationBlocks,
   stylesheetManifestImports,
   hasGitTreeBarrelImport,
   hasInlinePoliteStatusViewLiteral,
   hasReactImport,
   hasRendererRuntimeImport,
+  isCssStateClassSelector,
   isThemeTokenStylesheet,
   isRendererSourceFile,
   isGroupedStylesheetManifest,
@@ -478,4 +541,5 @@ module.exports = {
   minDuplicateCssDeclarationCount,
   runHygieneCheck,
   sourceLineCount,
+  usesCssClass,
 };

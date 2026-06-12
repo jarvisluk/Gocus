@@ -265,8 +265,12 @@ function testSourceHygieneScript() {
     checkDuplicateCssDeclarationBlocks,
     checkRawCssColorTokens,
     checkStylesheetManifest,
+    checkUnusedCssClassSelectors,
     checkUnusedCssCustomProperties,
     collectCheckedFiles,
+    cssClassSelectors,
+    cssClassSelectorsByName,
+    cssClassUsageContent,
     cssDeclarationSignature,
     cssCustomPropertyDefinitions,
     cssCustomPropertyUsages,
@@ -275,6 +279,7 @@ function testSourceHygieneScript() {
     hasInlinePoliteStatusViewLiteral,
     hasReactImport,
     hasRendererRuntimeImport,
+    isCssStateClassSelector,
     isRendererSourceFile,
     isGroupedStylesheetManifest,
     isSrcLibFile,
@@ -286,6 +291,7 @@ function testSourceHygieneScript() {
     runHygieneCheck,
     sourceLineCount,
     stylesheetManifestImports,
+    usesCssClass,
   } = require(path.join(projectRoot, "scripts/check-source-hygiene.cjs"));
   const longLine = "x".repeat(maxLineLength + 1);
 
@@ -299,6 +305,9 @@ function testSourceHygieneScript() {
   assert.equal(isThemeTokenStylesheet("src/styles/theme-presets-dark-variants.css"), true);
   assert.equal(isThemeTokenStylesheet("src/styles/theme-presets-light.css"), true);
   assert.equal(isThemeTokenStylesheet("src/styles/base.css"), false);
+  assert.equal(isCssStateClassSelector("is-open"), true);
+  assert.equal(isCssStateClassSelector("has-conflicts"), true);
+  assert.equal(isCssStateClassSelector("ui-button"), false);
   assert.equal(isGroupedStylesheetManifest("src/styles/foundation-imports.css"), true);
   assert.equal(isGroupedStylesheetManifest("src/styles/foundation.css"), false);
   assert.equal(isGroupedStylesheetManifest("src/styles.css"), false);
@@ -406,6 +415,38 @@ function testSourceHygieneScript() {
       },
     ]),
     ["src/styles/example.css:3: remove unused CSS custom property --unused-token"],
+  );
+  assert.deepEqual(
+    cssClassSelectors("src/styles/example.css", ".used-class,\n.is-active,\n.has-state .also-used {\n  color: var(--text);\n}\n"),
+    [
+      { name: "used-class", relativeFilePath: "src/styles/example.css", lineNumber: 1 },
+      { name: "also-used", relativeFilePath: "src/styles/example.css", lineNumber: 3 },
+    ],
+  );
+  assert.deepEqual(cssClassSelectors("src/components/Example.tsx", ".unused-class { color: red; }\n"), []);
+  assert.deepEqual(
+    cssClassUsageContent([
+      { relativeFilePath: "src/components/Example.tsx", content: 'const className = "used-class";\n' },
+      { relativeFilePath: "src/styles/example.css", content: ".ignored-css-only {}\n" },
+      { relativeFilePath: "README.md", content: "ignored-doc-class\n" },
+    ]),
+    'const className = "used-class";\n',
+  );
+  assert.equal(usesCssClass('const className = "used-class";', "used-class"), true);
+  assert.equal(usesCssClass('const className = "unused-classic";', "unused-class"), false);
+  assert.deepEqual(
+    [...cssClassSelectorsByName([
+      { relativeFilePath: "src/styles/a.css", content: ".used-class {}\n" },
+      { relativeFilePath: "src/styles/b.css", content: ".used-class {}\n" },
+    ]).keys()],
+    ["used-class"],
+  );
+  assert.deepEqual(
+    checkUnusedCssClassSelectors([
+      { relativeFilePath: "src/styles/example.css", content: ".used-class {}\n.unused-class {}\n.is-open {}\n" },
+      { relativeFilePath: "src/components/Example.tsx", content: 'const className = "used-class";\n' },
+    ]),
+    ["src/styles/example.css:2: remove unused CSS class selector .unused-class"],
   );
   assert.equal(
     cssDeclarationSignature("gap: 1px;\n  display: grid;\n  min-width: 0;\n"),
