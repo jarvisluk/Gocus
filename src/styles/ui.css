@@ -44,31 +44,3 @@
   align-items: center;
   gap: var(--space-md);
 }
-
-.branch-pill,
-.ref-pill {
-  max-width: 112px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  border-radius: var(--radius-pill);
-  color: var(--main);
-  background: var(--chip-amber);
-  font-size: var(--type-body-strong-size);
-  font-weight: var(--font-weight-strong);
-}
-
-.branch-pill {
-  padding: 7px 9px;
-  border: 1px solid var(--border-soft);
-}
-
-.branch-pill svg,
-.ref-pill svg {
-  width: 15px;
-  height: 15px;
-  flex: 0 0 auto;
-}

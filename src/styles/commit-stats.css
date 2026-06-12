@@ -1,0 +1,28 @@
+.commit-stats {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-top: 6px;
+  font-size: var(--type-micro-size);
+  font-weight: var(--font-weight-strong);
+}
+
+.additions {
+  color: var(--success);
+}
+
+.deletions {
+  color: var(--danger);
+}
+
+.files {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+}
+
+.files svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}

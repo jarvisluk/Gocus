@@ -5,6 +5,7 @@
 @import "./commits.css";
 @import "./commit-details.css";
 @import "./commit-row-meta.css";
+@import "./commit-stats.css";
 @import "./commit-actions.css";
 @import "./commit-graph.css";
 @import "./commit-graph-lines.css";
