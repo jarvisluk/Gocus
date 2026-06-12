@@ -1,0 +1,36 @@
+.worktree-compact {
+  position: relative;
+  min-width: 0;
+  width: 100%;
+  justify-self: stretch;
+}
+
+.worktree-trigger {
+  width: 100%;
+  min-height: 30px;
+  justify-content: flex-start;
+  padding-inline: 9px 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.worktree-trigger > svg:last-child {
+  margin-left: auto;
+}
+
+.worktree-trigger strong {
+  min-width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--surface-strong);
+  color: var(--text-muted);
+  font-size: var(--type-micro-size);
+  font-weight: var(--font-weight-strong);
+}
+
+.worktree-menu {
+  top: calc(100% + 6px);
+}
