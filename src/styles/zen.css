@@ -18,11 +18,10 @@
 }
 
 .peek-panel.is-zen-panel .commit-list {
-  padding-top: 0;
+  --commit-list-padding-top: 0px;
 }
 
 .peek-panel.is-zen-panel .commit-row {
-  --git-tree-node-y: 17px;
   min-height: 52px;
 }
 

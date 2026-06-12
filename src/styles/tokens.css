@@ -78,7 +78,6 @@
 }
 
 :root[data-density="comfortable"] .commit-row {
-  --git-tree-node-y: 27px;
   min-height: 84px;
 }
 

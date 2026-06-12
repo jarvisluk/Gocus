@@ -309,7 +309,6 @@ function testSourceHygieneScript() {
   assert.equal(isGroupedStylesheetManifest("src/styles/foundation.css"), false);
   assert.equal(isGroupedStylesheetManifest("src/styles.css"), false);
   assert.equal(isViewModelFile("src/lib/commitListView.ts"), true);
-  assert.equal(isViewModelFile("src/git-tree/gitTreeCellView.ts"), true);
   assert.equal(isViewModelFile("src/lib/useDismissableLayer.ts"), false);
   assert.equal(isViewModelFile("src/components/RecentCommits.tsx"), false);
   assert.equal(hasInlinePoliteStatusViewLiteral('role: "status" as const,'), true);
@@ -611,7 +610,7 @@ function testSourceHygieneScript() {
 
 function testSourceHelperUnitCoverage() {
   const { collectMatchingFiles, relativePath } = require(path.join(projectRoot, "scripts/lib/file-checks.cjs"));
-  const helperCoverageExclusions = new Set(["src/git-tree/GitTreeCell.tsx"]);
+  const helperCoverageExclusions = new Set();
   const coveredModules = new Set(
     [...fs.readFileSync(__filename, "utf8").matchAll(/loadTsModule\(\s*server,\s*"([^"]+)"/g)].map((match) => match[1]),
   );
@@ -5967,15 +5966,30 @@ async function testRepositoryControlsView(server) {
 
 async function testClassNamesAndGraph(server) {
   const { joinClass } = await loadTsModule(server, "src/lib/classNames.ts");
-  const { gitTreeCellView, gitTreeNodeStyle, gitTreePathStyle, gitTreeSvgSegments } = await loadTsModule(
-    server,
-    "src/git-tree/gitTreeCellView.ts",
-  );
   const {
     buildGitTreeRenderModel,
+    getGitTreeLaneCountForCommits,
+    gitTreeLaneX,
     getGitTreeRailWidth,
     getGitTreeRequiredLaneCount,
   } = await loadTsModule(server, "src/git-tree/renderGraph.ts");
+  const {
+    buildGitTreeCanvasModel,
+    gitTreeCanvasTotalHeight,
+    gitTreeNodeY,
+    gitTreeSelectedRowHeight,
+  } = await loadTsModule(server, "src/git-tree/graphCanvas.ts", {
+    "../lib/commitListView": await loadTsModule(server, "src/lib/commitListView.ts", {
+      "./classNames": await loadTsModule(server, "src/lib/classNames.ts"),
+      "./commitSearch": await loadTsModule(server, "src/lib/commitSearch.ts"),
+      "./statusView": await loadTsModule(server, "src/lib/statusView.ts"),
+    }),
+    "./renderGraph": {
+      buildGitTreeRenderModel,
+      getGitTreeRailWidth,
+      gitTreeLaneX,
+    },
+  });
   const graph = {
     column: 2,
     laneCount: 1,
@@ -5994,103 +6008,154 @@ async function testClassNamesAndGraph(server) {
   assert.equal(joinClass("graph-node", false, null, undefined, "is-current-head"), "graph-node is-current-head");
   assert.equal(joinClass(), "");
   assert.equal(getGitTreeRequiredLaneCount(graph), 3);
+  assert.equal(
+    getGitTreeLaneCountForCommits([
+      { graph },
+      { graph: { ...graph, column: 8, laneCount: 1, passThrough: [], parentStems: [], bridges: [] } },
+    ]),
+    9,
+  );
   assert.equal(getGitTreeRailWidth(1), 42);
   assert.equal(getGitTreeRailWidth(4), 66);
+  assert.equal(gitTreeLaneX(0), 9);
+  assert.equal(gitTreeLaneX(2), 33);
 
   const model = buildGitTreeRenderModel(graph);
   assert.equal(model.width, 54);
-  assert.equal(model.bridgeHeight, 38);
   assert.equal(model.node.x, 33);
   assert.equal(model.node.isCurrentHead, false);
   assert.equal(model.node.className, "graph-node is-dashed");
   assert.equal(model.node.showCore, false);
-  assert.equal(model.paths.length, 7);
-  assert.ok(model.paths.some((path) => path.className === "graph-line is-dashed"));
-  assert.ok(model.paths.some((path) => path.className === "graph-line graph-bridge"));
-  assert.ok(model.paths.some((path) => path.d.startsWith("M 33 0 C")));
-  const currentTopPath = model.paths.find((path) => path.id === "current-2-#999999");
-  assert.equal(currentTopPath?.color, "#999999");
-  assert.equal(currentTopPath?.className, "graph-line");
-  const bridgeWithoutLaneTarget = buildGitTreeRenderModel({
-    ...graph,
-    bridges: [{ fromColumn: 2, toColumn: 0, color: "#555555", variant: "solid" }],
-  });
-  assert.equal(
-    bridgeWithoutLaneTarget.paths.some((path) => path.id.startsWith("bridge-tail-")),
-    false,
-  );
-  assert.equal(bridgeWithoutLaneTarget.paths.find((path) => path.className === "graph-line graph-bridge")?.segment, "bridge-run");
-
-  const cellView = gitTreeCellView(model);
-  assert.deepEqual(cellView.container, {
-    className: "timeline-cell",
-    ariaHidden: true,
-  });
-  assert.deepEqual(gitTreeSvgSegments(model), [
-    {
-      key: "top",
-      segment: "top",
-      className: "graph-svg graph-svg-top",
-      viewBox: "0 0 54 1",
-      preserveAspectRatio: "none",
-    },
-    {
-      key: "bridge",
-      segment: "bridge",
-      className: "graph-svg graph-svg-bridge",
-      viewBox: "0 0 54 38",
-      preserveAspectRatio: "none",
-    },
-    {
-      key: "bridge-run",
-      segment: "bridge-run",
-      className: "graph-svg graph-svg-bridge-run",
-      viewBox: "0 0 54 38",
-      preserveAspectRatio: "none",
-    },
-    {
-      key: "tail",
-      segment: "tail",
-      className: "graph-svg graph-svg-tail",
-      viewBox: "0 0 54 1",
-      preserveAspectRatio: "none",
-    },
-  ]);
-  assert.deepEqual(
-    cellView.svgSegments.map(({ paths, ...svg }) => svg),
-    gitTreeSvgSegments(model),
-  );
-  assert.deepEqual(gitTreePathStyle({ color: "#123456" }), {
-    "--git-tree-color": "#123456",
-  });
-  const cellViewPaths = cellView.svgSegments.flatMap((svg) => svg.paths);
-  assert.equal(cellViewPaths.length, model.paths.length);
-  assert.equal(cellViewPaths[0].vectorEffect, "non-scaling-stroke");
-  assert.deepEqual(cellViewPaths[0].style, {
-    "--git-tree-color": cellViewPaths[0].color,
-  });
-  assert.deepEqual(gitTreeNodeStyle(model), {
-    left: `${model.node.leftPercent}%`,
-    top: "var(--git-tree-node-y, 22px)",
-    "--git-tree-color": "#111111",
-  });
-  assert.deepEqual(cellView.node, {
-    className: "graph-node is-dashed",
-    style: gitTreeNodeStyle(model),
-    showCore: false,
-    coreClassName: "graph-node-core",
-  });
 
   const currentHeadModel = buildGitTreeRenderModel({ ...graph, currentVariant: "solid", isCurrentHead: true });
   assert.equal(currentHeadModel.node.isCurrentHead, true);
   assert.equal(currentHeadModel.node.className, "graph-node is-current-head");
   assert.equal(currentHeadModel.node.showCore, true);
-  assert.equal(gitTreeCellView(currentHeadModel).node.showCore, true);
 
   const regularModel = buildGitTreeRenderModel({ ...graph, currentVariant: "solid", isMerge: false });
   assert.equal(regularModel.node.className, "graph-node");
   assert.equal(regularModel.node.showCore, false);
-  assert.equal(gitTreeCellView(regularModel).node.showCore, false);
+
+  const canvasModel = buildGitTreeCanvasModel({
+    commits: [
+      {
+        id: "commit-a",
+        graph,
+      },
+      {
+        id: "commit-b",
+        graph: { ...graph, column: 0, currentColor: "#555555", isCurrentHead: true },
+      },
+    ],
+    startIndex: 0,
+    itemCount: 2,
+    selectedIndex: 0,
+    laneCount: 3,
+    nodeY: 22,
+  });
+  assert.equal(gitTreeNodeY, 22);
+  assert.equal(gitTreeSelectedRowHeight(), 112);
+  assert.equal(gitTreeCanvasTotalHeight(2, 0), 176);
+  assert.equal(canvasModel.top, 0);
+  assert.equal(canvasModel.width, 54);
+  assert.equal(canvasModel.height, 176);
+  assert.equal(canvasModel.nodes.length, 2);
+  assert.deepEqual(canvasModel.nodes[0], {
+    id: "commit-a",
+    x: 33,
+    y: 22,
+    color: "#111111",
+    className: "graph-node is-dashed",
+    showCore: false,
+  });
+  assert.equal(canvasModel.nodes[1].showCore, true);
+  assert.ok(canvasModel.lines.some((line) => line.kind === "vertical" && line.x === 33 && line.fromY === 0 && line.toY === 22));
+  assert.ok(
+    canvasModel.lines.some(
+      (line) =>
+        line.kind === "bridge" &&
+        line.fromX === 33 &&
+        line.toX === 9 &&
+        line.fromY === 22 &&
+        line.toY === line.joinY &&
+        line.controlFromY < line.controlToY &&
+        line.toY < 112,
+    ),
+  );
+  const measuredCanvasModel = buildGitTreeCanvasModel({
+    commits: [
+      {
+        id: "commit-a",
+        graph,
+      },
+      {
+        id: "commit-b",
+        graph: { ...graph, column: 0, currentColor: "#555555", isCurrentHead: true },
+      },
+    ],
+    startIndex: 12,
+    itemCount: 40,
+    selectedIndex: 12,
+    laneCount: 3,
+    nodeY: 22,
+    rowLayout: {
+      top: 768,
+      rows: [
+        { id: "commit-a", top: 0, bottom: 84 },
+        { id: "commit-b", top: 84, bottom: 168 },
+      ],
+    },
+  });
+  assert.equal(measuredCanvasModel.top, 768);
+  assert.equal(measuredCanvasModel.height, 168);
+  assert.equal(measuredCanvasModel.nodes[0].y, 22);
+  assert.equal(measuredCanvasModel.nodes[1].y, 106);
+  assert.ok(
+    measuredCanvasModel.lines.some(
+      (line) => line.kind === "vertical" && line.x === 33 && line.fromY === 0 && line.toY === 22,
+    ),
+  );
+  const staleMeasuredCanvasModel = buildGitTreeCanvasModel({
+    commits: [
+      {
+        id: "commit-a",
+        graph,
+      },
+    ],
+    startIndex: 1,
+    itemCount: 2,
+    selectedIndex: -1,
+    laneCount: 3,
+    nodeY: 22,
+    rowLayout: {
+      top: 999,
+      rows: [{ id: "other-commit", top: 0, bottom: 84 }],
+    },
+  });
+  assert.equal(staleMeasuredCanvasModel.top, 64);
+  assert.equal(staleMeasuredCanvasModel.height, 64);
+  const openBridgeCanvasModel = buildGitTreeCanvasModel({
+    commits: [
+      {
+        id: "commit-open-bridge",
+        graph: { ...graph, bridges: [{ fromColumn: 2, toColumn: 0, color: "#444444", variant: "solid" }] },
+      },
+    ],
+    startIndex: 0,
+    itemCount: 1,
+    selectedIndex: 0,
+    laneCount: 3,
+    nodeY: 22,
+  });
+  assert.ok(
+    openBridgeCanvasModel.lines.some(
+      (line) =>
+        line.kind === "bridge" &&
+        line.toY === 112 &&
+        line.joinY < line.toY &&
+        line.controlFromY < line.controlToY,
+    ),
+  );
 }
 
 async function main() {

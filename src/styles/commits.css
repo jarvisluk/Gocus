@@ -1,6 +1,8 @@
 .commit-list {
   --git-tree-rail-width: 42px;
-  padding-top: 6px;
+  --commit-list-padding-top: 6px;
+  position: relative;
+  padding-top: var(--commit-list-padding-top);
 }
 
 .commit-empty-state {
@@ -17,8 +19,8 @@
 }
 
 .commit-row {
-  --git-tree-node-y: 22px;
   position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: var(--git-tree-rail-width) minmax(0, 1fr);
   min-height: 64px;
