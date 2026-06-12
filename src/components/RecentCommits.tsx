@@ -1,5 +1,5 @@
 import { FileCode2, GitBranch, GitFork, GitMerge, Search, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type PointerEvent } from "react";
 import { GitTreeCell } from "../git-tree/GitTreeCell";
 import { getGitTreeRailWidth, getGitTreeRequiredLaneCount } from "../git-tree/renderGraph";
 import {
@@ -203,6 +203,7 @@ export function RecentCommits({
   const [searchQuery, setSearchQuery] = useState("");
   const commitPreviewOpenRef = useRef(false);
   const commitPreviewCommitIdRef = useRef("");
+  const commitPreviewCloseTokenRef = useRef(0);
   const listRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchToggleRef = useRef<HTMLButtonElement>(null);
@@ -348,6 +349,9 @@ export function RecentCommits({
   }
 
   function previewCommit(commit: CommitItem, anchorBounds: CommitInfoAnchorBounds) {
+    if (commitPreviewOpenRef.current && commitPreviewCommitIdRef.current === commit.id) return;
+
+    commitPreviewCloseTokenRef.current += 1;
     const opened = runCommitInfoPanelBridgeSideEffect(
       "open",
       (payload) => window.gitPeek?.setCommitInfoPanel(payload),
@@ -358,10 +362,30 @@ export function RecentCommits({
   }
 
   function closeCommitPreview() {
+    commitPreviewCloseTokenRef.current += 1;
     if (!commitPreviewOpenRef.current) return;
     commitPreviewOpenRef.current = false;
     commitPreviewCommitIdRef.current = "";
     runCommitInfoPanelBridgeSideEffect("close", (payload) => window.gitPeek?.setCommitInfoPanel(payload));
+  }
+
+  function scheduleCommitPreviewCloseAfterBlur() {
+    const closeToken = (commitPreviewCloseTokenRef.current += 1);
+    window.setTimeout(() => {
+      const isCommitInfoPanelActive = window.gitPeek?.isCommitInfoPanelActive;
+      void Promise.resolve(isCommitInfoPanelActive ? isCommitInfoPanelActive() : false)
+        .catch(() => false)
+        .then((commitInfoPanelActive) => {
+          if (closeToken !== commitPreviewCloseTokenRef.current || commitInfoPanelActive) return;
+          closeCommitPreview();
+        });
+    }, 80);
+  }
+
+  function handleCommitListBlur(event: FocusEvent<HTMLDivElement>) {
+    const relatedTarget = event.relatedTarget;
+    if (relatedTarget instanceof Node && event.currentTarget.contains(relatedTarget)) return;
+    scheduleCommitPreviewCloseAfterBlur();
   }
 
   function handleCommitListPointerLeave(event: PointerEvent<HTMLDivElement>) {
@@ -446,9 +470,7 @@ export function RecentCommits({
       <div
         ref={listRef}
         className={list.className}
-        onBlur={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget)) closeCommitPreview();
-        }}
+        onBlur={handleCommitListBlur}
         onPointerLeave={handleCommitListPointerLeave}
       >
         {virtualWindow.topPadding > 0 ? (
