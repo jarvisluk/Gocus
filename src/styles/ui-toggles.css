@@ -1,0 +1,36 @@
+.ui-toggle {
+  min-height: var(--form-row-min-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-lg);
+}
+
+.ui-toggle input,
+.workspace-target-toggle input {
+  width: 34px;
+  height: 20px;
+  appearance: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.ui-toggle input::before,
+.workspace-target-toggle input::before {
+  content: "";
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  display: block;
+  margin: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--text-faint);
+  transition: transform var(--transition-fast), background var(--transition-fast);
+}
+
+.ui-toggle input:checked::before,
+.workspace-target-toggle input:checked::before {
+  background: var(--focus);
+  transform: translateX(14px);
+}
