@@ -1139,8 +1139,8 @@ function testGitGraphModule() {
   assert.equal(sharedMainGraphByHash.get(currentParentHash).graph.currentVariant, "solid");
   assert.equal(sharedMainGraphByHash.get(sharedMainHash).graph.currentVariant, "solid");
   assert.equal(sharedMainGraphByHash.get(sharedMainHash).graph.currentColor, "#f0a400");
-  assert.equal(sharedMainGraphByHash.get(sharedMainHash).graph.incomingColor, "#333333");
-  assert.equal(sharedMainGraphByHash.get(sharedMainHash).graph.incomingVariant, "dashed");
+  assert.equal(sharedMainGraphByHash.get(sharedMainHash).graph.incomingColor, "#111111");
+  assert.equal(sharedMainGraphByHash.get(sharedMainHash).graph.incomingVariant, "solid");
   assert.equal(sharedMainGraphByHash.get(sharedRootHash).graph.currentVariant, "solid");
 
   const externalChildHash = "7".repeat(40);
@@ -1259,7 +1259,8 @@ function testGitGraphModule() {
   const sharedAncestorGraph = mainFirstParentGraph.find((item) => item.fullHash === sharedAncestorHash).graph;
   assert.equal(sharedAncestorGraph.currentColor, "#f0a400");
   assert.equal(sharedAncestorGraph.currentLabel, "main");
-  assert.equal(mainFirstParentGraph[2].graph.bridges[0].color, "#2f86d8");
+  assert.deepEqual(mainFirstParentGraph[2].graph.bridges, []);
+  assert.ok(sharedAncestorGraph.bridges.some((bridge) => bridge.fromColumn === 1 && bridge.toColumn === 0 && bridge.color === "#2f86d8"));
 
   const featureTipHash = "5".repeat(40);
   const mainBaseHash = "6".repeat(40);
@@ -1441,6 +1442,95 @@ function testGitGraphModule() {
     externalMergeGraphByHash
       .get(mergeFirstParentHash)
       .bridges.some((bridge) => bridge.fromColumn === 2 && bridge.toColumn === 0 && bridge.variant === "dashed"),
+  );
+
+  const overlappingExternalHeadHash = "aa".repeat(20);
+  const overlappingCurrentHeadHash = "bb".repeat(20);
+  const overlappingMergeHash = "cc".repeat(20);
+  const overlappingFirstParentHash = "dd".repeat(20);
+  const overlappingSecondParentHash = "ee".repeat(20);
+  const overlappingRootHash = "ff".repeat(20);
+  const overlappingFirstParentGraph = buildCommitGraph(
+    [
+      {
+        ...commit({
+          fullHash: overlappingExternalHeadHash,
+          hash: "aaaaaaa",
+          parents: [overlappingFirstParentHash],
+          refs: ["feat/external-worktree"],
+        }),
+        branchColor: "#2f86d8",
+        refColors: ["#2f86d8"],
+      },
+      {
+        ...commit({
+          fullHash: overlappingCurrentHeadHash,
+          hash: "bbbbbbb",
+          parents: [overlappingMergeHash],
+          refs: ["main"],
+        }),
+        branchColor: "#f0a400",
+        refColors: ["#f0a400"],
+      },
+      {
+        ...commit({
+          fullHash: overlappingMergeHash,
+          hash: "ccccccc",
+          parents: [overlappingFirstParentHash, overlappingSecondParentHash],
+          refs: [],
+        }),
+        branchColor: "#f0a400",
+        refColors: [],
+      },
+      {
+        ...commit({
+          fullHash: overlappingSecondParentHash,
+          hash: "eeeeeee",
+          parents: [overlappingRootHash],
+          refs: ["feat/topic"],
+        }),
+        branchColor: "#48ad62",
+        refColors: ["#48ad62"],
+      },
+      {
+        ...commit({ fullHash: overlappingFirstParentHash, hash: "ddddddd", parents: [overlappingRootHash], refs: ["origin/main"] }),
+        branchColor: "#f0a400",
+        refColors: ["#f0a400"],
+      },
+      {
+        ...commit({ fullHash: overlappingRootHash, hash: "fffffff", parents: [], refs: [] }),
+        branchColor: "#f0a400",
+        refColors: [],
+      },
+    ],
+    {
+      currentHead: overlappingCurrentHeadHash,
+      currentBranch: "main",
+      localBranches: ["main", "feat/topic"],
+      externalHeads: [overlappingExternalHeadHash],
+      externalBranches: ["feat/external-worktree"],
+    },
+  );
+  const overlappingFirstParentGraphByHash = new Map(overlappingFirstParentGraph.map((item) => [item.fullHash, item.graph]));
+  const overlappingMergeGraph = overlappingFirstParentGraphByHash.get(overlappingMergeHash);
+  assert.deepEqual(
+    overlappingMergeGraph.passThrough
+      .filter((lane) => lane.column === 0)
+      .map(({ color, variant, from, to }) => ({ color, variant, from, to })),
+    [
+      { color: "#2f86d8", variant: "dashed", from: undefined, to: undefined },
+    ],
+  );
+  assert.deepEqual(overlappingMergeGraph.parentStems, [{ column: 1, color: "#f0a400", variant: "solid" }]);
+  const overlappingFirstParent = overlappingFirstParentGraphByHash.get(overlappingFirstParentHash);
+  assert.equal(overlappingFirstParent.column, 1);
+  assert.equal(overlappingFirstParentGraphByHash.get(overlappingFirstParentHash).incomingVariant, "solid");
+  assert.equal(overlappingFirstParentGraphByHash.get(overlappingFirstParentHash).incomingColor, "#f0a400");
+  assert.ok(
+    overlappingFirstParent.passThrough.some((lane) => lane.column === 0 && lane.variant === "dashed" && lane.to === "node"),
+  );
+  assert.ok(
+    overlappingFirstParent.bridges.some((bridge) => bridge.fromColumn === 0 && bridge.toColumn === 1 && bridge.variant === "dashed"),
   );
 
   const mergeGraph = buildCommitGraph([
