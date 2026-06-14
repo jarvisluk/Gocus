@@ -2207,7 +2207,22 @@ async function testTemporaryInfoStartupFailuresDoNotBreakWindow(browser, baseUrl
 }
 
 async function testStaticRepositoryPathTooltip(browser, baseUrl) {
-  const { page, errors } = await openMockedPage(browser, baseUrl, mockedSnapshotScenario(mockCommits), { viewport: compactViewport });
+  const longRepositoryPath = [
+    "",
+    "Users",
+    "junrong",
+    "codespace",
+    "git-tree-vis",
+    "repositories",
+    "with-a-very-long-workspace-folder-name-that-needs-to-wrap-inside-the-tooltip",
+    "and-another-long-segment-to-prove-wrapping",
+  ].join("/");
+  const { page, errors } = await openMockedPage(
+    browser,
+    baseUrl,
+    mockedSnapshotScenario(mockCommits, { repoPath: longRepositoryPath, repoName: "git-tree-vis-long-path" }),
+    { viewport: compactViewport },
+  );
   try {
     await assertHealthyPage(page, errors);
 
@@ -2224,8 +2239,45 @@ async function testStaticRepositoryPathTooltip(browser, baseUrl) {
       const style = window.getComputedStyle(tooltip);
       return style.opacity === "1" && style.visibility === "visible";
     });
-    assert.equal(await repoPathTooltip.innerText(), "/Users/junrong/codespace/git-tree-vis");
+    assert.equal(await repoPathTooltip.innerText(), longRepositoryPath);
     await assertVisibleWithinViewport(page, repoPathTooltip, "static repository path tooltip");
+    const tooltipLayout = await repoPathTooltip.evaluate((tooltip) => {
+      const style = window.getComputedStyle(tooltip);
+      const rootStyle = window.getComputedStyle(document.documentElement);
+      const rect = tooltip.getBoundingClientRect();
+      const lineHeight = Number.parseFloat(style.lineHeight);
+      const paddingY = Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom);
+      const singleLineHeight = lineHeight + paddingY;
+      const expectedRightSpacing =
+        Number.parseFloat(style.getPropertyValue("--repo-title-tooltip-right-spacing")) ||
+        Number.parseFloat(rootStyle.getPropertyValue("--space-3xl"));
+
+      return {
+        expectedRightSpacing,
+        height: rect.height,
+        maxWidth: Number.parseFloat(style.maxWidth),
+        overflowWrap: style.overflowWrap,
+        rightSpacing: window.innerWidth - rect.right,
+        singleLineHeight,
+        viewportWidth: window.innerWidth,
+        whiteSpace: style.whiteSpace,
+        width: rect.width,
+      };
+    });
+    assert.equal(tooltipLayout.whiteSpace, "normal");
+    assert.equal(tooltipLayout.overflowWrap, "anywhere");
+    assert.ok(
+      tooltipLayout.width <= tooltipLayout.maxWidth + 1,
+      `long repository path tooltip should stay within max width: ${JSON.stringify(tooltipLayout)}`,
+    );
+    assert.ok(
+      tooltipLayout.rightSpacing >= tooltipLayout.expectedRightSpacing - 1,
+      `long repository path tooltip should preserve right spacing: ${JSON.stringify(tooltipLayout)}`,
+    );
+    assert.ok(
+      tooltipLayout.height > tooltipLayout.singleLineHeight + 1,
+      `long repository path tooltip should wrap onto multiple lines: ${JSON.stringify(tooltipLayout)}`,
+    );
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
