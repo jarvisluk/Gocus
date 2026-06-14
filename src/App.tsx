@@ -28,6 +28,10 @@ import { activeWorkspaceOpenTarget, visibleWorkspaceOpenOptions } from "./lib/wo
 import { workspaceOpenOptions } from "./lib/workspaceOpenOptions";
 import type { WorkspaceOpenTarget } from "./types";
 
+function commitGraphNodeY(density: "compact" | "comfortable") {
+  return density === "comfortable" ? 27 : 22;
+}
+
 function EditorBackdrop() {
   const backdrop = appEditorBackdropView();
 
@@ -57,6 +61,7 @@ export default function App() {
   const nativeDialogBlocker = appNativeDialogBlockerView();
   const changedNowCount = appChangedNowCount(controller.snapshot);
   const showRepositoryControls = appShouldShowRepositoryControls({ snapshot: repositorySnapshot });
+  const graphNodeY = commitGraphNodeY(controller.preferences.density);
   const syncedWorkspaceOpenTarget = activeWorkspaceOpenTarget(
     visibleWorkspaceOpenOptions(
       workspaceOpenOptions,
@@ -178,6 +183,8 @@ export default function App() {
                     <RecentCommits
                       commits={panelContent.snapshot.commits}
                       selectedId={controller.selectedCommitId}
+                      graphStyle={controller.preferences.graphStyle}
+                      graphNodeY={graphNodeY}
                       onSelect={controller.selectCommit}
                       onAction={controller.handleCommitAction}
                     />

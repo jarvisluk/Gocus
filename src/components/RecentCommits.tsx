@@ -1,7 +1,11 @@
 import { FileCode2, GitBranch, GitFork, GitMerge, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type PointerEvent } from "react";
-import { GitTreeCell } from "../git-tree/GitTreeCell";
-import { getGitTreeRailWidth, getGitTreeRequiredLaneCount } from "../git-tree/renderGraph";
+import { CommitGraphLayer } from "./CommitGraphLayer";
+import {
+  getGitTreeLaneCountForCommits,
+  getGitTreeRailWidth,
+  getGitTreeRequiredLaneCount,
+} from "../git-tree/renderGraph";
 import {
   commitListView,
   commitScrollTopForSelection,
@@ -17,7 +21,7 @@ import {
 } from "../lib/commitListView";
 import { runCommitInfoPanelBridgeSideEffect } from "../lib/commitInfoPanelBridge";
 import { commitRowView, type CommitRowAction, type CommitRowActionIcon } from "../lib/commitRowView";
-import type { CommitInfoAnchorBounds, CommitItem } from "../types";
+import type { CommitInfoAnchorBounds, CommitItem, UiPreferences } from "../types";
 
 function commitActionIcon(icon: CommitRowActionIcon) {
   if (icon === "branch") return <GitFork aria-hidden="true" />;
@@ -52,11 +56,10 @@ function CommitRow({
 }) {
   const rowRef = useRef<HTMLElement>(null);
   const previewFrameRef = useRef<number | null>(null);
-  const graphLaneCount = getGitTreeRequiredLaneCount(commit.graph);
-  const rowStyle: CSSProperties & { "--git-tree-rail-width": string } = {
-    "--git-tree-rail-width": `${getGitTreeRailWidth(graphLaneCount)}px`,
-  };
   const view = commitRowView(commit, selected, expandSelectedMessage);
+  const rowStyle = {
+    "--git-tree-rail-width": `${getGitTreeRailWidth(getGitTreeRequiredLaneCount(commit.graph))}px`,
+  } as CSSProperties & { "--git-tree-rail-width": string };
   const refStyle = {
     "--branch-color": view.refColor,
   } as CSSProperties;
@@ -111,11 +114,12 @@ function CommitRow({
     <article
       ref={rowRef}
       className={view.className}
+      data-commit-id={commit.id}
       style={rowStyle}
       onFocus={previewIfSelected}
       onPointerEnter={previewIfSelected}
     >
-      <GitTreeCell graph={commit.graph} laneCount={graphLaneCount} />
+      <span className="timeline-cell" aria-hidden="true" />
       <div className={view.contentClassName}>
         <button className={view.selectButton.className} type="button" aria-pressed={view.selectButton.ariaPressed} onClick={selectCommit}>
           <span className={view.titleLineClassName}>
@@ -192,12 +196,16 @@ export function RecentCommits({
   expandSelectedMessage = false,
   onSelect,
   onAction,
+  graphStyle = "solid",
+  graphNodeY = 22,
 }: {
   commits: CommitItem[];
   selectedId: string;
   expandSelectedMessage?: boolean;
   onSelect: (id: string) => void;
   onAction: (action: CommitRowAction, commit: CommitItem) => void;
+  graphStyle?: UiPreferences["graphStyle"];
+  graphNodeY?: number;
 }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -246,6 +254,14 @@ export function RecentCommits({
   const visibleCommits = useMemo(
     () => filteredCommits.slice(virtualWindow.startIndex, virtualWindow.endIndex),
     [filteredCommits, virtualWindow.endIndex, virtualWindow.startIndex],
+  );
+  const visibleGraphLaneCount = useMemo(() => getGitTreeLaneCountForCommits(visibleCommits), [visibleCommits]);
+  const listStyle = useMemo(
+    () =>
+      ({
+        "--git-tree-rail-width": `${getGitTreeRailWidth(visibleGraphLaneCount)}px`,
+      }) as CSSProperties & { "--git-tree-rail-width": string },
+    [visibleGraphLaneCount],
   );
 
   useEffect(() => {
@@ -470,9 +486,21 @@ export function RecentCommits({
       <div
         ref={listRef}
         className={list.className}
+        style={listStyle}
         onBlur={handleCommitListBlur}
         onPointerLeave={handleCommitListPointerLeave}
       >
+        {showCommits ? (
+          <CommitGraphLayer
+            commits={visibleCommits}
+            startIndex={virtualWindow.startIndex}
+            itemCount={filteredCommits.length}
+            selectedIndex={selectedFilteredIndex}
+            laneCount={visibleGraphLaneCount}
+            graphStyle={graphStyle}
+            nodeY={graphNodeY}
+          />
+        ) : null}
         {virtualWindow.topPadding > 0 ? (
           <div className="commit-list-spacer" style={commitListSpacerStyle(virtualWindow.topPadding)} aria-hidden="true" />
         ) : null}

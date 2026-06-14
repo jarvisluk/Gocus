@@ -741,86 +741,119 @@ async function assertVisibleWithinViewport(page, locator, label) {
 
 async function assertSelectedCommitGraphAnchors(page) {
   const metrics = await page.locator(".commit-row.is-selected").evaluate((row) => {
-    const node = row.querySelector(".graph-node");
-    const topSvg = row.querySelector(".graph-svg-top");
-    const bridgeSvg = row.querySelector(".graph-svg-bridge");
-    const bridgeRunSvg = row.querySelector(".graph-svg-bridge-run");
-    const tailSvg = row.querySelector(".graph-svg-tail");
     const timeline = row.querySelector(".timeline-cell");
-    const bridgePath = row.querySelector(".graph-svg-bridge-run .graph-bridge");
+    const list = row.closest(".commit-list");
+    const layer = list?.querySelector(".commit-graph-layer");
+    const canvas = layer?.querySelector(".graph-canvas");
+    const nodeLayer = layer?.querySelector(".graph-node-layer");
 
-    if (!node || !topSvg || !bridgeSvg || !bridgeRunSvg || !tailSvg || !timeline || !bridgePath) return null;
+    if (!timeline || !layer || !canvas || !nodeLayer) return null;
 
-    const nodeRect = node.getBoundingClientRect();
-    const topSvgRect = topSvg.getBoundingClientRect();
-    const bridgeSvgRect = bridgeSvg.getBoundingClientRect();
-    const bridgeRunSvgRect = bridgeRunSvg.getBoundingClientRect();
-    const tailSvgRect = tailSvg.getBoundingClientRect();
     const rowRect = row.getBoundingClientRect();
     const timelineRect = timeline.getBoundingClientRect();
+    const layerRect = layer.getBoundingClientRect();
+    const canvasRect = canvas.getBoundingClientRect();
+    const nodeLayerRect = nodeLayer.getBoundingClientRect();
+    const expectedNodeY = rowRect.top + 22;
+    const nodes = [...nodeLayer.querySelectorAll(".graph-node")].map((node) => {
+      const nodeRect = node.getBoundingClientRect();
+      return {
+        top: nodeRect.top,
+        centerY: nodeRect.top + nodeRect.height / 2,
+        height: nodeRect.height,
+      };
+    });
+    const node = nodes.find((candidate) => Math.abs(candidate.centerY - expectedNodeY) <= 1);
+    const allRowRails = [...list.querySelectorAll(".commit-row")].map((commitRow) =>
+      getComputedStyle(commitRow).getPropertyValue("--git-tree-rail-width").trim(),
+    );
 
     return {
-      nodeCenterY: nodeRect.top + nodeRect.height / 2,
-      topSvgBottomY: topSvgRect.bottom,
-      bridgeSvgTopY: bridgeSvgRect.top,
-      bridgeSvgBottomY: bridgeSvgRect.bottom,
-      bridgeSvgHeight: bridgeSvgRect.height,
-      bridgeRunSvgTopY: bridgeRunSvgRect.top,
-      bridgeRunSvgBottomY: bridgeRunSvgRect.bottom,
-      bridgeRunSvgHeight: bridgeRunSvgRect.height,
-      tailSvgTopY: tailSvgRect.top,
-      tailSvgHeight: tailSvgRect.height,
+      listRail: getComputedStyle(list).getPropertyValue("--git-tree-rail-width").trim(),
+      rowRail: getComputedStyle(row).getPropertyValue("--git-tree-rail-width").trim(),
+      allRowRails,
+      nodeCenterY: node?.centerY ?? null,
+      layerTopY: layerRect.top,
+      layerBottomY: layerRect.bottom,
+      layerHeight: layerRect.height,
+      canvasWidth: canvas.width,
+      canvasHeight: canvas.height,
+      canvasCssWidth: canvasRect.width,
+      canvasCssHeight: canvasRect.height,
+      nodeLayerHeight: nodeLayerRect.height,
+      nodeCount: nodes.length,
       rowHeight: rowRect.height,
+      rowTopY: rowRect.top,
       timelineHeight: timelineRect.height,
       timelineBottomY: timelineRect.bottom,
-      topViewBox: topSvg.getAttribute("viewBox"),
-      bridgeViewBox: bridgeSvg.getAttribute("viewBox"),
-      bridgeRunViewBox: bridgeRunSvg.getAttribute("viewBox"),
-      tailViewBox: tailSvg.getAttribute("viewBox"),
-      bridgePathD: bridgePath.getAttribute("d"),
     };
   });
 
-  assert.ok(metrics, "selected commit should render graph segments, a bridge, and a node");
-  assert.equal(metrics.topViewBox, "0 0 42 1");
-  assert.equal(metrics.bridgeViewBox, "0 0 42 38");
-  assert.equal(metrics.bridgeRunViewBox, "0 0 42 38");
-  assert.equal(metrics.tailViewBox, "0 0 42 1");
-  assert.match(metrics.bridgePathD, /^M \d+ 0 C /);
+  assert.ok(metrics, "selected commit should render a graph canvas layer and a node");
+  assert.ok(metrics.nodeCount > 0, `graph layer should render nodes: ${JSON.stringify(metrics)}`);
+  assert.ok(metrics.nodeCenterY !== null, `selected commit node should align with selected row: ${JSON.stringify(metrics)}`);
+  assert.ok(new Set(metrics.allRowRails).size > 1, `commit rows should own independent rail widths: ${JSON.stringify(metrics)}`);
+  assert.equal(metrics.listRail, metrics.rowRail, `graph canvas should reserve the widest visible rail: ${JSON.stringify(metrics)}`);
   assert.ok(metrics.rowHeight > 90, `selected row should be expanded: ${JSON.stringify(metrics)}`);
   assert.ok(metrics.timelineHeight >= metrics.rowHeight - 1, `timeline should span selected row: ${JSON.stringify(metrics)}`);
   assert.ok(
-    Math.abs(metrics.nodeCenterY - metrics.topSvgBottomY) <= 0.75,
-    `top graph segment should end at node: ${JSON.stringify(metrics)}`,
+    metrics.layerTopY <= metrics.rowTopY + 1 && metrics.layerBottomY >= metrics.timelineBottomY - 1,
+    `canvas graph layer should cover the selected row: ${JSON.stringify(metrics)}`,
   );
   assert.ok(
-    Math.abs(metrics.nodeCenterY - metrics.bridgeSvgTopY) <= 0.75,
-    `fixed bridge graph segment should start at node: ${JSON.stringify(metrics)}`,
+    Math.abs(metrics.canvasCssHeight - metrics.layerHeight) <= 0.75,
+    `canvas CSS height should match the graph layer: ${JSON.stringify(metrics)}`,
   );
   assert.ok(
-    Math.abs(metrics.bridgeSvgHeight - 38) <= 0.75,
-    `fixed bridge graph segment should stay fixed when the row expands: ${JSON.stringify(metrics)}`,
+    Math.abs(metrics.nodeLayerHeight - metrics.layerHeight) <= 0.75,
+    `node layer should match the graph layer: ${JSON.stringify(metrics)}`,
   );
   assert.ok(
-    Math.abs(metrics.nodeCenterY - metrics.bridgeRunSvgTopY) <= 0.75,
-    `bridge-run graph segment should start at node: ${JSON.stringify(metrics)}`,
+    metrics.canvasWidth >= metrics.canvasCssWidth && metrics.canvasHeight >= metrics.canvasCssHeight,
+    `canvas backing store should be at least CSS size: ${JSON.stringify(metrics)}`,
   );
   assert.ok(
-    Math.abs(metrics.bridgeRunSvgBottomY - metrics.timelineBottomY) <= 0.75,
-    `bridge-run graph segment should reach the row bottom: ${JSON.stringify(metrics)}`,
+    metrics.nodeCenterY > metrics.rowTopY && metrics.nodeCenterY < metrics.timelineBottomY,
+    `graph node should remain inside the selected row: ${JSON.stringify(metrics)}`,
   );
-  assert.ok(
-    metrics.bridgeRunSvgHeight > metrics.bridgeSvgHeight,
-    `bridge-run graph segment should absorb expanded row height: ${JSON.stringify(metrics)}`,
+}
+
+async function assertVisibleCommitRowsHaveOwnedGraphNodes(page, label) {
+  const rows = await page.locator(".commit-list").evaluate((list) => {
+    const nodeLayer = list.querySelector(".graph-node-layer");
+    const nodeMetrics = new Map(
+      [...(nodeLayer?.querySelectorAll(".graph-node") ?? [])].map((node) => {
+        const nodeRect = node.getBoundingClientRect();
+        return [
+          node.dataset.commitId,
+          {
+            centerY: nodeRect.top + nodeRect.height / 2,
+            top: nodeRect.top,
+            bottom: nodeRect.bottom,
+          },
+        ];
+      }),
+    );
+
+    return [...list.querySelectorAll(".commit-row")].map((row) => {
+      const rowRect = row.getBoundingClientRect();
+      const node = nodeMetrics.get(row.dataset.commitId);
+      return {
+        commitId: row.dataset.commitId,
+        rowTop: rowRect.top,
+        rowBottom: rowRect.bottom,
+        nodeCenterY: node?.centerY ?? null,
+        nodeTop: node?.top ?? null,
+        nodeBottom: node?.bottom ?? null,
+      };
+    });
+  });
+  const missingOrMisplacedRows = rows.filter(
+    (row) => row.nodeCenterY === null || row.nodeCenterY <= row.rowTop || row.nodeCenterY >= row.rowBottom,
   );
-  assert.ok(
-    Math.abs(metrics.bridgeSvgBottomY - metrics.tailSvgTopY) <= 0.75,
-    `vertical tail graph segment should start after the fixed bridge: ${JSON.stringify(metrics)}`,
-  );
-  assert.ok(
-    metrics.tailSvgHeight > 0,
-    `vertical tail graph segment should absorb expanded row height: ${JSON.stringify(metrics)}`,
-  );
+
+  assert.ok(rows.length > 0, `${label} should render visible commit rows`);
+  assert.deepEqual(missingOrMisplacedRows, [], `${label} should align every graph node with its own row`);
 }
 
 async function assertGitActions(page, expectedActions) {
@@ -864,7 +897,7 @@ async function testSelectedCommitGraphAnchor(browser, baseUrl) {
       message: "Add commit search polish and keyboard selection",
       refs: ["main"],
       graph: {
-        laneCount: 2,
+        laneCount: 4,
         currentColor: "#f2b705",
         parentStems: [{ column: 0, color: "#f2b705", variant: "solid" }],
         bridges: [{ fromColumn: 0, toColumn: 1, color: "#2f80ed", variant: "solid" }],
@@ -879,6 +912,7 @@ async function testSelectedCommitGraphAnchor(browser, baseUrl) {
     await page.getByRole("button", { name: /Add commit search polish/ }).click();
     assert.equal(await page.locator(".commit-row.is-selected .commit-title-text").innerText(), "Add commit search polish");
     await assertSelectedCommitGraphAnchors(page);
+    await assertVisibleCommitRowsHaveOwnedGraphNodes(page, "selected commit graph");
     if (graphAnchorScreenshotPath) await page.screenshot({ path: graphAnchorScreenshotPath, fullPage: false });
     assert.deepEqual(errors, []);
   } finally {
@@ -1685,7 +1719,10 @@ async function testTemporaryInfoEmptyChangedFiles(browser, baseUrl) {
 
 async function testLargeCommitListVirtualizes(browser, baseUrl) {
   const largeCommits = numberedCommits(160);
-  const { page, errors } = await openMockedPage(browser, baseUrl, mockedSnapshotScenario(largeCommits));
+  const { page, errors } = await openMockedPage(browser, baseUrl, {
+    ...mockedSnapshotScenario(largeCommits),
+    preferences: { density: "comfortable" },
+  });
   try {
     await assertHealthyPage(page, errors);
     assert.equal(await page.locator(".commit-count").innerText(), "Showing 160");
@@ -1698,6 +1735,7 @@ async function testLargeCommitListVirtualizes(browser, baseUrl) {
     });
     await page.getByRole("button", { name: /Virtualized commit 160/ }).waitFor();
     assert.ok((await page.locator(".commit-row").count()) < 80, "scrolled large lists should stay virtualized");
+    await assertVisibleCommitRowsHaveOwnedGraphNodes(page, "scrolled virtualized commit graph");
 
     await page.locator(".scroll-region").first().evaluate((node) => {
       node.scrollTop = 0;
