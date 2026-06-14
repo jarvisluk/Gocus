@@ -273,17 +273,61 @@ export function RecentCommits({
     if (!listNode) return;
 
     const scrollNode = commitScrollContainer(listNode);
+    const scrollRect = scrollNode.getBoundingClientRect();
+    const listRect = listNode.getBoundingClientRect();
     const selectedIndex = filteredCommits.findIndex((commit) => commit.id === selectedId);
+    const maxScrollTop = Math.max(0, scrollNode.scrollHeight - scrollNode.clientHeight);
     const nextScrollTop = commitScrollTopForSelection({
       itemCount: filteredCommits.length,
       selectedIndex,
       scrollTop: scrollNode.scrollTop,
       viewportHeight: scrollNode.clientHeight,
+      alignment: "center",
+      listViewportTop: scrollRect.top - listRect.top,
+      maxScrollTop,
     });
 
-    if (nextScrollTop === null) return;
-    scrollNode.scrollTo({ top: nextScrollTop, behavior: "auto" });
-    setScrollFrame({ scrollTop: nextScrollTop, viewportHeight: scrollNode.clientHeight });
+    if (nextScrollTop !== null) {
+      scrollNode.scrollTo({ top: nextScrollTop, behavior: "auto" });
+      setScrollFrame({ scrollTop: nextScrollTop, viewportHeight: scrollNode.clientHeight });
+    }
+
+    let centerFrame = 0;
+    let centerAttempts = 0;
+    const scheduleCenterRenderedSelection = () => {
+      if (centerFrame) return;
+      centerFrame = window.requestAnimationFrame(centerRenderedSelection);
+    };
+    const centerRenderedSelection = () => {
+      centerFrame = 0;
+      centerAttempts += 1;
+      const selectedRow = listNode.querySelector<HTMLElement>(".commit-row.is-selected");
+      if (!selectedRow) {
+        if (centerAttempts < 6) scheduleCenterRenderedSelection();
+        return;
+      }
+
+      const selectedRect = selectedRow.getBoundingClientRect();
+      const currentScrollRect = scrollNode.getBoundingClientRect();
+      const selectedCenter = selectedRect.top + selectedRect.height / 2;
+      const viewportCenter = currentScrollRect.top + currentScrollRect.height / 2;
+      const centerDelta = selectedCenter - viewportCenter;
+      if (Math.abs(centerDelta) < 1) return;
+      if (centerAttempts >= 6) return;
+
+      const currentMaxScrollTop = Math.max(0, scrollNode.scrollHeight - scrollNode.clientHeight);
+      const centeredScrollTop = Math.min(currentMaxScrollTop, Math.max(0, scrollNode.scrollTop + centerDelta));
+      if (centeredScrollTop === scrollNode.scrollTop) return;
+
+      scrollNode.scrollTo({ top: centeredScrollTop, behavior: "auto" });
+      setScrollFrame({ scrollTop: centeredScrollTop, viewportHeight: scrollNode.clientHeight });
+      scheduleCenterRenderedSelection();
+    };
+
+    scheduleCenterRenderedSelection();
+    return () => {
+      if (centerFrame) window.cancelAnimationFrame(centerFrame);
+    };
   }, [filteredCommits, searchTerms.length, selectedId]);
 
   useEffect(() => {

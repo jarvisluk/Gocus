@@ -2710,6 +2710,57 @@ async function testCommitListView(server) {
   assert.equal(
     commitScrollTopForSelection({
       itemCount: 20,
+      selectedIndex: 10,
+      scrollTop: 0,
+      viewportHeight: 256,
+      alignment: "center",
+    }),
+    568,
+  );
+  assert.equal(
+    commitScrollTopForSelection({
+      itemCount: 20,
+      selectedIndex: 2,
+      scrollTop: 100,
+      viewportHeight: 256,
+      alignment: "center",
+    }),
+    56,
+  );
+  assert.equal(
+    commitScrollTopForSelection({
+      itemCount: 20,
+      selectedIndex: 10,
+      scrollTop: 300,
+      viewportHeight: 256,
+      listViewportTop: 200,
+    }),
+    596,
+  );
+  assert.equal(
+    commitScrollTopForSelection({
+      itemCount: 20,
+      selectedIndex: 10,
+      scrollTop: 300,
+      viewportHeight: 256,
+      alignment: "center",
+      listViewportTop: 200,
+    }),
+    668,
+  );
+  assert.equal(
+    commitScrollTopForSelection({
+      itemCount: 20,
+      selectedIndex: 19,
+      scrollTop: 0,
+      viewportHeight: 256,
+      alignment: "center",
+    }),
+    1072,
+  );
+  assert.equal(
+    commitScrollTopForSelection({
+      itemCount: 20,
       selectedIndex: 19,
       scrollTop: 0,
       viewportHeight: 256,

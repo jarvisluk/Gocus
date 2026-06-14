@@ -45,11 +45,16 @@ export interface CommitVirtualWindow {
   virtualized: boolean;
 }
 
+export type CommitScrollSelectionAlignment = "nearest" | "center";
+
 export interface CommitScrollSelectionOptions {
   itemCount: number;
   selectedIndex: number;
   scrollTop: number;
   viewportHeight: number;
+  alignment?: CommitScrollSelectionAlignment;
+  listViewportTop?: number;
+  maxScrollTop?: number;
 }
 
 function clampNumber(value: number, min: number, max: number) {
@@ -83,6 +88,9 @@ export function commitScrollTopForSelection({
   selectedIndex,
   scrollTop,
   viewportHeight,
+  alignment = "nearest",
+  listViewportTop,
+  maxScrollTop,
 }: CommitScrollSelectionOptions) {
   const safeItemCount = Math.max(0, itemCount);
   const selected = normalizedSelectedIndex(selectedIndex, safeItemCount);
@@ -92,15 +100,23 @@ export function commitScrollTopForSelection({
   const selectedBottom = commitVirtualRowOffset(selected + 1, safeItemCount, selected);
   const safeViewportHeight = Math.max(0, viewportHeight);
   const safeScrollTop = Math.max(0, scrollTop);
-  const scrollBottom = safeScrollTop + safeViewportHeight;
+  const safeListViewportTop = listViewportTop ?? safeScrollTop;
+  const scrollBottom = safeListViewportTop + safeViewportHeight;
 
-  if (selectedTop >= safeScrollTop && selectedBottom <= scrollBottom) return null;
+  if (alignment === "nearest" && selectedTop >= safeListViewportTop && selectedBottom <= scrollBottom) return null;
 
   const totalHeight = commitVirtualTotalHeight(safeItemCount, selected);
-  const maxScrollTop = Math.max(0, totalHeight - safeViewportHeight);
-  const nextScrollTop = selectedTop < safeScrollTop ? selectedTop : selectedBottom - safeViewportHeight;
+  const safeMaxScrollTop = Math.max(0, maxScrollTop ?? totalHeight - safeViewportHeight);
+  const nextListViewportTop =
+    alignment === "center"
+      ? selectedTop + (selectedBottom - selectedTop) / 2 - safeViewportHeight / 2
+      : selectedTop < safeListViewportTop
+        ? selectedTop
+        : selectedBottom - safeViewportHeight;
+  const nextScrollTop = safeScrollTop + nextListViewportTop - safeListViewportTop;
 
-  return clampNumber(nextScrollTop, 0, maxScrollTop);
+  const clampedScrollTop = clampNumber(nextScrollTop, 0, safeMaxScrollTop);
+  return clampedScrollTop === safeScrollTop ? null : clampedScrollTop;
 }
 
 function commitVirtualIndexAtOffset(offset: number, itemCount: number, selectedIndex: number) {
