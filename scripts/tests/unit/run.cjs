@@ -884,6 +884,7 @@ function testGitStatusModule() {
 
 async function testGitModule() {
   const {
+    cleanupWorktree,
     defaultCommitLogLimit,
     dirtyWorkspaceMergeNotice,
     logArgsForView,
@@ -891,6 +892,7 @@ async function testGitModule() {
     mergeArgs,
     mergeMessage,
     normalizeCommitLogLimit,
+    readGitSnapshot,
     repositoryStateForGit,
   } = require(path.join(projectRoot, "electron/lib/git.cjs"));
   const { parseStatus } = require(path.join(projectRoot, "electron/lib/gitStatus.cjs"));
@@ -972,6 +974,46 @@ async function testGitModule() {
     assert.match(runGitFixture(dirtyMergeDir, ["status", "--porcelain=v1"]), /\?\? local-notes\.txt/);
   } finally {
     fs.rmSync(dirtyMergeDir, { force: true, recursive: true });
+  }
+
+  const cleanupDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-worktree-cleanup-"));
+  const cleanupRepo = path.join(cleanupDir, "repo");
+  const removableWorktree = path.join(cleanupDir, "removable");
+  const reviewWorktree = path.join(cleanupDir, "review");
+  try {
+    fs.mkdirSync(cleanupRepo);
+    runGitFixture(cleanupRepo, ["init"]);
+    runGitFixture(cleanupRepo, ["checkout", "-b", "main"]);
+    runGitFixture(cleanupRepo, ["config", "user.name", "Git Peek Test"]);
+    runGitFixture(cleanupRepo, ["config", "user.email", "git-peek@example.com"]);
+    fs.writeFileSync(path.join(cleanupRepo, "base.txt"), "base\n", "utf8");
+    runGitFixture(cleanupRepo, ["add", "base.txt"]);
+    runGitFixture(cleanupRepo, ["commit", "-m", "base"]);
+    runGitFixture(cleanupRepo, ["worktree", "add", "--detach", removableWorktree, "HEAD"]);
+    runGitFixture(cleanupRepo, ["worktree", "add", "--detach", reviewWorktree, "HEAD"]);
+    fs.writeFileSync(path.join(reviewWorktree, "review.txt"), "review\n", "utf8");
+    runGitFixture(reviewWorktree, ["add", "review.txt"]);
+    runGitFixture(reviewWorktree, ["commit", "-m", "review"]);
+
+    const cleanupSnapshot = await readGitSnapshot(cleanupRepo, { mode: "all" });
+    const removablePath = fs.realpathSync(removableWorktree);
+    const reviewPath = fs.realpathSync(reviewWorktree);
+    const removable = cleanupSnapshot.worktrees.find((candidate) => fs.realpathSync(candidate.path) === removablePath);
+    const review = cleanupSnapshot.worktrees.find((candidate) => fs.realpathSync(candidate.path) === reviewPath);
+    assert.equal(removable.cleanup.status, "merged");
+    assert.equal(removable.cleanup.safeToRemove, true);
+    assert.equal(review.cleanup.status, "review");
+    assert.equal(review.cleanup.safeToRemove, false);
+
+    await cleanupWorktree(cleanupRepo, removableWorktree, { mode: "all" });
+    assert.equal(fs.existsSync(removableWorktree), false);
+    await assert.rejects(
+      () => cleanupWorktree(cleanupRepo, reviewWorktree, { mode: "all" }),
+      /unique patch content/,
+    );
+    assert.equal(fs.existsSync(reviewWorktree), true);
+  } finally {
+    fs.rmSync(cleanupDir, { force: true, recursive: true });
   }
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-merge-state-"));
@@ -5479,9 +5521,11 @@ async function testRepositoryControlsView(server) {
     repositoryWorktreeMenuView,
     repositoryWorktreeSelection,
     repositoryWorktreeTriggerView,
+    repositoryWorktreeCleanupActionView,
     selectedBranchAvailable,
     selectedBranchName,
     switchableWorktreeList,
+    worktreeCleanupStatusLabel,
   } = await loadTsModule(server, "src/lib/repositoryControlsView.ts");
   const branches = [
     { name: "main", fullName: "refs/heads/main", type: "local", current: true, upstream: "origin/main" },
@@ -5489,6 +5533,24 @@ async function testRepositoryControlsView(server) {
   ];
   const current = worktree();
   const linked = worktree({ path: "/Users/junrong/codespace/git-tree-vis-linked", branch: "feature/worktree-menu", current: false });
+  const removableDetached = worktree({
+    path: "/Users/junrong/.codex/worktrees/2902/git-tree-vis",
+    branch: "",
+    current: false,
+    detached: true,
+    headShortHash: "02141bb",
+    cleanup: {
+      status: "merged",
+      safeToRemove: true,
+      action: "remove",
+      reason: "Contained by main.",
+      detail: "This clean detached worktree points to history already reachable from the base branch.",
+      baseBranch: "main",
+      uniquePatchCount: 0,
+      containedBranches: ["main"],
+      prunableReason: "",
+    },
+  });
   const bare = worktree({ path: "/Users/junrong/codespace/git-tree-vis.git", branch: "", current: false, bare: true });
   const linkedBranchDisabledReason =
     "This branch is already checked out in another worktree: " +
@@ -5906,22 +5968,51 @@ async function testRepositoryControlsView(server) {
     ariaLabelledBy: "worktree-context-trigger",
   });
   assert.deepEqual(repositoryWorktreeMenuItemView(true, current), {
-    className: "ui-menu-item worktree-menu-item is-active",
+    rowClassName: "worktree-menu-row",
+    className: "ui-menu-item worktree-menu-item worktree-menu-open is-active",
     role: "menuitem",
     ariaCurrent: "true",
     icon: "check",
     label: "Current main - git-tree-vis",
+    statusLabel: "",
     title: current.path,
     key: current.path,
+    cleanupAction: {
+      show: false,
+      disabled: true,
+      className: "worktree-cleanup-button is-disabled",
+      ariaLabel: "Cannot clean up Current main - git-tree-vis: This worktree is not safe to clean up.",
+      title: "This worktree is not safe to clean up.",
+      label: "Clean",
+    },
   });
   assert.deepEqual(repositoryWorktreeMenuItemView(false, linked), {
-    className: "ui-menu-item worktree-menu-item",
+    rowClassName: "worktree-menu-row",
+    className: "ui-menu-item worktree-menu-item worktree-menu-open",
     role: "menuitem",
     ariaCurrent: undefined,
     icon: "worktree",
     label: "feature/worktree-menu - git-tree-vis-linked",
+    statusLabel: "",
     title: linked.path,
     key: linked.path,
+    cleanupAction: {
+      show: false,
+      disabled: true,
+      className: "worktree-cleanup-button is-disabled",
+      ariaLabel: "Cannot clean up feature/worktree-menu - git-tree-vis-linked: This worktree is not safe to clean up.",
+      title: "This worktree is not safe to clean up.",
+      label: "Clean",
+    },
+  });
+  assert.equal(worktreeCleanupStatusLabel(removableDetached), "Contained by main.");
+  assert.deepEqual(repositoryWorktreeCleanupActionView(removableDetached), {
+    show: true,
+    disabled: false,
+    className: "worktree-cleanup-button",
+    ariaLabel: "Clean Detached @ 02141bb - git-tree-vis",
+    title: "This clean detached worktree points to history already reachable from the base branch.",
+    label: "Clean",
   });
   assert.deepEqual(repositoryWorktreeSelection(current.path, current), {
     menuAction: "closeWorktree",

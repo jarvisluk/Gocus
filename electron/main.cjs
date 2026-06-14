@@ -23,6 +23,7 @@ const {
 } = require("./lib/windowGeometry.cjs");
 const {
   checkout,
+  cleanupWorktree,
   createBranch,
   initializeRepository,
   isNotGitRepositoryError,
@@ -1324,6 +1325,7 @@ registerIpcHandlers({
   clearRepositoryPath,
   clipboard,
   config,
+  cleanupWorktree,
   createBranch,
   dockWindow,
   errorResponse,

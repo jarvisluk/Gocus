@@ -33,6 +33,7 @@ declare global {
       ) => Promise<ActionResponse>;
       checkout: (ref: string, view?: CommitViewSelection) => Promise<ActionResponse>;
       openWorktree: (worktreePath: string, view?: CommitViewSelection) => Promise<ActionResponse>;
+      cleanupWorktree: (worktreePath: string, view?: CommitViewSelection) => Promise<ActionResponse>;
       openWorkspace: (target: WorkspaceOpenTarget) => Promise<ActionResponse>;
       openWorkspaceFile: (target: WorkspaceOpenTarget, filePath: string) => Promise<ActionResponse>;
       getAvailableWorkspaceTargets: () => Promise<WorkspaceOpenTarget[]>;

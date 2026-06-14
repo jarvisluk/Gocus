@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld("gitPeek", {
   merge: (ref, targetBranch, view, options) => ipcRenderer.invoke("git:merge", ref, targetBranch, view, options),
   checkout: (ref, view) => ipcRenderer.invoke("git:checkout", ref, view),
   openWorktree: (worktreePath, view) => ipcRenderer.invoke("git:openWorktree", worktreePath, view),
+  cleanupWorktree: (worktreePath, view) => ipcRenderer.invoke("git:cleanupWorktree", worktreePath, view),
   openWorkspace: (target) => ipcRenderer.invoke("workspace:open", target),
   openWorkspaceFile: (target, filePath) => ipcRenderer.invoke("workspace:openFile", target, filePath),
   getAvailableWorkspaceTargets: () => ipcRenderer.invoke("workspace:getAvailableTargets"),

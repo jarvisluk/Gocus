@@ -116,12 +116,36 @@ export interface GitWorktree {
   bare: boolean;
   current: boolean;
   counts: WorkingTreeCounts;
+  cleanup?: GitWorktreeCleanup;
 }
 
 export interface WorkingTreeCounts {
   modified: number;
   staged: number;
   untracked: number;
+}
+
+export type GitWorktreeCleanupStatus =
+  | "unknown"
+  | "current"
+  | "attached"
+  | "dirty"
+  | "merged"
+  | "branch-preserved"
+  | "patch-equivalent"
+  | "review"
+  | "prunable";
+
+export interface GitWorktreeCleanup {
+  status: GitWorktreeCleanupStatus;
+  safeToRemove: boolean;
+  action: "none" | "remove" | "prune";
+  reason: string;
+  detail: string;
+  baseBranch: string;
+  uniquePatchCount: number | null;
+  containedBranches: string[];
+  prunableReason: string;
 }
 
 export interface CommitItem {

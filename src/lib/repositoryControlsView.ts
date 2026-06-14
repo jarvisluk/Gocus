@@ -27,6 +27,15 @@ export interface RepositoryBranchSwitchActionView {
   title: string;
 }
 
+export interface RepositoryWorktreeCleanupActionView {
+  show: boolean;
+  disabled: boolean;
+  className: string;
+  ariaLabel: string;
+  title: string;
+  label: string;
+}
+
 const branchTriggerId = "branch-ref-trigger";
 const branchMenuId = "branch-ref-menu";
 const worktreeTriggerId = "worktree-trigger";
@@ -331,14 +340,56 @@ export function repositoryWorktreeContextMenuChromeView() {
 }
 
 export function repositoryWorktreeMenuItemView(active: boolean, worktree: GitWorktree) {
+  const cleanupAction = repositoryWorktreeCleanupActionView(worktree);
+
   return {
-    className: joinClass("ui-menu-item", "worktree-menu-item", active && "is-active"),
+    rowClassName: joinClass("worktree-menu-row", cleanupAction.show && "has-cleanup"),
+    className: joinClass("ui-menu-item", "worktree-menu-item", "worktree-menu-open", active && "is-active"),
     role: "menuitem" as const,
     ariaCurrent: active ? ("true" as const) : undefined,
     icon: active ? ("check" as const) : ("worktree" as const),
     label: worktreeMenuLabel(worktree),
+    statusLabel: worktreeCleanupStatusLabel(worktree),
     title: worktree.path,
     key: worktree.path,
+    cleanupAction,
+  };
+}
+
+export function worktreeCleanupStatusLabel(worktree: GitWorktree) {
+  const cleanup = worktree.cleanup;
+  if (!cleanup) return "";
+
+  if (cleanup.status === "merged") return cleanup.reason;
+  if (cleanup.status === "branch-preserved") return cleanup.reason;
+  if (cleanup.status === "patch-equivalent") return cleanup.reason;
+  if (cleanup.status === "prunable") return cleanup.reason;
+  if (cleanup.status === "dirty") return cleanup.reason;
+  if (cleanup.status === "review" && cleanup.uniquePatchCount !== null) {
+    return `${cleanup.uniquePatchCount} unique patches`;
+  }
+
+  return cleanup.reason;
+}
+
+export function repositoryWorktreeCleanupActionView(worktree: GitWorktree): RepositoryWorktreeCleanupActionView {
+  const cleanup = worktree.cleanup;
+  const show = Boolean(cleanup) && (worktree.detached || cleanup?.status === "prunable");
+  const safeToRemove = Boolean(cleanup?.safeToRemove);
+  const label = cleanup?.action === "prune" ? "Prune" : "Clean";
+  const disabledReason = cleanup?.detail || "This worktree is not safe to clean up.";
+  const title = safeToRemove ? cleanup?.detail || "Clean up this worktree." : disabledReason;
+  const ariaLabel = safeToRemove
+    ? `${label} ${worktreeMenuLabel(worktree)}`
+    : `Cannot clean up ${worktreeMenuLabel(worktree)}: ${disabledReason}`;
+
+  return {
+    show,
+    disabled: !safeToRemove,
+    className: joinClass("worktree-cleanup-button", !safeToRemove && "is-disabled"),
+    ariaLabel,
+    title,
+    label,
   };
 }
 
