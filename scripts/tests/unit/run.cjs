@@ -6075,6 +6075,7 @@ async function testClassNamesAndGraph(server) {
       (line) =>
         line.kind === "bridge" &&
         line.fromX === 33 &&
+        line.startX === 30 &&
         line.toX === 9 &&
         line.fromY === 22 &&
         line.toY === line.joinY &&
@@ -6134,6 +6135,24 @@ async function testClassNamesAndGraph(server) {
   });
   assert.equal(staleMeasuredCanvasModel.top, 64);
   assert.equal(staleMeasuredCanvasModel.height, 64);
+  const laneStartedBridgeCanvasModel = buildGitTreeCanvasModel({
+    commits: [
+      {
+        id: "commit-lane-started-bridge",
+        graph: { ...graph, column: 0, bridges: [{ fromColumn: 2, toColumn: 0, color: "#444444", variant: "solid" }] },
+      },
+    ],
+    startIndex: 0,
+    itemCount: 1,
+    selectedIndex: -1,
+    laneCount: 3,
+    nodeY: 22,
+  });
+  assert.ok(
+    laneStartedBridgeCanvasModel.lines.some(
+      (line) => line.kind === "bridge" && line.fromX === 33 && line.startX === line.fromX && line.toX === 9,
+    ),
+  );
   const openBridgeCanvasModel = buildGitTreeCanvasModel({
     commits: [
       {
@@ -6153,6 +6172,7 @@ async function testClassNamesAndGraph(server) {
         line.kind === "bridge" &&
         line.toY === 112 &&
         line.joinY < line.toY &&
+        line.startX === 30 &&
         line.controlFromY < line.controlToY,
     ),
   );

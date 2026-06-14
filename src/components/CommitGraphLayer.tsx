@@ -68,8 +68,8 @@ function drawGraphLine(
     context.moveTo(line.x, line.fromY);
     context.lineTo(line.x, line.toY);
   } else {
-    context.moveTo(line.fromX, line.fromY);
-    context.bezierCurveTo(line.fromX, line.controlFromY, line.toX, line.controlToY, line.toX, line.joinY);
+    context.moveTo(line.startX, line.fromY);
+    context.bezierCurveTo(line.startX, line.controlFromY, line.toX, line.controlToY, line.toX, line.joinY);
     if (line.toY > line.joinY) context.lineTo(line.toX, line.toY);
   }
 
