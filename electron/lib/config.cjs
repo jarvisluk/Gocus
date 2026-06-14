@@ -11,14 +11,25 @@ const defaultPreferences = {
   fontFamily: "system",
   graphStyle: "solid",
   workspaceOpenTargets: ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"],
-  showZenEntry: true,
   showMenuBarIcon: true,
   launchAtLogin: false,
   createMergeCommit: true,
-  zenMode: false,
   autoRefreshInterval: "off",
   promptLanguage: "en",
 };
+
+function sanitizePreferences(preferences) {
+  const source = preferences && typeof preferences === "object" ? preferences : {};
+  const nextPreferences = { ...defaultPreferences };
+
+  for (const key of Object.keys(defaultPreferences)) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      nextPreferences[key] = source[key];
+    }
+  }
+
+  return nextPreferences;
+}
 
 function normalizeRepositoryPath(repositoryPath) {
   if (typeof repositoryPath !== "string") return "";
@@ -166,11 +177,10 @@ function createConfigStore(app) {
       return sanitizeRecentRepositories(readConfig().recentRepositories);
     },
     readPreferences() {
-      const preferences = readConfig().preferences;
-      return { ...defaultPreferences, ...(preferences && typeof preferences === "object" ? preferences : {}) };
+      return sanitizePreferences(readConfig().preferences);
     },
     savePreferences(preferences) {
-      writeConfig({ ...readConfig(), preferences: { ...defaultPreferences, ...(preferences ?? {}) } });
+      writeConfig({ ...readConfig(), preferences: sanitizePreferences(preferences) });
     },
     readExpandedWindowSize() {
       const size = readConfig().expandedWindowSize;

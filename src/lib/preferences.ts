@@ -9,11 +9,9 @@ export const defaultPreferences: UiPreferences = {
   fontFamily: "system",
   graphStyle: "solid",
   workspaceOpenTargets: defaultWorkspaceOpenTargets,
-  showZenEntry: true,
   showMenuBarIcon: true,
   launchAtLogin: false,
   createMergeCommit: true,
-  zenMode: false,
   autoRefreshInterval: "off",
   promptLanguage: "en",
 };
@@ -71,12 +69,10 @@ export function mergePreferences(value: Partial<UiPreferences> | null | undefine
     fontFamily: includesValue(fontFamilyValues, candidate.fontFamily) ? candidate.fontFamily : defaultPreferences.fontFamily,
     graphStyle: includesValue(graphStyleValues, candidate.graphStyle) ? candidate.graphStyle : defaultPreferences.graphStyle,
     workspaceOpenTargets: sanitizeWorkspaceOpenTargets(candidate.workspaceOpenTargets),
-    showZenEntry: typeof candidate.showZenEntry === "boolean" ? candidate.showZenEntry : defaultPreferences.showZenEntry,
     showMenuBarIcon: typeof candidate.showMenuBarIcon === "boolean" ? candidate.showMenuBarIcon : defaultPreferences.showMenuBarIcon,
     launchAtLogin: typeof candidate.launchAtLogin === "boolean" ? candidate.launchAtLogin : defaultPreferences.launchAtLogin,
     createMergeCommit:
       typeof candidate.createMergeCommit === "boolean" ? candidate.createMergeCommit : defaultPreferences.createMergeCommit,
-    zenMode: typeof candidate.zenMode === "boolean" ? candidate.zenMode : defaultPreferences.zenMode,
     autoRefreshInterval: includesValue(autoRefreshIntervalValues, candidate.autoRefreshInterval)
       ? candidate.autoRefreshInterval
       : defaultPreferences.autoRefreshInterval,
@@ -116,7 +112,6 @@ export function applyPreferences(preferences: UiPreferences) {
   const root = document.documentElement;
   root.dataset.density = preferences.density;
   root.dataset.graphStyle = preferences.graphStyle;
-  root.dataset.zenMode = preferences.zenMode ? "true" : "false";
   root.style.removeProperty("--focus");
   root.style.removeProperty("--focus-soft");
   root.style.setProperty("--user-font", fontStacks[preferences.fontFamily]);

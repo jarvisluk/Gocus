@@ -81,11 +81,9 @@ export function panelPinnedNotice(pinned: boolean) {
 export function panelRepositoryTriggerView({
   canSwitchRepository,
   repoMenuOpen,
-  repositoryPath,
 }: {
   canSwitchRepository: boolean;
   repoMenuOpen: boolean;
-  repositoryPath: string;
 }) {
   return {
     id: repositoryTriggerId,
@@ -95,7 +93,6 @@ export function panelRepositoryTriggerView({
     ariaHasPopup: "menu" as const,
     ariaExpanded: repoMenuOpen,
     ariaControls: repositoryMenuId,
-    title: repositoryPath || undefined,
   };
 }
 
@@ -167,6 +164,5 @@ export function panelHeaderView(snapshot: GitSnapshot | null, recentRepositories
     canSwitchRepository: Boolean(snapshot && recentRepositoryOptions.length > 1),
     repositoryTitle: currentRepository?.name || "Git Peek",
     repositoryPathLabel: snapshot?.repoPath || "No working folder",
-    repositoryPathTitle: snapshot?.repoPath || undefined,
   };
 }

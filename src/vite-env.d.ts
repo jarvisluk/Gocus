@@ -33,6 +33,7 @@ declare global {
       ) => Promise<ActionResponse>;
       checkout: (ref: string, view?: CommitViewSelection) => Promise<ActionResponse>;
       openWorktree: (worktreePath: string, view?: CommitViewSelection) => Promise<ActionResponse>;
+      cleanupWorktree: (worktreePath: string, view?: CommitViewSelection) => Promise<ActionResponse>;
       openWorkspace: (target: WorkspaceOpenTarget) => Promise<ActionResponse>;
       openWorkspaceFile: (target: WorkspaceOpenTarget, filePath: string) => Promise<ActionResponse>;
       getAvailableWorkspaceTargets: () => Promise<WorkspaceOpenTarget[]>;
@@ -52,6 +53,8 @@ declare global {
       setChangedFileInfoPanel: (payload: ChangedFileInfoPayload) => Promise<void>;
       getCommitInfoPayload: () => Promise<CommitInfoPayload>;
       setCommitInfoPanel: (payload: CommitInfoPayload) => Promise<void>;
+      holdCommitInfoPanelInteraction?: (durationMs?: number) => Promise<void>;
+      isCommitInfoPanelActive?: () => Promise<boolean>;
       setCommitInfoPanelHeight?: (height: number) => Promise<void>;
       copyText: (text: string) => Promise<void>;
       getSystemTheme: () => Promise<"light" | "dark">;

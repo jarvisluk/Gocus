@@ -58,11 +58,10 @@ export function PanelHeader({
     recentRepositoryOptions,
     canSwitchRepository,
     repositoryPathLabel,
-    repositoryPathTitle,
     repositoryTitle,
   } = panelView;
   const openRepositoryButton = panelHeaderOpenRepositoryButtonView();
-  const repositoryTrigger = panelRepositoryTriggerView({ canSwitchRepository, repoMenuOpen, repositoryPath: snapshot?.repoPath ?? "" });
+  const repositoryTrigger = panelRepositoryTriggerView({ canSwitchRepository, repoMenuOpen });
   const repositoryMenu = panelRepositoryMenuView();
   const actionsView = panelHeaderActionsView({ pinned, refreshing, hasRepository: Boolean(snapshot) });
 
@@ -89,7 +88,6 @@ export function PanelHeader({
             aria-haspopup={repositoryTrigger.ariaHasPopup}
             aria-expanded={repositoryTrigger.ariaExpanded}
             aria-controls={repositoryTrigger.ariaControls}
-            title={repositoryTrigger.title}
             onClick={() => setRepoMenuOpen((current) => panelRepositoryMenuOpenAfterToggle(current, canSwitchRepository))}
           >
             <span className={panelView.repositoryTitleCopy.className}>
@@ -99,7 +97,7 @@ export function PanelHeader({
             <ChevronDown aria-hidden="true" />
           </button>
         ) : (
-          <div className={panelView.staticRepositoryTitle.className} title={repositoryPathTitle}>
+          <div className={panelView.staticRepositoryTitle.className}>
             <strong>{repositoryTitle}</strong>
             <span>{repositoryPathLabel}</span>
           </div>

@@ -719,7 +719,7 @@ function testWindowGeometryModule() {
   assert.equal(clampCollapsedRailHeight("bad", display), 136);
   assert.equal(clampCommitInfoWindowHeight(72, display), 92);
   assert.equal(clampCommitInfoWindowHeight(104, display), 104);
-  assert.equal(clampCommitInfoWindowHeight(9999, display), 164);
+  assert.equal(clampCommitInfoWindowHeight(9999, display), 240);
   assert.equal(clampCommitInfoWindowHeight("bad", display), 132);
   assert.deepEqual(clampExpandedSize({ width: 1, height: 9999 }, display), { width: 320, height: 860 });
   assert.deepEqual(
@@ -830,11 +830,10 @@ function testIpcHandlersModule() {
   const preferences = {
     launchAtLogin: false,
     showMenuBarIcon: true,
-    zenMode: false,
   };
 
   assert.deepEqual(
-    preferencesSaveSideEffects(preferences, preferences, { ...preferences, zenMode: true }),
+    preferencesSaveSideEffects(preferences, preferences, { ...preferences }),
     {
       syncLaunchAtLogin: false,
       syncMenuBarIcon: false,
@@ -884,6 +883,7 @@ function testGitStatusModule() {
 
 async function testGitModule() {
   const {
+    cleanupWorktree,
     defaultCommitLogLimit,
     dirtyWorkspaceMergeNotice,
     logArgsForView,
@@ -891,6 +891,7 @@ async function testGitModule() {
     mergeArgs,
     mergeMessage,
     normalizeCommitLogLimit,
+    readGitSnapshot,
     repositoryStateForGit,
   } = require(path.join(projectRoot, "electron/lib/git.cjs"));
   const { parseStatus } = require(path.join(projectRoot, "electron/lib/gitStatus.cjs"));
@@ -972,6 +973,46 @@ async function testGitModule() {
     assert.match(runGitFixture(dirtyMergeDir, ["status", "--porcelain=v1"]), /\?\? local-notes\.txt/);
   } finally {
     fs.rmSync(dirtyMergeDir, { force: true, recursive: true });
+  }
+
+  const cleanupDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-worktree-cleanup-"));
+  const cleanupRepo = path.join(cleanupDir, "repo");
+  const removableWorktree = path.join(cleanupDir, "removable");
+  const reviewWorktree = path.join(cleanupDir, "review");
+  try {
+    fs.mkdirSync(cleanupRepo);
+    runGitFixture(cleanupRepo, ["init"]);
+    runGitFixture(cleanupRepo, ["checkout", "-b", "main"]);
+    runGitFixture(cleanupRepo, ["config", "user.name", "Git Peek Test"]);
+    runGitFixture(cleanupRepo, ["config", "user.email", "git-peek@example.com"]);
+    fs.writeFileSync(path.join(cleanupRepo, "base.txt"), "base\n", "utf8");
+    runGitFixture(cleanupRepo, ["add", "base.txt"]);
+    runGitFixture(cleanupRepo, ["commit", "-m", "base"]);
+    runGitFixture(cleanupRepo, ["worktree", "add", "--detach", removableWorktree, "HEAD"]);
+    runGitFixture(cleanupRepo, ["worktree", "add", "--detach", reviewWorktree, "HEAD"]);
+    fs.writeFileSync(path.join(reviewWorktree, "review.txt"), "review\n", "utf8");
+    runGitFixture(reviewWorktree, ["add", "review.txt"]);
+    runGitFixture(reviewWorktree, ["commit", "-m", "review"]);
+
+    const cleanupSnapshot = await readGitSnapshot(cleanupRepo, { mode: "all" });
+    const removablePath = fs.realpathSync(removableWorktree);
+    const reviewPath = fs.realpathSync(reviewWorktree);
+    const removable = cleanupSnapshot.worktrees.find((candidate) => fs.realpathSync(candidate.path) === removablePath);
+    const review = cleanupSnapshot.worktrees.find((candidate) => fs.realpathSync(candidate.path) === reviewPath);
+    assert.equal(removable.cleanup.status, "merged");
+    assert.equal(removable.cleanup.safeToRemove, true);
+    assert.equal(review.cleanup.status, "review");
+    assert.equal(review.cleanup.safeToRemove, false);
+
+    await cleanupWorktree(cleanupRepo, removableWorktree, { mode: "all" });
+    assert.equal(fs.existsSync(removableWorktree), false);
+    await assert.rejects(
+      () => cleanupWorktree(cleanupRepo, reviewWorktree, { mode: "all" }),
+      /unique patch content/,
+    );
+    assert.equal(fs.existsSync(reviewWorktree), true);
+  } finally {
+    fs.rmSync(cleanupDir, { force: true, recursive: true });
   }
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-merge-state-"));
@@ -1139,8 +1180,8 @@ function testGitGraphModule() {
   assert.equal(sharedMainGraphByHash.get(currentParentHash).graph.currentVariant, "solid");
   assert.equal(sharedMainGraphByHash.get(sharedMainHash).graph.currentVariant, "solid");
   assert.equal(sharedMainGraphByHash.get(sharedMainHash).graph.currentColor, "#f0a400");
-  assert.equal(sharedMainGraphByHash.get(sharedMainHash).graph.incomingColor, "#333333");
-  assert.equal(sharedMainGraphByHash.get(sharedMainHash).graph.incomingVariant, "dashed");
+  assert.equal(sharedMainGraphByHash.get(sharedMainHash).graph.incomingColor, "#111111");
+  assert.equal(sharedMainGraphByHash.get(sharedMainHash).graph.incomingVariant, "solid");
   assert.equal(sharedMainGraphByHash.get(sharedRootHash).graph.currentVariant, "solid");
 
   const externalChildHash = "7".repeat(40);
@@ -1259,7 +1300,8 @@ function testGitGraphModule() {
   const sharedAncestorGraph = mainFirstParentGraph.find((item) => item.fullHash === sharedAncestorHash).graph;
   assert.equal(sharedAncestorGraph.currentColor, "#f0a400");
   assert.equal(sharedAncestorGraph.currentLabel, "main");
-  assert.equal(mainFirstParentGraph[2].graph.bridges[0].color, "#2f86d8");
+  assert.deepEqual(mainFirstParentGraph[2].graph.bridges, []);
+  assert.ok(sharedAncestorGraph.bridges.some((bridge) => bridge.fromColumn === 1 && bridge.toColumn === 0 && bridge.color === "#2f86d8"));
 
   const featureTipHash = "5".repeat(40);
   const mainBaseHash = "6".repeat(40);
@@ -1443,6 +1485,95 @@ function testGitGraphModule() {
       .bridges.some((bridge) => bridge.fromColumn === 2 && bridge.toColumn === 0 && bridge.variant === "dashed"),
   );
 
+  const overlappingExternalHeadHash = "aa".repeat(20);
+  const overlappingCurrentHeadHash = "bb".repeat(20);
+  const overlappingMergeHash = "cc".repeat(20);
+  const overlappingFirstParentHash = "dd".repeat(20);
+  const overlappingSecondParentHash = "ee".repeat(20);
+  const overlappingRootHash = "ff".repeat(20);
+  const overlappingFirstParentGraph = buildCommitGraph(
+    [
+      {
+        ...commit({
+          fullHash: overlappingExternalHeadHash,
+          hash: "aaaaaaa",
+          parents: [overlappingFirstParentHash],
+          refs: ["feat/external-worktree"],
+        }),
+        branchColor: "#2f86d8",
+        refColors: ["#2f86d8"],
+      },
+      {
+        ...commit({
+          fullHash: overlappingCurrentHeadHash,
+          hash: "bbbbbbb",
+          parents: [overlappingMergeHash],
+          refs: ["main"],
+        }),
+        branchColor: "#f0a400",
+        refColors: ["#f0a400"],
+      },
+      {
+        ...commit({
+          fullHash: overlappingMergeHash,
+          hash: "ccccccc",
+          parents: [overlappingFirstParentHash, overlappingSecondParentHash],
+          refs: [],
+        }),
+        branchColor: "#f0a400",
+        refColors: [],
+      },
+      {
+        ...commit({
+          fullHash: overlappingSecondParentHash,
+          hash: "eeeeeee",
+          parents: [overlappingRootHash],
+          refs: ["feat/topic"],
+        }),
+        branchColor: "#48ad62",
+        refColors: ["#48ad62"],
+      },
+      {
+        ...commit({ fullHash: overlappingFirstParentHash, hash: "ddddddd", parents: [overlappingRootHash], refs: ["origin/main"] }),
+        branchColor: "#f0a400",
+        refColors: ["#f0a400"],
+      },
+      {
+        ...commit({ fullHash: overlappingRootHash, hash: "fffffff", parents: [], refs: [] }),
+        branchColor: "#f0a400",
+        refColors: [],
+      },
+    ],
+    {
+      currentHead: overlappingCurrentHeadHash,
+      currentBranch: "main",
+      localBranches: ["main", "feat/topic"],
+      externalHeads: [overlappingExternalHeadHash],
+      externalBranches: ["feat/external-worktree"],
+    },
+  );
+  const overlappingFirstParentGraphByHash = new Map(overlappingFirstParentGraph.map((item) => [item.fullHash, item.graph]));
+  const overlappingMergeGraph = overlappingFirstParentGraphByHash.get(overlappingMergeHash);
+  assert.deepEqual(
+    overlappingMergeGraph.passThrough
+      .filter((lane) => lane.column === 0)
+      .map(({ color, variant, from, to }) => ({ color, variant, from, to })),
+    [
+      { color: "#2f86d8", variant: "dashed", from: undefined, to: undefined },
+    ],
+  );
+  assert.deepEqual(overlappingMergeGraph.parentStems, [{ column: 1, color: "#f0a400", variant: "solid" }]);
+  const overlappingFirstParent = overlappingFirstParentGraphByHash.get(overlappingFirstParentHash);
+  assert.equal(overlappingFirstParent.column, 1);
+  assert.equal(overlappingFirstParentGraphByHash.get(overlappingFirstParentHash).incomingVariant, "solid");
+  assert.equal(overlappingFirstParentGraphByHash.get(overlappingFirstParentHash).incomingColor, "#f0a400");
+  assert.ok(
+    overlappingFirstParent.passThrough.some((lane) => lane.column === 0 && lane.variant === "dashed" && lane.to === "node"),
+  );
+  assert.ok(
+    overlappingFirstParent.bridges.some((bridge) => bridge.fromColumn === 0 && bridge.toColumn === 1 && bridge.variant === "dashed"),
+  );
+
   const mergeGraph = buildCommitGraph([
     {
       ...commit({ fullHash: firstHash, parents: [secondHash, "c".repeat(40)], refs: ["main"] }),
@@ -1578,50 +1709,33 @@ async function testAppShellView(server) {
     appNativeDialogBlockerView,
     appPanelContentView,
     appPanelView,
-    appPreferencesWithZenMode,
     appScrollRegionView,
-    appShouldCloseSettingsAfterPreferencesChange,
     appShouldCloseSettingsOnKey,
     appShouldShowRepositoryControls,
     appShouldCloseTemporaryInfoOnPointer,
-    appShouldExitZenOnKey,
     appTemporaryInfoDismissView,
     appViewportView,
-    appZenExitButtonView,
-    appZenSnapshot,
   } = await loadTsModule(server, "src/lib/appShellView.ts");
-  const { defaultPreferences } = await loadTsModule(server, "src/lib/preferences.ts");
 
-  assert.deepEqual(appViewportView({ electron: false, collapsed: false, zenActive: false }), {
+  assert.deepEqual(appViewportView({ electron: false, collapsed: false }), {
     className: "app-viewport",
   });
-  assert.deepEqual(appViewportView({ electron: true, collapsed: true, zenActive: true }), {
-    className: "app-viewport is-electron is-collapsed is-zen",
+  assert.deepEqual(appViewportView({ electron: true, collapsed: true }), {
+    className: "app-viewport is-electron is-collapsed",
   });
-  assert.deepEqual(appPanelView(false), {
+  assert.deepEqual(appPanelView(), {
     className: "peek-panel",
     ariaLabel: "Git Peek side panel",
   });
-  assert.deepEqual(appPanelView(true), {
-    className: "peek-panel is-zen-panel",
-    ariaLabel: "Git Peek zen commit view",
-  });
   const snapshot = gitSnapshot();
-  assert.deepEqual(appPanelContentView({ snapshot, settingsOpen: true, zenMode: true }), {
-    mode: "zen",
-    snapshot,
-  });
-  assert.deepEqual(appPanelContentView({ snapshot, settingsOpen: true, zenMode: false }), {
+  assert.deepEqual(appPanelContentView({ snapshot, settingsOpen: true }), {
     mode: "settings",
   });
-  assert.deepEqual(appPanelContentView({ snapshot, settingsOpen: false, zenMode: false }), {
+  assert.deepEqual(appPanelContentView({ snapshot, settingsOpen: false }), {
     mode: "repository",
     snapshot,
   });
-  assert.deepEqual(appPanelContentView({ snapshot: null, settingsOpen: false, zenMode: true }), {
-    mode: "empty",
-  });
-  assert.deepEqual(appPanelContentView({ snapshot: null, settingsOpen: false, zenMode: false }), {
+  assert.deepEqual(appPanelContentView({ snapshot: null, settingsOpen: false }), {
     mode: "empty",
   });
   const editorBackdrop = appEditorBackdropView();
@@ -1632,16 +1746,8 @@ async function testAppShellView(server) {
   assert.equal(editorBackdrop.className, "editor-backdrop");
   assert.equal(editorBackdrop.ariaHidden, true);
   assert.match(editorBackdrop.previewCode, /className="menu-item"/);
-  assert.deepEqual(appScrollRegionView(false), {
+  assert.deepEqual(appScrollRegionView(), {
     className: "scroll-region",
-  });
-  assert.deepEqual(appScrollRegionView(true), {
-    className: "scroll-region zen-scroll-region",
-  });
-  assert.deepEqual(appZenExitButtonView(), {
-    className: "ui-icon-button zen-exit-button",
-    ariaLabel: "Exit Zen mode",
-    title: "Exit Zen mode",
   });
   assert.deepEqual(appNativeDialogBlockerView(), {
     className: "native-dialog-blocker",
@@ -1650,30 +1756,14 @@ async function testAppShellView(server) {
   assert.deepEqual(appTemporaryInfoDismissView(), {
     exemptSelector: ".footer-changed-now, .rail-count",
   });
-  assert.equal(appZenSnapshot({ snapshot, zenMode: true }), snapshot);
-  assert.equal(appZenSnapshot({ snapshot, zenMode: false }), null);
-  assert.equal(appZenSnapshot({ snapshot: null, zenMode: true }), null);
   assert.equal(appChangedNowCount(null), 0);
   assert.equal(appChangedNowCount(gitSnapshot({ changedFiles: [] })), 0);
   assert.equal(appChangedNowCount(gitSnapshot({ changedFiles: [{ path: "src/App.tsx" }, { path: "README.md" }] })), 2);
-  const preferences = { ...defaultPreferences, themeMode: "light", zenMode: false, showZenEntry: false };
-  const zenPreferences = appPreferencesWithZenMode(preferences, true);
-  assert.notEqual(zenPreferences, preferences);
-  assert.deepEqual(zenPreferences, { ...preferences, zenMode: true });
-  assert.deepEqual(appPreferencesWithZenMode(zenPreferences, false), preferences);
-  assert.equal(appShouldShowRepositoryControls({ snapshot: null, zenActive: false }), false);
-  assert.equal(appShouldShowRepositoryControls({ snapshot, zenActive: true }), false);
-  assert.equal(appShouldShowRepositoryControls({ snapshot, zenActive: false }), true);
-  assert.equal(appShouldCloseSettingsOnKey({ key: "Escape", settingsOpen: true, zenActive: false }), true);
-  assert.equal(appShouldCloseSettingsOnKey({ key: "Enter", settingsOpen: true, zenActive: false }), false);
-  assert.equal(appShouldCloseSettingsOnKey({ key: "Escape", settingsOpen: false, zenActive: false }), false);
-  assert.equal(appShouldCloseSettingsOnKey({ key: "Escape", settingsOpen: true, zenActive: true }), false);
-  assert.equal(appShouldCloseSettingsAfterPreferencesChange({ settingsOpen: true, nextZenMode: true }), true);
-  assert.equal(appShouldCloseSettingsAfterPreferencesChange({ settingsOpen: true, nextZenMode: false }), false);
-  assert.equal(appShouldCloseSettingsAfterPreferencesChange({ settingsOpen: false, nextZenMode: true }), false);
-  assert.equal(appShouldExitZenOnKey({ key: "Escape", zenActive: true }), true);
-  assert.equal(appShouldExitZenOnKey({ key: "Enter", zenActive: true }), false);
-  assert.equal(appShouldExitZenOnKey({ key: "Escape", zenActive: false }), false);
+  assert.equal(appShouldShowRepositoryControls({ snapshot: null }), false);
+  assert.equal(appShouldShowRepositoryControls({ snapshot }), true);
+  assert.equal(appShouldCloseSettingsOnKey({ key: "Escape", settingsOpen: true }), true);
+  assert.equal(appShouldCloseSettingsOnKey({ key: "Enter", settingsOpen: true }), false);
+  assert.equal(appShouldCloseSettingsOnKey({ key: "Escape", settingsOpen: false }), false);
 
   const exemptSelector = appTemporaryInfoDismissView().exemptSelector;
   const exemptTarget = { closest: (selector) => (selector === exemptSelector ? { nodeType: 1 } : null) };
@@ -3291,11 +3381,9 @@ async function testPreferences(server) {
       fontFamily: "mono",
       graphStyle: "wire",
       workspaceOpenTargets: ["codex", "codex", "bad", "terminal"],
-      showZenEntry: false,
       showMenuBarIcon: false,
       launchAtLogin: "yes",
       createMergeCommit: false,
-      zenMode: true,
       autoRefreshInterval: "2m",
       promptLanguage: "zh",
     }),
@@ -3305,10 +3393,8 @@ async function testPreferences(server) {
       darkThemePreset: "matte",
       fontFamily: "mono",
       workspaceOpenTargets: ["codex", "terminal"],
-      showZenEntry: false,
       showMenuBarIcon: false,
       createMergeCommit: false,
-      zenMode: true,
       promptLanguage: "zh",
     },
   );
@@ -3555,7 +3641,6 @@ async function testFooterWorkspaceView(server) {
     footerWorkspaceOpenButtonView,
     footerWorkspaceSelection,
     footerWorkspaceView,
-    footerZenButtonView,
   } = await loadTsModule(server, "src/lib/footerWorkspaceView.ts");
   const options = [
     { target: "vscode", label: "VS Code", iconSrc: "vscode.png" },
@@ -3697,18 +3782,6 @@ async function testFooterWorkspaceView(server) {
     className: "footer-primary",
     label: "Open folder",
   });
-  assert.deepEqual(footerZenButtonView(false), {
-    className: "ui-icon-button footer-icon footer-zen",
-    ariaLabel: "Enter Zen mode",
-    title: "Zen mode",
-    disabled: true,
-  });
-  assert.deepEqual(footerZenButtonView(true), {
-    className: "ui-icon-button footer-icon footer-zen",
-    ariaLabel: "Enter Zen mode",
-    title: "Zen mode",
-    disabled: false,
-  });
   assert.deepEqual(footerNoticeView({ hasRepository: true, notice: " Git status refreshed. " }), {
     className: "notice-line",
     role: "status",
@@ -3717,8 +3790,8 @@ async function testFooterWorkspaceView(server) {
   });
   assert.equal(footerNoticeView({ hasRepository: true, notice: "   " }), null);
   assert.equal(footerNoticeView({ hasRepository: false, notice: "Choose a working folder first." }), null);
-  assert.deepEqual(footerActionsView({ changedNowOpen: false, hasRepository: false, showZenEntry: true }), {
-    className: "peek-footer has-zen-entry",
+  assert.deepEqual(footerActionsView({ changedNowOpen: false, hasRepository: false }), {
+    className: "peek-footer",
     showOpenRepositoryButton: true,
     showChangedNowButton: false,
     settingsButton: {
@@ -3736,15 +3809,8 @@ async function testFooterWorkspaceView(server) {
       ariaPressed: false,
       title: "Changed now",
     },
-    showZenButton: true,
-    zenButton: {
-      className: "ui-icon-button footer-icon footer-zen",
-      ariaLabel: "Enter Zen mode",
-      title: "Zen mode",
-      disabled: true,
-    },
   });
-  assert.deepEqual(footerActionsView({ changedNowOpen: true, hasRepository: true, showZenEntry: false }), {
+  assert.deepEqual(footerActionsView({ changedNowOpen: true, hasRepository: true }), {
     className: "peek-footer",
     showOpenRepositoryButton: false,
     showChangedNowButton: true,
@@ -3762,13 +3828,6 @@ async function testFooterWorkspaceView(server) {
       ariaLabel: "Close Changed now",
       ariaPressed: true,
       title: "Close Changed now",
-    },
-    showZenButton: false,
-    zenButton: {
-      className: "ui-icon-button footer-icon footer-zen",
-      ariaLabel: "Enter Zen mode",
-      title: "Zen mode",
-      disabled: false,
     },
   });
 }
@@ -3815,19 +3874,17 @@ async function testSettingsPanelView(server) {
     behavior: {
       titleId: "settings-behavior-title",
       title: "Behavior",
-      rows: {
-        refresh: "Refresh",
-        startup: "Startup",
-        menuBar: "Menu bar",
-        merge: "No-FF",
-        zenEntry: "Zen entry",
-        prompt: "Prompt",
-      },
+        rows: {
+          refresh: "Refresh",
+          startup: "Startup",
+          menuBar: "Menu bar",
+          merge: "No-FF",
+          prompt: "Prompt",
+        },
       autoRefreshAriaLabel: "Auto refresh interval",
       launchAtLoginAriaLabel: "Launch at login",
       showMenuBarIconAriaLabel: "Show menu bar icon",
       createMergeCommitAriaLabel: "Disable fast-forward merges",
-      showZenEntryAriaLabel: "Show Zen mode entry",
     },
     workspace: {
       titleId: "settings-workspace-title",
@@ -3887,7 +3944,6 @@ async function testSettingsPanelView(server) {
       launchAtLoginToggleClassName: "ui-toggle settings-launch-at-login-toggle",
       menuBarIconToggleClassName: "ui-toggle settings-menu-bar-icon-toggle",
       mergeCommitToggleClassName: "ui-toggle settings-merge-commit-toggle",
-      zenEntryToggleClassName: "ui-toggle settings-zen-entry-toggle",
       disclosureFrameClassName: "ui-select-frame ui-disclosure-frame",
       disclosureButtonClassName: "ui-disclosure-button",
       disclosureLabelClassName: "ui-disclosure-label",
@@ -4619,7 +4675,6 @@ async function testChangedFilesTemporaryInfo(server) {
     collapsedRailChangedNowOpen: false,
     settingsOpen: false,
     workspaceOpenTarget: "cursor",
-    zenActive: false,
   };
 
   assert.deepEqual(changedFilesTemporaryInfoPayload(baseOptions), {
@@ -4641,7 +4696,6 @@ async function testChangedFilesTemporaryInfo(server) {
     [modified],
   );
   assert.equal(changedFilesTemporaryInfoPayload({ ...baseOptions, settingsOpen: true }), null);
-  assert.equal(changedFilesTemporaryInfoPayload({ ...baseOptions, zenActive: true }), null);
 }
 
 async function testTemporaryInfoPanelBridge(server) {
@@ -5219,7 +5273,6 @@ async function testPanelHeaderView(server) {
     canSwitchRepository: false,
     repositoryTitle: "Git Peek",
     repositoryPathLabel: "No working folder",
-    repositoryPathTitle: undefined,
   });
 
   assert.deepEqual(panelHeaderView(snapshot, [sameRepositoryDifferentPath, other]), {
@@ -5246,7 +5299,6 @@ async function testPanelHeaderView(server) {
     canSwitchRepository: true,
     repositoryTitle: "git-tree-vis",
     repositoryPathLabel: current.path,
-    repositoryPathTitle: current.path,
   });
   assert.equal(repositoryOptionActive(sameRepositoryDifferentPath, current), true);
   assert.equal(repositoryOptionActive(other, current), false);
@@ -5310,7 +5362,7 @@ async function testPanelHeaderView(server) {
   assert.equal(panelPinnedStateAfterToggle(true), false);
   assert.equal(panelPinnedNotice(true), "Panel pinned above other windows.");
   assert.equal(panelPinnedNotice(false), "Panel unpinned.");
-  assert.deepEqual(panelRepositoryTriggerView({ canSwitchRepository: true, repoMenuOpen: true, repositoryPath: current.path }), {
+  assert.deepEqual(panelRepositoryTriggerView({ canSwitchRepository: true, repoMenuOpen: true }), {
     id: "repo-switch-trigger",
     className: "repo-title repo-title-button is-open",
     disabled: false,
@@ -5318,9 +5370,8 @@ async function testPanelHeaderView(server) {
     ariaHasPopup: "menu",
     ariaExpanded: true,
     ariaControls: "repo-switch-menu",
-    title: current.path,
   });
-  assert.deepEqual(panelRepositoryTriggerView({ canSwitchRepository: false, repoMenuOpen: false, repositoryPath: "" }), {
+  assert.deepEqual(panelRepositoryTriggerView({ canSwitchRepository: false, repoMenuOpen: false }), {
     id: "repo-switch-trigger",
     className: "repo-title",
     disabled: true,
@@ -5328,7 +5379,6 @@ async function testPanelHeaderView(server) {
     ariaHasPopup: "menu",
     ariaExpanded: false,
     ariaControls: "repo-switch-menu",
-    title: undefined,
   });
   assert.deepEqual(panelHeaderActionsView({ pinned: false, refreshing: false, hasRepository: false }), {
     className: "header-actions",
@@ -5470,9 +5520,11 @@ async function testRepositoryControlsView(server) {
     repositoryWorktreeMenuView,
     repositoryWorktreeSelection,
     repositoryWorktreeTriggerView,
+    repositoryWorktreeCleanupActionView,
     selectedBranchAvailable,
     selectedBranchName,
     switchableWorktreeList,
+    worktreeCleanupStatusLabel,
   } = await loadTsModule(server, "src/lib/repositoryControlsView.ts");
   const branches = [
     { name: "main", fullName: "refs/heads/main", type: "local", current: true, upstream: "origin/main" },
@@ -5480,6 +5532,24 @@ async function testRepositoryControlsView(server) {
   ];
   const current = worktree();
   const linked = worktree({ path: "/Users/junrong/codespace/git-tree-vis-linked", branch: "feature/worktree-menu", current: false });
+  const removableDetached = worktree({
+    path: "/Users/junrong/.codex/worktrees/2902/git-tree-vis",
+    branch: "",
+    current: false,
+    detached: true,
+    headShortHash: "02141bb",
+    cleanup: {
+      status: "merged",
+      safeToRemove: true,
+      action: "remove",
+      reason: "Contained by main.",
+      detail: "This clean detached worktree points to history already reachable from the base branch.",
+      baseBranch: "main",
+      uniquePatchCount: 0,
+      containedBranches: ["main"],
+      prunableReason: "",
+    },
+  });
   const bare = worktree({ path: "/Users/junrong/codespace/git-tree-vis.git", branch: "", current: false, bare: true });
   const linkedBranchDisabledReason =
     "This branch is already checked out in another worktree: " +
@@ -5897,22 +5967,51 @@ async function testRepositoryControlsView(server) {
     ariaLabelledBy: "worktree-context-trigger",
   });
   assert.deepEqual(repositoryWorktreeMenuItemView(true, current), {
-    className: "ui-menu-item worktree-menu-item is-active",
+    rowClassName: "worktree-menu-row",
+    className: "ui-menu-item worktree-menu-item worktree-menu-open is-active",
     role: "menuitem",
     ariaCurrent: "true",
     icon: "check",
     label: "Current main - git-tree-vis",
+    statusLabel: "",
     title: current.path,
     key: current.path,
+    cleanupAction: {
+      show: false,
+      disabled: true,
+      className: "worktree-cleanup-button is-disabled",
+      ariaLabel: "Cannot clean up Current main - git-tree-vis: This worktree is not safe to clean up.",
+      title: "This worktree is not safe to clean up.",
+      label: "Clean",
+    },
   });
   assert.deepEqual(repositoryWorktreeMenuItemView(false, linked), {
-    className: "ui-menu-item worktree-menu-item",
+    rowClassName: "worktree-menu-row",
+    className: "ui-menu-item worktree-menu-item worktree-menu-open",
     role: "menuitem",
     ariaCurrent: undefined,
     icon: "worktree",
     label: "feature/worktree-menu - git-tree-vis-linked",
+    statusLabel: "",
     title: linked.path,
     key: linked.path,
+    cleanupAction: {
+      show: false,
+      disabled: true,
+      className: "worktree-cleanup-button is-disabled",
+      ariaLabel: "Cannot clean up feature/worktree-menu - git-tree-vis-linked: This worktree is not safe to clean up.",
+      title: "This worktree is not safe to clean up.",
+      label: "Clean",
+    },
+  });
+  assert.equal(worktreeCleanupStatusLabel(removableDetached), "Contained by main.");
+  assert.deepEqual(repositoryWorktreeCleanupActionView(removableDetached), {
+    show: true,
+    disabled: false,
+    className: "worktree-cleanup-button",
+    ariaLabel: "Clean Detached @ 02141bb - git-tree-vis",
+    title: "This clean detached worktree points to history already reachable from the base branch.",
+    label: "Clean",
   });
   assert.deepEqual(repositoryWorktreeSelection(current.path, current), {
     menuAction: "closeWorktree",

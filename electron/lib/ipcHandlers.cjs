@@ -3,6 +3,7 @@ function registerIpcHandlers({
   checkout,
   chooseRepository,
   clearRepositoryPath,
+  cleanupWorktree,
   clipboard,
   config,
   createBranch,
@@ -13,6 +14,8 @@ function registerIpcHandlers({
   getChangedFileInfoPayload,
   getPinnedState,
   getCommitInfoPayload,
+  holdCommitInfoPanelInteraction,
+  isCommitInfoPanelActive,
   getSnapshotResponse,
   getSystemTheme,
   getTemporaryInfoPayload,
@@ -158,6 +161,25 @@ function registerIpcHandlers({
     }
   });
 
+  ipcMain.handle("git:cleanupWorktree", async (_event, worktreePath, view) => {
+    const repositoryPath = repositoryPathForAction();
+    if (!repositoryPath) return noRepositoryResponse();
+
+    try {
+      const snapshot = await cleanupWorktree(repositoryPath, worktreePath, normalizeView(view));
+      saveRepositoryPath(snapshot.repoPath, snapshot.repositoryKey);
+      buildMenus();
+      sendSnapshotResponse({ ok: true, snapshot });
+      return {
+        ok: true,
+        message: "Cleaned up worktree.",
+        snapshot,
+      };
+    } catch (error) {
+      return errorResponse(error, "Unable to clean up worktree.");
+    }
+  });
+
   ipcMain.handle("workspace:open", async (_event, target) => {
     return openWorkspace(repositoryPathForAction(), target);
   });
@@ -240,6 +262,12 @@ function registerIpcHandlers({
   ipcMain.handle("window:setCommitInfoPanel", (_event, payload) => {
     setCommitInfoPanel(payload);
   });
+
+  ipcMain.handle("window:holdCommitInfoPanelInteraction", (_event, durationMs) => {
+    holdCommitInfoPanelInteraction(durationMs);
+  });
+
+  ipcMain.handle("window:isCommitInfoPanelActive", () => isCommitInfoPanelActive());
 
   ipcMain.handle("window:setCommitInfoPanelHeight", (_event, height) => {
     setCommitInfoPanelHeight(height);

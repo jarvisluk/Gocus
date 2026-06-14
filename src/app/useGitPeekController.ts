@@ -302,6 +302,22 @@ export function useGitPeekController() {
     }
   }
 
+  async function cleanupWorktree(worktreePath: string) {
+    const bridge = window.gitPeek;
+    if (blockGitActionWithoutBridge(bridge) || !bridge) return;
+
+    setRefreshing(true);
+    try {
+      await runAction(
+        () => bridge.cleanupWorktree(worktreePath, commitView),
+        "Cleaned up worktree.",
+        "Unable to clean up worktree.",
+      );
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   function updateActionBranchName(branchName: string) {
     setActionDialog((current) => actionDialogAfterBranchNameChange(current, branchName));
   }
@@ -486,6 +502,7 @@ export function useGitPeekController() {
     handleCommitAction,
     switchBranch,
     openWorktree,
+    cleanupWorktree,
     updateActionBranchPrefix,
     updateActionBranchName,
     updateActionMergeTarget,

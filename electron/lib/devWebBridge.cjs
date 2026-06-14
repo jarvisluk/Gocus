@@ -1,6 +1,7 @@
 const path = require("node:path");
 const {
   checkout,
+  cleanupWorktree,
   createBranch,
   initializeRepository,
   isNotGitRepositoryError,
@@ -20,11 +21,9 @@ const defaultPreferences = {
   fontFamily: "system",
   graphStyle: "solid",
   workspaceOpenTargets: ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"],
-  showZenEntry: true,
   showMenuBarIcon: true,
   launchAtLogin: false,
   createMergeCommit: true,
-  zenMode: false,
   autoRefreshInterval: "off",
   promptLanguage: "en",
 };
@@ -168,6 +167,13 @@ function createDevWebBridgeMiddleware(projectRoot) {
         payload.view,
         "Opened worktree.",
         "Unable to open worktree.",
+      ),
+    "/cleanupWorktree": async (payload) =>
+      actionWithSnapshot(
+        (root, view) => cleanupWorktree(root, payload.worktreePath, view),
+        payload.view,
+        "Cleaned up worktree.",
+        "Unable to clean up worktree.",
       ),
   };
 

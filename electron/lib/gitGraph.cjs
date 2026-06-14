@@ -298,7 +298,12 @@ function buildCommitGraph(commits, graphContext = {}) {
   const findLaneByHash = (lanes, hash, exceptColumn = -1) => findLaneColumnsByHash(lanes, hash, exceptColumn)[0] ?? -1;
   const findPreferredLaneByHash = (lanes, hash, variant, exceptColumn = -1) => {
     const columns = findLaneColumnsByHash(lanes, hash, exceptColumn);
-    return columns.find((laneIndex) => lanes[laneIndex]?.variant === variant) ?? columns[0] ?? -1;
+    return (
+      columns.find((laneIndex) => lanes[laneIndex]?.incomingVariant === variant) ??
+      columns.find((laneIndex) => lanes[laneIndex]?.variant === variant) ??
+      columns[0] ??
+      -1
+    );
   };
   const findOpenColumn = (lanes, startColumn = 0) => {
     for (let columnIndex = Math.max(0, startColumn); columnIndex < lanes.length; columnIndex += 1) {
@@ -376,34 +381,12 @@ function buildCommitGraph(commits, graphContext = {}) {
     } else {
       const firstParent = parents[0];
       const existingFirstParent = findLaneByHash(after, firstParent, column);
-      const deferFirstParentJoin = !currentContinues && currentVariant === "dashed" && existingFirstParent !== -1;
 
-      if (deferFirstParentJoin) {
+      if (existingFirstParent >= 0) {
         const { color, label } = firstParentIdentity(firstParent, currentColor, currentLabel);
         const variant = variantForParent(firstParent, currentVariant);
         after[column] = { hash: firstParent, color, label, variant, incomingColor: currentColor, incomingVariant: currentVariant };
         parentEntries.push({ column, color: currentColor, variant: currentVariant });
-      } else if (existingFirstParent > column) {
-        const activeParentColor = after[existingFirstParent].color;
-        const activeParentVariant = after[existingFirstParent].variant;
-        const { color, label } = firstParentIdentity(firstParent, currentColor, currentLabel);
-        const variant = variantForParent(firstParent, currentVariant);
-        parentEntries.push({ column, color: currentColor, variant: currentVariant });
-        passThroughLimits.set(existingFirstParent, { to: "node" });
-        bridges.push({
-          fromColumn: existingFirstParent,
-          toColumn: column,
-          color: activeParentColor,
-          variant: activeParentVariant,
-          to: "lane",
-        });
-        after[column] = { hash: firstParent, color, label, variant, incomingColor: currentColor, incomingVariant: currentVariant };
-        after[existingFirstParent] = null;
-      } else if (existingFirstParent >= 0) {
-        parentEntries.push({ column: existingFirstParent, color: currentColor, variant: currentVariant });
-        bridges.push({ fromColumn: column, toColumn: existingFirstParent, color: currentColor, variant: currentVariant, to: "lane" });
-        after[column] = null;
-        secondaryParentStartColumn = column;
       } else {
         const { color, label } = firstParentIdentity(firstParent, currentColor, currentLabel);
         const variant = variantForParent(firstParent, currentVariant);

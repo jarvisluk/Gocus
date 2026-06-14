@@ -1,4 +1,4 @@
-import { Check, ChevronDown, GitFork } from "lucide-react";
+import { Check, ChevronDown, GitFork, Trash2 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import {
   repositoryControlsMenuState,
@@ -18,9 +18,11 @@ function worktreeMenuIcon(active: boolean) {
 
 export function WorktreeContext({
   worktrees,
+  onCleanupWorktree,
   onOpenWorktree,
 }: {
   worktrees: GitWorktree[];
+  onCleanupWorktree: (worktreePath: string) => void;
   onOpenWorktree: (worktreePath: string) => void;
 }) {
   const [worktreeMenuOpen, setWorktreeMenuOpen] = useState(false);
@@ -40,6 +42,14 @@ export function WorktreeContext({
     const nextMenuState = repositoryControlsMenuState({ branchMenuOpen: false, worktreeMenuOpen }, selection.menuAction);
     setWorktreeMenuOpen(nextMenuState.worktreeMenuOpen);
     if (selection.openWorktreePath) onOpenWorktree(selection.openWorktreePath);
+  }
+
+  function cleanupWorktree(worktreePath: string, label: string) {
+    const confirmed = window.confirm(`Clean up ${label}?\n\n${worktreePath}`);
+    if (!confirmed) return;
+
+    setWorktreeMenuOpen(false);
+    onCleanupWorktree(worktreePath);
   }
 
   if (!worktreeContext.show) return null;
@@ -78,18 +88,35 @@ export function WorktreeContext({
                 const itemView = repositoryWorktreeMenuItemView(active, worktree);
 
                 return (
-                  <button
-                    className={itemView.className}
-                    type="button"
-                    role={itemView.role}
-                    aria-current={itemView.ariaCurrent}
-                    title={itemView.title}
-                    key={itemView.key}
-                    onClick={() => openWorktree(worktree.path)}
-                  >
-                    {worktreeMenuIcon(active)}
-                    <span>{itemView.label}</span>
-                  </button>
+                  <div className={itemView.rowClassName} role="none" key={itemView.key}>
+                    <button
+                      className={itemView.className}
+                      type="button"
+                      role={itemView.role}
+                      aria-current={itemView.ariaCurrent}
+                      title={itemView.title}
+                      onClick={() => openWorktree(worktree.path)}
+                    >
+                      {worktreeMenuIcon(active)}
+                      <span className="worktree-menu-copy">
+                        <span>{itemView.label}</span>
+                        {itemView.statusLabel ? <small>{itemView.statusLabel}</small> : null}
+                      </span>
+                    </button>
+                    {itemView.cleanupAction.show ? (
+                      <button
+                        className={itemView.cleanupAction.className}
+                        type="button"
+                        aria-label={itemView.cleanupAction.ariaLabel}
+                        title={itemView.cleanupAction.title}
+                        disabled={itemView.cleanupAction.disabled}
+                        onClick={() => cleanupWorktree(worktree.path, itemView.label)}
+                      >
+                        <Trash2 aria-hidden="true" />
+                        <span>{itemView.cleanupAction.label}</span>
+                      </button>
+                    ) : null}
+                  </div>
                 );
               })}
             </div>

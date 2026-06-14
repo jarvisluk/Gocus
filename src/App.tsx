@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { Minimize2 } from "lucide-react";
 import { ActionDialog } from "./components/ActionDialog";
 import { CollapsedRail } from "./components/CollapsedRail";
 import { EmptyRepositoryState } from "./components/EmptyRepositoryState";
@@ -11,7 +10,7 @@ import { RepositoryStateBanner } from "./components/RepositoryStateBanner";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { WorktreeContext } from "./components/WorktreeContext";
 import { useGitPeekController } from "./app/useGitPeekController";
-import { useSettingsEscape, useZenEscape } from "./app/useAppKeyboardShortcuts";
+import { useSettingsEscape } from "./app/useAppKeyboardShortcuts";
 import { useChangedNowPanel } from "./app/useChangedNowPanel";
 import {
   appEditorBackdropView,
@@ -19,12 +18,9 @@ import {
   appNativeDialogBlockerView,
   appPanelContentView,
   appPanelView,
-  appPreferencesWithZenMode,
-  appShouldCloseSettingsAfterPreferencesChange,
   appScrollRegionView,
   appShouldShowRepositoryControls,
   appViewportView,
-  appZenExitButtonView,
 } from "./lib/appShellView";
 import { collapsedRailHeightForBranchName } from "./lib/collapsedRailView";
 import { logBridgeWarning } from "./lib/errorMessages";
@@ -32,8 +28,7 @@ import { activeWorkspaceOpenTarget, visibleWorkspaceOpenOptions } from "./lib/wo
 import { workspaceOpenOptions } from "./lib/workspaceOpenOptions";
 import type { WorkspaceOpenTarget } from "./types";
 
-function commitGraphNodeY(zenActive: boolean, density: "compact" | "comfortable") {
-  if (zenActive) return 17;
+function commitGraphNodeY(density: "compact" | "comfortable") {
   return density === "comfortable" ? 27 : 22;
 }
 
@@ -58,19 +53,15 @@ export default function App() {
   const panelContent = appPanelContentView({
     snapshot: controller.snapshot,
     settingsOpen: controller.settingsOpen,
-    zenMode: controller.preferences.zenMode,
   });
-  const zenActive = panelContent.mode === "zen";
   const repositorySnapshot = panelContent.mode === "repository" ? panelContent.snapshot : null;
-  const viewportView = appViewportView({ electron: controller.electron, collapsed: controller.collapsed, zenActive });
-  const panelView = appPanelView(zenActive);
-  const zenExitButton = appZenExitButtonView();
-  const zenScrollRegion = appScrollRegionView(true);
-  const commitScrollRegion = appScrollRegionView(false);
+  const viewportView = appViewportView({ electron: controller.electron, collapsed: controller.collapsed });
+  const panelView = appPanelView();
+  const commitScrollRegion = appScrollRegionView();
   const nativeDialogBlocker = appNativeDialogBlockerView();
   const changedNowCount = appChangedNowCount(controller.snapshot);
-  const showRepositoryControls = appShouldShowRepositoryControls({ snapshot: repositorySnapshot, zenActive });
-  const graphNodeY = commitGraphNodeY(zenActive, controller.preferences.density);
+  const showRepositoryControls = appShouldShowRepositoryControls({ snapshot: repositorySnapshot });
+  const graphNodeY = commitGraphNodeY(controller.preferences.density);
   const syncedWorkspaceOpenTarget = activeWorkspaceOpenTarget(
     visibleWorkspaceOpenOptions(
       workspaceOpenOptions,
@@ -89,22 +80,16 @@ export default function App() {
     collapsed: controller.collapsed,
     settingsOpen: controller.settingsOpen,
     workspaceOpenTarget: syncedWorkspaceOpenTarget,
-    zenActive,
   });
 
-  const exitZenMode = useCallback(() => {
-    controller.setPreferences(appPreferencesWithZenMode(controller.preferences, false));
-  }, [controller.preferences, controller.setPreferences]);
   const closeSettings = useCallback(() => {
     controller.setSettingsOpen(false);
   }, [controller.setSettingsOpen]);
 
   useSettingsEscape({
     settingsOpen: controller.settingsOpen,
-    zenActive,
     onClose: closeSettings,
   });
-  useZenEscape({ zenActive, onExit: exitZenMode });
   useEffect(() => {
     const height = collapsedRailHeightForBranchName(controller.snapshot?.branch.name);
     const syncHeight = window.gitPeek?.setCollapsedRailHeight?.(height);
@@ -125,9 +110,6 @@ export default function App() {
 
   function updatePreferences(nextPreferences: typeof controller.preferences) {
     controller.setPreferences(nextPreferences);
-    if (appShouldCloseSettingsAfterPreferencesChange({ settingsOpen: controller.settingsOpen, nextZenMode: nextPreferences.zenMode })) {
-      controller.setSettingsOpen(false);
-    }
   }
 
   function updateWorkspaceOpenTarget(target: WorkspaceOpenTarget) {
@@ -149,39 +131,7 @@ export default function App() {
         />
       ) : (
         <section className={panelView.className} aria-label={panelView.ariaLabel}>
-          {panelContent.mode === "zen" ? (
-            <>
-              <ActionDialog
-                createMergeCommit={controller.preferences.createMergeCommit}
-                dialog={controller.actionDialog}
-                onBranchPrefixChange={controller.updateActionBranchPrefix}
-                onBranchNameChange={controller.updateActionBranchName}
-                onMergeTargetChange={controller.updateActionMergeTarget}
-                onCancel={controller.cancelActionDialog}
-                onConfirm={controller.confirmActionDialog}
-              />
-              <button
-                className={zenExitButton.className}
-                type="button"
-                aria-label={zenExitButton.ariaLabel}
-                title={zenExitButton.title}
-                onClick={exitZenMode}
-              >
-                <Minimize2 aria-hidden="true" />
-              </button>
-              <div className={zenScrollRegion.className}>
-                <RecentCommits
-                  commits={panelContent.snapshot.commits}
-                  selectedId={controller.selectedCommitId}
-                  expandSelectedMessage
-                  graphStyle={controller.preferences.graphStyle}
-                  graphNodeY={graphNodeY}
-                  onSelect={controller.selectCommit}
-                  onAction={controller.handleCommitAction}
-                />
-              </div>
-            </>
-          ) : panelContent.mode === "settings" ? (
+          {panelContent.mode === "settings" ? (
             <SettingsPanel
               preferences={controller.preferences}
               availableWorkspaceTargets={controller.availableWorkspaceTargets}
@@ -224,7 +174,11 @@ export default function App() {
                       onSwitchBranch={controller.switchBranch}
                     />
                   ) : null}
-                  <WorktreeContext worktrees={panelContent.snapshot.worktrees} onOpenWorktree={controller.openWorktree} />
+                  <WorktreeContext
+                    worktrees={panelContent.snapshot.worktrees}
+                    onOpenWorktree={controller.openWorktree}
+                    onCleanupWorktree={controller.cleanupWorktree}
+                  />
                   <div className={commitScrollRegion.className}>
                     <RecentCommits
                       commits={panelContent.snapshot.commits}
@@ -235,7 +189,6 @@ export default function App() {
                       onAction={controller.handleCommitAction}
                     />
                   </div>
-
                 </>
               ) : (
                 <EmptyRepositoryState
@@ -252,7 +205,6 @@ export default function App() {
 
               <Footer
                 onOpenRepo={controller.openRepository}
-                onEnterZen={() => updatePreferences(appPreferencesWithZenMode(controller.preferences, true))}
                 onOpenSettings={() => controller.setSettingsOpen(true)}
                 onOpenWorkspace={controller.openWorkspace}
                 activeWorkspaceTarget={workspaceOpenTarget}
@@ -262,7 +214,6 @@ export default function App() {
                 changedNowCount={changedNowCount}
                 preferences={controller.preferences}
                 availableWorkspaceTargets={controller.availableWorkspaceTargets}
-                showZenEntry={controller.preferences.showZenEntry}
                 notice={controller.notice}
                 onOpenChangedNow={toggleChangedNowWindow}
               />

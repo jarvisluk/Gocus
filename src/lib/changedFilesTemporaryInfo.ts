@@ -7,7 +7,6 @@ interface ChangedFilesTemporaryInfoOptions {
   collapsedRailChangedNowOpen: boolean;
   settingsOpen: boolean;
   workspaceOpenTarget: WorkspaceOpenTarget | "";
-  zenActive: boolean;
 }
 
 export function changedFilesTemporaryInfoPayload({
@@ -17,9 +16,8 @@ export function changedFilesTemporaryInfoPayload({
   collapsedRailChangedNowOpen,
   settingsOpen,
   workspaceOpenTarget,
-  zenActive,
 }: ChangedFilesTemporaryInfoOptions): TemporaryInfoPayload {
-  if (!snapshot || !changedNowWindowOpen || settingsOpen || zenActive) return null;
+  if (!snapshot || !changedNowWindowOpen || settingsOpen) return null;
   if (collapsed && !collapsedRailChangedNowOpen) return null;
 
   return {

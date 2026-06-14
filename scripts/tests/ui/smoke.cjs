@@ -4,11 +4,12 @@ const assert = require("node:assert/strict");
 
 const screenshotPath = process.env.GIT_PEEK_SMOKE_SCREENSHOT;
 const graphAnchorScreenshotPath = process.env.GIT_PEEK_GRAPH_ANCHOR_SCREENSHOT;
+const narrowViewport = { width: 320, height: 720 };
 const compactViewport = { width: 390, height: 720 };
 const desktopViewport = { width: 960, height: 720 };
 const temporaryInfoViewport = { width: 280, height: 252 };
 const changedFileInfoViewport = { width: 280, height: 252 };
-const commitInfoViewport = { width: 348, height: 132 };
+const commitInfoViewport = { width: 348, height: 240 };
 const allWorkspaceTargets = ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"];
 const footerCommitFullHash = "d4e5f6a000000000000000000000000000000000";
 
@@ -226,6 +227,7 @@ function installGitPeekMock(config) {
   window.__gitPeekTemporaryInfoPayload = config.temporaryInfoPayload ?? null;
   window.__gitPeekChangedFileInfoPayload = config.changedFileInfoPayload ?? null;
   window.__gitPeekCommitInfoPayload = config.commitInfoPayload ?? null;
+  window.__gitPeekCommitInfoSetCalls = [];
   window.__gitPeekWorkspaceOpenMenuPayload = null;
   window.__gitPeekTemporaryInfoListeners = [];
   window.__gitPeekChangedFileInfoListeners = [];
@@ -233,6 +235,8 @@ function installGitPeekMock(config) {
   window.__gitPeekCommitInfoListeners = [];
   window.__gitPeekPreferencesListeners = [];
   window.__gitPeekPinnedListeners = [];
+  window.__gitPeekCommitInfoPanelActive = Boolean(config.commitInfoPanelActive);
+  window.__gitPeekCommitInfoInteractionHolds = [];
   window.__gitPeekPinnedState = Boolean(config.pinned);
   window.__gitPeekActiveWorkspaceTarget =
     config.activeWorkspaceTarget ??
@@ -372,9 +376,15 @@ function installGitPeekMock(config) {
     },
     setCommitInfoPanel: async (payload) => {
       if (config.setCommitInfoPanelError) throw new Error(config.setCommitInfoPanelError);
+      window.__gitPeekCommitInfoSetCalls.push(payload?.commit?.hash ?? null);
       window.__gitPeekCommitInfoPayload = payload;
       window.__gitPeekCommitInfoListeners.forEach((callback) => callback(payload));
     },
+    holdCommitInfoPanelInteraction: async (durationMs) => {
+      window.__gitPeekCommitInfoInteractionHolds.push(durationMs);
+      window.__gitPeekCommitInfoPanelActive = true;
+    },
+    isCommitInfoPanelActive: async () => window.__gitPeekCommitInfoPanelActive,
     setCommitInfoPanelHeight: async (height) => {
       window.__gitPeekCommitInfoPanelHeights.push(height);
     },
@@ -690,7 +700,7 @@ async function openMockedPage(browser, baseUrl, scenario, options = {}) {
   });
   page.on("pageerror", (error) => errors.push(`page error: ${error.message}`));
 
-  await page.addInitScript(installGitPeekMock, scenario);
+  await page.addInitScript(installGitPeekMock, { ...scenario, ...options });
   await page.goto(baseUrl, { waitUntil: "networkidle" });
 
   return { page, errors };
@@ -962,6 +972,37 @@ async function testCommitHoverPanel(browser, baseUrl) {
   }
 }
 
+async function testCommitPreviewBlurKeepsActiveInfoPanel(browser, baseUrl) {
+  const { page, errors } = await openMockedPage(browser, baseUrl, mockedSnapshotScenario(mockCommits), {
+    commitInfoPanelActive: true,
+  });
+  try {
+    await assertHealthyPage(page, errors);
+
+    await page.getByRole("button", { name: /Add commit search polish/ }).click();
+    await page.waitForFunction(() => window.__gitPeekCommitInfoPayload?.commit?.hash === "a1b2c3d");
+    assert.deepEqual(await page.evaluate(() => window.__gitPeekCommitInfoSetCalls), ["a1b2c3d"]);
+    await page.evaluate(() => {
+      const button = document.querySelector(".commit-row.is-selected .commit-select");
+      button?.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: null }));
+    });
+    await page.waitForTimeout(120);
+    assert.equal(await page.evaluate(() => window.__gitPeekCommitInfoPayload?.commit?.hash), "a1b2c3d");
+    assert.deepEqual(await page.evaluate(() => window.__gitPeekCommitInfoSetCalls), ["a1b2c3d"]);
+
+    await page.evaluate(() => {
+      window.__gitPeekCommitInfoPanelActive = false;
+      const button = document.querySelector(".commit-row.is-selected .commit-select");
+      button?.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: null }));
+    });
+    await page.waitForFunction(() => window.__gitPeekCommitInfoPayload === null);
+    assert.deepEqual(await page.evaluate(() => window.__gitPeekCommitInfoSetCalls), ["a1b2c3d", null]);
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
 async function testCommitInfoPanel(browser, baseUrl) {
   const { page, errors } = await openMockedPage(
     browser,
@@ -984,7 +1025,7 @@ async function testCommitInfoPanel(browser, baseUrl) {
     const reportedHeights = await page.evaluate(() => window.__gitPeekCommitInfoPanelHeights);
     const reportedHeight = reportedHeights[reportedHeights.length - 1];
     assert.ok(reportedHeight >= 92, `commit info panel height should keep a readable minimum: ${reportedHeight}`);
-    assert.ok(reportedHeight <= 164, `commit info panel height should stay within the compact cap: ${reportedHeight}`);
+    assert.ok(reportedHeight <= 240, `commit info panel height should stay within the commit info cap: ${reportedHeight}`);
 
     const panelText = await hoverPanel.innerText();
     assert.match(panelText, /Codex/);
@@ -998,6 +1039,64 @@ async function testCommitInfoPanel(browser, baseUrl) {
     await page.getByRole("button", { name: "Copy commit hash" }).click();
     await page.getByRole("button", { name: "Copied commit hash" }).waitFor();
     assert.equal(await page.evaluate(() => window.__gitPeekCopiedText), mockCommits[0].fullHash);
+    assert.deepEqual(await page.evaluate(() => window.__gitPeekCommitInfoInteractionHolds), [700]);
+    await page.evaluate(
+      (commit) => window.gitPeek.setCommitInfoPanel({ kind: "commit", commit }),
+      commit({
+        hash: "bad9e42",
+        title: "Keep branch badges readable",
+        message: "Keep branch badges readable",
+        refs: [
+          "codex/worktree-graph-prototype-detail-branch-badge-wrap-keeps-full-text-visible",
+          "feature/secondary-branch-badge-wraps-onto-a-new-line",
+        ],
+        refColors: ["#22c55e", "#f59e0b"],
+        containedBranches: [],
+      }),
+    );
+    await page.waitForFunction(() => window.__gitPeekCommitInfoPayload?.commit?.hash === "bad9e42");
+    await page.waitForFunction(() => window.__gitPeekCommitInfoPanelHeights?.some((height) => height > 164));
+    const refLayout = await page.locator(".commit-hover-refs").evaluate((node) => {
+      const containerStyle = window.getComputedStyle(node);
+      const pills = Array.from(node.querySelectorAll(".commit-hover-ref-pill")).map((pill) => {
+        const pillStyle = window.getComputedStyle(pill);
+        const label = pill.querySelector("span");
+        const labelStyle = label ? window.getComputedStyle(label) : null;
+        const rect = pill.getBoundingClientRect();
+        return {
+          text: label?.textContent ?? "",
+          top: rect.top,
+          overflowX: pillStyle.overflowX,
+          textOverflow: pillStyle.textOverflow,
+          whiteSpace: pillStyle.whiteSpace,
+          labelOverflowX: labelStyle?.overflowX ?? "",
+          labelTextOverflow: labelStyle?.textOverflow ?? "",
+          labelWhiteSpace: labelStyle?.whiteSpace ?? "",
+        };
+      });
+
+      return {
+        flexWrap: containerStyle.flexWrap,
+        pills,
+      };
+    });
+    assert.equal(refLayout.flexWrap, "wrap");
+    assert.deepEqual(
+      refLayout.pills.map((pill) => pill.text),
+      [
+        "codex/worktree-graph-prototype-detail-branch-badge-wrap-keeps-full-text-visible",
+        "feature/secondary-branch-badge-wraps-onto-a-new-line",
+      ],
+    );
+    assert.ok(refLayout.pills[1].top > refLayout.pills[0].top, "multiple branch badges should wrap onto another line");
+    for (const pill of refLayout.pills) {
+      assert.equal(pill.overflowX, "visible");
+      assert.equal(pill.textOverflow, "clip");
+      assert.equal(pill.whiteSpace, "normal");
+      assert.equal(pill.labelOverflowX, "visible");
+      assert.equal(pill.labelTextOverflow, "clip");
+      assert.equal(pill.labelWhiteSpace, "normal");
+    }
     await page.evaluate(
       (commit) => window.gitPeek.setCommitInfoPanel({ kind: "commit", commit }),
       commit({
@@ -1684,7 +1783,6 @@ async function testResponsiveShell(browser, baseUrl) {
       await assertNoHorizontalOverflow(page, `${name} shell`);
       await assertVisibleWithinViewport(page, page.getByRole("button", { name: "Settings" }), `${name} settings button`);
       await assertVisibleWithinViewport(page, page.getByRole("button", { name: "Open Changed now" }), `${name} Changed now button`);
-      await assertVisibleWithinViewport(page, page.getByRole("button", { name: "Enter Zen mode" }), `${name} Zen button`);
 
       await page.getByRole("button", { name: "Search commits" }).click();
       await page.getByRole("searchbox", { name: "Search commits" }).fill("footer");
@@ -2147,6 +2245,68 @@ async function testTemporaryInfoStartupFailuresDoNotBreakWindow(browser, baseUrl
   }
 }
 
+async function testRepositoryDropdownFitsNarrowViewport(browser, baseUrl) {
+  const currentRepositoryPath = "/Users/junrong/codespace/git-tree-vis";
+  const longRepositoryPath = "/Users/junrong/codespace/Codex Keyring";
+  const { page, errors } = await openMockedPage(
+    browser,
+    baseUrl,
+    {
+      ...mockedSnapshotScenario(mockCommits, { repoPath: currentRepositoryPath, repoName: "git-tree-vis" }),
+      recentRepositories: [
+        {
+          path: longRepositoryPath,
+          name: "Codex Keyring",
+          repositoryKey: "mock-codex-keyring",
+        },
+      ],
+    },
+    { viewport: narrowViewport },
+  );
+  try {
+    await assertHealthyPage(page, errors);
+
+    const repoMenuButton = page.getByRole("button", { name: "Switch recent repository" });
+    await repoMenuButton.hover();
+    assert.equal(await page.locator("#repo-title-path-tooltip").count(), 0);
+    assert.equal(await repoMenuButton.getAttribute("aria-describedby"), null);
+    await repoMenuButton.click();
+
+    const repoMenu = page.locator("#repo-switch-menu");
+    await repoMenu.waitFor();
+    await assertVisibleWithinViewport(page, repoMenu, "repository switch menu");
+    await assertNoHorizontalOverflow(page, "repository switch menu");
+    const menuLayout = await repoMenu.evaluate((menu) => {
+      const rect = menu.getBoundingClientRect();
+      const path = Array.from(menu.querySelectorAll("code")).find((item) => item.textContent === "/Users/junrong/codespace/Codex Keyring");
+      const pathStyle = path ? window.getComputedStyle(path) : null;
+
+      return {
+        itemText: Array.from(menu.querySelectorAll(".repo-menu-item")).map((item) => item.textContent?.trim()),
+        left: rect.left,
+        right: rect.right,
+        pathOverflowWrap: pathStyle?.overflowWrap,
+        pathWhiteSpace: pathStyle?.whiteSpace,
+        viewportWidth: window.innerWidth,
+      };
+    });
+    assert.ok(menuLayout.left >= 15, `repository switch menu should keep left padding: ${JSON.stringify(menuLayout)}`);
+    assert.ok(
+      menuLayout.right <= menuLayout.viewportWidth - 15,
+      `repository switch menu should keep right padding: ${JSON.stringify(menuLayout)}`,
+    );
+    assert.equal(menuLayout.pathWhiteSpace, "normal");
+    assert.equal(menuLayout.pathOverflowWrap, "anywhere");
+    assert.ok(
+      menuLayout.itemText.some((text) => text === `Codex Keyring - codespace${longRepositoryPath}`),
+      `repository switch menu should render the full path text: ${JSON.stringify(menuLayout)}`,
+    );
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
 async function testDismissableMenus(browser, baseUrl) {
   const { page, errors } = await openMockedPage(browser, baseUrl, dismissableMenuScenario(), { viewport: desktopViewport });
   try {
@@ -2250,7 +2410,6 @@ async function testFocusedViewEscapeControls(browser, baseUrl) {
       "Launch at login",
       "Show menu bar icon",
       "Disable fast-forward merges",
-      "Show Zen mode entry",
     ];
     const behaviorToggleBounds = await Promise.all(
       behaviorToggleLabels.map(async (name) => {
@@ -2266,23 +2425,10 @@ async function testFocusedViewEscapeControls(browser, baseUrl) {
         `${toggle.name} should align with ${firstBehaviorToggle.name}: ${JSON.stringify(behaviorToggleBounds)}`,
       );
     });
-    await page.evaluate(() => {
-      window.__gitPeekPreferencesListeners.forEach((callback) => callback({ zenMode: true }));
-    });
-    await page.getByRole("button", { name: "Exit Zen mode" }).waitFor();
-    assert.equal(await page.getByRole("heading", { name: "Settings" }).count(), 0);
-    assert.equal(await page.evaluate(() => document.documentElement.dataset.zenMode), "true");
     assert.deepEqual(
       await page.evaluate(() => window.__gitPeekSavedPreferences.map((preferences) => preferences.autoRefreshInterval)),
       ["5m"],
     );
-    await page.keyboard.press("Escape");
-    await page.getByRole("heading", { name: "Settings" }).waitFor();
-    assert.equal(await page.evaluate(() => document.documentElement.dataset.zenMode), "false");
-    assert.deepEqual(await page.evaluate(() => window.__gitPeekSavedPreferences.map((preferences) => preferences.zenMode)), [
-      false,
-      false,
-    ]);
 
     await page.getByRole("button", { name: "Open external app settings" }).click();
     await page.getByRole("heading", { name: "Open in" }).waitFor();
@@ -2293,24 +2439,6 @@ async function testFocusedViewEscapeControls(browser, baseUrl) {
     assert.equal(await page.getByRole("heading", { name: "Open in" }).count(), 0);
     await page.keyboard.press("Escape");
     await page.getByRole("heading", { name: "Commits" }).waitFor();
-
-    await page.getByRole("button", { name: "Enter Zen mode" }).click();
-    await page.getByRole("button", { name: "Exit Zen mode" }).waitFor();
-    assert.equal(await page.evaluate(() => document.documentElement.dataset.zenMode), "true");
-    assert.deepEqual(await page.evaluate(() => window.__gitPeekSavedPreferences.map((preferences) => preferences.zenMode)), [
-      false,
-      false,
-      true,
-    ]);
-    await page.keyboard.press("Escape");
-    await page.getByRole("heading", { name: "Commits" }).waitFor();
-    assert.equal(await page.evaluate(() => document.documentElement.dataset.zenMode), "false");
-    assert.deepEqual(await page.evaluate(() => window.__gitPeekSavedPreferences.map((preferences) => preferences.zenMode)), [
-      false,
-      false,
-      true,
-      false,
-    ]);
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -2355,6 +2483,7 @@ async function main() {
   try {
     await testSelectedCommitGraphAnchor(browser, baseUrl);
     await testCommitHoverPanel(browser, baseUrl);
+    await testCommitPreviewBlurKeepsActiveInfoPanel(browser, baseUrl);
     await testCommitInfoPanel(browser, baseUrl);
     await testCommitSearch(browser, baseUrl);
     await testLargeCommitListVirtualizes(browser, baseUrl);
@@ -2382,6 +2511,7 @@ async function main() {
     await testPreviewRefreshWithoutBridge(browser, baseUrl);
     await testOptionalStartupFailuresDoNotBreakMainWindow(browser, baseUrl);
     await testTemporaryInfoStartupFailuresDoNotBreakWindow(browser, baseUrl);
+    await testRepositoryDropdownFitsNarrowViewport(browser, baseUrl);
     await testDismissableMenus(browser, baseUrl);
     await testFocusedViewEscapeControls(browser, baseUrl);
     await testSettingsOpenInEmptyState(browser, baseUrl);

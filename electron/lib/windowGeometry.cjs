@@ -5,7 +5,7 @@ const temporaryInfoWindowSize = { width: 280, height: 252 };
 const changedFileInfoWindowSize = { width: 280, height: 252 };
 const commitInfoWindowSize = { width: 348, height: 132 };
 const commitInfoWindowMinimumHeight = 92;
-const commitInfoWindowMaximumHeight = 164;
+const commitInfoWindowMaximumHeight = 240;
 const temporaryInfoWindowGap = 10;
 const collapsedRailMaximumHeight = 420;
 

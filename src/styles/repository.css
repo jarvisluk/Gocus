@@ -1,5 +1,7 @@
 .repo-title {
+  position: relative;
   min-width: 0;
+  -webkit-app-region: no-drag;
 }
 
 .repo-title-button {
@@ -66,6 +68,17 @@
   color: var(--text-faint);
   font-family: var(--mono-font);
   font-size: var(--type-micro-size);
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+@media (max-width: 460px) {
+  .repo-switch-menu {
+    left: calc((var(--control-md) + 8px) * -1);
+    width: calc(100vw - 36px);
+  }
 }
 
 .repository-state-banner {
