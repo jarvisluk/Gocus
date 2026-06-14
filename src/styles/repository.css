@@ -39,51 +39,6 @@
   min-width: 0;
 }
 
-.repo-title-tooltip {
-  --repo-title-tooltip-right-spacing: var(--space-3xl);
-  --repo-title-tooltip-left-edge: calc(var(--space-3xl) + var(--control-md) + 5px);
-
-  position: absolute;
-  top: calc(100% + 8px);
-  left: -5px;
-  z-index: 45;
-  width: max-content;
-  max-width: min(
-    360px,
-    calc(100vw - var(--repo-title-tooltip-left-edge) - var(--repo-title-tooltip-right-spacing))
-  );
-  padding: 7px 9px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-strong);
-  box-shadow: var(--activity-popover-shadow);
-  color: var(--text);
-  font-family: var(--mono-font);
-  font-size: var(--type-caption-size);
-  font-weight: var(--font-weight-body);
-  line-height: 1.35;
-  opacity: 0;
-  overflow-wrap: anywhere;
-  pointer-events: none;
-  transform: translateY(-3px);
-  transition: opacity 120ms ease, transform 120ms ease;
-  visibility: hidden;
-  white-space: normal;
-}
-
-.repo-title:hover + .repo-title-tooltip,
-.header-repo-switcher:focus-within .repo-title-tooltip {
-  opacity: 1;
-  transform: translateY(0);
-  visibility: visible;
-}
-
-.header-repo-switcher.is-open .repo-title-tooltip {
-  opacity: 0;
-  transform: translateY(-3px);
-  visibility: hidden;
-}
-
 .repo-switch-menu {
   position: absolute;
   z-index: 40;
@@ -113,6 +68,17 @@
   color: var(--text-faint);
   font-family: var(--mono-font);
   font-size: var(--type-micro-size);
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+@media (max-width: 460px) {
+  .repo-switch-menu {
+    left: calc((var(--control-md) + 8px) * -1);
+    width: calc(100vw - 36px);
+  }
 }
 
 .repository-state-banner {

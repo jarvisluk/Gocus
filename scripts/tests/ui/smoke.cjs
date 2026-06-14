@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 
 const screenshotPath = process.env.GIT_PEEK_SMOKE_SCREENSHOT;
 const graphAnchorScreenshotPath = process.env.GIT_PEEK_GRAPH_ANCHOR_SCREENSHOT;
+const narrowViewport = { width: 320, height: 720 };
 const compactViewport = { width: 390, height: 720 };
 const desktopViewport = { width: 960, height: 720 };
 const temporaryInfoViewport = { width: 280, height: 252 };
@@ -2206,77 +2207,61 @@ async function testTemporaryInfoStartupFailuresDoNotBreakWindow(browser, baseUrl
   }
 }
 
-async function testStaticRepositoryPathTooltip(browser, baseUrl) {
-  const longRepositoryPath = [
-    "",
-    "Users",
-    "junrong",
-    "codespace",
-    "git-tree-vis",
-    "repositories",
-    "with-a-very-long-workspace-folder-name-that-needs-to-wrap-inside-the-tooltip",
-    "and-another-long-segment-to-prove-wrapping",
-  ].join("/");
+async function testRepositoryDropdownFitsNarrowViewport(browser, baseUrl) {
+  const currentRepositoryPath = "/Users/junrong/codespace/git-tree-vis";
+  const longRepositoryPath = "/Users/junrong/codespace/Codex Keyring";
   const { page, errors } = await openMockedPage(
     browser,
     baseUrl,
-    mockedSnapshotScenario(mockCommits, { repoPath: longRepositoryPath, repoName: "git-tree-vis-long-path" }),
-    { viewport: compactViewport },
+    {
+      ...mockedSnapshotScenario(mockCommits, { repoPath: currentRepositoryPath, repoName: "git-tree-vis" }),
+      recentRepositories: [
+        {
+          path: longRepositoryPath,
+          name: "Codex Keyring",
+          repositoryKey: "mock-codex-keyring",
+        },
+      ],
+    },
+    { viewport: narrowViewport },
   );
   try {
     await assertHealthyPage(page, errors);
 
-    const repoTitle = page.locator(".repo-title");
-    const repoPathTooltip = page.locator("#repo-title-path-tooltip");
-    assert.equal(
-      await repoTitle.evaluate((title) => window.getComputedStyle(title).getPropertyValue("-webkit-app-region")),
-      "no-drag",
-    );
-    await repoTitle.hover();
-    await page.waitForFunction(() => {
-      const tooltip = document.querySelector("#repo-title-path-tooltip");
-      if (!tooltip) return false;
-      const style = window.getComputedStyle(tooltip);
-      return style.opacity === "1" && style.visibility === "visible";
-    });
-    assert.equal(await repoPathTooltip.innerText(), longRepositoryPath);
-    await assertVisibleWithinViewport(page, repoPathTooltip, "static repository path tooltip");
-    const tooltipLayout = await repoPathTooltip.evaluate((tooltip) => {
-      const style = window.getComputedStyle(tooltip);
-      const rootStyle = window.getComputedStyle(document.documentElement);
-      const rect = tooltip.getBoundingClientRect();
-      const lineHeight = Number.parseFloat(style.lineHeight);
-      const paddingY = Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom);
-      const singleLineHeight = lineHeight + paddingY;
-      const expectedRightSpacing =
-        Number.parseFloat(style.getPropertyValue("--repo-title-tooltip-right-spacing")) ||
-        Number.parseFloat(rootStyle.getPropertyValue("--space-3xl"));
+    const repoMenuButton = page.getByRole("button", { name: "Switch recent repository" });
+    await repoMenuButton.hover();
+    assert.equal(await page.locator("#repo-title-path-tooltip").count(), 0);
+    assert.equal(await repoMenuButton.getAttribute("aria-describedby"), null);
+    await repoMenuButton.click();
+
+    const repoMenu = page.locator("#repo-switch-menu");
+    await repoMenu.waitFor();
+    await assertVisibleWithinViewport(page, repoMenu, "repository switch menu");
+    await assertNoHorizontalOverflow(page, "repository switch menu");
+    const menuLayout = await repoMenu.evaluate((menu) => {
+      const rect = menu.getBoundingClientRect();
+      const path = Array.from(menu.querySelectorAll("code")).find((item) => item.textContent === "/Users/junrong/codespace/Codex Keyring");
+      const pathStyle = path ? window.getComputedStyle(path) : null;
 
       return {
-        expectedRightSpacing,
-        height: rect.height,
-        maxWidth: Number.parseFloat(style.maxWidth),
-        overflowWrap: style.overflowWrap,
-        rightSpacing: window.innerWidth - rect.right,
-        singleLineHeight,
+        itemText: Array.from(menu.querySelectorAll(".repo-menu-item")).map((item) => item.textContent?.trim()),
+        left: rect.left,
+        right: rect.right,
+        pathOverflowWrap: pathStyle?.overflowWrap,
+        pathWhiteSpace: pathStyle?.whiteSpace,
         viewportWidth: window.innerWidth,
-        whiteSpace: style.whiteSpace,
-        width: rect.width,
       };
     });
-    assert.equal(tooltipLayout.whiteSpace, "normal");
-    assert.equal(tooltipLayout.overflowWrap, "anywhere");
+    assert.ok(menuLayout.left >= 15, `repository switch menu should keep left padding: ${JSON.stringify(menuLayout)}`);
     assert.ok(
-      tooltipLayout.width <= tooltipLayout.maxWidth + 1,
-      `long repository path tooltip should stay within max width: ${JSON.stringify(tooltipLayout)}`,
+      menuLayout.right <= menuLayout.viewportWidth - 15,
+      `repository switch menu should keep right padding: ${JSON.stringify(menuLayout)}`,
     );
+    assert.equal(menuLayout.pathWhiteSpace, "normal");
+    assert.equal(menuLayout.pathOverflowWrap, "anywhere");
     assert.ok(
-      tooltipLayout.rightSpacing >= tooltipLayout.expectedRightSpacing - 1,
-      `long repository path tooltip should preserve right spacing: ${JSON.stringify(tooltipLayout)}`,
-    );
-    assert.ok(
-      tooltipLayout.height > tooltipLayout.singleLineHeight + 1,
-      `long repository path tooltip should wrap onto multiple lines: ${JSON.stringify(tooltipLayout)}`,
+      menuLayout.itemText.some((text) => text === `Codex Keyring - codespace${longRepositoryPath}`),
+      `repository switch menu should render the full path text: ${JSON.stringify(menuLayout)}`,
     );
     assert.deepEqual(errors, []);
   } finally {
@@ -2290,23 +2275,11 @@ async function testDismissableMenus(browser, baseUrl) {
     await assertHealthyPage(page, errors);
 
     const repoMenuButton = page.getByRole("button", { name: "Switch recent repository" });
-    const repoPathTooltip = page.locator("#repo-title-path-tooltip");
-    await repoMenuButton.hover();
-    await page.waitForFunction(() => {
-      const tooltip = document.querySelector("#repo-title-path-tooltip");
-      if (!tooltip) return false;
-      const style = window.getComputedStyle(tooltip);
-      return style.opacity === "1" && style.visibility === "visible";
-    });
-    assert.equal(await repoMenuButton.getAttribute("aria-describedby"), "repo-title-path-tooltip");
-    assert.equal(await repoPathTooltip.innerText(), "/Users/junrong/codespace/git-tree-vis");
-    await assertVisibleWithinViewport(page, repoPathTooltip, "repository path tooltip");
     await repoMenuButton.click();
     await page.locator("#repo-switch-menu").waitFor();
     assert.equal(await repoMenuButton.getAttribute("id"), "repo-switch-trigger");
     assert.equal(await repoMenuButton.getAttribute("aria-expanded"), "true");
     assert.equal(await page.locator("#repo-switch-menu").getAttribute("aria-labelledby"), "repo-switch-trigger");
-    assert.equal(await repoPathTooltip.evaluate((tooltip) => window.getComputedStyle(tooltip).visibility), "hidden");
     await page.keyboard.press("Escape");
     assert.equal(await page.locator("#repo-switch-menu").count(), 0);
     assert.equal(await repoMenuButton.getAttribute("aria-expanded"), "false");
@@ -2500,7 +2473,7 @@ async function main() {
     await testPreviewRefreshWithoutBridge(browser, baseUrl);
     await testOptionalStartupFailuresDoNotBreakMainWindow(browser, baseUrl);
     await testTemporaryInfoStartupFailuresDoNotBreakWindow(browser, baseUrl);
-    await testStaticRepositoryPathTooltip(browser, baseUrl);
+    await testRepositoryDropdownFitsNarrowViewport(browser, baseUrl);
     await testDismissableMenus(browser, baseUrl);
     await testFocusedViewEscapeControls(browser, baseUrl);
     await testSettingsOpenInEmptyState(browser, baseUrl);

@@ -5142,7 +5142,6 @@ async function testPanelHeaderView(server) {
     canSwitchRepository: false,
     repositoryTitle: "Git Peek",
     repositoryPathLabel: "No working folder",
-    repositoryPathTooltip: null,
   });
 
   assert.deepEqual(panelHeaderView(snapshot, [sameRepositoryDifferentPath, other]), {
@@ -5169,11 +5168,6 @@ async function testPanelHeaderView(server) {
     canSwitchRepository: true,
     repositoryTitle: "git-tree-vis",
     repositoryPathLabel: current.path,
-    repositoryPathTooltip: {
-      id: "repo-title-path-tooltip",
-      className: "repo-title-tooltip",
-      text: current.path,
-    },
   });
   assert.equal(repositoryOptionActive(sameRepositoryDifferentPath, current), true);
   assert.equal(repositoryOptionActive(other, current), false);
@@ -5237,7 +5231,7 @@ async function testPanelHeaderView(server) {
   assert.equal(panelPinnedStateAfterToggle(true), false);
   assert.equal(panelPinnedNotice(true), "Panel pinned above other windows.");
   assert.equal(panelPinnedNotice(false), "Panel unpinned.");
-  assert.deepEqual(panelRepositoryTriggerView({ canSwitchRepository: true, repoMenuOpen: true, repositoryPath: current.path }), {
+  assert.deepEqual(panelRepositoryTriggerView({ canSwitchRepository: true, repoMenuOpen: true }), {
     id: "repo-switch-trigger",
     className: "repo-title repo-title-button is-open",
     disabled: false,
@@ -5245,9 +5239,8 @@ async function testPanelHeaderView(server) {
     ariaHasPopup: "menu",
     ariaExpanded: true,
     ariaControls: "repo-switch-menu",
-    ariaDescribedBy: "repo-title-path-tooltip",
   });
-  assert.deepEqual(panelRepositoryTriggerView({ canSwitchRepository: false, repoMenuOpen: false, repositoryPath: "" }), {
+  assert.deepEqual(panelRepositoryTriggerView({ canSwitchRepository: false, repoMenuOpen: false }), {
     id: "repo-switch-trigger",
     className: "repo-title",
     disabled: true,
@@ -5255,7 +5248,6 @@ async function testPanelHeaderView(server) {
     ariaHasPopup: "menu",
     ariaExpanded: false,
     ariaControls: "repo-switch-menu",
-    ariaDescribedBy: undefined,
   });
   assert.deepEqual(panelHeaderActionsView({ pinned: false, refreshing: false, hasRepository: false }), {
     className: "header-actions",

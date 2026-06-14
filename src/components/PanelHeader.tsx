@@ -13,7 +13,6 @@ import {
   type PanelHeaderActionIcon,
   type PanelHeaderBranchPillIcon,
 } from "../lib/panelHeaderView";
-import { joinClass } from "../lib/classNames";
 import { useDismissableLayer } from "../lib/useDismissableLayer";
 import type { GitSnapshot, RecentRepository } from "../types";
 
@@ -59,11 +58,10 @@ export function PanelHeader({
     recentRepositoryOptions,
     canSwitchRepository,
     repositoryPathLabel,
-    repositoryPathTooltip,
     repositoryTitle,
   } = panelView;
   const openRepositoryButton = panelHeaderOpenRepositoryButtonView();
-  const repositoryTrigger = panelRepositoryTriggerView({ canSwitchRepository, repoMenuOpen, repositoryPath: snapshot?.repoPath ?? "" });
+  const repositoryTrigger = panelRepositoryTriggerView({ canSwitchRepository, repoMenuOpen });
   const repositoryMenu = panelRepositoryMenuView();
   const actionsView = panelHeaderActionsView({ pinned, refreshing, hasRepository: Boolean(snapshot) });
 
@@ -80,7 +78,7 @@ export function PanelHeader({
       <IconButton label={openRepositoryButton.label} onClick={onOpen}>
         <Route aria-hidden="true" />
       </IconButton>
-      <div className={joinClass(panelView.repoSwitcher.className, repoMenuOpen && "is-open")} ref={repoSwitcherRef}>
+      <div className={panelView.repoSwitcher.className} ref={repoSwitcherRef}>
         {canSwitchRepository ? (
           <button
             id={repositoryTrigger.id}
@@ -90,7 +88,6 @@ export function PanelHeader({
             aria-haspopup={repositoryTrigger.ariaHasPopup}
             aria-expanded={repositoryTrigger.ariaExpanded}
             aria-controls={repositoryTrigger.ariaControls}
-            aria-describedby={repositoryTrigger.ariaDescribedBy}
             onClick={() => setRepoMenuOpen((current) => panelRepositoryMenuOpenAfterToggle(current, canSwitchRepository))}
           >
             <span className={panelView.repositoryTitleCopy.className}>
@@ -105,11 +102,6 @@ export function PanelHeader({
             <span>{repositoryPathLabel}</span>
           </div>
         )}
-        {repositoryPathTooltip ? (
-          <span className={repositoryPathTooltip.className} id={repositoryPathTooltip.id} role="tooltip">
-            {repositoryPathTooltip.text}
-          </span>
-        ) : null}
         {repoMenuOpen && snapshot ? (
           <div
             className={repositoryMenu.className}
