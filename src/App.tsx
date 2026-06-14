@@ -169,7 +169,11 @@ export default function App() {
                       onSwitchBranch={controller.switchBranch}
                     />
                   ) : null}
-                  <WorktreeContext worktrees={panelContent.snapshot.worktrees} onOpenWorktree={controller.openWorktree} />
+                  <WorktreeContext
+                    worktrees={panelContent.snapshot.worktrees}
+                    onOpenWorktree={controller.openWorktree}
+                    onCleanupWorktree={controller.cleanupWorktree}
+                  />
                   <div className={commitScrollRegion.className}>
                     <RecentCommits
                       commits={panelContent.snapshot.commits}

@@ -3,6 +3,7 @@ function registerIpcHandlers({
   checkout,
   chooseRepository,
   clearRepositoryPath,
+  cleanupWorktree,
   clipboard,
   config,
   createBranch,
@@ -157,6 +158,25 @@ function registerIpcHandlers({
       };
     } catch (error) {
       return errorResponse(error, "Unable to open worktree.");
+    }
+  });
+
+  ipcMain.handle("git:cleanupWorktree", async (_event, worktreePath, view) => {
+    const repositoryPath = repositoryPathForAction();
+    if (!repositoryPath) return noRepositoryResponse();
+
+    try {
+      const snapshot = await cleanupWorktree(repositoryPath, worktreePath, normalizeView(view));
+      saveRepositoryPath(snapshot.repoPath, snapshot.repositoryKey);
+      buildMenus();
+      sendSnapshotResponse({ ok: true, snapshot });
+      return {
+        ok: true,
+        message: "Cleaned up worktree.",
+        snapshot,
+      };
+    } catch (error) {
+      return errorResponse(error, "Unable to clean up worktree.");
     }
   });
 

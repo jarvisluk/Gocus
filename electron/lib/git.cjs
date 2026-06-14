@@ -47,6 +47,7 @@ const starterGitIgnore = [
 const defaultCommitLogLimit = 300;
 const maxCommitLogLimit = 2000;
 const dirtyWorkspaceMergeNotice = "Workspace has uncommitted changes. Commit them before merging.";
+const cleanupBaseBranchCandidates = ["main", "master"];
 
 function normalizeCommitLogLimit(value = process.env.GIT_PEEK_COMMIT_LOG_LIMIT) {
   const parsed = Number.parseInt(`${value ?? ""}`, 10);
@@ -174,6 +175,21 @@ function parseContainedBranchTips(output) {
     .filter((branch) => branch.name && branch.hash && branch.fullName.startsWith("refs/heads/"));
 }
 
+function defaultWorktreeCleanup(overrides = {}) {
+  return {
+    status: "unknown",
+    safeToRemove: false,
+    action: "none",
+    reason: "Audit unavailable.",
+    detail: "Refresh Git status before cleaning up this worktree.",
+    baseBranch: "",
+    uniquePatchCount: null,
+    containedBranches: [],
+    prunableReason: "",
+    ...overrides,
+  };
+}
+
 function parseWorktrees(output, currentRoot) {
   return output
     .split(/\n\s*\n/)
@@ -189,6 +205,7 @@ function parseWorktrees(output, currentRoot) {
         bare: false,
         current: false,
         counts: { modified: 0, staged: 0, untracked: 0 },
+        cleanup: defaultWorktreeCleanup(),
       };
 
       for (const line of block.split("\n").filter(Boolean)) {
@@ -199,6 +216,16 @@ function parseWorktrees(output, currentRoot) {
         if (key === "branch") worktree.branch = value.replace(/^refs\/heads\//, "");
         if (key === "detached") worktree.detached = true;
         if (key === "bare") worktree.bare = true;
+        if (key === "prunable") {
+          worktree.cleanup = defaultWorktreeCleanup({
+            status: "prunable",
+            safeToRemove: true,
+            action: "prune",
+            reason: "Stale metadata.",
+            detail: value || "Git reports this worktree metadata can be pruned.",
+            prunableReason: value,
+          });
+        }
       }
 
       worktree.current = path.resolve(worktree.path) === path.resolve(currentRoot);
@@ -219,6 +246,165 @@ async function gitPathExists(root, gitPath) {
     if (error?.code === "ENOENT") return false;
     throw error;
   }
+}
+
+function hasWorktreeChanges(counts = {}) {
+  return Boolean(counts.modified || counts.staged || counts.untracked);
+}
+
+async function cleanupBaseBranch(root) {
+  for (const branchName of cleanupBaseBranchCandidates) {
+    const refName = `refs/heads/${branchName}`;
+    const exists = await runGit(root, ["show-ref", "--verify", refName]).then(() => true, () => false);
+    if (exists) return branchName;
+  }
+
+  return "";
+}
+
+function parseContainedBranches(output) {
+  return output
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((name) => !name.startsWith("("));
+}
+
+async function containedBranchesForHead(root, head) {
+  if (!head) return [];
+  const output = await runGit(root, ["branch", "--format=%(refname:short)", "--contains", head]).catch(() => "");
+  return parseContainedBranches(output);
+}
+
+async function headIsAncestorOfBranch(root, head, branchName) {
+  if (!head || !branchName) return false;
+  return runGit(root, ["merge-base", "--is-ancestor", head, branchName]).then(() => true, () => false);
+}
+
+async function uniquePatchCountFromBranch(root, branchName, head) {
+  if (!branchName || !head) return null;
+  const output = await runGit(root, ["rev-list", "--right-only", "--cherry-pick", "--count", `${branchName}...${head}`]).catch(
+    () => "",
+  );
+  const parsed = Number.parseInt(output.trim(), 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+async function comparableWorktreePath(value) {
+  return realPathForCompare(value).catch(() => path.resolve(value));
+}
+
+async function auditWorktreeCleanup(root, worktree) {
+  if (worktree.cleanup?.status === "prunable") return worktree;
+
+  if (worktree.bare) {
+    return {
+      ...worktree,
+      cleanup: defaultWorktreeCleanup({
+        reason: "Bare repository.",
+        detail: "Bare repositories are not cleanup candidates.",
+      }),
+    };
+  }
+
+  if (worktree.current) {
+    return {
+      ...worktree,
+      cleanup: defaultWorktreeCleanup({
+        status: "current",
+        reason: "Current worktree.",
+        detail: "Open another worktree before removing this one.",
+      }),
+    };
+  }
+
+  if (!worktree.detached) {
+    return {
+      ...worktree,
+      cleanup: defaultWorktreeCleanup({
+        status: "attached",
+        reason: "Branch worktree.",
+        detail: "Branch worktrees are kept out of the detached cleanup demo.",
+      }),
+    };
+  }
+
+  if (hasWorktreeChanges(worktree.counts)) {
+    return {
+      ...worktree,
+      cleanup: defaultWorktreeCleanup({
+        status: "dirty",
+        reason: "Uncommitted changes.",
+        detail: "Commit, stash, or discard local changes before removing this worktree.",
+      }),
+    };
+  }
+
+  const [baseBranch, containedBranches] = await Promise.all([cleanupBaseBranch(root), containedBranchesForHead(root, worktree.head)]);
+  const [headContainedByBase, uniquePatchCount] = await Promise.all([
+    headIsAncestorOfBranch(root, worktree.head, baseBranch),
+    uniquePatchCountFromBranch(root, baseBranch, worktree.head),
+  ]);
+
+  if (headContainedByBase) {
+    return {
+      ...worktree,
+      cleanup: defaultWorktreeCleanup({
+        status: "merged",
+        safeToRemove: true,
+        action: "remove",
+        reason: `Contained by ${baseBranch}.`,
+        detail: "This clean detached worktree points to history already reachable from the base branch.",
+        baseBranch,
+        uniquePatchCount,
+        containedBranches,
+      }),
+    };
+  }
+
+  if (containedBranches.length) {
+    return {
+      ...worktree,
+      cleanup: defaultWorktreeCleanup({
+        status: "branch-preserved",
+        safeToRemove: true,
+        action: "remove",
+        reason: "HEAD has a branch.",
+        detail: `The detached shell can be removed because ${containedBranches[0]} still preserves this HEAD.`,
+        baseBranch,
+        uniquePatchCount,
+        containedBranches,
+      }),
+    };
+  }
+
+  if (uniquePatchCount === 0) {
+    return {
+      ...worktree,
+      cleanup: defaultWorktreeCleanup({
+        status: "patch-equivalent",
+        safeToRemove: true,
+        action: "remove",
+        reason: `No unique patch vs ${baseBranch}.`,
+        detail: "Git's cherry-pick comparison found no patch content that only exists in this detached worktree.",
+        baseBranch,
+        uniquePatchCount,
+        containedBranches,
+      }),
+    };
+  }
+
+  return {
+    ...worktree,
+    cleanup: defaultWorktreeCleanup({
+      status: "review",
+      reason: "Needs review.",
+      detail: "This clean detached worktree still has unique patch content and no branch preserving its HEAD.",
+      baseBranch,
+      uniquePatchCount,
+      containedBranches,
+    }),
+  };
 }
 
 function repositoryOperationLabel(operation) {
@@ -264,12 +450,12 @@ async function repositoryStateForGit(root, status) {
   };
 }
 
-async function enrichWorktree(worktree) {
+async function enrichWorktree(root, worktree) {
   if (worktree.bare || !worktree.path) return worktree;
 
   const [headRaw, statusRaw] = await Promise.all([
     worktree.head
-      ? runGit(worktree.path, ["show", "-s", "--date=relative", "--format=%h%x1f%s%x1f%cr", worktree.head]).catch(() => "")
+      ? runGit(root, ["show", "-s", "--date=relative", "--format=%h%x1f%s%x1f%cr", worktree.head]).catch(() => "")
       : Promise.resolve(""),
     runGit(worktree.path, ["status", "--porcelain=v1", "-b"]).catch(() => ""),
   ]);
@@ -343,7 +529,8 @@ async function readGitSnapshot(repoPath, view = { mode: "all" }) {
     ]).catch(() => ""),
     runGit(root, ["worktree", "list", "--porcelain"]).catch(() => ""),
   ]);
-  const worktrees = await Promise.all(parseWorktrees(worktreesRaw, root).map(enrichWorktree));
+  const enrichedWorktrees = await Promise.all(parseWorktrees(worktreesRaw, root).map((worktree) => enrichWorktree(root, worktree)));
+  const worktrees = await Promise.all(enrichedWorktrees.map((worktree) => auditWorktreeCleanup(root, worktree)));
   const branches = parseBranches(branchesRaw, status.branch.name);
   const graphContext = {
     ...graphContextForWorktrees(worktrees, status, branches),
@@ -466,6 +653,46 @@ async function openWorktree(repoPath, worktreePath, view) {
   return readGitSnapshot(worktree.path, view);
 }
 
+async function cleanupWorktree(repoPath, worktreePath, view) {
+  if (typeof worktreePath !== "string" || !worktreePath.trim()) {
+    throw new Error("Worktree path is required.");
+  }
+
+  const root = await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
+  const worktreesRaw = await runGit(root, ["worktree", "list", "--porcelain"]);
+  const enrichedWorktrees = await Promise.all(parseWorktrees(worktreesRaw, root).map((worktree) => enrichWorktree(root, worktree)));
+  const worktrees = await Promise.all(enrichedWorktrees.map((worktree) => auditWorktreeCleanup(root, worktree)));
+  const targetPath = await comparableWorktreePath(worktreePath);
+  let worktree = null;
+
+  for (const candidate of worktrees) {
+    if ((await comparableWorktreePath(candidate.path)) === targetPath) {
+      worktree = candidate;
+      break;
+    }
+  }
+
+  if (!worktree) {
+    throw new Error("Worktree is not part of the current repository.");
+  }
+
+  if (!worktree.cleanup?.safeToRemove) {
+    throw new Error(worktree.cleanup?.detail || "This worktree is not safe to remove.");
+  }
+
+  if (worktree.cleanup.action === "prune") {
+    await runGit(root, ["worktree", "prune"]);
+    return readGitSnapshot(root, view);
+  }
+
+  if (worktree.cleanup.action !== "remove") {
+    throw new Error("This worktree does not have a cleanup action.");
+  }
+
+  await runGit(root, ["worktree", "remove", worktree.path]);
+  return readGitSnapshot(root, view);
+}
+
 async function initializeRepository(folderPath, view) {
   const folder = await readFolderWithoutGit(folderPath);
   await initGitRepository(folder.path);
@@ -480,6 +707,7 @@ async function initializeRepository(folderPath, view) {
 
 module.exports = {
   checkout,
+  cleanupWorktree,
   createBranch,
   defaultCommitLogLimit,
   dirtyWorkspaceMergeNotice,
