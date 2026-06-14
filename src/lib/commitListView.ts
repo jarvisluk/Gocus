@@ -281,12 +281,31 @@ export function commitSearchClearButtonView(searchQuery: string) {
   };
 }
 
+export function commitSearchCopyButtonView(searchQuery: string) {
+  return {
+    className: "commit-search-copy",
+    ariaLabel: "Copy commit search",
+    disabled: !searchQuery,
+    title: searchQuery ? "Copy search" : "Nothing to copy",
+  };
+}
+
+export function commitSearchPasteButtonView() {
+  return {
+    className: "commit-search-paste",
+    ariaLabel: "Paste commit search",
+    title: "Paste search",
+  };
+}
+
 export function commitListView(commits: readonly CommitItem[], searchQuery: string, searchOpen = false) {
   const searchTerms = commitSearchTerms(searchQuery);
   const filteredCommits = commits.filter((commit) => commitMatchesSearch(commit, searchTerms));
   const canSearch = commits.length > 0;
   const searchActive = canSearch && (searchOpen || searchTerms.length > 0);
   const searchClearButton = commitSearchClearButtonView(searchQuery);
+  const searchCopyButton = commitSearchCopyButtonView(searchQuery);
+  const searchPasteButton = commitSearchPasteButtonView();
   const countLabel = searchTerms.length ? `Showing ${filteredCommits.length}/${commits.length}` : `Showing ${commits.length}`;
   const emptyMessage = commits.length ? `No commits match "${searchQuery.trim()}".` : "No commits yet.";
 
@@ -318,6 +337,8 @@ export function commitListView(commits: readonly CommitItem[], searchQuery: stri
     },
     showSearchClearButton: searchClearButton.show,
     searchInput: commitSearchInputView(),
+    searchCopyButton,
+    searchPasteButton,
     searchClearButton,
     list: {
       className: "commit-list",

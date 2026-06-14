@@ -3,7 +3,7 @@
   height: var(--icon-sm);
 }
 
-.commit-search .commit-search-clear svg,
+.commit-search :is(.commit-search-clear, .commit-search-copy, .commit-search-paste) svg,
 :is(.branch-switch-button, .repo-menu-check, .repo-menu-item, .ui-segmented) svg {
   width: var(--icon-xs);
   height: var(--icon-xs);

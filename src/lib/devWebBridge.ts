@@ -104,6 +104,7 @@ export function installDevWebBridge() {
     isCommitInfoPanelActive: async () => false,
     setCommitInfoPanelHeight: async (_height: number) => {},
     copyText: async (text: string) => navigator.clipboard?.writeText(text),
+    readText: async () => navigator.clipboard?.readText() ?? "",
     getSystemTheme: async () => (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"),
     onTemporaryInfoPayloadUpdated: (callback) => {
       temporaryInfoCallbacks.add(callback);

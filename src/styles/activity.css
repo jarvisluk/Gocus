@@ -99,10 +99,10 @@
 
 .commit-search {
   min-width: 0;
-  width: min(148px, 42vw);
+  width: min(216px, 58vw);
   height: 26px;
   display: grid;
-  grid-template-columns: 17px minmax(0, 1fr) 22px;
+  grid-template-columns: 17px minmax(0, 1fr) repeat(3, 22px);
   align-items: center;
   gap: 2px;
   padding: 0 2px 0 7px;
@@ -132,8 +132,13 @@
   color: var(--text-faint);
 }
 
-.commit-search .commit-search-clear {
+.commit-search :is(.commit-search-clear, .commit-search-copy, .commit-search-paste) {
   width: 22px;
   height: 22px;
   border-radius: var(--radius-sm);
+}
+
+.commit-search button:disabled {
+  opacity: 0.38;
+  cursor: default;
 }

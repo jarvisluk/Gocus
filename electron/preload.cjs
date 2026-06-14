@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld("gitPeek", {
   isCommitInfoPanelActive: () => ipcRenderer.invoke("window:isCommitInfoPanelActive"),
   setCommitInfoPanelHeight: (height) => ipcRenderer.invoke("window:setCommitInfoPanelHeight", height),
   copyText: (text) => ipcRenderer.invoke("clipboard:writeText", text),
+  readText: () => ipcRenderer.invoke("clipboard:readText"),
   getSystemTheme: () => ipcRenderer.invoke("theme:getSystemTheme"),
   onTemporaryInfoPayloadUpdated: (callback) => {
     const handler = (_event, payload) => callback(payload);

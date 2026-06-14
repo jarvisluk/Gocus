@@ -223,7 +223,7 @@ function installGitPeekMock(config) {
 
   window.__gitPeekActions = [];
   window.__gitPeekCopiedText = "";
-  window.__gitPeekClipboardText = "";
+  window.__gitPeekClipboardText = config.clipboardText ?? "";
   window.__gitPeekTemporaryInfoPayload = config.temporaryInfoPayload ?? null;
   window.__gitPeekChangedFileInfoPayload = config.changedFileInfoPayload ?? null;
   window.__gitPeekCommitInfoPayload = config.commitInfoPayload ?? null;
@@ -403,6 +403,10 @@ function installGitPeekMock(config) {
     copyText: async (text) => {
       if (config.copyTextError) throw new Error(config.copyTextError);
       window.__gitPeekCopiedText = text;
+    },
+    readText: async () => {
+      if (config.readTextError) throw new Error(config.readTextError);
+      return window.__gitPeekClipboardText;
     },
     openWorkspace: async (target) => {
       window.__gitPeekOpenedWorkspaces.push(target);
@@ -1162,9 +1166,21 @@ async function testCommitSearch(browser, baseUrl) {
     assert.equal(await closeSearchToggle.getAttribute("aria-controls"), "commit-search-form");
     assert.equal(await closeSearchToggle.getAttribute("aria-expanded"), "true");
     await page.locator("#commit-search-form").waitFor();
-    await page.getByRole("searchbox", { name: "Search commits" }).fill("footer");
+    const copySearch = page.getByRole("button", { name: "Copy commit search" });
+    const pasteSearch = page.getByRole("button", { name: "Paste commit search" });
+    assert.equal(await copySearch.isDisabled(), true);
+    assert.equal(await pasteSearch.isEnabled(), true);
+
+    await page.evaluate(() => {
+      window.__gitPeekClipboardText = "footer";
+    });
+    await pasteSearch.click();
+    assert.equal(await page.getByRole("searchbox", { name: "Search commits" }).inputValue(), "footer");
     assert.equal(await page.locator(".commit-count").innerText(), "Showing 1/2");
     await page.getByRole("status").filter({ hasText: "Showing 1/2" }).waitFor();
+    assert.equal(await copySearch.isEnabled(), true);
+    await copySearch.click();
+    assert.equal(await page.evaluate(() => window.__gitPeekCopiedText), "footer");
     await page.getByRole("searchbox", { name: "Search commits" }).press("Enter");
     assert.equal(await page.locator(".commit-row.is-selected .commit-title-text").innerText(), "Fix footer changed now toggle");
 

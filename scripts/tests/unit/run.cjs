@@ -2454,6 +2454,17 @@ async function testCommitListView(server) {
     ariaLabel: "Search commits",
     placeholder: "Search",
   });
+  assert.deepEqual(commitListView(commits, "", true).searchCopyButton, {
+    className: "commit-search-copy",
+    ariaLabel: "Copy commit search",
+    disabled: true,
+    title: "Nothing to copy",
+  });
+  assert.deepEqual(commitListView(commits, "", true).searchPasteButton, {
+    className: "commit-search-paste",
+    ariaLabel: "Paste commit search",
+    title: "Paste search",
+  });
   assert.deepEqual(commitListView(commits, "", true).searchClearButton, {
     show: false,
     className: "commit-search-clear",
@@ -2466,6 +2477,12 @@ async function testCommitListView(server) {
     show: true,
     className: "commit-search-clear",
     ariaLabel: "Clear commit search",
+  });
+  assert.deepEqual(commitListView(commits, "footer").searchCopyButton, {
+    className: "commit-search-copy",
+    ariaLabel: "Copy commit search",
+    disabled: false,
+    title: "Copy search",
   });
   assert.deepEqual(
     commitListView(commits, "footer").filteredCommits.map((item) => item.id),
@@ -4325,7 +4342,7 @@ async function testCommitPrompt(server) {
 }
 
 async function testCopyText(server) {
-  const { copyTextTarget, copyTextWithFallback } = await loadTsModule(server, "src/lib/copyText.ts");
+  const { copyTextTarget, copyTextWithFallback, readTextWithFallback } = await loadTsModule(server, "src/lib/copyText.ts");
   const calls = [];
   const bridge = {
     copyText: async (text) => calls.push(`bridge:${text}`),
@@ -4395,6 +4412,43 @@ async function testCopyText(server) {
   );
   assert.deepEqual(calls, ["bridge:fail", "clipboard:fail"]);
   await assert.rejects(() => copyTextWithFallback("missing", {}), /Clipboard is unavailable/);
+
+  assert.equal(
+    await readTextWithFallback({
+      bridge: {
+        readText: async () => "bridge text",
+      },
+      clipboard: {
+        readText: async () => "clipboard text",
+      },
+    }),
+    "bridge text",
+  );
+  assert.equal(
+    await readTextWithFallback({
+      bridge: {
+        readText: async () => {
+          throw new Error("bridge failed");
+        },
+      },
+      clipboard: {
+        readText: async () => "clipboard fallback",
+      },
+    }),
+    "clipboard fallback",
+  );
+  await assert.rejects(
+    () =>
+      readTextWithFallback({
+        bridge: {
+          readText: async () => {
+            throw new Error("read failed");
+          },
+        },
+      }),
+    /read failed/,
+  );
+  await assert.rejects(() => readTextWithFallback({}), /Clipboard is unavailable/);
 }
 
 async function testDismissableLayer(server) {
