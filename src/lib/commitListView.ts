@@ -45,11 +45,16 @@ export interface CommitVirtualWindow {
   virtualized: boolean;
 }
 
+export type CommitScrollSelectionAlignment = "nearest" | "center";
+
 export interface CommitScrollSelectionOptions {
   itemCount: number;
   selectedIndex: number;
   scrollTop: number;
   viewportHeight: number;
+  alignment?: CommitScrollSelectionAlignment;
+  listViewportTop?: number;
+  maxScrollTop?: number;
 }
 
 function clampNumber(value: number, min: number, max: number) {
@@ -83,6 +88,9 @@ export function commitScrollTopForSelection({
   selectedIndex,
   scrollTop,
   viewportHeight,
+  alignment = "nearest",
+  listViewportTop,
+  maxScrollTop,
 }: CommitScrollSelectionOptions) {
   const safeItemCount = Math.max(0, itemCount);
   const selected = normalizedSelectedIndex(selectedIndex, safeItemCount);
@@ -92,15 +100,23 @@ export function commitScrollTopForSelection({
   const selectedBottom = commitVirtualRowOffset(selected + 1, safeItemCount, selected);
   const safeViewportHeight = Math.max(0, viewportHeight);
   const safeScrollTop = Math.max(0, scrollTop);
-  const scrollBottom = safeScrollTop + safeViewportHeight;
+  const safeListViewportTop = listViewportTop ?? safeScrollTop;
+  const scrollBottom = safeListViewportTop + safeViewportHeight;
 
-  if (selectedTop >= safeScrollTop && selectedBottom <= scrollBottom) return null;
+  if (alignment === "nearest" && selectedTop >= safeListViewportTop && selectedBottom <= scrollBottom) return null;
 
   const totalHeight = commitVirtualTotalHeight(safeItemCount, selected);
-  const maxScrollTop = Math.max(0, totalHeight - safeViewportHeight);
-  const nextScrollTop = selectedTop < safeScrollTop ? selectedTop : selectedBottom - safeViewportHeight;
+  const safeMaxScrollTop = Math.max(0, maxScrollTop ?? totalHeight - safeViewportHeight);
+  const nextListViewportTop =
+    alignment === "center"
+      ? selectedTop + (selectedBottom - selectedTop) / 2 - safeViewportHeight / 2
+      : selectedTop < safeListViewportTop
+        ? selectedTop
+        : selectedBottom - safeViewportHeight;
+  const nextScrollTop = safeScrollTop + nextListViewportTop - safeListViewportTop;
 
-  return clampNumber(nextScrollTop, 0, maxScrollTop);
+  const clampedScrollTop = clampNumber(nextScrollTop, 0, safeMaxScrollTop);
+  return clampedScrollTop === safeScrollTop ? null : clampedScrollTop;
 }
 
 function commitVirtualIndexAtOffset(offset: number, itemCount: number, selectedIndex: number) {
@@ -265,12 +281,31 @@ export function commitSearchClearButtonView(searchQuery: string) {
   };
 }
 
+export function commitSearchCopyButtonView(searchQuery: string) {
+  return {
+    className: "commit-search-copy",
+    ariaLabel: "Copy commit search",
+    disabled: !searchQuery,
+    title: searchQuery ? "Copy search" : "Nothing to copy",
+  };
+}
+
+export function commitSearchPasteButtonView() {
+  return {
+    className: "commit-search-paste",
+    ariaLabel: "Paste commit search",
+    title: "Paste search",
+  };
+}
+
 export function commitListView(commits: readonly CommitItem[], searchQuery: string, searchOpen = false) {
   const searchTerms = commitSearchTerms(searchQuery);
   const filteredCommits = commits.filter((commit) => commitMatchesSearch(commit, searchTerms));
   const canSearch = commits.length > 0;
   const searchActive = canSearch && (searchOpen || searchTerms.length > 0);
   const searchClearButton = commitSearchClearButtonView(searchQuery);
+  const searchCopyButton = commitSearchCopyButtonView(searchQuery);
+  const searchPasteButton = commitSearchPasteButtonView();
   const countLabel = searchTerms.length ? `Showing ${filteredCommits.length}/${commits.length}` : `Showing ${commits.length}`;
   const emptyMessage = commits.length ? `No commits match "${searchQuery.trim()}".` : "No commits yet.";
 
@@ -302,6 +337,8 @@ export function commitListView(commits: readonly CommitItem[], searchQuery: stri
     },
     showSearchClearButton: searchClearButton.show,
     searchInput: commitSearchInputView(),
+    searchCopyButton,
+    searchPasteButton,
     searchClearButton,
     list: {
       className: "commit-list",

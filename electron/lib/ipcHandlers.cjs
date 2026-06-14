@@ -277,6 +277,8 @@ function registerIpcHandlers({
     clipboard.writeText(typeof text === "string" ? text : "");
   });
 
+  ipcMain.handle("clipboard:readText", () => clipboard.readText());
+
   ipcMain.handle("theme:getSystemTheme", () => getSystemTheme());
 }
 

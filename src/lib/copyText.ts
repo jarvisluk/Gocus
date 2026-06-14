@@ -8,6 +8,10 @@ export interface ClipboardWriter {
   writeText?: (text: string) => Promise<void> | void;
 }
 
+export interface ClipboardReader {
+  readText?: () => Promise<string> | string;
+}
+
 export function copyTextTarget({
   bridge,
   clipboard,
@@ -46,6 +50,29 @@ export async function copyTextWithFallback(
     await writeText(text);
     return "clipboard";
   }
+
+  throw new Error("Clipboard is unavailable.");
+}
+
+export async function readTextWithFallback({
+  bridge,
+  clipboard,
+}: {
+  bridge?: ClipboardReader | null;
+  clipboard?: ClipboardReader | null;
+}): Promise<string> {
+  const bridgeReadText = bridge?.readText;
+  const clipboardReadText = clipboard?.readText;
+
+  if (bridgeReadText) {
+    try {
+      return await bridgeReadText();
+    } catch (error) {
+      if (!clipboardReadText) throw error;
+    }
+  }
+
+  if (clipboardReadText) return clipboardReadText();
 
   throw new Error("Clipboard is unavailable.");
 }

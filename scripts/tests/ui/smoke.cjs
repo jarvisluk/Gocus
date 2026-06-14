@@ -223,7 +223,7 @@ function installGitPeekMock(config) {
 
   window.__gitPeekActions = [];
   window.__gitPeekCopiedText = "";
-  window.__gitPeekClipboardText = "";
+  window.__gitPeekClipboardText = config.clipboardText ?? "";
   window.__gitPeekTemporaryInfoPayload = config.temporaryInfoPayload ?? null;
   window.__gitPeekChangedFileInfoPayload = config.changedFileInfoPayload ?? null;
   window.__gitPeekCommitInfoPayload = config.commitInfoPayload ?? null;
@@ -403,6 +403,10 @@ function installGitPeekMock(config) {
     copyText: async (text) => {
       if (config.copyTextError) throw new Error(config.copyTextError);
       window.__gitPeekCopiedText = text;
+    },
+    readText: async () => {
+      if (config.readTextError) throw new Error(config.readTextError);
+      return window.__gitPeekClipboardText;
     },
     openWorkspace: async (target) => {
       window.__gitPeekOpenedWorkspaces.push(target);
@@ -1162,9 +1166,21 @@ async function testCommitSearch(browser, baseUrl) {
     assert.equal(await closeSearchToggle.getAttribute("aria-controls"), "commit-search-form");
     assert.equal(await closeSearchToggle.getAttribute("aria-expanded"), "true");
     await page.locator("#commit-search-form").waitFor();
-    await page.getByRole("searchbox", { name: "Search commits" }).fill("footer");
+    const copySearch = page.getByRole("button", { name: "Copy commit search" });
+    const pasteSearch = page.getByRole("button", { name: "Paste commit search" });
+    assert.equal(await copySearch.isDisabled(), true);
+    assert.equal(await pasteSearch.isEnabled(), true);
+
+    await page.evaluate(() => {
+      window.__gitPeekClipboardText = "footer";
+    });
+    await pasteSearch.click();
+    assert.equal(await page.getByRole("searchbox", { name: "Search commits" }).inputValue(), "footer");
     assert.equal(await page.locator(".commit-count").innerText(), "Showing 1/2");
     await page.getByRole("status").filter({ hasText: "Showing 1/2" }).waitFor();
+    assert.equal(await copySearch.isEnabled(), true);
+    await copySearch.click();
+    assert.equal(await page.evaluate(() => window.__gitPeekCopiedText), "footer");
     await page.getByRole("searchbox", { name: "Search commits" }).press("Enter");
     assert.equal(await page.locator(".commit-row.is-selected .commit-title-text").innerText(), "Fix footer changed now toggle");
 
@@ -1742,16 +1758,38 @@ async function testLargeCommitListVirtualizes(browser, baseUrl) {
       node.dispatchEvent(new Event("scroll", { bubbles: true }));
     });
     await page.getByRole("button", { name: "Search commits" }).click();
-    await page.getByRole("searchbox", { name: "Search commits" }).fill("159");
+    await page.getByRole("searchbox", { name: "Search commits" }).fill("123");
     await page.getByRole("searchbox", { name: "Search commits" }).press("Enter");
-    assert.equal(await page.locator(".commit-row.is-selected .commit-title-text").innerText(), "Virtualized commit 159");
+    assert.equal(await page.locator(".commit-row.is-selected .commit-title-text").innerText(), "Virtualized commit 123");
     await page.getByRole("button", { name: "Clear commit search" }).click();
     await page.getByRole("status").filter({ hasText: "Showing 160" }).waitFor();
-    await page.getByRole("button", { name: /Virtualized commit 159/ }).waitFor();
-    assert.equal(await page.locator(".commit-row.is-selected .commit-title-text").innerText(), "Virtualized commit 159");
+    await page.getByRole("button", { name: /Virtualized commit 123/ }).waitFor();
+    assert.equal(await page.locator(".commit-row.is-selected .commit-title-text").innerText(), "Virtualized commit 123");
+    const selectedCenterMetrics = await page.locator(".commit-row.is-selected").evaluate((row) => {
+      const scrollRegion = row.closest(".scroll-region");
+      if (!scrollRegion) return null;
+
+      const rowRect = row.getBoundingClientRect();
+      const scrollRect = scrollRegion.getBoundingClientRect();
+      const rowCenter = rowRect.top + rowRect.height / 2;
+      const viewportCenter = scrollRect.top + scrollRect.height / 2;
+
+      return {
+        delta: Math.abs(rowCenter - viewportCenter),
+        rowCenter,
+        viewportCenter,
+        rowTop: rowRect.top,
+        rowBottom: rowRect.bottom,
+        viewportTop: scrollRect.top,
+        viewportBottom: scrollRect.bottom,
+        scrollTop: scrollRegion.scrollTop,
+        maxScrollTop: scrollRegion.scrollHeight - scrollRegion.clientHeight,
+      };
+    });
+    assert.ok(selectedCenterMetrics, "selected commit should be inside the scroll region");
     assert.ok(
-      (await page.locator(".scroll-region").first().evaluate((node) => node.scrollTop)) > 0,
-      "clearing search should scroll the selected commit into view",
+      selectedCenterMetrics.delta <= 40,
+      `clearing search should center the selected commit in the scroll viewport: ${JSON.stringify(selectedCenterMetrics)}`,
     );
     assert.deepEqual(errors, []);
   } finally {

@@ -1,4 +1,4 @@
-import { FileCode2, GitBranch, GitFork, GitMerge, Search, X } from "lucide-react";
+import { ClipboardPaste, Copy, FileCode2, GitBranch, GitFork, GitMerge, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type PointerEvent } from "react";
 import { CommitGraphLayer } from "./CommitGraphLayer";
 import {
@@ -21,6 +21,8 @@ import {
 } from "../lib/commitListView";
 import { runCommitInfoPanelBridgeSideEffect } from "../lib/commitInfoPanelBridge";
 import { commitRowView, type CommitRowAction, type CommitRowActionIcon } from "../lib/commitRowView";
+import { copyTextWithFallback, readTextWithFallback } from "../lib/copyText";
+import { logBridgeWarning } from "../lib/errorMessages";
 import type { CommitInfoAnchorBounds, CommitItem, UiPreferences } from "../types";
 
 function commitActionIcon(icon: CommitRowActionIcon) {
@@ -226,8 +228,10 @@ export function RecentCommits({
     headingToolsClassName,
     list,
     searchClearButton,
+    searchCopyButton,
     searchForm,
     searchInput,
+    searchPasteButton,
     searchTerms,
     searchToggle,
     section,
@@ -273,17 +277,61 @@ export function RecentCommits({
     if (!listNode) return;
 
     const scrollNode = commitScrollContainer(listNode);
+    const scrollRect = scrollNode.getBoundingClientRect();
+    const listRect = listNode.getBoundingClientRect();
     const selectedIndex = filteredCommits.findIndex((commit) => commit.id === selectedId);
+    const maxScrollTop = Math.max(0, scrollNode.scrollHeight - scrollNode.clientHeight);
     const nextScrollTop = commitScrollTopForSelection({
       itemCount: filteredCommits.length,
       selectedIndex,
       scrollTop: scrollNode.scrollTop,
       viewportHeight: scrollNode.clientHeight,
+      alignment: "center",
+      listViewportTop: scrollRect.top - listRect.top,
+      maxScrollTop,
     });
 
-    if (nextScrollTop === null) return;
-    scrollNode.scrollTo({ top: nextScrollTop, behavior: "auto" });
-    setScrollFrame({ scrollTop: nextScrollTop, viewportHeight: scrollNode.clientHeight });
+    if (nextScrollTop !== null) {
+      scrollNode.scrollTo({ top: nextScrollTop, behavior: "auto" });
+      setScrollFrame({ scrollTop: nextScrollTop, viewportHeight: scrollNode.clientHeight });
+    }
+
+    let centerFrame = 0;
+    let centerAttempts = 0;
+    const scheduleCenterRenderedSelection = () => {
+      if (centerFrame) return;
+      centerFrame = window.requestAnimationFrame(centerRenderedSelection);
+    };
+    const centerRenderedSelection = () => {
+      centerFrame = 0;
+      centerAttempts += 1;
+      const selectedRow = listNode.querySelector<HTMLElement>(".commit-row.is-selected");
+      if (!selectedRow) {
+        if (centerAttempts < 6) scheduleCenterRenderedSelection();
+        return;
+      }
+
+      const selectedRect = selectedRow.getBoundingClientRect();
+      const currentScrollRect = scrollNode.getBoundingClientRect();
+      const selectedCenter = selectedRect.top + selectedRect.height / 2;
+      const viewportCenter = currentScrollRect.top + currentScrollRect.height / 2;
+      const centerDelta = selectedCenter - viewportCenter;
+      if (Math.abs(centerDelta) < 1) return;
+      if (centerAttempts >= 6) return;
+
+      const currentMaxScrollTop = Math.max(0, scrollNode.scrollHeight - scrollNode.clientHeight);
+      const centeredScrollTop = Math.min(currentMaxScrollTop, Math.max(0, scrollNode.scrollTop + centerDelta));
+      if (centeredScrollTop === scrollNode.scrollTop) return;
+
+      scrollNode.scrollTo({ top: centeredScrollTop, behavior: "auto" });
+      setScrollFrame({ scrollTop: centeredScrollTop, viewportHeight: scrollNode.clientHeight });
+      scheduleCenterRenderedSelection();
+    };
+
+    scheduleCenterRenderedSelection();
+    return () => {
+      if (centerFrame) window.cancelAnimationFrame(centerFrame);
+    };
   }, [filteredCommits, searchTerms.length, selectedId]);
 
   useEffect(() => {
@@ -362,6 +410,33 @@ export function RecentCommits({
 
   function toggleSearch() {
     applySearchState(commitSearchStateAfterToggle({ searchOpen, searchQuery }, searchToggle));
+  }
+
+  function focusSearchInput(textLength = searchQuery.length) {
+    searchInputRef.current?.focus();
+    searchInputRef.current?.setSelectionRange(textLength, textLength);
+  }
+
+  async function copySearchQuery() {
+    if (!searchQuery) return;
+
+    try {
+      await copyTextWithFallback(searchQuery, { bridge: window.gitPeek, clipboard: navigator.clipboard });
+      focusSearchInput();
+    } catch (error) {
+      logBridgeWarning("Unable to copy commit search.", error);
+    }
+  }
+
+  async function pasteSearchQuery() {
+    try {
+      const clipboardText = await readTextWithFallback({ bridge: window.gitPeek, clipboard: navigator.clipboard });
+      setSearchQuery(clipboardText);
+      window.requestAnimationFrame(() => focusSearchInput(clipboardText.length));
+    } catch (error) {
+      logBridgeWarning("Unable to paste commit search.", error);
+      focusSearchInput();
+    }
   }
 
   function previewCommit(commit: CommitItem, anchorBounds: CommitInfoAnchorBounds) {
@@ -454,6 +529,29 @@ export function RecentCommits({
                   }
                 }}
               />
+              <button
+                className={searchCopyButton.className}
+                type="button"
+                aria-label={searchCopyButton.ariaLabel}
+                disabled={searchCopyButton.disabled}
+                title={searchCopyButton.title}
+                onClick={() => {
+                  void copySearchQuery();
+                }}
+              >
+                <Copy aria-hidden="true" />
+              </button>
+              <button
+                className={searchPasteButton.className}
+                type="button"
+                aria-label={searchPasteButton.ariaLabel}
+                title={searchPasteButton.title}
+                onClick={() => {
+                  void pasteSearchQuery();
+                }}
+              >
+                <ClipboardPaste aria-hidden="true" />
+              </button>
               {searchClearButton.show ? (
                 <button
                   className={searchClearButton.className}

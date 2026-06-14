@@ -57,6 +57,7 @@ declare global {
       isCommitInfoPanelActive?: () => Promise<boolean>;
       setCommitInfoPanelHeight?: (height: number) => Promise<void>;
       copyText: (text: string) => Promise<void>;
+      readText?: () => Promise<string>;
       getSystemTheme: () => Promise<"light" | "dark">;
       onTemporaryInfoPayloadUpdated: (callback: (payload: TemporaryInfoPayload) => void) => () => void;
       onTemporaryInfoPanelClosed: (callback: () => void) => () => void;
