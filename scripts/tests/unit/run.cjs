@@ -977,9 +977,38 @@ async function testGitModule() {
 
   const cleanupDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-worktree-cleanup-"));
   const cleanupRepo = path.join(cleanupDir, "repo");
+  const attachedWorktree = path.join(cleanupDir, "attached");
+  const canonicalWorktree = path.join(cleanupDir, "canonical");
+  const canonicalWorktreeLink = path.join(cleanupDir, "canonical-link");
+  const modifiedWorktree = path.join(cleanupDir, "modified");
   const removableWorktree = path.join(cleanupDir, "removable");
   const reviewWorktree = path.join(cleanupDir, "review");
+  const stagedWorktree = path.join(cleanupDir, "staged");
+  const staleWorktree = path.join(cleanupDir, "stale");
+  const untrackedWorktree = path.join(cleanupDir, "untracked");
   try {
+    const comparableFixturePath = (value) => {
+      const resolvedPath = path.resolve(value);
+      const suffix = [];
+      let currentPath = resolvedPath;
+
+      while (true) {
+        try {
+          return path.join(fs.realpathSync(currentPath), ...suffix.reverse());
+        } catch (error) {
+          if (error.code !== "ENOENT" && error.code !== "ENOTDIR") throw error;
+          const parentPath = path.dirname(currentPath);
+          if (parentPath === currentPath) return resolvedPath;
+          suffix.push(path.basename(currentPath));
+          currentPath = parentPath;
+        }
+      }
+    };
+    const worktreeByRealPath = (snapshot, worktreePath) => {
+      const realWorktreePath = comparableFixturePath(worktreePath);
+      return snapshot.worktrees.find((candidate) => comparableFixturePath(candidate.path) === realWorktreePath);
+    };
+
     fs.mkdirSync(cleanupRepo);
     runGitFixture(cleanupRepo, ["init"]);
     runGitFixture(cleanupRepo, ["checkout", "-b", "main"]);
@@ -988,22 +1017,71 @@ async function testGitModule() {
     fs.writeFileSync(path.join(cleanupRepo, "base.txt"), "base\n", "utf8");
     runGitFixture(cleanupRepo, ["add", "base.txt"]);
     runGitFixture(cleanupRepo, ["commit", "-m", "base"]);
+    runGitFixture(cleanupRepo, ["worktree", "add", "-b", "feature/attached-cleanup", attachedWorktree, "HEAD"]);
+    runGitFixture(cleanupRepo, ["worktree", "add", "--detach", canonicalWorktree, "HEAD"]);
+    runGitFixture(cleanupRepo, ["worktree", "add", "--detach", modifiedWorktree, "HEAD"]);
     runGitFixture(cleanupRepo, ["worktree", "add", "--detach", removableWorktree, "HEAD"]);
     runGitFixture(cleanupRepo, ["worktree", "add", "--detach", reviewWorktree, "HEAD"]);
+    runGitFixture(cleanupRepo, ["worktree", "add", "--detach", stagedWorktree, "HEAD"]);
+    runGitFixture(cleanupRepo, ["worktree", "add", "--detach", staleWorktree, "HEAD"]);
+    runGitFixture(cleanupRepo, ["worktree", "add", "--detach", untrackedWorktree, "HEAD"]);
+    fs.symlinkSync(canonicalWorktree, canonicalWorktreeLink, "dir");
+    fs.appendFileSync(path.join(modifiedWorktree, "base.txt"), "modified\n", "utf8");
     fs.writeFileSync(path.join(reviewWorktree, "review.txt"), "review\n", "utf8");
     runGitFixture(reviewWorktree, ["add", "review.txt"]);
     runGitFixture(reviewWorktree, ["commit", "-m", "review"]);
+    fs.writeFileSync(path.join(stagedWorktree, "staged.txt"), "staged\n", "utf8");
+    runGitFixture(stagedWorktree, ["add", "staged.txt"]);
+    fs.rmSync(staleWorktree, { force: true, recursive: true });
+    fs.writeFileSync(path.join(untrackedWorktree, "untracked.txt"), "untracked\n", "utf8");
 
     const cleanupSnapshot = await readGitSnapshot(cleanupRepo, { mode: "all" });
-    const removablePath = fs.realpathSync(removableWorktree);
-    const reviewPath = fs.realpathSync(reviewWorktree);
-    const removable = cleanupSnapshot.worktrees.find((candidate) => fs.realpathSync(candidate.path) === removablePath);
-    const review = cleanupSnapshot.worktrees.find((candidate) => fs.realpathSync(candidate.path) === reviewPath);
+    const attached = worktreeByRealPath(cleanupSnapshot, attachedWorktree);
+    const modified = worktreeByRealPath(cleanupSnapshot, modifiedWorktree);
+    const removable = worktreeByRealPath(cleanupSnapshot, removableWorktree);
+    const review = worktreeByRealPath(cleanupSnapshot, reviewWorktree);
+    const staged = worktreeByRealPath(cleanupSnapshot, stagedWorktree);
+    const untracked = worktreeByRealPath(cleanupSnapshot, untrackedWorktree);
+    const stale = worktreeByRealPath(cleanupSnapshot, staleWorktree);
+    assert.equal(worktreeByRealPath(cleanupSnapshot, cleanupRepo).cleanup.status, "current");
+    assert.equal(attached.cleanup.status, "attached");
+    assert.equal(modified.cleanup.status, "dirty");
     assert.equal(removable.cleanup.status, "merged");
     assert.equal(removable.cleanup.safeToRemove, true);
     assert.equal(review.cleanup.status, "review");
     assert.equal(review.cleanup.safeToRemove, false);
+    assert.equal(staged.cleanup.status, "dirty");
+    assert.equal(stale.cleanup.status, "prunable");
+    assert.equal(untracked.cleanup.status, "dirty");
 
+    const linkedSnapshot = await readGitSnapshot(canonicalWorktreeLink, { mode: "all" });
+    const canonical = worktreeByRealPath(linkedSnapshot, canonicalWorktree);
+    assert.equal(canonical.current, true);
+    assert.equal(canonical.cleanup.status, "current");
+
+    await assert.rejects(
+      () => cleanupWorktree(cleanupRepo, cleanupRepo, { mode: "all" }),
+      /Open another worktree/,
+    );
+    await assert.rejects(
+      () => cleanupWorktree(cleanupRepo, attachedWorktree, { mode: "all" }),
+      /Branch worktrees/,
+    );
+    await assert.rejects(
+      () => cleanupWorktree(cleanupRepo, modifiedWorktree, { mode: "all" }),
+      /Commit, stash/,
+    );
+    await assert.rejects(
+      () => cleanupWorktree(cleanupRepo, stagedWorktree, { mode: "all" }),
+      /Commit, stash/,
+    );
+    await assert.rejects(
+      () => cleanupWorktree(cleanupRepo, untrackedWorktree, { mode: "all" }),
+      /Commit, stash/,
+    );
+
+    await cleanupWorktree(cleanupRepo, canonicalWorktreeLink, { mode: "all" });
+    assert.equal(fs.existsSync(canonicalWorktree), false);
     await cleanupWorktree(cleanupRepo, removableWorktree, { mode: "all" });
     assert.equal(fs.existsSync(removableWorktree), false);
     await assert.rejects(
@@ -1011,6 +1089,8 @@ async function testGitModule() {
       /unique patch content/,
     );
     assert.equal(fs.existsSync(reviewWorktree), true);
+    const prunedSnapshot = await cleanupWorktree(cleanupRepo, staleWorktree, { mode: "all" });
+    assert.equal(prunedSnapshot.worktrees.some((candidate) => path.resolve(candidate.path) === staleWorktree), false);
   } finally {
     fs.rmSync(cleanupDir, { force: true, recursive: true });
   }
