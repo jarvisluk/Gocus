@@ -190,7 +190,7 @@ function defaultWorktreeCleanup(overrides = {}) {
   };
 }
 
-function parseWorktrees(output, currentRoot) {
+function parseWorktrees(output) {
   return output
     .split(/\n\s*\n/)
     .map((block) => {
@@ -228,7 +228,6 @@ function parseWorktrees(output, currentRoot) {
         }
       }
 
-      worktree.current = path.resolve(worktree.path) === path.resolve(currentRoot);
       return worktree;
     })
     .filter((worktree) => worktree.path);
@@ -291,7 +290,32 @@ async function uniquePatchCountFromBranch(root, branchName, head) {
 }
 
 async function comparableWorktreePath(value) {
-  return realPathForCompare(value).catch(() => path.resolve(value));
+  const resolvedPath = path.resolve(value);
+  const suffix = [];
+  let currentPath = resolvedPath;
+
+  while (true) {
+    try {
+      return path.join(await fs.realpath(currentPath), ...suffix.reverse());
+    } catch (error) {
+      if (error?.code !== "ENOENT" && error?.code !== "ENOTDIR") return resolvedPath;
+      const parentPath = path.dirname(currentPath);
+      if (parentPath === currentPath) return resolvedPath;
+      suffix.push(path.basename(currentPath));
+      currentPath = parentPath;
+    }
+  }
+}
+
+async function markCurrentWorktrees(worktrees, currentRoot) {
+  const currentPath = await comparableWorktreePath(currentRoot);
+
+  return Promise.all(
+    worktrees.map(async (worktree) => ({
+      ...worktree,
+      current: (await comparableWorktreePath(worktree.path)) === currentPath,
+    })),
+  );
 }
 
 async function auditWorktreeCleanup(root, worktree) {
@@ -529,7 +553,8 @@ async function readGitSnapshot(repoPath, view = { mode: "all" }) {
     ]).catch(() => ""),
     runGit(root, ["worktree", "list", "--porcelain"]).catch(() => ""),
   ]);
-  const enrichedWorktrees = await Promise.all(parseWorktrees(worktreesRaw, root).map((worktree) => enrichWorktree(root, worktree)));
+  const parsedWorktrees = await markCurrentWorktrees(parseWorktrees(worktreesRaw), root);
+  const enrichedWorktrees = await Promise.all(parsedWorktrees.map((worktree) => enrichWorktree(root, worktree)));
   const worktrees = await Promise.all(enrichedWorktrees.map((worktree) => auditWorktreeCleanup(root, worktree)));
   const branches = parseBranches(branchesRaw, status.branch.name);
   const graphContext = {
@@ -639,7 +664,7 @@ async function openWorktree(repoPath, worktreePath, view) {
   const requestedPath = await realPathForCompare(worktreePath);
   let worktree = null;
 
-  for (const candidate of parseWorktrees(worktreesRaw, root)) {
+  for (const candidate of parseWorktrees(worktreesRaw)) {
     if ((await realPathForCompare(candidate.path)) === requestedPath) {
       worktree = candidate;
       break;
@@ -660,7 +685,8 @@ async function cleanupWorktree(repoPath, worktreePath, view) {
 
   const root = await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
   const worktreesRaw = await runGit(root, ["worktree", "list", "--porcelain"]);
-  const enrichedWorktrees = await Promise.all(parseWorktrees(worktreesRaw, root).map((worktree) => enrichWorktree(root, worktree)));
+  const parsedWorktrees = await markCurrentWorktrees(parseWorktrees(worktreesRaw), root);
+  const enrichedWorktrees = await Promise.all(parsedWorktrees.map((worktree) => enrichWorktree(root, worktree)));
   const worktrees = await Promise.all(enrichedWorktrees.map((worktree) => auditWorktreeCleanup(root, worktree)));
   const targetPath = await comparableWorktreePath(worktreePath);
   let worktree = null;
