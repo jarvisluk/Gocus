@@ -69,7 +69,7 @@ function drawGraphLine(
     context.lineTo(line.x, line.toY);
   } else {
     context.moveTo(line.startX, line.fromY);
-    context.bezierCurveTo(line.startX, line.controlFromY, line.toX, line.controlToY, line.toX, line.joinY);
+    context.bezierCurveTo(line.controlFromX, line.controlFromY, line.controlToX, line.controlToY, line.toX, line.joinY);
     if (line.toY > line.joinY) context.lineTo(line.toX, line.toY);
   }
 
@@ -94,7 +94,12 @@ function paintGraphCanvas(
 
   context.setTransform(scale, 0, 0, scale, 0, 0);
   context.clearRect(0, 0, model.width, model.height);
-  model.lines.forEach((line) => drawGraphLine(context, line, graphStyle));
+  model.lines.forEach((line) => {
+    if (line.kind === "bridge") drawGraphLine(context, line, graphStyle);
+  });
+  model.lines.forEach((line) => {
+    if (line.kind === "vertical") drawGraphLine(context, line, graphStyle);
+  });
 }
 
 export function CommitGraphLayer({
