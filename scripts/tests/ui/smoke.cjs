@@ -1030,6 +1030,47 @@ async function testCommitInfoPanel(browser, baseUrl) {
     const reportedHeight = reportedHeights[reportedHeights.length - 1];
     assert.ok(reportedHeight >= 92, `commit info panel height should keep a readable minimum: ${reportedHeight}`);
     assert.ok(reportedHeight <= 240, `commit info panel height should stay within the commit info cap: ${reportedHeight}`);
+    const panelSpacing = await hoverPanel.evaluate((panel) => {
+      const primary = panel.querySelector(".commit-hover-primary");
+      const refsSection = panel.querySelector(".commit-hover-refs-section");
+      const refPill = panel.querySelector(".commit-hover-ref-pill");
+      const hashSection = panel.querySelector(".commit-hover-hash-section");
+      const hashRow = panel.querySelector(".commit-hover-hash");
+      const hashCode = panel.querySelector(".commit-hover-hash code");
+      const hashIcon = panel.querySelector(".commit-hover-hash svg");
+      const panelRect = panel.getBoundingClientRect();
+      const primaryRect = primary?.getBoundingClientRect();
+      const refsRect = refsSection?.getBoundingClientRect();
+      const refPillRect = refPill?.getBoundingClientRect();
+      const hashSectionRect = hashSection?.getBoundingClientRect();
+      const hashRowRect = hashRow?.getBoundingClientRect();
+      const hashCodeRect = hashCode?.getBoundingClientRect();
+      const hashIconRect = hashIcon?.getBoundingClientRect();
+      const hashVisibleBottom =
+        hashCodeRect && hashIconRect ? Math.max(hashCodeRect.bottom, hashIconRect.bottom) : (hashCodeRect ?? hashIconRect)?.bottom;
+
+      return {
+        visibleTop: primaryRect ? primaryRect.top - panelRect.top : 0,
+        visibleBottom: hashVisibleBottom ? panelRect.bottom - hashVisibleBottom : 0,
+        outerBottom: hashRowRect ? panelRect.bottom - hashRowRect.bottom : 0,
+        refsTop: refsRect && refPillRect ? refPillRect.top - refsRect.top : 0,
+        refsBottom: refsRect && refPillRect ? refsRect.bottom - refPillRect.bottom : 0,
+        hashTop: hashSectionRect && hashRowRect ? hashRowRect.top - hashSectionRect.top : 0,
+        hashBottom: hashSectionRect && hashRowRect ? hashSectionRect.bottom - hashRowRect.bottom : 0,
+      };
+    });
+    assert.ok(
+      Math.abs(panelSpacing.visibleTop - panelSpacing.visibleBottom) <= 1,
+      `commit info panel visible top/bottom spacing should be balanced: ${JSON.stringify(panelSpacing)}`,
+    );
+    assert.ok(
+      Math.abs(panelSpacing.refsTop - panelSpacing.refsBottom) <= 1,
+      `commit info ref spacing should be balanced: ${JSON.stringify(panelSpacing)}`,
+    );
+    assert.ok(
+      Math.abs(panelSpacing.hashTop - panelSpacing.outerBottom) <= 1,
+      `commit info hash row should sit visually centered above the panel bottom: ${JSON.stringify(panelSpacing)}`,
+    );
 
     const panelText = await hoverPanel.innerText();
     assert.match(panelText, /Codex/);
