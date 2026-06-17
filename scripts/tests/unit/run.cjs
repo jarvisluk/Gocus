@@ -6353,20 +6353,19 @@ async function testClassNamesAndGraph(server) {
     showCore: false,
   });
   assert.equal(canvasModel.nodes[1].showCore, true);
-  assert.ok(canvasModel.lines.some((line) => line.kind === "vertical" && line.x === 33 && line.fromY === 0 && line.toY === 22));
-  assert.ok(
-    canvasModel.lines.some(
-      (line) =>
-        line.kind === "bridge" &&
-        line.fromX === 33 &&
-        line.startX === 30 &&
-        line.toX === 9 &&
-        line.fromY === 22 &&
-        line.toY === line.joinY &&
-        line.controlFromY < line.controlToY &&
-        line.toY < 112,
-    ),
+  assert.ok(canvasModel.lines.some((line) => line.kind === "vertical" && line.x === 33 && line.fromY === 0 && line.toY === 12.5));
+  assert.ok(canvasModel.lines.some((line) => line.kind === "vertical" && line.x === 21 && line.fromY === 31.5));
+  const nodeStartedBridgeLine = canvasModel.lines.find(
+    (line) => line.kind === "bridge" && line.fromX === 33 && line.toX === 9,
   );
+  assert.ok(nodeStartedBridgeLine);
+  assert.equal(nodeStartedBridgeLine.startX, nodeStartedBridgeLine.fromX);
+  assert.equal(nodeStartedBridgeLine.fromY, 31.5);
+  assert.equal(nodeStartedBridgeLine.controlFromX, nodeStartedBridgeLine.startX);
+  assert.equal(nodeStartedBridgeLine.controlToX, 9);
+  assert.equal(nodeStartedBridgeLine.toY, nodeStartedBridgeLine.joinY);
+  assert.ok(nodeStartedBridgeLine.controlFromY < nodeStartedBridgeLine.controlToY);
+  assert.ok(nodeStartedBridgeLine.toY < 112);
   const measuredCanvasModel = buildGitTreeCanvasModel({
     commits: [
       {
@@ -6397,7 +6396,7 @@ async function testClassNamesAndGraph(server) {
   assert.equal(measuredCanvasModel.nodes[1].y, 106);
   assert.ok(
     measuredCanvasModel.lines.some(
-      (line) => line.kind === "vertical" && line.x === 33 && line.fromY === 0 && line.toY === 22,
+      (line) => line.kind === "vertical" && line.x === 33 && line.fromY === 0 && line.toY === 12.5,
     ),
   );
   const staleMeasuredCanvasModel = buildGitTreeCanvasModel({
@@ -6434,7 +6433,12 @@ async function testClassNamesAndGraph(server) {
   });
   assert.ok(
     laneStartedBridgeCanvasModel.lines.some(
-      (line) => line.kind === "bridge" && line.fromX === 33 && line.startX === line.fromX && line.toX === 9,
+      (line) =>
+        line.kind === "bridge" &&
+        line.fromX === 33 &&
+        line.startX === line.fromX &&
+        line.controlFromX === line.startX &&
+        line.toX === 9,
     ),
   );
   const openBridgeCanvasModel = buildGitTreeCanvasModel({
@@ -6456,8 +6460,85 @@ async function testClassNamesAndGraph(server) {
         line.kind === "bridge" &&
         line.toY === 112 &&
         line.joinY < line.toY &&
-        line.startX === 30 &&
+        line.startX === line.fromX &&
+        line.fromY > 31 &&
+        line.controlFromX === line.startX &&
         line.controlFromY < line.controlToY,
+    ),
+  );
+  const adjacentBridgeCanvasModel = buildGitTreeCanvasModel({
+    commits: [
+      {
+        id: "commit-adjacent-bridge",
+        graph: { ...graph, column: 1, bridges: [{ fromColumn: 1, toColumn: 0, color: "#444444", variant: "solid" }] },
+      },
+    ],
+    startIndex: 0,
+    itemCount: 1,
+    selectedIndex: -1,
+    laneCount: 2,
+    nodeY: 22,
+  });
+  const adjacentBridgeLine = adjacentBridgeCanvasModel.lines.find(
+    (line) => line.kind === "bridge" && line.fromX === 21 && line.toX === 9,
+  );
+  assert.ok(adjacentBridgeLine);
+  assert.equal(adjacentBridgeLine.startX, adjacentBridgeLine.fromX);
+  assert.ok(adjacentBridgeLine.fromY > 31);
+  assert.equal(adjacentBridgeLine.controlFromX, adjacentBridgeLine.startX);
+  assert.ok(adjacentBridgeLine.controlFromX > adjacentBridgeLine.toX);
+  assert.ok(adjacentBridgeLine.controlFromY < adjacentBridgeLine.controlToY);
+  const shortRowBridgeCanvasModel = buildGitTreeCanvasModel({
+    commits: [
+      {
+        id: "commit-short-row-bridge",
+        graph,
+      },
+    ],
+    startIndex: 0,
+    itemCount: 1,
+    selectedIndex: -1,
+    laneCount: 3,
+    nodeY: 22,
+    rowLayout: {
+      top: 0,
+      rows: [{ id: "commit-short-row-bridge", top: 0, bottom: 26 }],
+    },
+  });
+  const shortRowBridgeLine = shortRowBridgeCanvasModel.lines.find(
+    (line) => line.kind === "bridge" && line.fromX === 33 && line.toX === 9,
+  );
+  assert.ok(shortRowBridgeLine);
+  assert.ok(shortRowBridgeLine.controlFromY >= shortRowBridgeLine.fromY);
+  assert.ok(shortRowBridgeLine.controlFromY <= shortRowBridgeLine.controlToY);
+  assert.ok(shortRowBridgeLine.controlToY <= shortRowBridgeLine.joinY);
+  const duplicateLaneCollapseCanvasModel = buildGitTreeCanvasModel({
+    commits: [
+      {
+        id: "commit-duplicate-lane-collapse",
+        graph: {
+          ...graph,
+          column: 0,
+          passThrough: [{ column: 1, color: "#222222", variant: "solid", to: "node" }],
+          parentStems: [],
+          bridges: [{ fromColumn: 1, toColumn: 0, color: "#222222", variant: "solid", to: "lane" }],
+        },
+      },
+    ],
+    startIndex: 0,
+    itemCount: 1,
+    selectedIndex: -1,
+    laneCount: 2,
+    nodeY: 22,
+  });
+  assert.ok(
+    duplicateLaneCollapseCanvasModel.lines.some(
+      (line) => line.kind === "vertical" && line.x === 21 && line.fromY === 0 && line.toY === 22,
+    ),
+  );
+  assert.ok(
+    duplicateLaneCollapseCanvasModel.lines.some(
+      (line) => line.kind === "bridge" && line.fromX === 21 && line.startX === 21 && line.fromY === 22 && line.toX === 9,
     ),
   );
 }
