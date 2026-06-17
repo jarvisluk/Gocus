@@ -16,6 +16,8 @@
  - [x] when create branch, provide prefix select: none/fix/feat/...
  - [x] hide commit author when the commit is not selected
  - [x] Auto refresh git tree with timer. can be set in settings. only do auto refresh for a long time without git action
+ - [ ] App name refinement
+ - [ ] App icon refinement
  - [ ] style.css refactor
  - [ ] a web socket, for using the tool in browser. so can see git tree in codex sidebar
  - [ ] remove some settings like lines, fonts, and theme style (no one would use light theme for coding tools)
