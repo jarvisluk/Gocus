@@ -48,6 +48,34 @@ export const closedRepositoryControlsMenus: RepositoryControlsMenuState = {
   worktreeMenuOpen: false,
 };
 
+const automaticWorktreeCleanupStatuses = new Set(["merged", "patch-equivalent", "prunable"]);
+
+export function isAutomaticWorktreeCleanupCandidate(worktree: GitWorktree) {
+  const cleanup = worktree.cleanup;
+  return Boolean(cleanup?.safeToRemove && automaticWorktreeCleanupStatuses.has(cleanup.status));
+}
+
+export function automaticWorktreeCleanupCandidates(worktrees: readonly GitWorktree[]) {
+  return worktrees.filter(isAutomaticWorktreeCleanupCandidate);
+}
+
+export function automaticWorktreeCleanupPaths(worktrees: readonly GitWorktree[]) {
+  const paths: string[] = [];
+  let prunePath = "";
+
+  for (const worktree of automaticWorktreeCleanupCandidates(worktrees)) {
+    if (worktree.cleanup?.action === "prune") {
+      if (!prunePath) prunePath = worktree.path;
+      continue;
+    }
+
+    paths.push(worktree.path);
+  }
+
+  if (prunePath) paths.push(prunePath);
+  return paths;
+}
+
 export function repositoryControlsMenuState(
   current: RepositoryControlsMenuState,
   action: RepositoryControlsMenuAction,
@@ -375,6 +403,7 @@ export function worktreeCleanupStatusLabel(worktree: GitWorktree) {
 export function repositoryWorktreeCleanupActionView(worktree: GitWorktree): RepositoryWorktreeCleanupActionView {
   const cleanup = worktree.cleanup;
   const safeToRemove = Boolean(cleanup?.safeToRemove);
+  const automaticCleanup = isAutomaticWorktreeCleanupCandidate(worktree);
   const show = Boolean(cleanup) && !worktree.current && !worktree.bare && (safeToRemove || cleanup?.status === "dirty");
   const label = cleanup?.action === "prune" ? "Prune" : "Clean";
   const disabledReason = cleanup?.detail || "This worktree is not safe to clean up.";
@@ -386,7 +415,7 @@ export function repositoryWorktreeCleanupActionView(worktree: GitWorktree): Repo
   return {
     show,
     disabled: !safeToRemove,
-    className: joinClass("worktree-cleanup-button", !safeToRemove && "is-disabled"),
+    className: joinClass("worktree-cleanup-button", automaticCleanup && "is-auto-safe", !safeToRemove && "is-disabled"),
     ariaLabel,
     title,
     label,

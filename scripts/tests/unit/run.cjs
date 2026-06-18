@@ -4695,6 +4695,7 @@ async function testCopyText(server) {
 async function testDismissableLayer(server) {
   const {
     dismissableLayerContainsTarget,
+    dismissableLayerEventForTiming,
     dismissableLayerShouldDismissKey,
     dismissableLayerShouldDismissPointer,
   } = await loadTsModule(server, "src/lib/useDismissableLayer.ts");
@@ -4718,6 +4719,9 @@ async function testDismissableLayer(server) {
   assert.equal(dismissableLayerShouldDismissKey("Escape"), true);
   assert.equal(dismissableLayerShouldDismissKey("Enter"), false);
   assert.equal(dismissableLayerShouldDismissKey("Esc"), false);
+
+  assert.equal(dismissableLayerEventForTiming("beforeTargetAction"), "pointerdown");
+  assert.equal(dismissableLayerEventForTiming("afterTargetAction"), "click");
 }
 
 async function testChangedNowView(server) {
@@ -5845,8 +5849,11 @@ async function testRepositoryControlLabels(server) {
 
 async function testRepositoryControlsView(server) {
   const {
+    automaticWorktreeCleanupCandidates,
+    automaticWorktreeCleanupPaths,
     closedRepositoryControlsMenus,
     currentSwitchableWorktree,
+    isAutomaticWorktreeCleanupCandidate,
     repositoryBranchMenuItemView,
     repositoryBranchMenuView,
     repositoryBranchMenuChromeView,
@@ -5911,6 +5918,46 @@ async function testRepositoryControlsView(server) {
       containedBranches: ["feature/branch-shell"],
       prunableReason: "",
     },
+  });
+  const patchEquivalentDetached = worktree({
+    path: "/Users/junrong/.codex/worktrees/73f3/git-tree-vis",
+    branch: "",
+    current: false,
+    detached: true,
+    headShortHash: "73f34d4",
+    cleanup: {
+      status: "patch-equivalent",
+      safeToRemove: true,
+      action: "remove",
+      reason: "No unique patch vs main.",
+      detail: "Git's cherry-pick comparison found no patch content that only exists in this detached worktree.",
+      baseBranch: "main",
+      uniquePatchCount: 0,
+      containedBranches: [],
+      prunableReason: "",
+    },
+  });
+  const staleMetadata = worktree({
+    path: "/Users/junrong/.codex/worktrees/stale/git-tree-vis",
+    branch: "",
+    current: false,
+    detached: true,
+    headShortHash: "0000000",
+    cleanup: {
+      status: "prunable",
+      safeToRemove: true,
+      action: "prune",
+      reason: "Stale metadata.",
+      detail: "Git reports this worktree metadata can be pruned.",
+      baseBranch: "",
+      uniquePatchCount: null,
+      containedBranches: [],
+      prunableReason: "gone",
+    },
+  });
+  const otherStaleMetadata = worktree({
+    ...staleMetadata,
+    path: "/Users/junrong/.codex/worktrees/other-stale/git-tree-vis",
   });
   const dirtyBranch = worktree({
     path: "/Users/junrong/.codex/worktrees/b848/git-tree-vis",
@@ -6384,11 +6431,25 @@ async function testRepositoryControlsView(server) {
   });
   assert.equal(worktreeCleanupStatusLabel(removableDetached), "Contained by main.");
   assert.equal(worktreeCleanupStatusLabel(removableBranch), "Branch preserved.");
+  assert.equal(worktreeCleanupStatusLabel(patchEquivalentDetached), "No unique patch vs main.");
+  assert.equal(worktreeCleanupStatusLabel(staleMetadata), "Stale metadata.");
   assert.equal(worktreeCleanupStatusLabel(dirtyBranch), "Uncommitted changes.");
+  assert.equal(isAutomaticWorktreeCleanupCandidate(removableDetached), true);
+  assert.equal(isAutomaticWorktreeCleanupCandidate(removableBranch), false);
+  assert.equal(isAutomaticWorktreeCleanupCandidate(patchEquivalentDetached), true);
+  assert.equal(isAutomaticWorktreeCleanupCandidate(staleMetadata), true);
+  assert.deepEqual(
+    automaticWorktreeCleanupCandidates([current, removableBranch, removableDetached, dirtyBranch, patchEquivalentDetached, staleMetadata]),
+    [removableDetached, patchEquivalentDetached, staleMetadata],
+  );
+  assert.deepEqual(
+    automaticWorktreeCleanupPaths([staleMetadata, removableDetached, otherStaleMetadata, patchEquivalentDetached]),
+    [removableDetached.path, patchEquivalentDetached.path, staleMetadata.path],
+  );
   assert.deepEqual(repositoryWorktreeCleanupActionView(removableDetached), {
     show: true,
     disabled: false,
-    className: "worktree-cleanup-button",
+    className: "worktree-cleanup-button is-auto-safe",
     ariaLabel: "Clean Detached @ 02141bb - git-tree-vis",
     title: "This clean detached worktree points to history already reachable from the base branch.",
     label: "Clean",
@@ -6400,6 +6461,22 @@ async function testRepositoryControlsView(server) {
     ariaLabel: "Clean feature/branch-shell - git-tree-vis",
     title: "This clean worktree can be removed because feature/branch-shell preserves its HEAD.",
     label: "Clean",
+  });
+  assert.deepEqual(repositoryWorktreeCleanupActionView(patchEquivalentDetached), {
+    show: true,
+    disabled: false,
+    className: "worktree-cleanup-button is-auto-safe",
+    ariaLabel: "Clean Detached @ 73f34d4 - git-tree-vis",
+    title: "Git's cherry-pick comparison found no patch content that only exists in this detached worktree.",
+    label: "Clean",
+  });
+  assert.deepEqual(repositoryWorktreeCleanupActionView(staleMetadata), {
+    show: true,
+    disabled: false,
+    className: "worktree-cleanup-button is-auto-safe",
+    ariaLabel: "Prune Detached @ 0000000 - git-tree-vis",
+    title: "Git reports this worktree metadata can be pruned.",
+    label: "Prune",
   });
   assert.deepEqual(repositoryWorktreeCleanupActionView(dirtyBranch), {
     show: true,

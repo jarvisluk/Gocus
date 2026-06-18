@@ -1,6 +1,9 @@
 import { Check, ChevronDown, GitFork, Trash2 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import {
+  automaticWorktreeCleanupCandidates,
+  automaticWorktreeCleanupPaths,
+  isAutomaticWorktreeCleanupCandidate,
   repositoryControlsMenuState,
   repositoryWorktreeContextMenuChromeView,
   repositoryWorktreeContextTriggerView,
@@ -11,6 +14,15 @@ import {
 import { useDismissableLayer } from "../lib/useDismissableLayer";
 import type { GitWorktree } from "../types";
 
+type WorktreeCleanupDialogState = {
+  allCount: number;
+  allPaths: string[];
+  label: string;
+  onePath: string;
+  reason: string;
+  showAll: boolean;
+};
+
 function worktreeMenuIcon(active: boolean) {
   if (active) return <Check aria-hidden="true" />;
   return <GitFork aria-hidden="true" />;
@@ -18,15 +30,17 @@ function worktreeMenuIcon(active: boolean) {
 
 export function WorktreeContext({
   worktrees,
-  onCleanupWorktree,
+  onCleanupWorktrees,
   onOpenWorktree,
 }: {
   worktrees: GitWorktree[];
-  onCleanupWorktree: (worktreePath: string) => void;
+  onCleanupWorktrees: (worktreePaths: string[]) => void;
   onOpenWorktree: (worktreePath: string) => void;
 }) {
   const [worktreeMenuOpen, setWorktreeMenuOpen] = useState(false);
+  const [cleanupDialog, setCleanupDialog] = useState<WorktreeCleanupDialogState | null>(null);
   const worktreeControlRef = useRef<HTMLDivElement>(null);
+  const cleanupPanelRef = useRef<HTMLDivElement>(null);
   const worktreeContext = useMemo(() => repositoryWorktreeContextView(worktrees), [worktrees]);
   const worktreeTrigger = repositoryWorktreeContextTriggerView(worktreeMenuOpen, worktreeContext.currentWorktree);
   const worktreeMenuChrome = repositoryWorktreeContextMenuChromeView();
@@ -37,6 +51,13 @@ export function WorktreeContext({
     onDismiss: () => setWorktreeMenuOpen(false),
   });
 
+  useDismissableLayer({
+    active: Boolean(cleanupDialog),
+    dismissTiming: "afterTargetAction",
+    refs: [cleanupPanelRef],
+    onDismiss: () => setCleanupDialog(null),
+  });
+
   function openWorktree(worktreePath: string) {
     const selection = repositoryWorktreeSelection(worktreePath, worktreeContext.currentWorktree);
     const nextMenuState = repositoryControlsMenuState({ branchMenuOpen: false, worktreeMenuOpen }, selection.menuAction);
@@ -44,12 +65,25 @@ export function WorktreeContext({
     if (selection.openWorktreePath) onOpenWorktree(selection.openWorktreePath);
   }
 
-  function cleanupWorktree(worktreePath: string, label: string) {
-    const confirmed = window.confirm(`Clean up ${label}?\n\n${worktreePath}`);
-    if (!confirmed) return;
+  function cleanupWorktree(worktree: GitWorktree, label: string) {
+    const automaticCandidates = automaticWorktreeCleanupCandidates(worktrees);
+    const allPaths = automaticWorktreeCleanupPaths(worktrees);
+    const showAll = isAutomaticWorktreeCleanupCandidate(worktree) && automaticCandidates.length > 1;
 
     setWorktreeMenuOpen(false);
-    onCleanupWorktree(worktreePath);
+    setCleanupDialog({
+      allCount: automaticCandidates.length,
+      allPaths,
+      label,
+      onePath: worktree.path,
+      reason: worktree.cleanup?.reason ?? "",
+      showAll,
+    });
+  }
+
+  function confirmCleanup(worktreePaths: string[]) {
+    setCleanupDialog(null);
+    onCleanupWorktrees(worktreePaths);
   }
 
   if (!worktreeContext.show) return null;
@@ -110,7 +144,7 @@ export function WorktreeContext({
                         aria-label={itemView.cleanupAction.ariaLabel}
                         title={itemView.cleanupAction.title}
                         disabled={itemView.cleanupAction.disabled}
-                        onClick={() => cleanupWorktree(worktree.path, itemView.label)}
+                        onClick={() => cleanupWorktree(worktree, itemView.label)}
                       >
                         <Trash2 aria-hidden="true" />
                         <span>{itemView.cleanupAction.label}</span>
@@ -119,6 +153,52 @@ export function WorktreeContext({
                   </div>
                 );
               })}
+            </div>
+          ) : null}
+          {cleanupDialog ? (
+            <div
+              className="ui-menu worktree-cleanup-panel"
+              role="dialog"
+              aria-modal="false"
+              aria-labelledby="worktree-cleanup-title"
+              ref={cleanupPanelRef}
+            >
+              <div className="worktree-cleanup-panel-copy">
+                <strong className="worktree-cleanup-panel-title" id="worktree-cleanup-title">
+                  {cleanupDialog.showAll ? "Clean auto-safe worktrees" : "Clean worktree"}
+                </strong>
+                <span>
+                  {cleanupDialog.showAll
+                    ? `Choose this worktree or all ${cleanupDialog.allCount} auto-safe worktrees.`
+                    : "Remove this clean worktree."}
+                </span>
+              </div>
+              <div className="worktree-cleanup-panel-target" title={cleanupDialog.onePath}>
+                <span>This worktree</span>
+                <strong>{cleanupDialog.label}</strong>
+                {cleanupDialog.reason ? <span>{cleanupDialog.reason}</span> : null}
+              </div>
+              <div className={`ui-segmented worktree-cleanup-panel-actions${cleanupDialog.showAll ? "" : " compact"}`}>
+                <button type="button" onClick={() => setCleanupDialog(null)}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="is-primary"
+                  onClick={() => confirmCleanup([cleanupDialog.onePath])}
+                >
+                  Clean this
+                </button>
+                {cleanupDialog.showAll ? (
+                  <button
+                    type="button"
+                    className="is-primary"
+                    onClick={() => confirmCleanup(cleanupDialog.allPaths)}
+                  >
+                    Clean all {cleanupDialog.allCount}
+                  </button>
+                ) : null}
+              </div>
             </div>
           ) : null}
         </>

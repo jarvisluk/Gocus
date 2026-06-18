@@ -177,7 +177,7 @@ export default function App() {
                   <WorktreeContext
                     worktrees={panelContent.snapshot.worktrees}
                     onOpenWorktree={controller.openWorktree}
-                    onCleanupWorktree={controller.cleanupWorktree}
+                    onCleanupWorktrees={controller.cleanupWorktrees}
                   />
                   <div className={commitScrollRegion.className}>
                     <RecentCommits

@@ -44,6 +44,9 @@
 .notice-line,
 .worktree-context-copy strong,
 .worktree-context-count,
+.worktree-cleanup-panel-title,
+.worktree-cleanup-panel-target strong,
+.worktree-cleanup-panel-target span,
 .workspace-target-toggle span:nth-child(2) {
   min-width: 0;
   overflow: hidden;

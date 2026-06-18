@@ -108,6 +108,15 @@
   color: var(--danger);
 }
 
+.worktree-cleanup-button.is-auto-safe {
+  color: var(--success);
+}
+
+.worktree-cleanup-button.is-auto-safe:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+
 .worktree-cleanup-button:disabled {
   cursor: not-allowed;
   opacity: 0.42;
@@ -116,6 +125,45 @@
 .worktree-cleanup-button svg {
   width: var(--icon-xs);
   height: var(--icon-xs);
+}
+
+.worktree-cleanup-panel {
+  position: absolute;
+  z-index: 45;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 100%;
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+}
+
+.worktree-cleanup-panel-copy,
+.worktree-cleanup-panel-target {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  padding: 3px 5px;
+}
+
+.worktree-cleanup-panel-title,
+.worktree-cleanup-panel-target strong {
+  color: var(--text);
+}
+
+.worktree-cleanup-panel-copy span,
+.worktree-cleanup-panel-target span {
+  color: var(--text-faint);
+  font-size: var(--type-micro-size);
+}
+
+.worktree-cleanup-panel-target span:first-child {
+  font-weight: var(--font-weight-strong);
+  text-transform: uppercase;
+}
+
+.worktree-cleanup-panel-actions button.is-primary {
+  color: var(--success);
 }
 
 .worktree-context {
