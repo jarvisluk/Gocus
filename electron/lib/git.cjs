@@ -47,7 +47,7 @@ const starterGitIgnore = [
 const defaultCommitLogLimit = 300;
 const maxCommitLogLimit = 2000;
 const dirtyWorkspaceMergeNotice = "Workspace has uncommitted changes. Commit them before merging.";
-const cleanupBaseBranchCandidates = ["main", "master"];
+const cleanupFallbackBaseBranchCandidates = ["main", "master", "develop", "trunk"];
 
 function normalizeCommitLogLimit(value = process.env.GIT_PEEK_COMMIT_LOG_LIMIT) {
   const parsed = Number.parseInt(`${value ?? ""}`, 10);
@@ -251,11 +251,38 @@ function hasWorktreeChanges(counts = {}) {
   return Boolean(counts.modified || counts.staged || counts.untracked);
 }
 
+function cleanupBaseBranchCandidateRefNames(branchName) {
+  if (!branchName) return [];
+  if (branchName.startsWith("refs/")) return [branchName];
+
+  return [`refs/heads/${branchName}`, `refs/remotes/${branchName}`];
+}
+
+function appendCleanupBaseBranchCandidate(candidates, branchName) {
+  const cleanBranchName = `${branchName ?? ""}`.trim();
+  if (!cleanBranchName || cleanBranchName === "HEAD" || cleanBranchName.endsWith("/HEAD")) return;
+  if (candidates.includes(cleanBranchName)) return;
+  candidates.push(cleanBranchName);
+}
+
 async function cleanupBaseBranch(root) {
-  for (const branchName of cleanupBaseBranchCandidates) {
-    const refName = `refs/heads/${branchName}`;
-    const exists = await runGit(root, ["show-ref", "--verify", refName]).then(() => true, () => false);
-    if (exists) return branchName;
+  const candidates = [];
+  const currentBranch = await runGit(root, ["branch", "--show-current"]).catch(() => "");
+  const upstreamBranch = await runGit(root, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]).catch(() => "");
+  const originHead = await runGit(root, ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"]).catch(() => "");
+
+  appendCleanupBaseBranchCandidate(candidates, currentBranch);
+  appendCleanupBaseBranchCandidate(candidates, upstreamBranch);
+  appendCleanupBaseBranchCandidate(candidates, originHead);
+  for (const branchName of cleanupFallbackBaseBranchCandidates) {
+    appendCleanupBaseBranchCandidate(candidates, branchName);
+  }
+
+  for (const branchName of candidates) {
+    for (const refName of cleanupBaseBranchCandidateRefNames(branchName)) {
+      const exists = await runGit(root, ["show-ref", "--verify", refName]).then(() => true, () => false);
+      if (exists) return branchName;
+    }
   }
 
   return "";
@@ -342,17 +369,6 @@ async function auditWorktreeCleanup(root, worktree) {
     };
   }
 
-  if (!worktree.detached) {
-    return {
-      ...worktree,
-      cleanup: defaultWorktreeCleanup({
-        status: "attached",
-        reason: "Branch worktree.",
-        detail: "Branch worktrees are kept out of the detached cleanup demo.",
-      }),
-    };
-  }
-
   if (hasWorktreeChanges(worktree.counts)) {
     return {
       ...worktree,
@@ -360,6 +376,22 @@ async function auditWorktreeCleanup(root, worktree) {
         status: "dirty",
         reason: "Uncommitted changes.",
         detail: "Commit, stash, or discard local changes before removing this worktree.",
+      }),
+    };
+  }
+
+  if (!worktree.detached) {
+    const branchName = worktree.branch || "this branch";
+
+    return {
+      ...worktree,
+      cleanup: defaultWorktreeCleanup({
+        status: "branch-preserved",
+        safeToRemove: true,
+        action: "remove",
+        reason: "Branch preserved.",
+        detail: `This clean worktree can be removed because ${branchName} preserves its HEAD.`,
+        containedBranches: worktree.branch ? [worktree.branch] : [],
       }),
     };
   }

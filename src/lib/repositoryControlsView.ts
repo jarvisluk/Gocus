@@ -374,8 +374,8 @@ export function worktreeCleanupStatusLabel(worktree: GitWorktree) {
 
 export function repositoryWorktreeCleanupActionView(worktree: GitWorktree): RepositoryWorktreeCleanupActionView {
   const cleanup = worktree.cleanup;
-  const show = Boolean(cleanup) && (worktree.detached || cleanup?.status === "prunable");
   const safeToRemove = Boolean(cleanup?.safeToRemove);
+  const show = Boolean(cleanup) && !worktree.current && !worktree.bare && (safeToRemove || cleanup?.status === "dirty");
   const label = cleanup?.action === "prune" ? "Prune" : "Clean";
   const disabledReason = cleanup?.detail || "This worktree is not safe to clean up.";
   const title = safeToRemove ? cleanup?.detail || "Clean up this worktree." : disabledReason;
