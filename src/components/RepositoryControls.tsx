@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { ArrowRightLeft, Check, ChevronDown, GitBranch, GitFork } from "lucide-react";
+import { DropdownMenuHost } from "./DropdownMenuHost";
 import {
   closedRepositoryControlsMenus,
   repositoryBranchMenuItemView,
@@ -12,7 +13,6 @@ import {
   type RepositoryControlIcon,
   repositoryViewChipView,
 } from "../lib/repositoryControlsView";
-import { useDismissableLayer } from "../lib/useDismissableLayer";
 import type { CommitViewSelection, GitSnapshot } from "../types";
 
 function repositoryControlIcon(icon: RepositoryControlIcon) {
@@ -34,7 +34,6 @@ export function RepositoryControls({
   onSwitchBranch: (branchName: string) => void;
 }) {
   const [menuState, setMenuState] = useState(closedRepositoryControlsMenus);
-  const branchControlRef = useRef<HTMLDivElement>(null);
   const { branchMenuOpen } = menuState;
   const branchMenu = repositoryBranchMenuView({
     branches: snapshot.branches,
@@ -49,13 +48,6 @@ export function RepositoryControls({
   const branchTrigger = repositoryBranchTriggerView(view, branchMenuOpen);
   const branchMenuChrome = repositoryBranchMenuChromeView();
   const retainedBranchItem = repositoryRetainedBranchMenuItemView(branchMenu.retainedSelectedBranch);
-
-  useDismissableLayer({
-    active: branchMenuOpen,
-    dismissTiming: "afterTargetAction",
-    refs: [branchControlRef],
-    onDismiss: () => setMenuState(closedRepositoryControlsMenus),
-  });
 
   function changeView(mode: Exclude<CommitViewSelection["mode"], "branch">) {
     setMenuState(closedRepositoryControlsMenus);
@@ -95,7 +87,11 @@ export function RepositoryControls({
         >
           {currentViewChip.label}
         </button>
-        <div className={controlsChrome.branchControl.className} ref={branchControlRef}>
+        <DropdownMenuHost
+          active={branchMenuOpen}
+          className={controlsChrome.branchControl.className}
+          onDismiss={() => setMenuState(closedRepositoryControlsMenus)}
+        >
           <button
             id={branchTrigger.id}
             className={branchTrigger.className}
@@ -174,7 +170,7 @@ export function RepositoryControls({
               })}
             </div>
           ) : null}
-        </div>
+        </DropdownMenuHost>
       </div>
       {selectedBranchSummary.show ? (
         <div className={selectedBranchSummary.className} title={selectedBranchSummary.title} aria-label={selectedBranchSummary.ariaLabel}>

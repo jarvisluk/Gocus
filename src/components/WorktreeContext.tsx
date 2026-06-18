@@ -1,5 +1,6 @@
 import { Check, ChevronDown, GitFork, Trash2 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
+import { DropdownMenuHost } from "./DropdownMenuHost";
 import {
   automaticWorktreeCleanupCandidates,
   automaticWorktreeCleanupPaths,
@@ -39,17 +40,10 @@ export function WorktreeContext({
 }) {
   const [worktreeMenuOpen, setWorktreeMenuOpen] = useState(false);
   const [cleanupDialog, setCleanupDialog] = useState<WorktreeCleanupDialogState | null>(null);
-  const worktreeControlRef = useRef<HTMLDivElement>(null);
   const cleanupPanelRef = useRef<HTMLDivElement>(null);
   const worktreeContext = useMemo(() => repositoryWorktreeContextView(worktrees), [worktrees]);
   const worktreeTrigger = repositoryWorktreeContextTriggerView(worktreeMenuOpen, worktreeContext.currentWorktree);
   const worktreeMenuChrome = repositoryWorktreeContextMenuChromeView();
-
-  useDismissableLayer({
-    active: worktreeMenuOpen,
-    refs: [worktreeControlRef],
-    onDismiss: () => setWorktreeMenuOpen(false),
-  });
 
   useDismissableLayer({
     active: Boolean(cleanupDialog),
@@ -89,7 +83,11 @@ export function WorktreeContext({
   if (!worktreeContext.show) return null;
 
   return (
-    <div className={worktreeContext.className} ref={worktreeControlRef}>
+    <DropdownMenuHost
+      active={worktreeMenuOpen}
+      className={worktreeContext.className}
+      onDismiss={() => setWorktreeMenuOpen(false)}
+    >
       {worktreeContext.canSwitch ? (
         <>
           <button
@@ -216,6 +214,6 @@ export function WorktreeContext({
           <span className={worktreeContext.badgeClassName}>{worktreeContext.countLabel}</span>
         </div>
       )}
-    </div>
+    </DropdownMenuHost>
   );
 }
