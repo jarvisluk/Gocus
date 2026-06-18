@@ -38,7 +38,7 @@ const { getAvailableWorkspaceTargets, openWorkspace, openWorkspaceFile } = requi
 
 installOutputErrorGuard();
 
-const isDevRuntime = Boolean(process.env.GIT_PEEK_DEV_SERVER_URL);
+const isDevRuntime = Boolean(process.env.GOCUS_DEV_SERVER_URL);
 
 let mainWindow;
 let tray;
@@ -179,9 +179,9 @@ function startRepositoryWatcher(repoPath) {
       { logger: console },
     );
     repositoryWatcher = nextWatcher;
-    console.info(`[Git Peek] Watching repository changes in ${repositoryWatcher.repositoryPath}.`);
+    console.info(`[Gocus] Watching repository changes in ${repositoryWatcher.repositoryPath}.`);
   } catch (error) {
-    console.warn("[Git Peek] Unable to start repository watcher.", error);
+    console.warn("[Gocus] Unable to start repository watcher.", error);
   }
 }
 
@@ -380,7 +380,7 @@ function sendToWindow(win, channel, ...args) {
   try {
     win.webContents.send(channel, ...args);
   } catch (error) {
-    console.warn(`[Git Peek] Unable to send ${channel} to window.`, error);
+    console.warn(`[Gocus] Unable to send ${channel} to window.`, error);
   }
 }
 
@@ -526,8 +526,8 @@ function dockWindow(collapsed = collapsedState) {
 }
 
 function rendererWindowUrl(mode = "") {
-  if (process.env.GIT_PEEK_DEV_SERVER_URL) {
-    const url = new URL(process.env.GIT_PEEK_DEV_SERVER_URL);
+  if (process.env.GOCUS_DEV_SERVER_URL) {
+    const url = new URL(process.env.GOCUS_DEV_SERVER_URL);
     if (mode) url.searchParams.set("window", mode);
     return url.toString();
   }
@@ -621,7 +621,7 @@ function ensureTemporaryInfoWindow() {
     maximizable: false,
     skipTaskbar: true,
     acceptFirstMouse: true,
-    title: "Git Peek Info",
+    title: "Gocus Info",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -740,7 +740,7 @@ function ensureChangedFileInfoWindow() {
     maximizable: false,
     skipTaskbar: true,
     acceptFirstMouse: true,
-    title: "Git Peek Changed File Info",
+    title: "Gocus Changed File Info",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -808,11 +808,11 @@ function openWorkspaceFileMenu(sourceWebContents, payload) {
       openWorkspaceFile(repositoryPathForAction(), option.target, payload.filePath)
         .then((response) => {
           if (response && !response.ok) {
-            console.warn("[Git Peek] Unable to open file in selected app.", response.error ?? response);
+            console.warn("[Gocus] Unable to open file in selected app.", response.error ?? response);
           }
         })
         .catch((error) => {
-          console.warn("[Git Peek] Unable to open file in selected app.", error);
+          console.warn("[Gocus] Unable to open file in selected app.", error);
         });
     },
   }));
@@ -834,7 +834,7 @@ function openWorkspaceFileMenu(sourceWebContents, payload) {
     });
   } catch (error) {
     workspaceOpenMenuActive = false;
-    console.warn("[Git Peek] Unable to open workspace app menu.", error);
+    console.warn("[Gocus] Unable to open workspace app menu.", error);
   }
 }
 
@@ -923,7 +923,7 @@ function ensureCommitInfoWindow() {
     maximizable: false,
     skipTaskbar: true,
     acceptFirstMouse: true,
-    title: "Git Peek Commit Info",
+    title: "Gocus Commit Info",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -1015,7 +1015,7 @@ function createWindow({ showOnReady = true } = {}) {
     hasShadow: true,
     icon: appIcon,
     resizable: true,
-    title: "Git Peek",
+    title: "Gocus",
     trafficLightPosition: { x: 14, y: 14 },
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -1091,11 +1091,11 @@ function createTray() {
   const trayIcon = assets.loadImageAsset("tray-iconTemplate.png", { template: process.platform === "darwin" });
 
   tray = new Tray(trayIcon);
-  tray.setToolTip("Git Peek");
-  if (process.platform === "darwin" && process.env.GIT_PEEK_SHOW_TRAY_TITLE === "1") {
-    tray.setTitle("Git Peek");
+  tray.setToolTip("Gocus");
+  if (process.platform === "darwin" && process.env.GOCUS_SHOW_TRAY_TITLE === "1") {
+    tray.setTitle("Gocus");
   }
-  if (process.env.GIT_PEEK_DEBUG_TRAY === "1") {
+  if (process.env.GOCUS_DEBUG_TRAY === "1") {
     setTimeout(() => {
       console.info(
         "[tray]",
@@ -1179,8 +1179,8 @@ function buildMenus() {
           submenu: [
             { role: "about" },
             { type: "separator" },
-            { label: "Show Git Peek", click: showMainWindow },
-            { label: "Hide Git Peek", click: () => mainWindow?.hide() },
+            { label: "Show Gocus", click: showMainWindow },
+            { label: "Hide Gocus", click: () => mainWindow?.hide() },
             { type: "separator" },
             { role: "services" },
             { type: "separator" },
@@ -1226,7 +1226,7 @@ function buildMenus() {
     {
       label: "View",
       submenu: [
-        { label: "Expand Side Peek", accelerator: "CmdOrCtrl+Shift+E", enabled: collapsedState, click: () => setCollapsedWindow(false) },
+        { label: "Expand Gocus", accelerator: "CmdOrCtrl+Shift+E", enabled: collapsedState, click: () => setCollapsedWindow(false) },
         {
           label: "Collapse to Edge Tab",
           accelerator: "CmdOrCtrl+Shift+C",
@@ -1249,8 +1249,8 @@ function buildMenus() {
     {
       label: "Window",
       submenu: [
-        { label: "Show Git Peek", click: showMainWindow },
-        { label: "Hide Git Peek", click: () => mainWindow?.hide() },
+        { label: "Show Gocus", click: showMainWindow },
+        { label: "Hide Gocus", click: () => mainWindow?.hide() },
         { role: "minimize" },
         { role: "close" },
       ],
@@ -1258,7 +1258,7 @@ function buildMenus() {
     {
       label: "Help",
       submenu: [
-        { label: "Git Peek remembers the last working folder", enabled: false },
+        { label: "Gocus remembers the last working folder", enabled: false },
         { label: "Git-changing actions ask from the panel before running", enabled: false },
       ],
     },
@@ -1269,8 +1269,8 @@ function buildMenus() {
   if (tray) {
     tray.setContextMenu(
       Menu.buildFromTemplate([
-        { label: "Show Git Peek", click: showMainWindow },
-        { label: collapsedState ? "Expand Side Peek" : "Collapse to Edge Tab", click: () => setCollapsedWindow(!collapsedState) },
+        { label: "Show Gocus", click: showMainWindow },
+        { label: collapsedState ? "Expand Gocus" : "Collapse to Edge Tab", click: () => setCollapsedWindow(!collapsedState) },
         { label: "Dock to Screen Edge", click: () => dockWindow(collapsedState) },
         { type: "separator" },
         { label: "Open Working Folder...", click: openFolderAction },
@@ -1280,14 +1280,14 @@ function buildMenus() {
         { type: "separator" },
         { label: "Always on Top", type: "checkbox", checked: pinnedState, click: (item) => setPinnedWindow(item.checked) },
         { type: "separator" },
-        { label: "Quit Git Peek", click: requestRealQuit },
+        { label: "Quit Gocus", click: requestRealQuit },
       ]),
     );
   }
 }
 
 app.whenReady().then(() => {
-  app.setName("Git Peek");
+  app.setName("Gocus");
   nativeTheme.on("updated", sendSystemTheme);
   currentRepository = readSavedRepositoryPath();
   const preferences = config.readPreferences();

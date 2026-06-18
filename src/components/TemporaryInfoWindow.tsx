@@ -21,21 +21,21 @@ export function TemporaryInfoWindow() {
   const view = temporaryInfoWindowView(payload, selectedFileKey);
 
   useEffect(() => {
-    window.gitPeek
+    window.gocus
       ?.getTemporaryInfoPayload()
       .then(setPayload)
       .catch((error) => logBridgeWarning("Unable to load temporary info payload.", error));
-    return window.gitPeek?.onTemporaryInfoPayloadUpdated(setPayload);
+    return window.gocus?.onTemporaryInfoPayloadUpdated(setPayload);
   }, []);
 
   useEffect(() => {
-    window.gitPeek
+    window.gocus
       ?.getPreferences()
       .then((value) => setPreferences(mergePreferences(value)))
       .catch((error) => logBridgeWarning("Unable to load preferences.", error));
-    window.gitPeek?.getSystemTheme().then(setSystemTheme).catch((error) => logBridgeWarning("Unable to load system theme.", error));
-    const unsubscribeTheme = window.gitPeek?.onThemeChanged(setSystemTheme);
-    const unsubscribePreferences = window.gitPeek?.onPreferencesChanged((value) => setPreferences(mergePreferences(value)));
+    window.gocus?.getSystemTheme().then(setSystemTheme).catch((error) => logBridgeWarning("Unable to load system theme.", error));
+    const unsubscribeTheme = window.gocus?.onThemeChanged(setSystemTheme);
+    const unsubscribePreferences = window.gocus?.onPreferencesChanged((value) => setPreferences(mergePreferences(value)));
     return () => {
       unsubscribeTheme?.();
       unsubscribePreferences?.();
@@ -57,19 +57,19 @@ export function TemporaryInfoWindow() {
     const workspaceOpenTarget = view.changedFilesPayload?.workspaceOpenTarget ?? "";
     const nextPayload = selectedFile ? { kind: "changed-file" as const, file: selectedFile, workspaceOpenTarget } : null;
 
-    window.gitPeek
+    window.gocus
       ?.setChangedFileInfoPanel(nextPayload)
       .catch((error) => logBridgeWarning("Unable to update changed file info panel.", error));
   }, [view.changedFilesPayload?.workspaceOpenTarget, view.selectedFile]);
 
   useEffect(() => {
-    return window.gitPeek?.onChangedFileInfoPanelClosed(() => {
+    return window.gocus?.onChangedFileInfoPanelClosed(() => {
       setSelectedFileKey("");
     });
   }, []);
 
   function closeTemporaryInfoPanel() {
-    runTemporaryInfoPanelBridgeSideEffect("close", (nextPayload) => window.gitPeek?.setTemporaryInfoPanel(nextPayload));
+    runTemporaryInfoPanelBridgeSideEffect("close", (nextPayload) => window.gocus?.setTemporaryInfoPanel(nextPayload));
   }
 
   return (

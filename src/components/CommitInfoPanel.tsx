@@ -48,7 +48,7 @@ export function CommitInfoPanel({ commit }: { commit: CommitItem }) {
       frameId = null;
       const nextHeight = Math.ceil(panel.getBoundingClientRect().height + commitInfoWindowVerticalPadding);
       if (nextHeight === reportedHeightRef.current) return;
-      const setCommitInfoPanelHeight = window.gitPeek?.setCommitInfoPanelHeight;
+      const setCommitInfoPanelHeight = window.gocus?.setCommitInfoPanelHeight;
       if (!setCommitInfoPanelHeight) return;
 
       reportedHeightRef.current = nextHeight;
@@ -90,7 +90,7 @@ export function CommitInfoPanel({ commit }: { commit: CommitItem }) {
 
   async function copyCommitHash() {
     try {
-      await copyTextWithFallback(view.fullHash, { bridge: window.gitPeek, clipboard: navigator.clipboard });
+      await copyTextWithFallback(view.fullHash, { bridge: window.gocus, clipboard: navigator.clipboard });
       setTemporaryCopyHashState("copied");
     } catch (error) {
       logBridgeWarning("Unable to copy commit hash.", error);
@@ -99,7 +99,7 @@ export function CommitInfoPanel({ commit }: { commit: CommitItem }) {
   }
 
   function holdCommitInfoPanelInteraction() {
-    void window.gitPeek?.holdCommitInfoPanelInteraction?.(commitInfoInteractionHoldMs);
+    void window.gocus?.holdCommitInfoPanelInteraction?.(commitInfoInteractionHoldMs);
   }
 
   function markCopyStartedByMouse() {

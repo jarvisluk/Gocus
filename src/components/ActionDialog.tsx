@@ -241,7 +241,7 @@ export function ActionDialog({
 
   async function copyMergeFailurePrompt(prompt: string) {
     try {
-      await copyTextWithFallback(prompt, { bridge: window.gitPeek, clipboard: navigator.clipboard });
+      await copyTextWithFallback(prompt, { bridge: window.gocus, clipboard: navigator.clipboard });
       setTemporaryCopyPromptState("copied");
     } catch (error) {
       logBridgeWarning("Unable to copy merge failure prompt.", error);

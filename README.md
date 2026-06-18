@@ -1,8 +1,8 @@
-# Git Peek
+# Gocus
 
-Git Peek is a compact Electron + React desktop utility for tracking a local Git repository from a side-floating panel.
+Gocus is a compact Electron + React desktop utility for tracking a local Git repository from a side-floating panel.
 
-The product direction is the selected **Pinned Side Peek** design:
+The product direction is the selected **Pinned Side Panel** design:
 
 - narrow floating drawer instead of a full Git client
 - light and dark themes

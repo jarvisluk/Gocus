@@ -2,8 +2,8 @@
 
 const assert = require("node:assert/strict");
 
-const screenshotPath = process.env.GIT_PEEK_SMOKE_SCREENSHOT;
-const graphAnchorScreenshotPath = process.env.GIT_PEEK_GRAPH_ANCHOR_SCREENSHOT;
+const screenshotPath = process.env.GOCUS_SMOKE_SCREENSHOT;
+const graphAnchorScreenshotPath = process.env.GOCUS_GRAPH_ANCHOR_SCREENSHOT;
 const narrowViewport = { width: 320, height: 720 };
 const compactViewport = { width: 390, height: 720 };
 const desktopViewport = { width: 960, height: 720 };
@@ -216,53 +216,53 @@ function cleanWorkspaceOverrides(overrides = {}) {
   };
 }
 
-function installGitPeekMock(config) {
+function installGocusMock(config) {
   const initialResponse = config.initialResponse;
   const initializedResponse = config.initializedResponse ?? initialResponse;
   const actionSnapshot = initialResponse.ok ? initialResponse.snapshot : initializedResponse?.snapshot;
 
-  window.__gitPeekActions = [];
-  window.__gitPeekCopiedText = "";
-  window.__gitPeekClipboardText = config.clipboardText ?? "";
-  window.__gitPeekTemporaryInfoPayload = config.temporaryInfoPayload ?? null;
-  window.__gitPeekChangedFileInfoPayload = config.changedFileInfoPayload ?? null;
-  window.__gitPeekCommitInfoPayload = config.commitInfoPayload ?? null;
-  window.__gitPeekCommitInfoSetCalls = [];
-  window.__gitPeekWorkspaceOpenMenuPayload = null;
-  window.__gitPeekTemporaryInfoListeners = [];
-  window.__gitPeekChangedFileInfoListeners = [];
-  window.__gitPeekChangedFileInfoPanelClosedListeners = [];
-  window.__gitPeekCommitInfoListeners = [];
-  window.__gitPeekPreferencesListeners = [];
-  window.__gitPeekPinnedListeners = [];
-  window.__gitPeekCommitInfoPanelActive = Boolean(config.commitInfoPanelActive);
-  window.__gitPeekCommitInfoInteractionHolds = [];
-  window.__gitPeekPinnedState = Boolean(config.pinned);
-  window.__gitPeekActiveWorkspaceTarget =
+  window.__gocusActions = [];
+  window.__gocusCopiedText = "";
+  window.__gocusClipboardText = config.clipboardText ?? "";
+  window.__gocusTemporaryInfoPayload = config.temporaryInfoPayload ?? null;
+  window.__gocusChangedFileInfoPayload = config.changedFileInfoPayload ?? null;
+  window.__gocusCommitInfoPayload = config.commitInfoPayload ?? null;
+  window.__gocusCommitInfoSetCalls = [];
+  window.__gocusWorkspaceOpenMenuPayload = null;
+  window.__gocusTemporaryInfoListeners = [];
+  window.__gocusChangedFileInfoListeners = [];
+  window.__gocusChangedFileInfoPanelClosedListeners = [];
+  window.__gocusCommitInfoListeners = [];
+  window.__gocusPreferencesListeners = [];
+  window.__gocusPinnedListeners = [];
+  window.__gocusCommitInfoPanelActive = Boolean(config.commitInfoPanelActive);
+  window.__gocusCommitInfoInteractionHolds = [];
+  window.__gocusPinnedState = Boolean(config.pinned);
+  window.__gocusActiveWorkspaceTarget =
     config.activeWorkspaceTarget ??
     config.changedFileInfoPayload?.workspaceOpenTarget ??
     config.temporaryInfoPayload?.workspaceOpenTarget ??
     "cursor";
-  window.__gitPeekActiveWorkspaceTargetListeners = [];
-  window.__gitPeekSavedPreferences = [];
-  window.__gitPeekSnapshotRequests = [];
-  window.__gitPeekOpenedWorkspaces = [];
-  window.__gitPeekOpenedWorkspaceFiles = [];
-  window.__gitPeekCollapsedRailHeights = [];
-  window.__gitPeekCommitInfoPanelHeights = [];
-  window.__gitPeekRefreshCount = 0;
+  window.__gocusActiveWorkspaceTargetListeners = [];
+  window.__gocusSavedPreferences = [];
+  window.__gocusSnapshotRequests = [];
+  window.__gocusOpenedWorkspaces = [];
+  window.__gocusOpenedWorkspaceFiles = [];
+  window.__gocusCollapsedRailHeights = [];
+  window.__gocusCommitInfoPanelHeights = [];
+  window.__gocusRefreshCount = 0;
   if (config.clipboardAvailable) {
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: {
         writeText: async (text) => {
           if (config.clipboardWriteTextError) throw new Error(config.clipboardWriteTextError);
-          window.__gitPeekClipboardText = text;
+          window.__gocusClipboardText = text;
         },
       },
     });
   }
-  window.gitPeek = {
+  window.gocus = {
     getSystemTheme: async () => {
       if (config.systemThemeError) throw new Error(config.systemThemeError);
       return "light";
@@ -271,27 +271,27 @@ function installGitPeekMock(config) {
       if (config.preferencesError) throw new Error(config.preferencesError);
       return config.preferences ?? null;
     },
-    getPinned: async () => window.__gitPeekPinnedState,
+    getPinned: async () => window.__gocusPinnedState,
     getAvailableWorkspaceTargets: async () => {
       if (config.availableWorkspaceTargetsError) throw new Error(config.availableWorkspaceTargetsError);
       return config.availableWorkspaceTargets ?? ["cursor", "finder", "terminal"];
     },
     getActiveWorkspaceTarget: async () => {
       if (config.activeWorkspaceTargetError) throw new Error(config.activeWorkspaceTargetError);
-      return window.__gitPeekActiveWorkspaceTarget;
+      return window.__gocusActiveWorkspaceTarget;
     },
     setActiveWorkspaceTarget: async (target) => {
       if (config.setActiveWorkspaceTargetError) throw new Error(config.setActiveWorkspaceTargetError);
-      window.__gitPeekActiveWorkspaceTarget = target;
-      window.__gitPeekActiveWorkspaceTargetListeners.forEach((callback) => callback(target));
+      window.__gocusActiveWorkspaceTarget = target;
+      window.__gocusActiveWorkspaceTargetListeners.forEach((callback) => callback(target));
       return target;
     },
     openWorkspaceFileMenu: async (payload) => {
       if (config.openWorkspaceFileMenuError) throw new Error(config.openWorkspaceFileMenuError);
-      window.__gitPeekWorkspaceOpenMenuPayload = payload;
+      window.__gocusWorkspaceOpenMenuPayload = payload;
     },
     getSnapshot: async (view) => {
-      if (view) window.__gitPeekSnapshotRequests.push(view);
+      if (view) window.__gocusSnapshotRequests.push(view);
       if (!initialResponse.ok) return initialResponse;
       return { ok: true, snapshot: { ...initialResponse.snapshot, view: view ?? initialResponse.snapshot.view } };
     },
@@ -302,62 +302,62 @@ function installGitPeekMock(config) {
     onSnapshotUpdated: () => () => {},
     onCollapsedChanged: () => () => {},
     onPinnedChanged: (callback) => {
-      window.__gitPeekPinnedListeners.push(callback);
+      window.__gocusPinnedListeners.push(callback);
       return () => {
-        window.__gitPeekPinnedListeners = window.__gitPeekPinnedListeners.filter((listener) => listener !== callback);
+        window.__gocusPinnedListeners = window.__gocusPinnedListeners.filter((listener) => listener !== callback);
       };
     },
     onRepositoryDialogOpenChanged: () => () => {},
     onThemeChanged: () => () => {},
     onPreferencesChanged: (callback) => {
-      window.__gitPeekPreferencesListeners.push(callback);
+      window.__gocusPreferencesListeners.push(callback);
       return () => {
-        window.__gitPeekPreferencesListeners = window.__gitPeekPreferencesListeners.filter((listener) => listener !== callback);
+        window.__gocusPreferencesListeners = window.__gocusPreferencesListeners.filter((listener) => listener !== callback);
       };
     },
     onActiveWorkspaceTargetChanged: (callback) => {
-      window.__gitPeekActiveWorkspaceTargetListeners.push(callback);
+      window.__gocusActiveWorkspaceTargetListeners.push(callback);
       return () => {
-        window.__gitPeekActiveWorkspaceTargetListeners = window.__gitPeekActiveWorkspaceTargetListeners.filter(
+        window.__gocusActiveWorkspaceTargetListeners = window.__gocusActiveWorkspaceTargetListeners.filter(
           (listener) => listener !== callback,
         );
       };
     },
     getTemporaryInfoPayload: async () => {
       if (config.temporaryInfoPayloadError) throw new Error(config.temporaryInfoPayloadError);
-      return window.__gitPeekTemporaryInfoPayload;
+      return window.__gocusTemporaryInfoPayload;
     },
     getChangedFileInfoPayload: async () => {
       if (config.changedFileInfoPayloadError) throw new Error(config.changedFileInfoPayloadError);
-      return window.__gitPeekChangedFileInfoPayload;
+      return window.__gocusChangedFileInfoPayload;
     },
     getCommitInfoPayload: async () => {
       if (config.commitInfoPayloadError) throw new Error(config.commitInfoPayloadError);
-      return window.__gitPeekCommitInfoPayload;
+      return window.__gocusCommitInfoPayload;
     },
     onTemporaryInfoPayloadUpdated: (callback) => {
-      window.__gitPeekTemporaryInfoListeners.push(callback);
+      window.__gocusTemporaryInfoListeners.push(callback);
       return () => {
-        window.__gitPeekTemporaryInfoListeners = window.__gitPeekTemporaryInfoListeners.filter((listener) => listener !== callback);
+        window.__gocusTemporaryInfoListeners = window.__gocusTemporaryInfoListeners.filter((listener) => listener !== callback);
       };
     },
     onChangedFileInfoPayloadUpdated: (callback) => {
-      window.__gitPeekChangedFileInfoListeners.push(callback);
+      window.__gocusChangedFileInfoListeners.push(callback);
       return () => {
-        window.__gitPeekChangedFileInfoListeners = window.__gitPeekChangedFileInfoListeners.filter((listener) => listener !== callback);
+        window.__gocusChangedFileInfoListeners = window.__gocusChangedFileInfoListeners.filter((listener) => listener !== callback);
       };
     },
     onCommitInfoPayloadUpdated: (callback) => {
-      window.__gitPeekCommitInfoListeners.push(callback);
+      window.__gocusCommitInfoListeners.push(callback);
       return () => {
-        window.__gitPeekCommitInfoListeners = window.__gitPeekCommitInfoListeners.filter((listener) => listener !== callback);
+        window.__gocusCommitInfoListeners = window.__gocusCommitInfoListeners.filter((listener) => listener !== callback);
       };
     },
     onTemporaryInfoPanelClosed: () => () => {},
     onChangedFileInfoPanelClosed: (callback) => {
-      window.__gitPeekChangedFileInfoPanelClosedListeners.push(callback);
+      window.__gocusChangedFileInfoPanelClosedListeners.push(callback);
       return () => {
-        window.__gitPeekChangedFileInfoPanelClosedListeners = window.__gitPeekChangedFileInfoPanelClosedListeners.filter(
+        window.__gocusChangedFileInfoPanelClosedListeners = window.__gocusChangedFileInfoPanelClosedListeners.filter(
           (listener) => listener !== callback,
         );
       };
@@ -365,81 +365,81 @@ function installGitPeekMock(config) {
     onCommitInfoPanelClosed: () => () => {},
     setTemporaryInfoPanel: async (payload) => {
       if (config.setTemporaryInfoPanelError) throw new Error(config.setTemporaryInfoPanelError);
-      window.__gitPeekTemporaryInfoPayload = payload;
-      window.__gitPeekTemporaryInfoListeners.forEach((callback) => callback(payload));
+      window.__gocusTemporaryInfoPayload = payload;
+      window.__gocusTemporaryInfoListeners.forEach((callback) => callback(payload));
     },
     setChangedFileInfoPanel: async (payload) => {
       if (config.setChangedFileInfoPanelError) throw new Error(config.setChangedFileInfoPanelError);
-      window.__gitPeekChangedFileInfoPayload = payload;
-      window.__gitPeekChangedFileInfoListeners.forEach((callback) => callback(payload));
-      if (!payload) window.__gitPeekChangedFileInfoPanelClosedListeners.forEach((callback) => callback());
+      window.__gocusChangedFileInfoPayload = payload;
+      window.__gocusChangedFileInfoListeners.forEach((callback) => callback(payload));
+      if (!payload) window.__gocusChangedFileInfoPanelClosedListeners.forEach((callback) => callback());
     },
     setCommitInfoPanel: async (payload) => {
       if (config.setCommitInfoPanelError) throw new Error(config.setCommitInfoPanelError);
-      window.__gitPeekCommitInfoSetCalls.push(payload?.commit?.hash ?? null);
-      window.__gitPeekCommitInfoPayload = payload;
-      window.__gitPeekCommitInfoListeners.forEach((callback) => callback(payload));
+      window.__gocusCommitInfoSetCalls.push(payload?.commit?.hash ?? null);
+      window.__gocusCommitInfoPayload = payload;
+      window.__gocusCommitInfoListeners.forEach((callback) => callback(payload));
     },
     holdCommitInfoPanelInteraction: async (durationMs) => {
-      window.__gitPeekCommitInfoInteractionHolds.push(durationMs);
-      window.__gitPeekCommitInfoPanelActive = true;
+      window.__gocusCommitInfoInteractionHolds.push(durationMs);
+      window.__gocusCommitInfoPanelActive = true;
     },
-    isCommitInfoPanelActive: async () => window.__gitPeekCommitInfoPanelActive,
+    isCommitInfoPanelActive: async () => window.__gocusCommitInfoPanelActive,
     setCommitInfoPanelHeight: async (height) => {
-      window.__gitPeekCommitInfoPanelHeights.push(height);
+      window.__gocusCommitInfoPanelHeights.push(height);
     },
     savePreferences: async (preferences) => {
-      window.__gitPeekSavedPreferences.push(preferences);
+      window.__gocusSavedPreferences.push(preferences);
     },
     setPinned: async (pinned) => {
-      window.__gitPeekPinnedState = Boolean(pinned);
-      window.__gitPeekPinnedListeners.forEach((callback) => callback(window.__gitPeekPinnedState));
+      window.__gocusPinnedState = Boolean(pinned);
+      window.__gocusPinnedListeners.forEach((callback) => callback(window.__gocusPinnedState));
     },
     setCollapsedRailHeight: async (height) => {
-      window.__gitPeekCollapsedRailHeights.push(height);
+      window.__gocusCollapsedRailHeights.push(height);
     },
     setCollapsed: async () => {},
     dockToEdge: async () => {},
     copyText: async (text) => {
       if (config.copyTextError) throw new Error(config.copyTextError);
-      window.__gitPeekCopiedText = text;
+      window.__gocusCopiedText = text;
     },
     readText: async () => {
       if (config.readTextError) throw new Error(config.readTextError);
-      return window.__gitPeekClipboardText;
+      return window.__gocusClipboardText;
     },
     openWorkspace: async (target) => {
-      window.__gitPeekOpenedWorkspaces.push(target);
+      window.__gocusOpenedWorkspaces.push(target);
       return { ok: true, message: "Workspace opened." };
     },
     openWorkspaceFile: async (target, filePath) => {
-      window.__gitPeekOpenedWorkspaceFiles.push({ target, filePath });
+      window.__gocusOpenedWorkspaceFiles.push({ target, filePath });
       return { ok: true, message: "File opened." };
     },
     refresh: async () => {
-      window.__gitPeekRefreshCount += 1;
+      window.__gocusRefreshCount += 1;
       if (config.refreshError) throw new Error(config.refreshError);
       return actionSnapshot ? { ok: true, snapshot: actionSnapshot } : initialResponse;
     },
     checkout: async (ref, view) => {
-      window.__gitPeekActions.push({ type: "checkout", ref, view });
+      window.__gocusActions.push({ type: "checkout", ref, view });
       return { ok: true, snapshot: actionSnapshot };
     },
     createBranch: async (name, base, view) => {
-      window.__gitPeekActions.push({ type: "createBranch", name, base, view });
+      window.__gocusActions.push({ type: "createBranch", name, base, view });
       return { ok: true, snapshot: actionSnapshot };
     },
     merge: async (ref, targetBranch, view, options) => {
-      window.__gitPeekActions.push({ type: "merge", ref, targetBranch, view, options });
+      window.__gocusActions.push({ type: "merge", ref, targetBranch, view, options });
       if (config.mergeError) return { ok: false, error: config.mergeError, snapshot: actionSnapshot };
       return { ok: true, snapshot: { ...actionSnapshot, branch: { ...actionSnapshot.branch, name: targetBranch }, view } };
     },
     openWorktree: async (worktreePath, view) => {
-      window.__gitPeekActions.push({ type: "openWorktree", worktreePath, view });
+      window.__gocusActions.push({ type: "openWorktree", worktreePath, view });
       return { ok: true, snapshot: { ...actionSnapshot, repoPath: worktreePath, view } };
     },
     initializeRepository: async (repositoryPath, view) => {
-      window.__gitPeekActions.push({ type: "initializeRepository", repositoryPath, view });
+      window.__gocusActions.push({ type: "initializeRepository", repositoryPath, view });
       return initializedResponse;
     },
     openRepository: async () => initializedResponse,
@@ -704,14 +704,14 @@ async function openMockedPage(browser, baseUrl, scenario, options = {}) {
   });
   page.on("pageerror", (error) => errors.push(`page error: ${error.message}`));
 
-  await page.addInitScript(installGitPeekMock, { ...scenario, ...options });
+  await page.addInitScript(installGocusMock, { ...scenario, ...options });
   await page.goto(baseUrl, { waitUntil: "networkidle" });
 
   return { page, errors };
 }
 
 async function assertHealthyPage(page, errors) {
-  assert.match(await page.title(), /Git Peek/);
+  assert.match(await page.title(), /Gocus/);
   await page.getByRole("heading", { name: "Commits" }).waitFor();
   assert.equal(await page.locator(".commits-section").getAttribute("aria-labelledby"), "recent-commits-title");
   assert.equal(await page.locator("#recent-commits-title").innerText(), "Commits");
@@ -861,7 +861,7 @@ async function assertVisibleCommitRowsHaveOwnedGraphNodes(page, label) {
 }
 
 async function assertGitActions(page, expectedActions) {
-  assert.deepEqual(await page.evaluate(() => window.__gitPeekActions), expectedActions);
+  assert.deepEqual(await page.evaluate(() => window.__gocusActions), expectedActions);
 }
 
 async function clickActionDialogBackdrop(page) {
@@ -933,16 +933,16 @@ async function testCommitHoverPanel(browser, baseUrl) {
     const secondCommitButton = page.getByRole("button", { name: /Fix footer changed now toggle/ });
 
     await firstCommitButton.hover();
-    await page.waitForFunction(() => window.__gitPeekCommitInfoPayload === null);
+    await page.waitForFunction(() => window.__gocusCommitInfoPayload === null);
     assert.equal(await page.locator(".commit-row.is-selected").count(), 0);
 
     await firstCommitButton.click();
-    await page.waitForFunction(() => window.__gitPeekCommitInfoPayload?.kind === "commit");
+    await page.waitForFunction(() => window.__gocusCommitInfoPayload?.kind === "commit");
     assert.equal(await page.locator(".commit-hover-panel").count(), 0);
-    assert.equal(await page.evaluate(() => window.__gitPeekCommitInfoPayload?.commit?.hash), "a1b2c3d");
+    assert.equal(await page.evaluate(() => window.__gocusCommitInfoPayload?.commit?.hash), "a1b2c3d");
     assert.deepEqual(
       await page.evaluate(() => {
-        const anchor = window.__gitPeekCommitInfoPayload?.anchorBounds;
+        const anchor = window.__gocusCommitInfoPayload?.anchorBounds;
         return {
           topIsNumber: Number.isFinite(anchor?.top),
           heightIsPositive: Number.isFinite(anchor?.height) && anchor.height > 0,
@@ -950,14 +950,14 @@ async function testCommitHoverPanel(browser, baseUrl) {
       }),
       { topIsNumber: true, heightIsPositive: true },
     );
-    assert.equal(await page.evaluate(() => window.__gitPeekTemporaryInfoPayload), null);
+    assert.equal(await page.evaluate(() => window.__gocusTemporaryInfoPayload), null);
 
     await secondCommitButton.hover();
-    await page.waitForFunction(() => window.__gitPeekCommitInfoPayload === null);
+    await page.waitForFunction(() => window.__gocusCommitInfoPayload === null);
 
     await secondCommitButton.click();
-    await page.waitForFunction(() => window.__gitPeekCommitInfoPayload?.commit?.hash === "d4e5f6a");
-    const secondAnchorTop = await page.evaluate(() => window.__gitPeekCommitInfoPayload?.anchorBounds?.top);
+    await page.waitForFunction(() => window.__gocusCommitInfoPayload?.commit?.hash === "d4e5f6a");
+    const secondAnchorTop = await page.evaluate(() => window.__gocusCommitInfoPayload?.anchorBounds?.top);
     const secondSelectedTop = await page.locator(".commit-row.is-selected").evaluate((node) => node.getBoundingClientRect().top);
     assert.ok(
       Math.abs(secondAnchorTop - secondSelectedTop) < 1,
@@ -969,7 +969,7 @@ async function testCommitHoverPanel(browser, baseUrl) {
     await page.mouse.move(commitListBox.x + 8, secondSelectedTop + 12);
     await page.mouse.move(commitListBox.x - 16, secondSelectedTop + 12);
     await page.waitForTimeout(80);
-    assert.equal(await page.evaluate(() => window.__gitPeekCommitInfoPayload?.commit?.hash), "d4e5f6a");
+    assert.equal(await page.evaluate(() => window.__gocusCommitInfoPayload?.commit?.hash), "d4e5f6a");
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -984,23 +984,23 @@ async function testCommitPreviewBlurKeepsActiveInfoPanel(browser, baseUrl) {
     await assertHealthyPage(page, errors);
 
     await page.getByRole("button", { name: /Add commit search polish/ }).click();
-    await page.waitForFunction(() => window.__gitPeekCommitInfoPayload?.commit?.hash === "a1b2c3d");
-    assert.deepEqual(await page.evaluate(() => window.__gitPeekCommitInfoSetCalls), ["a1b2c3d"]);
+    await page.waitForFunction(() => window.__gocusCommitInfoPayload?.commit?.hash === "a1b2c3d");
+    assert.deepEqual(await page.evaluate(() => window.__gocusCommitInfoSetCalls), ["a1b2c3d"]);
     await page.evaluate(() => {
       const button = document.querySelector(".commit-row.is-selected .commit-select");
       button?.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: null }));
     });
     await page.waitForTimeout(120);
-    assert.equal(await page.evaluate(() => window.__gitPeekCommitInfoPayload?.commit?.hash), "a1b2c3d");
-    assert.deepEqual(await page.evaluate(() => window.__gitPeekCommitInfoSetCalls), ["a1b2c3d"]);
+    assert.equal(await page.evaluate(() => window.__gocusCommitInfoPayload?.commit?.hash), "a1b2c3d");
+    assert.deepEqual(await page.evaluate(() => window.__gocusCommitInfoSetCalls), ["a1b2c3d"]);
 
     await page.evaluate(() => {
-      window.__gitPeekCommitInfoPanelActive = false;
+      window.__gocusCommitInfoPanelActive = false;
       const button = document.querySelector(".commit-row.is-selected .commit-select");
       button?.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: null }));
     });
-    await page.waitForFunction(() => window.__gitPeekCommitInfoPayload === null);
-    assert.deepEqual(await page.evaluate(() => window.__gitPeekCommitInfoSetCalls), ["a1b2c3d", null]);
+    await page.waitForFunction(() => window.__gocusCommitInfoPayload === null);
+    assert.deepEqual(await page.evaluate(() => window.__gocusCommitInfoSetCalls), ["a1b2c3d", null]);
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -1021,12 +1021,12 @@ async function testCommitInfoPanel(browser, baseUrl) {
     { viewport: commitInfoViewport },
   );
   try {
-    assert.match(await page.title(), /Git Peek/);
+    assert.match(await page.title(), /Gocus/);
     const hoverPanel = page.locator(".commit-hover-panel");
     await hoverPanel.waitFor();
     assert.equal(await page.locator(".temporary-info-panel").evaluate((node) => node.classList.contains("is-commit")), true);
-    await page.waitForFunction(() => window.__gitPeekCommitInfoPanelHeights?.length > 0);
-    const reportedHeights = await page.evaluate(() => window.__gitPeekCommitInfoPanelHeights);
+    await page.waitForFunction(() => window.__gocusCommitInfoPanelHeights?.length > 0);
+    const reportedHeights = await page.evaluate(() => window.__gocusCommitInfoPanelHeights);
     const reportedHeight = reportedHeights[reportedHeights.length - 1];
     assert.ok(reportedHeight >= 92, `commit info panel height should keep a readable minimum: ${reportedHeight}`);
     assert.ok(reportedHeight <= 240, `commit info panel height should stay within the commit info cap: ${reportedHeight}`);
@@ -1083,10 +1083,10 @@ async function testCommitInfoPanel(browser, baseUrl) {
     assert.match(panelText, /a1b2c3d/);
     await page.getByRole("button", { name: "Copy commit hash" }).click();
     await page.getByRole("button", { name: "Copied commit hash" }).waitFor();
-    assert.equal(await page.evaluate(() => window.__gitPeekCopiedText), mockCommits[0].fullHash);
-    assert.deepEqual(await page.evaluate(() => window.__gitPeekCommitInfoInteractionHolds), [700]);
+    assert.equal(await page.evaluate(() => window.__gocusCopiedText), mockCommits[0].fullHash);
+    assert.deepEqual(await page.evaluate(() => window.__gocusCommitInfoInteractionHolds), [700]);
     await page.evaluate(
-      (commit) => window.gitPeek.setCommitInfoPanel({ kind: "commit", commit }),
+      (commit) => window.gocus.setCommitInfoPanel({ kind: "commit", commit }),
       commit({
         hash: "bad9e42",
         title: "Keep branch badges readable",
@@ -1099,8 +1099,8 @@ async function testCommitInfoPanel(browser, baseUrl) {
         containedBranches: [],
       }),
     );
-    await page.waitForFunction(() => window.__gitPeekCommitInfoPayload?.commit?.hash === "bad9e42");
-    await page.waitForFunction(() => window.__gitPeekCommitInfoPanelHeights?.some((height) => height > 164));
+    await page.waitForFunction(() => window.__gocusCommitInfoPayload?.commit?.hash === "bad9e42");
+    await page.waitForFunction(() => window.__gocusCommitInfoPanelHeights?.some((height) => height > 164));
     const refLayout = await page.locator(".commit-hover-refs").evaluate((node) => {
       const containerStyle = window.getComputedStyle(node);
       const pills = Array.from(node.querySelectorAll(".commit-hover-ref-pill")).map((pill) => {
@@ -1143,7 +1143,7 @@ async function testCommitInfoPanel(browser, baseUrl) {
       assert.equal(pill.labelWhiteSpace, "normal");
     }
     await page.evaluate(
-      (commit) => window.gitPeek.setCommitInfoPanel({ kind: "commit", commit }),
+      (commit) => window.gocus.setCommitInfoPanel({ kind: "commit", commit }),
       commit({
         hash: "c0ffee0",
         title: "Fix compact panel",
@@ -1152,9 +1152,9 @@ async function testCommitInfoPanel(browser, baseUrl) {
         containedBranches: [],
       }),
     );
-    await page.waitForFunction(() => window.__gitPeekCommitInfoPanelHeights?.some((height) => height < 132));
+    await page.waitForFunction(() => window.__gocusCommitInfoPanelHeights?.some((height) => height < 132));
     const compactReportedHeight = await page.evaluate(() => {
-      const heights = window.__gitPeekCommitInfoPanelHeights;
+      const heights = window.__gocusCommitInfoPanelHeights;
       return heights[heights.length - 1];
     });
     assert.ok(compactReportedHeight < 132, `commit info panel height should shrink below the old fixed height: ${compactReportedHeight}`);
@@ -1213,7 +1213,7 @@ async function testCommitSearch(browser, baseUrl) {
     assert.equal(await pasteSearch.isEnabled(), true);
 
     await page.evaluate(() => {
-      window.__gitPeekClipboardText = "footer";
+      window.__gocusClipboardText = "footer";
     });
     await pasteSearch.click();
     assert.equal(await page.getByRole("searchbox", { name: "Search commits" }).inputValue(), "footer");
@@ -1221,7 +1221,7 @@ async function testCommitSearch(browser, baseUrl) {
     await page.getByRole("status").filter({ hasText: "Showing 1/2" }).waitFor();
     assert.equal(await copySearch.isEnabled(), true);
     await copySearch.click();
-    assert.equal(await page.evaluate(() => window.__gitPeekCopiedText), "footer");
+    assert.equal(await page.evaluate(() => window.__gocusCopiedText), "footer");
     await page.getByRole("searchbox", { name: "Search commits" }).press("Enter");
     assert.equal(await page.locator(".commit-row.is-selected .commit-title-text").innerText(), "Fix footer changed now toggle");
 
@@ -1401,12 +1401,12 @@ async function testCommitSearch(browser, baseUrl) {
     const closeChangedNow = page.getByRole("button", { name: "Close Changed now" });
     await closeChangedNow.waitFor();
     assert.equal(await closeChangedNow.getAttribute("aria-pressed"), "true");
-    assert.deepEqual(await page.evaluate(() => window.__gitPeekTemporaryInfoPayload?.kind), "changed-files");
-    assert.equal(await page.evaluate(() => window.__gitPeekTemporaryInfoPayload?.files?.length), 0);
+    assert.deepEqual(await page.evaluate(() => window.__gocusTemporaryInfoPayload?.kind), "changed-files");
+    assert.equal(await page.evaluate(() => window.__gocusTemporaryInfoPayload?.files?.length), 0);
 
     await closeChangedNow.click();
     assert.equal(await page.getByRole("button", { name: "Open Changed now" }).getAttribute("aria-pressed"), "false");
-    assert.equal(await page.evaluate(() => window.__gitPeekTemporaryInfoPayload), null);
+    assert.equal(await page.evaluate(() => window.__gocusTemporaryInfoPayload), null);
 
     assert.deepEqual(errors, []);
   } finally {
@@ -1436,11 +1436,11 @@ async function testMergeFailureStaysInDialog(browser, baseUrl) {
     assert.match(errorText, /Auto-merging src\/App\.tsx/);
     assert.match(errorText, /CONFLICT \(content\): Merge conflict in src\/App\.tsx/);
     assert.match(errorText, /Automatic merge failed/);
-    assert.deepEqual(await page.evaluate(() => window.__gitPeekActions), [expectedMergeAction("main", false)]);
+    assert.deepEqual(await page.evaluate(() => window.__gocusActions), [expectedMergeAction("main", false)]);
 
     await page.getByRole("button", { name: "Copy agent prompt" }).click();
     await page.getByRole("button", { name: "Copied prompt" }).waitFor();
-    const copiedPrompt = await page.evaluate(() => window.__gitPeekCopiedText);
+    const copiedPrompt = await page.evaluate(() => window.__gocusCopiedText);
     assert.match(copiedPrompt, /A Git merge failed in this repository/);
     assert.match(copiedPrompt, /Source ref\/commit: d4e5f6a000000000000000000000000000000000/);
     assert.match(copiedPrompt, /Target branch: main/);
@@ -1501,7 +1501,7 @@ async function testMergeConfirmBlocksDirtyWorkspace(browser, baseUrl) {
     assert.equal(await error.getAttribute("role"), "alert");
     assert.equal(await error.innerText(), "Workspace has uncommitted changes. Commit them before merging.");
     assert.equal(await page.getByRole("button", { name: "Copy agent prompt" }).count(), 0);
-    assert.deepEqual(await page.evaluate(() => window.__gitPeekActions), []);
+    assert.deepEqual(await page.evaluate(() => window.__gocusActions), []);
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -1524,11 +1524,11 @@ async function testMergeFailurePromptHonorsNoFastForwardSetting(browser, baseUrl
 
     await mergeDialog.waitFor();
     await page.locator("#action-dialog-error").waitFor();
-    assert.deepEqual(await page.evaluate(() => window.__gitPeekActions), [expectedMergeAction("main", true)]);
+    assert.deepEqual(await page.evaluate(() => window.__gocusActions), [expectedMergeAction("main", true)]);
 
     await page.getByRole("button", { name: "Copy agent prompt" }).click();
     await page.getByRole("button", { name: "Copied prompt" }).waitFor();
-    const copiedPrompt = await page.evaluate(() => window.__gitPeekCopiedText);
+    const copiedPrompt = await page.evaluate(() => window.__gocusCopiedText);
     assert.match(copiedPrompt, /No-fast-forward merges are enabled in Settings/);
     assert.match(copiedPrompt, /do not complete this as a fast-forward merge/);
     assert.match(copiedPrompt, /if none are present, use Conventional Commits/);
@@ -1549,9 +1549,9 @@ async function testMergeStateSurvivesStartup(browser, baseUrl) {
     await page.getByText("Merge in progress: 2 conflicted files.").waitFor();
 
     await page.getByRole("button", { name: "Open Changed now" }).click();
-    await page.waitForFunction(() => window.__gitPeekTemporaryInfoPayload?.files?.length === 2);
+    await page.waitForFunction(() => window.__gocusTemporaryInfoPayload?.files?.length === 2);
     assert.deepEqual(
-      await page.evaluate(() => window.__gitPeekTemporaryInfoPayload?.files.map((file) => file.statusLabel)),
+      await page.evaluate(() => window.__gocusTemporaryInfoPayload?.files.map((file) => file.statusLabel)),
       ["Conflicted", "Conflicted"],
     );
     assert.deepEqual(errors, []);
@@ -1572,7 +1572,7 @@ async function testTemporaryInfoCopyPrompt(browser, baseUrl) {
     },
   });
   try {
-    assert.match(await page.title(), /Git Peek/);
+    assert.match(await page.title(), /Gocus/);
     await page.getByRole("heading", { name: "Changed now" }).waitFor();
     assert.equal(await page.locator(".changed-section").getAttribute("aria-labelledby"), "changed-now-title");
     assert.equal(await page.locator("#changed-now-title").innerText(), "Changed now");
@@ -1580,9 +1580,9 @@ async function testTemporaryInfoCopyPrompt(browser, baseUrl) {
     assert.equal(await page.locator(".changed-side-panel").count(), 0);
 
     await page.getByRole("button", { name: /src\/components\/RecentCommits\.tsx/ }).click();
-    await page.waitForFunction(() => window.__gitPeekChangedFileInfoPayload?.file?.path === "src/components/RecentCommits.tsx");
+    await page.waitForFunction(() => window.__gocusChangedFileInfoPayload?.file?.path === "src/components/RecentCommits.tsx");
     assert.equal(await page.locator(".changed-side-panel").count(), 0);
-    const firstDetailPayload = await page.evaluate(() => window.__gitPeekChangedFileInfoPayload);
+    const firstDetailPayload = await page.evaluate(() => window.__gocusChangedFileInfoPayload);
     const { page: detailPage, errors: detailErrors } = await openMockedPage(browser, `${baseUrl}?window=changed-file-info`, {
       ...mockedSnapshotScenario(mockCommits),
       availableWorkspaceTargets: allWorkspaceTargets,
@@ -1596,11 +1596,11 @@ async function testTemporaryInfoCopyPrompt(browser, baseUrl) {
       assert.equal(await detailPage.locator(".changed-side-footer-actions .workspace-open-control").count(), 1);
       assert.equal(await detailPage.locator(".temporary-info-panel").evaluate((node) => node.classList.contains("is-changed-file")), true);
       await detailPage.getByRole("button", { name: "Open in Cursor" }).click();
-      assert.deepEqual(await detailPage.evaluate(() => window.__gitPeekOpenedWorkspaceFiles), [
+      assert.deepEqual(await detailPage.evaluate(() => window.__gocusOpenedWorkspaceFiles), [
         { target: "cursor", filePath: "src/components/RecentCommits.tsx" },
       ]);
       await detailPage.getByRole("button", { name: "Choose external app" }).click();
-      await detailPage.waitForFunction(() => window.__gitPeekWorkspaceOpenMenuPayload?.filePath === "src/components/RecentCommits.tsx");
+      await detailPage.waitForFunction(() => window.__gocusWorkspaceOpenMenuPayload?.filePath === "src/components/RecentCommits.tsx");
       assert.equal(await detailPage.locator("#workspace-open-menu").count(), 0);
       const detailPanelScroll = await detailPage.locator(".temporary-info-panel").evaluate((node) => ({
         clientHeight: node.clientHeight,
@@ -1622,39 +1622,39 @@ async function testTemporaryInfoCopyPrompt(browser, baseUrl) {
         changedSideScroll.scrollHeight <= changedSideScroll.clientHeight + 1,
         `Changed side panel should not scroll when the external app menu is open: ${JSON.stringify(changedSideScroll)}`,
       );
-      const menuPayload = await detailPage.evaluate(() => window.__gitPeekWorkspaceOpenMenuPayload);
+      const menuPayload = await detailPage.evaluate(() => window.__gocusWorkspaceOpenMenuPayload);
       assert.equal(menuPayload.itemCount, allWorkspaceTargets.length);
       assert.equal(menuPayload.anchorBounds.width, 78);
       await detailPage.getByRole("button", { name: "Close changed file details" }).click();
-      await detailPage.waitForFunction(() => window.__gitPeekChangedFileInfoPayload === null);
+      await detailPage.waitForFunction(() => window.__gocusChangedFileInfoPayload === null);
       assert.deepEqual(detailErrors, []);
     } finally {
       await detailPage.close();
     }
 
     await page.evaluate(() => {
-      window.__gitPeekChangedFileInfoPanelClosedListeners.forEach((callback) => callback());
+      window.__gocusChangedFileInfoPanelClosedListeners.forEach((callback) => callback());
     });
     assert.equal(await page.locator(".changed-side-panel").count(), 0);
 
     await page.evaluate(() => {
       const payload = {
-        ...window.__gitPeekTemporaryInfoPayload,
+        ...window.__gocusTemporaryInfoPayload,
         selectedFileKey: "M-src/styles.css-",
         workspaceOpenTarget: "finder",
       };
-      window.__gitPeekTemporaryInfoPayload = payload;
-      window.__gitPeekTemporaryInfoListeners.forEach((callback) => callback(payload));
+      window.__gocusTemporaryInfoPayload = payload;
+      window.__gocusTemporaryInfoListeners.forEach((callback) => callback(payload));
     });
     await page.getByRole("button", { name: /src\/styles\.css/ }).click();
-    await page.waitForFunction(() => window.__gitPeekChangedFileInfoPayload?.file?.path === "src/styles.css");
+    await page.waitForFunction(() => window.__gocusChangedFileInfoPayload?.file?.path === "src/styles.css");
     assert.equal(await page.locator(".changed-side-panel").count(), 0);
     assert.equal(await page.getByRole("button", { name: /src\/styles\.css/ }).getAttribute("aria-pressed"), "true");
-    assert.equal(await page.evaluate(() => window.__gitPeekChangedFileInfoPayload?.workspaceOpenTarget), "finder");
+    assert.equal(await page.evaluate(() => window.__gocusChangedFileInfoPayload?.workspaceOpenTarget), "finder");
 
     await page.getByRole("button", { name: "Copy prompt to commit changes" }).click();
     await page.getByRole("button", { name: "Copied prompt" }).waitFor();
-    const copiedPrompt = await page.evaluate(() => window.__gitPeekCopiedText);
+    const copiedPrompt = await page.evaluate(() => window.__gocusCopiedText);
     assert.match(copiedPrompt, /Run or review the necessary git status \/ git diff/);
     assert.match(copiedPrompt, /Do not run git commit before Yes/);
     assert.doesNotMatch(copiedPrompt, /Current Changed Now list/);
@@ -1677,11 +1677,11 @@ async function testTemporaryInfoCopyFailure(browser, baseUrl) {
     },
   });
   try {
-    assert.match(await page.title(), /Git Peek/);
+    assert.match(await page.title(), /Gocus/);
     await page.getByRole("heading", { name: "Changed now" }).waitFor();
     await page.getByRole("button", { name: "Copy prompt to commit changes" }).click();
     await page.getByRole("button", { name: "Copy failed" }).waitFor();
-    assert.equal(await page.evaluate(() => window.__gitPeekCopiedText), "");
+    assert.equal(await page.evaluate(() => window.__gocusCopiedText), "");
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -1701,12 +1701,12 @@ async function testTemporaryInfoCopyFallback(browser, baseUrl) {
     },
   });
   try {
-    assert.match(await page.title(), /Git Peek/);
+    assert.match(await page.title(), /Gocus/);
     await page.getByRole("heading", { name: "Changed now" }).waitFor();
     await page.getByRole("button", { name: "Copy prompt to commit changes" }).click();
     await page.getByRole("button", { name: "Copied prompt" }).waitFor();
-    assert.equal(await page.evaluate(() => window.__gitPeekCopiedText), "");
-    const fallbackPrompt = await page.evaluate(() => window.__gitPeekClipboardText);
+    assert.equal(await page.evaluate(() => window.__gocusCopiedText), "");
+    const fallbackPrompt = await page.evaluate(() => window.__gocusClipboardText);
     assert.match(fallbackPrompt, /Run or review the necessary git status \/ git diff/);
     assert.doesNotMatch(fallbackPrompt, /Current Changed Now list/);
     assert.doesNotMatch(fallbackPrompt, /src\/components\/RecentCommits\.tsx/);
@@ -1738,7 +1738,7 @@ async function testTemporaryInfoHiddenChangedFiles(browser, baseUrl) {
     { viewport: temporaryInfoViewport },
   );
   try {
-    assert.match(await page.title(), /Git Peek/);
+    assert.match(await page.title(), /Gocus/);
     await page.getByRole("heading", { name: "Changed now" }).waitFor();
     assert.equal(await page.locator(".temporary-info-panel").evaluate((node) => node.classList.contains("has-detail")), false);
     const fileListBox = await page.locator(".file-list").boundingBox();
@@ -1763,7 +1763,7 @@ async function testTemporaryInfoEmptyChangedFiles(browser, baseUrl) {
     },
   });
   try {
-    assert.match(await page.title(), /Git Peek/);
+    assert.match(await page.title(), /Gocus/);
     await page.getByRole("heading", { name: "Changed now" }).waitFor();
     await page.getByRole("status").filter({ hasText: "No files in this view." }).waitFor();
     assert.equal(await page.locator(".empty-state").getAttribute("aria-live"), "polite");
@@ -1903,11 +1903,11 @@ async function testCollapsedRailChangedNowToggle(browser, baseUrl) {
       return refPill ? getComputedStyle(refPill).getPropertyValue("--branch-color").trim() : "";
     }, branchName);
     assert.equal(mainBranchColor, branchColor);
-    await page.waitForFunction(() => window.__gitPeekCollapsedRailHeights.at(-1) === 230);
+    await page.waitForFunction(() => window.__gocusCollapsedRailHeights.at(-1) === 230);
 
     await page.getByRole("button", { name: "Collapse side peek" }).click();
     await page.setViewportSize({ width: 38, height: 230 });
-    await page.getByLabel("Collapsed Git Peek").waitFor();
+    await page.getByLabel("Collapsed Gocus").waitFor();
     await assertNoHorizontalOverflow(page, "collapsed rail");
 
     const branchLabel = page.getByLabel(`Current branch ${branchName}`);
@@ -1963,12 +1963,12 @@ async function testCollapsedRailChangedNowToggle(browser, baseUrl) {
     const closeChangedNow = page.getByRole("button", { name: "Close Changed now, 2 working tree changes" });
     await closeChangedNow.waitFor();
     assert.equal(await closeChangedNow.getAttribute("aria-pressed"), "true");
-    assert.equal(await page.evaluate(() => window.__gitPeekTemporaryInfoPayload?.kind), "changed-files");
+    assert.equal(await page.evaluate(() => window.__gocusTemporaryInfoPayload?.kind), "changed-files");
 
     await closeChangedNow.click();
     await openChangedNow.waitFor();
     assert.equal(await openChangedNow.getAttribute("aria-pressed"), "false");
-    assert.equal(await page.evaluate(() => window.__gitPeekTemporaryInfoPayload), null);
+    assert.equal(await page.evaluate(() => window.__gocusTemporaryInfoPayload), null);
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -2027,7 +2027,7 @@ async function testExternalWorktreeCheckoutDisabled(browser, baseUrl) {
 async function testFolderWithoutGitInitialize(browser, baseUrl) {
   const { page, errors } = await openMockedPage(browser, baseUrl, folderWithoutGitScenario());
   try {
-    assert.match(await page.title(), /Git Peek/);
+    assert.match(await page.title(), /Gocus/);
     await page.getByRole("heading", { name: "Folder without Git" }).waitFor();
     assert.equal(await page.locator(".empty-repository").getAttribute("aria-labelledby"), "empty-repository-title");
     assert.equal(await page.locator("#empty-repository-title").innerText(), "Folder without Git");
@@ -2047,7 +2047,7 @@ async function testFolderWithoutGitInitialize(browser, baseUrl) {
 async function testEmptyRepositoryRecentOverflow(browser, baseUrl) {
   const { page, errors } = await openMockedPage(browser, baseUrl, noRepositoryScenario());
   try {
-    assert.match(await page.title(), /Git Peek/);
+    assert.match(await page.title(), /Gocus/);
     await page.getByRole("heading", { name: "Open a working folder" }).waitFor();
     await page.getByRole("status").filter({ hasText: "No working folder selected." }).waitFor();
     assert.equal(await page.getByRole("status").filter({ hasText: "No working folder selected." }).getAttribute("aria-live"), "polite");
@@ -2077,7 +2077,7 @@ async function testBranchViewDoesNotCheckout(browser, baseUrl) {
     assert.equal(await allViewButton.getAttribute("aria-pressed"), "false");
     assert.equal(await branchViewButton.getAttribute("aria-pressed"), "true");
 
-    assert.deepEqual(await page.evaluate(() => window.__gitPeekSnapshotRequests.at(-1)), {
+    assert.deepEqual(await page.evaluate(() => window.__gocusSnapshotRequests.at(-1)), {
       mode: "branch",
       ref: "feature/footer-toggle",
     });
@@ -2227,7 +2227,7 @@ async function testOpenWorktreeKeepsCommitView(browser, baseUrl) {
 
     await page.getByRole("button", { name: "Choose worktree" }).click();
     await page.getByRole("menuitem", { name: "feature/footer-toggle - git-tree-vis-linked" }).click();
-    await page.waitForFunction(() => window.__gitPeekActions.length === 1);
+    await page.waitForFunction(() => window.__gocusActions.length === 1);
 
     await assertGitActions(page, [expectedOpenWorktreeAction({ mode: "all" })]);
     assert.deepEqual(errors, []);
@@ -2244,7 +2244,7 @@ async function testRefreshFailureRecovers(browser, baseUrl) {
     await page.getByRole("button", { name: "Refresh Git status" }).click();
     await page.locator(".is-spinning").waitFor({ state: "detached" });
 
-    assert.equal(await page.evaluate(() => window.__gitPeekRefreshCount), 1);
+    assert.equal(await page.evaluate(() => window.__gocusRefreshCount), 1);
     await page.getByText("Native refresh failed.").waitFor();
     assert.equal(await page.locator(".notice-line").getAttribute("aria-live"), "polite");
     assert.deepEqual(errors, []);
@@ -2258,7 +2258,7 @@ async function testPreviewRefreshWithoutBridge(browser, baseUrl) {
   try {
     await assertHealthyPage(page, errors);
     await page.evaluate(() => {
-      delete window.gitPeek;
+      delete window.gocus;
     });
 
     await page.getByRole("button", { name: "Refresh Git status" }).click();
@@ -2271,7 +2271,7 @@ async function testPreviewRefreshWithoutBridge(browser, baseUrl) {
     assert.equal(await page.locator(".notice-line").getAttribute("aria-live"), "polite");
     assert.equal(await page.getByRole("button", { name: "Refresh Git status" }).isDisabled(), false);
 
-    assert.equal(await page.evaluate(() => window.__gitPeekRefreshCount), 0);
+    assert.equal(await page.evaluate(() => window.__gocusRefreshCount), 0);
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -2312,7 +2312,7 @@ async function testOptionalStartupFailuresDoNotBreakMainWindow(browser, baseUrl)
 async function testTemporaryInfoStartupFailuresDoNotBreakWindow(browser, baseUrl) {
   const { page, errors } = await openMockedPage(browser, `${baseUrl}?window=temporary-info`, temporaryInfoStartupFailureScenario());
   try {
-    assert.match(await page.title(), /Git Peek/);
+    assert.match(await page.title(), /Gocus/);
     await page.getByLabel("Temporary information").waitFor();
     await page.getByRole("status").filter({ hasText: "No file selected." }).waitFor();
     assert.equal(await page.locator(".temporary-info-empty").innerText(), "No file selected.");
@@ -2424,11 +2424,11 @@ async function testDismissableMenus(browser, baseUrl) {
 
     await workspaceMenuButton.click();
     await page.getByRole("menuitem", { name: "Finder" }).click();
-    assert.deepEqual(await page.evaluate(() => window.__gitPeekOpenedWorkspaces), ["finder"]);
+    assert.deepEqual(await page.evaluate(() => window.__gocusOpenedWorkspaces), ["finder"]);
     await page.getByRole("button", { name: "Open in Finder" }).click();
-    assert.deepEqual(await page.evaluate(() => window.__gitPeekOpenedWorkspaces), ["finder", "finder"]);
+    assert.deepEqual(await page.evaluate(() => window.__gocusOpenedWorkspaces), ["finder", "finder"]);
     await page.getByRole("button", { name: "Open Changed now" }).click();
-    await page.waitForFunction(() => window.__gitPeekTemporaryInfoPayload?.workspaceOpenTarget === "finder");
+    await page.waitForFunction(() => window.__gocusTemporaryInfoPayload?.workspaceOpenTarget === "finder");
 
     assert.deepEqual(errors, []);
   } finally {
@@ -2445,10 +2445,10 @@ async function testFocusedViewEscapeControls(browser, baseUrl) {
     const unpinButton = page.getByRole("button", { name: "Unpin floating panel" });
     await pinButton.waitFor();
     assert.equal(await pinButton.getAttribute("aria-pressed"), "false");
-    await page.evaluate(() => window.__gitPeekPinnedListeners.forEach((callback) => callback(true)));
+    await page.evaluate(() => window.__gocusPinnedListeners.forEach((callback) => callback(true)));
     await unpinButton.waitFor();
     assert.equal(await unpinButton.getAttribute("aria-pressed"), "true");
-    await page.evaluate(() => window.__gitPeekPinnedListeners.forEach((callback) => callback(false)));
+    await page.evaluate(() => window.__gocusPinnedListeners.forEach((callback) => callback(false)));
     await pinButton.waitFor();
     assert.equal(await pinButton.getAttribute("aria-pressed"), "false");
     await pinButton.click();
@@ -2484,7 +2484,7 @@ async function testFocusedViewEscapeControls(browser, baseUrl) {
     await page.getByRole("menuitemradio", { name: "5 min", exact: true }).click();
     await refreshMenu.waitFor({ state: "detached" });
     assert.equal(await refreshDropdown.innerText(), "5 min");
-    assert.equal(await page.evaluate(() => window.__gitPeekSavedPreferences.at(-1)?.autoRefreshInterval), "5m");
+    assert.equal(await page.evaluate(() => window.__gocusSavedPreferences.at(-1)?.autoRefreshInterval), "5m");
     const behaviorToggleLabels = [
       "Launch at login",
       "Show menu bar icon",
@@ -2505,7 +2505,7 @@ async function testFocusedViewEscapeControls(browser, baseUrl) {
       );
     });
     assert.deepEqual(
-      await page.evaluate(() => window.__gitPeekSavedPreferences.map((preferences) => preferences.autoRefreshInterval)),
+      await page.evaluate(() => window.__gocusSavedPreferences.map((preferences) => preferences.autoRefreshInterval)),
       ["5m"],
     );
 

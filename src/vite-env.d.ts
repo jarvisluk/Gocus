@@ -16,7 +16,7 @@ import type {
 
 declare global {
   interface Window {
-    gitPeek?: {
+    gocus?: {
       openRepository: (view?: CommitViewSelection) => Promise<SnapshotResponse>;
       switchRepository: (repositoryPath: string, view?: CommitViewSelection) => Promise<SnapshotResponse>;
       getRecentRepositories: () => Promise<RecentRepository[]>;

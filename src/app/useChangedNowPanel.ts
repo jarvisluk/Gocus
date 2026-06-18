@@ -38,7 +38,7 @@ export function useChangedNowPanel({
   );
 
   const runTemporaryInfoPanelBridgeAction = useCallback((action: TemporaryInfoPanelBridgeAction, payload: TemporaryInfoPayload = null) => {
-    runTemporaryInfoPanelBridgeSideEffect(action, (nextPayload) => window.gitPeek?.setTemporaryInfoPanel(nextPayload), payload);
+    runTemporaryInfoPanelBridgeSideEffect(action, (nextPayload) => window.gocus?.setTemporaryInfoPanel(nextPayload), payload);
   }, []);
 
   const closeChangedNowWindow = useCallback(() => {
@@ -99,7 +99,7 @@ export function useChangedNowPanel({
 
   useEffect(
     () =>
-      window.gitPeek?.onTemporaryInfoPanelClosed(() => {
+      window.gocus?.onTemporaryInfoPanelClosed(() => {
         setChangedNowState(closedChangedNowWindowState);
       }),
     [],

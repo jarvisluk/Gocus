@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
-contextBridge.exposeInMainWorld("gitPeek", {
+contextBridge.exposeInMainWorld("gocus", {
   openRepository: (view) => ipcRenderer.invoke("git:openRepository", view),
   switchRepository: (repositoryPath, view) => ipcRenderer.invoke("git:switchRepository", repositoryPath, view),
   getRecentRepositories: () => ipcRenderer.invoke("git:getRecentRepositories"),

@@ -23,21 +23,21 @@ export function ChangedFileInfoWindow() {
   const view = changedFileInfoWindowView(payload);
 
   useEffect(() => {
-    window.gitPeek
+    window.gocus
       ?.getChangedFileInfoPayload()
       .then(setPayload)
       .catch((error) => logBridgeWarning("Unable to load changed file info payload.", error));
-    return window.gitPeek?.onChangedFileInfoPayloadUpdated(setPayload);
+    return window.gocus?.onChangedFileInfoPayloadUpdated(setPayload);
   }, []);
 
   useEffect(() => {
-    window.gitPeek
+    window.gocus
       ?.getPreferences()
       .then((value) => setPreferences(mergePreferences(value)))
       .catch((error) => logBridgeWarning("Unable to load preferences.", error));
-    window.gitPeek?.getSystemTheme().then(setSystemTheme).catch((error) => logBridgeWarning("Unable to load system theme.", error));
-    const unsubscribeTheme = window.gitPeek?.onThemeChanged(setSystemTheme);
-    const unsubscribePreferences = window.gitPeek?.onPreferencesChanged((value) => setPreferences(mergePreferences(value)));
+    window.gocus?.getSystemTheme().then(setSystemTheme).catch((error) => logBridgeWarning("Unable to load system theme.", error));
+    const unsubscribeTheme = window.gocus?.onThemeChanged(setSystemTheme);
+    const unsubscribePreferences = window.gocus?.onPreferencesChanged((value) => setPreferences(mergePreferences(value)));
     return () => {
       unsubscribeTheme?.();
       unsubscribePreferences?.();
@@ -45,22 +45,22 @@ export function ChangedFileInfoWindow() {
   }, []);
 
   useEffect(() => {
-    window.gitPeek
+    window.gocus
       ?.getAvailableWorkspaceTargets()
       .then((targets) => setAvailableWorkspaceTargets(sanitizeWorkspaceOpenTargets(targets, [])))
       .catch((error) => logBridgeWarning("Unable to load available workspace targets.", error));
   }, []);
 
   useEffect(() => {
-    window.gitPeek
+    window.gocus
       ?.getActiveWorkspaceTarget()
       .then(setActiveWorkspaceTarget)
       .catch((error) => logBridgeWarning("Unable to load active workspace target.", error));
-    return window.gitPeek?.onActiveWorkspaceTargetChanged(setActiveWorkspaceTarget);
+    return window.gocus?.onActiveWorkspaceTargetChanged(setActiveWorkspaceTarget);
   }, []);
 
   useEffect(() => {
-    if (window.gitPeek?.getActiveWorkspaceTarget) return;
+    if (window.gocus?.getActiveWorkspaceTarget) return;
     if (view.changedFilePayload?.workspaceOpenTarget) setActiveWorkspaceTarget(view.changedFilePayload.workspaceOpenTarget);
   }, [view.changedFilePayload?.workspaceOpenTarget]);
 
@@ -71,12 +71,12 @@ export function ChangedFileInfoWindow() {
   }, [preferences, theme, themePreset]);
 
   function closeChangedFileInfoPanel() {
-    window.gitPeek?.setChangedFileInfoPanel(null).catch((error) => logBridgeWarning("Unable to close changed file info panel.", error));
+    window.gocus?.setChangedFileInfoPanel(null).catch((error) => logBridgeWarning("Unable to close changed file info panel.", error));
   }
 
   function updateActiveWorkspaceTarget(target: WorkspaceOpenTarget) {
     setActiveWorkspaceTarget(target);
-    window.gitPeek?.setActiveWorkspaceTarget(target).catch((error) => logBridgeWarning("Unable to save active workspace target.", error));
+    window.gocus?.setActiveWorkspaceTarget(target).catch((error) => logBridgeWarning("Unable to save active workspace target.", error));
   }
 
   async function openChangedFile(target: WorkspaceOpenTarget) {
@@ -84,7 +84,7 @@ export function ChangedFileInfoWindow() {
     if (!filePath) return;
 
     try {
-      const response = await window.gitPeek?.openWorkspaceFile(target, filePath);
+      const response = await window.gocus?.openWorkspaceFile(target, filePath);
       if (response && !response.ok) {
         logBridgeWarning("Unable to open file in selected app.", response.error ?? response);
       }
@@ -97,7 +97,7 @@ export function ChangedFileInfoWindow() {
     const filePath = view.changedFilePayload?.file.path;
     if (!filePath) return;
 
-    window.gitPeek
+    window.gocus
       ?.openWorkspaceFileMenu({
         kind: "changed-file",
         filePath,

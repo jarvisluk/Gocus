@@ -162,7 +162,7 @@ export function panelHeaderView(snapshot: GitSnapshot | null, recentRepositories
     currentRepository,
     recentRepositoryOptions,
     canSwitchRepository: Boolean(snapshot && recentRepositoryOptions.length > 1),
-    repositoryTitle: currentRepository?.name || "Git Peek",
+    repositoryTitle: currentRepository?.name || "Gocus",
     repositoryPathLabel: snapshot?.repoPath || "No working folder",
   };
 }

@@ -1,6 +1,6 @@
 const stylelint = require("stylelint");
 
-const ruleName = "git-peek/design-guidelines";
+const ruleName = "gocus/design-guidelines";
 
 const messages = stylelint.utils.ruleMessages(ruleName, {
   compactFontSize: (size, max) =>
@@ -11,7 +11,7 @@ const messages = stylelint.utils.ruleMessages(ruleName, {
     "Use the shared ui-* form/dialog classes or root design tokens instead of private form/window styling.",
   semanticFontSize: "Use semantic typography tokens for font-size, such as var(--type-body-size), or inherit.",
   globalFontSize: (size, max) =>
-    `font-size ${size}px exceeds the global Git Peek ceiling of ${max}px. ` +
+    `font-size ${size}px exceeds the global Gocus ceiling of ${max}px. ` +
     "Large type is reserved for empty-state headings.",
   workspaceOpenAppIcon: (size, max) => `External app icon size ${size}px exceeds ${max}px.`,
   workspaceOpenControl: (size, max) => `External app open control size ${size}px exceeds ${max}px.`,

@@ -9,7 +9,7 @@ import { RepositoryControls } from "./components/RepositoryControls";
 import { RepositoryStateBanner } from "./components/RepositoryStateBanner";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { WorktreeContext } from "./components/WorktreeContext";
-import { useGitPeekController } from "./app/useGitPeekController";
+import { useGocusController } from "./app/useGocusController";
 import { useSettingsEscape } from "./app/useAppKeyboardShortcuts";
 import { useChangedNowPanel } from "./app/useChangedNowPanel";
 import {
@@ -48,7 +48,7 @@ function EditorBackdrop() {
 }
 
 export default function App() {
-  const controller = useGitPeekController();
+  const controller = useGocusController();
   const [workspaceOpenTarget, setWorkspaceOpenTarget] = useState<WorkspaceOpenTarget>("cursor");
   const panelContent = appPanelContentView({
     snapshot: controller.snapshot,
@@ -92,20 +92,20 @@ export default function App() {
   });
   useEffect(() => {
     const height = collapsedRailHeightForBranchName(controller.snapshot?.branch.name);
-    const syncHeight = window.gitPeek?.setCollapsedRailHeight?.(height);
+    const syncHeight = window.gocus?.setCollapsedRailHeight?.(height);
     if (syncHeight) {
       void syncHeight.catch((error) => {
-        console.warn("[Git Peek] Unable to update collapsed rail height.", error);
+        console.warn("[Gocus] Unable to update collapsed rail height.", error);
       });
     }
   }, [controller.snapshot?.branch.name]);
 
   useEffect(() => {
-    window.gitPeek
+    window.gocus
       ?.getActiveWorkspaceTarget()
       .then(setWorkspaceOpenTarget)
       .catch((error) => logBridgeWarning("Unable to load active workspace target.", error));
-    return window.gitPeek?.onActiveWorkspaceTargetChanged(setWorkspaceOpenTarget);
+    return window.gocus?.onActiveWorkspaceTargetChanged(setWorkspaceOpenTarget);
   }, []);
 
   function updatePreferences(nextPreferences: typeof controller.preferences) {
@@ -114,7 +114,7 @@ export default function App() {
 
   function updateWorkspaceOpenTarget(target: WorkspaceOpenTarget) {
     setWorkspaceOpenTarget(target);
-    window.gitPeek?.setActiveWorkspaceTarget(target).catch((error) => logBridgeWarning("Unable to save active workspace target.", error));
+    window.gocus?.setActiveWorkspaceTarget(target).catch((error) => logBridgeWarning("Unable to save active workspace target.", error));
   }
 
   return (

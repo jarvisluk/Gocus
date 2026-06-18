@@ -26,7 +26,7 @@ function createLaunchAtLoginController(app, hiddenLaunchArg) {
     try {
       return app.getLoginItemSettings(loginItemMatchOptions()).openAtLogin;
     } catch (error) {
-      console.warn("[Git Peek] Unable to read launch-at-login state.", error);
+      console.warn("[Gocus] Unable to read launch-at-login state.", error);
       return fallback;
     }
   }
@@ -37,7 +37,7 @@ function createLaunchAtLoginController(app, hiddenLaunchArg) {
     try {
       app.setLoginItemSettings(loginItemSettings(Boolean(preferences?.launchAtLogin)));
     } catch (error) {
-      console.warn("[Git Peek] Unable to update launch-at-login state.", error);
+      console.warn("[Gocus] Unable to update launch-at-login state.", error);
     }
   }
 

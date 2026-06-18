@@ -63,10 +63,10 @@ import type {
 } from "../types";
 
 function isElectronRuntime() {
-  return Boolean(window.gitPeek);
+  return Boolean(window.gocus);
 }
 
-export function useGitPeekController() {
+export function useGocusController() {
   const [snapshot, setSnapshot] = useState<GitSnapshot | null>(null);
   const [systemTheme, setSystemTheme] = useState<Theme>(systemThemeFallback);
   const [loading, setLoading] = useState(true);
@@ -94,7 +94,7 @@ export function useGitPeekController() {
   }
 
   function setNotice(message: string) {
-    if (message.trim()) console.info(`[Git Peek] ${message}`);
+    if (message.trim()) console.info(`[Gocus] ${message}`);
     setNoticeState(message);
   }
 
@@ -129,7 +129,7 @@ export function useGitPeekController() {
     successNotice = "Git status refreshed.",
     options: { silent?: boolean; markActivity?: boolean } = {},
   ) {
-    const bridge = window.gitPeek;
+    const bridge = window.gocus;
     const availability = refreshSnapshotAvailability({
       bridgeAvailable: Boolean(bridge),
       hasSnapshot: Boolean(snapshot),
@@ -170,7 +170,7 @@ export function useGitPeekController() {
   }
 
   async function openRepository() {
-    const bridge = window.gitPeek;
+    const bridge = window.gocus;
     if (blockWithNotice(localFolderBridgeNotice("open", Boolean(bridge))) || !bridge) return;
 
     markGitRequest();
@@ -186,7 +186,7 @@ export function useGitPeekController() {
   }
 
   async function switchRepository(repositoryPath: string) {
-    const bridge = window.gitPeek;
+    const bridge = window.gocus;
     if (blockWithNotice(localFolderBridgeNotice("switch", Boolean(bridge))) || !bridge) return;
 
     markGitRequest();
@@ -202,7 +202,7 @@ export function useGitPeekController() {
   }
 
   async function initializeRepository() {
-    const bridge = window.gitPeek;
+    const bridge = window.gocus;
     const targetFolder = folderWithoutGit;
     const availabilityNotice = initializeRepositoryAvailabilityNotice({
       bridgeAvailable: Boolean(bridge),
@@ -220,7 +220,7 @@ export function useGitPeekController() {
   }
 
   async function changeCommitView(nextView: CommitViewSelection) {
-    const bridge = window.gitPeek;
+    const bridge = window.gocus;
     const decision = commitViewChangeDecision({
       currentView: commitView,
       nextView,
@@ -266,7 +266,7 @@ export function useGitPeekController() {
     }
   }
 
-  function blockGitActionWithoutBridge(bridge = window.gitPeek) {
+  function blockGitActionWithoutBridge(bridge = window.gocus) {
     return blockWithNotice(gitActionBridgeNotice(Boolean(bridge)));
   }
 
@@ -287,7 +287,7 @@ export function useGitPeekController() {
   }
 
   async function openWorktree(worktreePath: string) {
-    const bridge = window.gitPeek;
+    const bridge = window.gocus;
     if (blockGitActionWithoutBridge(bridge) || !bridge) return;
 
     setRefreshing(true);
@@ -303,7 +303,7 @@ export function useGitPeekController() {
   }
 
   async function cleanupWorktree(worktreePath: string) {
-    const bridge = window.gitPeek;
+    const bridge = window.gocus;
     if (blockGitActionWithoutBridge(bridge) || !bridge) return;
 
     setRefreshing(true);
@@ -335,7 +335,7 @@ export function useGitPeekController() {
   }
 
   async function confirmActionDialog() {
-    const bridge = window.gitPeek;
+    const bridge = window.gocus;
     if (!bridge || !actionDialog) return;
     const confirmation = actionDialogConfirmation(actionDialog);
     if (!confirmation) return;
@@ -395,7 +395,7 @@ export function useGitPeekController() {
   }
 
   async function openWorkspace(target: WorkspaceOpenTarget) {
-    const bridge = window.gitPeek;
+    const bridge = window.gocus;
     const availabilityNotice = workspaceActionAvailabilityNotice({
       bridgeAvailable: Boolean(bridge),
       hasSnapshot: Boolean(snapshot),
@@ -408,17 +408,17 @@ export function useGitPeekController() {
   function togglePinned() {
     const next = panelPinnedStateAfterToggle(pinned);
     setPinned(next);
-    runBridgeSideEffect("Unable to update pinned state.", () => window.gitPeek?.setPinned(next));
+    runBridgeSideEffect("Unable to update pinned state.", () => window.gocus?.setPinned(next));
     setNotice(panelPinnedNotice(next));
   }
 
   function setCollapsedState(next: boolean) {
     setCollapsed(next);
-    runBridgeSideEffect("Unable to update collapsed state.", () => window.gitPeek?.setCollapsed(next));
+    runBridgeSideEffect("Unable to update collapsed state.", () => window.gocus?.setCollapsed(next));
   }
 
   function dockCurrentState() {
-    runBridgeSideEffect("Unable to dock window.", () => window.gitPeek?.dockToEdge(collapsed));
+    runBridgeSideEffect("Unable to dock window.", () => window.gocus?.dockToEdge(collapsed));
   }
 
   function selectCommit(commitId: string) {
@@ -429,7 +429,7 @@ export function useGitPeekController() {
     const normalized = mergePreferences(nextPreferences);
     setPreferencesState(normalized);
     applyPreferences(normalized);
-    runBridgeSideEffect("Unable to save preferences.", () => window.gitPeek?.savePreferences(normalized));
+    runBridgeSideEffect("Unable to save preferences.", () => window.gocus?.savePreferences(normalized));
   }
 
   function resetPreferences() {

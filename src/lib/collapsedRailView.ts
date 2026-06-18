@@ -68,11 +68,11 @@ export function collapsedRailView(snapshot: GitSnapshot | null, changedNowOpen =
 
   return {
     className: "collapsed-rail",
-    ariaLabel: "Collapsed Git Peek",
+    ariaLabel: "Collapsed Gocus",
     title: "Drag to move. Double-click to dock to the screen edge.",
     expandButton: {
       className: "ui-icon-button rail-expand",
-      ariaLabel: "Expand Git Peek",
+      ariaLabel: "Expand Gocus",
     },
     branch: {
       className: "rail-branch",

@@ -138,7 +138,7 @@ export function ChangedNow({
     const prompt = changedFilesCommitPrompt(promptLanguage);
 
     try {
-      await copyTextWithFallback(prompt, { bridge: window.gitPeek, clipboard: navigator.clipboard });
+      await copyTextWithFallback(prompt, { bridge: window.gocus, clipboard: navigator.clipboard });
       setTemporaryCopyState("copied");
     } catch (error) {
       logBridgeWarning("Unable to copy prompt.", error);

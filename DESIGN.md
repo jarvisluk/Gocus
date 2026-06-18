@@ -1,6 +1,6 @@
-# Git Peek Design Guardrails
+# Gocus Design Guardrails
 
-Git Peek is a compact utility surface. It should read like a narrow desktop tool, not a large content page.
+Gocus is a compact utility surface. It should read like a narrow desktop tool, not a large content page.
 
 ## Shared UI Primitives
 
@@ -45,7 +45,7 @@ Run:
 npm run lint:design
 ```
 
-The Stylelint rule in `tools/stylelint/git-peek-design.cjs` enforces these hard limits:
+The Stylelint rule in `tools/stylelint/gocus-design.cjs` enforces these hard limits:
 
 - Global CSS `font-size` must stay at or below `20px`; large type is reserved for intentional empty-state headings.
 - UI `font-size` declarations must use semantic `--type-*` tokens or `inherit`, not raw `px` values or direct `--font-*` scale tokens.

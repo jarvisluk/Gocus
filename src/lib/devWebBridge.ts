@@ -41,7 +41,7 @@ function setPayload<T>(nextPayload: T, callbacks: Set<(payload: T) => void>) {
 }
 
 export function installDevWebBridge() {
-  if (window.gitPeek || !isLocalDevBrowser()) return;
+  if (window.gocus || !isLocalDevBrowser()) return;
 
   let temporaryInfoPayload: TemporaryInfoPayload = null;
   let changedFileInfoPayload: ChangedFileInfoPayload = null;
@@ -51,7 +51,7 @@ export function installDevWebBridge() {
   const changedFileInfoCallbacks = new Set<(payload: ChangedFileInfoPayload) => void>();
   const commitInfoCallbacks = new Set<(payload: CommitInfoPayload) => void>();
 
-  window.gitPeek = {
+  window.gocus = {
     openRepository: (view?: CommitViewSelection) => requestBridge("openRepository", { view }),
     switchRepository: (repositoryPath: string, view?: CommitViewSelection) =>
       requestBridge("switchRepository", { repositoryPath, view }),

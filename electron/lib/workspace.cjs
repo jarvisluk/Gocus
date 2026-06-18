@@ -101,7 +101,7 @@ function nvmCodexCliCandidatePaths(homeDir = os.homedir()) {
 
 function codexCliCandidatePaths({ env = process.env, homeDir = os.homedir() } = {}) {
   return [
-    env.GIT_PEEK_CODEX_CLI,
+    env.GOCUS_CODEX_CLI,
     "/opt/homebrew/bin/codex",
     "/usr/local/bin/codex",
     path.join(homeDir, ".local", "bin", "codex"),

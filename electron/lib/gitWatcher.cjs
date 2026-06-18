@@ -119,7 +119,7 @@ function createRepositoryWatcher(repositoryPath, onRefresh, options = {}) {
     try {
       await onRefresh(reason);
     } catch (error) {
-      logger.warn("[Git Peek] Repository watcher refresh failed.", error);
+      logger.warn("[Gocus] Repository watcher refresh failed.", error);
     } finally {
       refreshInFlight = false;
 
@@ -137,7 +137,7 @@ function createRepositoryWatcher(repositoryPath, onRefresh, options = {}) {
       const watcher = fs.watch(targetPath, optionsForWatch, (_eventType, filename) => {
         if (eventFilter(filename)) scheduleRefresh(label);
       });
-      watcher.on("error", (error) => logger.warn(`[Git Peek] Repository watcher error for ${label}.`, error));
+      watcher.on("error", (error) => logger.warn(`[Gocus] Repository watcher error for ${label}.`, error));
       watchers.push(watcher);
     } catch (error) {
       if (optionsForWatch.recursive) {
@@ -145,7 +145,7 @@ function createRepositoryWatcher(repositoryPath, onRefresh, options = {}) {
         return;
       }
 
-      logger.warn(`[Git Peek] Unable to watch ${label}.`, error);
+      logger.warn(`[Gocus] Unable to watch ${label}.`, error);
     }
   }
 

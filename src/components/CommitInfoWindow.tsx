@@ -19,21 +19,21 @@ export function CommitInfoWindow() {
   const view = commitInfoWindowView(payload);
 
   useEffect(() => {
-    window.gitPeek
+    window.gocus
       ?.getCommitInfoPayload()
       .then(setPayload)
       .catch((error) => logBridgeWarning("Unable to load commit info payload.", error));
-    return window.gitPeek?.onCommitInfoPayloadUpdated(setPayload);
+    return window.gocus?.onCommitInfoPayloadUpdated(setPayload);
   }, []);
 
   useEffect(() => {
-    window.gitPeek
+    window.gocus
       ?.getPreferences()
       .then((value) => setPreferences(mergePreferences(value)))
       .catch((error) => logBridgeWarning("Unable to load preferences.", error));
-    window.gitPeek?.getSystemTheme().then(setSystemTheme).catch((error) => logBridgeWarning("Unable to load system theme.", error));
-    const unsubscribeTheme = window.gitPeek?.onThemeChanged(setSystemTheme);
-    const unsubscribePreferences = window.gitPeek?.onPreferencesChanged((value) => setPreferences(mergePreferences(value)));
+    window.gocus?.getSystemTheme().then(setSystemTheme).catch((error) => logBridgeWarning("Unable to load system theme.", error));
+    const unsubscribeTheme = window.gocus?.onThemeChanged(setSystemTheme);
+    const unsubscribePreferences = window.gocus?.onPreferencesChanged((value) => setPreferences(mergePreferences(value)));
     return () => {
       unsubscribeTheme?.();
       unsubscribePreferences?.();

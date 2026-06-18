@@ -421,7 +421,7 @@ export function RecentCommits({
     if (!searchQuery) return;
 
     try {
-      await copyTextWithFallback(searchQuery, { bridge: window.gitPeek, clipboard: navigator.clipboard });
+      await copyTextWithFallback(searchQuery, { bridge: window.gocus, clipboard: navigator.clipboard });
       focusSearchInput();
     } catch (error) {
       logBridgeWarning("Unable to copy commit search.", error);
@@ -430,7 +430,7 @@ export function RecentCommits({
 
   async function pasteSearchQuery() {
     try {
-      const clipboardText = await readTextWithFallback({ bridge: window.gitPeek, clipboard: navigator.clipboard });
+      const clipboardText = await readTextWithFallback({ bridge: window.gocus, clipboard: navigator.clipboard });
       setSearchQuery(clipboardText);
       window.requestAnimationFrame(() => focusSearchInput(clipboardText.length));
     } catch (error) {
@@ -445,7 +445,7 @@ export function RecentCommits({
     commitPreviewCloseTokenRef.current += 1;
     const opened = runCommitInfoPanelBridgeSideEffect(
       "open",
-      (payload) => window.gitPeek?.setCommitInfoPanel(payload),
+      (payload) => window.gocus?.setCommitInfoPanel(payload),
       { kind: "commit", commit, anchorBounds },
     );
     commitPreviewOpenRef.current = opened;
@@ -457,13 +457,13 @@ export function RecentCommits({
     if (!commitPreviewOpenRef.current) return;
     commitPreviewOpenRef.current = false;
     commitPreviewCommitIdRef.current = "";
-    runCommitInfoPanelBridgeSideEffect("close", (payload) => window.gitPeek?.setCommitInfoPanel(payload));
+    runCommitInfoPanelBridgeSideEffect("close", (payload) => window.gocus?.setCommitInfoPanel(payload));
   }
 
   function scheduleCommitPreviewCloseAfterBlur() {
     const closeToken = (commitPreviewCloseTokenRef.current += 1);
     window.setTimeout(() => {
-      const isCommitInfoPanelActive = window.gitPeek?.isCommitInfoPanelActive;
+      const isCommitInfoPanelActive = window.gocus?.isCommitInfoPanelActive;
       void Promise.resolve(isCommitInfoPanelActive ? isCommitInfoPanelActive() : false)
         .catch(() => false)
         .then((commitInfoPanelActive) => {

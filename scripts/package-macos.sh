@@ -8,24 +8,24 @@ usage() {
   cat <<'EOF'
 Usage: scripts/package-macos.sh [--no-install] [--open]
 
-Builds and packages Git Peek as a macOS app bundle.
-By default, it also updates /Applications/Git Peek.app.
+Builds and packages Gocus as a macOS app bundle.
+By default, it also updates /Applications/Gocus.app.
 
 Outputs:
-  release/macos/Git Peek.app
-  release/macos/GitPeek-<version>-macOS.zip
+  release/macos/Gocus.app
+  release/macos/Gocus-<version>-macOS.zip
 
 Options:
-  --install      Copy the packaged app into /Applications/Git Peek.app (default)
+  --install      Copy the packaged app into /Applications/Gocus.app (default)
   --no-install   Do not update /Applications after packaging
   --open         Open the installed app after building
   -h, --help     Show this help
 
 Environment:
-  GIT_PEEK_PRODUCT_NAME  Override the app display name
-  GIT_PEEK_BUNDLE_ID     Override the bundle identifier
-  GIT_PEEK_VERSION       Override CFBundleShortVersionString
-  GIT_PEEK_BUILD         Override CFBundleVersion
+  GOCUS_PRODUCT_NAME  Override the app display name
+  GOCUS_BUNDLE_ID     Override the bundle identifier
+  GOCUS_VERSION       Override CFBundleShortVersionString
+  GOCUS_BUILD         Override CFBundleVersion
   CODESIGN_IDENTITY      Use a signing identity instead of ad-hoc signing
   SKIP_CODESIGN=1        Skip codesign
 EOF
@@ -46,12 +46,12 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
 fi
 
 if ! command -v node >/dev/null 2>&1; then
-  echo "Node.js is required to package Git Peek." >&2
+  echo "Node.js is required to package Gocus." >&2
   exit 1
 fi
 
 if ! command -v npm >/dev/null 2>&1; then
-  echo "npm is required to build Git Peek before packaging." >&2
+  echo "npm is required to build Gocus before packaging." >&2
   exit 1
 fi
 
