@@ -8,6 +8,7 @@ const sourcePackage = JSON.parse(fs.readFileSync(sourcePackagePath, "utf8"));
 const productName = process.env.GIT_PEEK_PRODUCT_NAME || "Git Peek";
 const bundleIdentifier = process.env.GIT_PEEK_BUNDLE_ID || "com.junrong.git-peek";
 const version = process.env.GIT_PEEK_VERSION || sourcePackage.version || "0.1.0";
+const appArchitecture = process.env.GIT_PEEK_ARCH || process.arch;
 const outputRoot = path.join(projectRoot, "release", "macos");
 const appPath = path.join(outputRoot, `${productName}.app`);
 const installedAppPath = path.join("/Applications", `${productName}.app`);
@@ -141,6 +142,8 @@ function writePackageManifest() {
     version,
     description: sourcePackage.description,
     main: sourcePackage.main,
+    repository: sourcePackage.repository,
+    updateRepository: process.env.GIT_PEEK_UPDATE_REPO || "jarvisluk/git-tree-vis",
     private: true,
   };
 
@@ -164,7 +167,7 @@ function maybeSignApp() {
 }
 
 function zipApp() {
-  const zipName = `${productName.replaceAll(" ", "")}-${version}-macOS.zip`;
+  const zipName = `${productName.replaceAll(" ", "")}-${version}-mac-${appArchitecture}.zip`;
   const zipPath = path.join(outputRoot, zipName);
   fs.rmSync(zipPath, { force: true });
   run("/usr/bin/ditto", ["-c", "-k", "--keepParent", `${productName}.app`, zipName], { cwd: outputRoot });

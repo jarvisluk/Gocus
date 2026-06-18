@@ -13,7 +13,7 @@ By default, it also updates /Applications/Git Peek.app.
 
 Outputs:
   release/macos/Git Peek.app
-  release/macos/GitPeek-<version>-macOS.zip
+  release/macos/GitPeek-<version>-mac-<arch>.zip
 
 Options:
   --install      Copy the packaged app into /Applications/Git Peek.app (default)
@@ -26,6 +26,8 @@ Environment:
   GIT_PEEK_BUNDLE_ID     Override the bundle identifier
   GIT_PEEK_VERSION       Override CFBundleShortVersionString
   GIT_PEEK_BUILD         Override CFBundleVersion
+  GIT_PEEK_ARCH          Override the release asset architecture label
+  GIT_PEEK_UPDATE_REPO   Override the GitHub owner/repo used for updates
   CODESIGN_IDENTITY      Use a signing identity instead of ad-hoc signing
   SKIP_CODESIGN=1        Skip codesign
 EOF

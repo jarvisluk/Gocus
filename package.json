@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "description": "A compact side-floating Git tracking utility for desktop.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jarvisluk/git-tree-vis.git"
+  },
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "node scripts/dev.cjs",
@@ -18,6 +22,7 @@
     "verify": "npm run lint && npm test && npm run build",
     "build": "tsc --noEmit && vite build",
     "package:mac": "./scripts/package-macos.sh",
+    "package:mac:release": "./scripts/package-macos.sh --no-install",
     "preview": "vite preview --host 127.0.0.1",
     "start": "npm run build && electron ."
   },

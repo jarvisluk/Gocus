@@ -34,3 +34,13 @@ This runs CSS linting, unit checks for shared logic, the Playwright UI smoke tes
 ```bash
 npm run build
 ```
+
+## Release
+
+macOS releases are built from `v*` tags through GitHub Actions and published as GitHub Release zip assets for the built-in updater.
+
+```bash
+npm run package:mac:release
+```
+
+See [docs/release.md](docs/release.md) for the tag flow, signing secrets, and auto-update asset requirements.
