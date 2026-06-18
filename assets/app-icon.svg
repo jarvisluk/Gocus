@@ -7,14 +7,14 @@
     </clipPath>
     <radialGradient id="dotFade" cx="420" cy="420" r="430" gradientUnits="userSpaceOnUse">
       <stop offset=".62" stop-color="#ffffff"/>
-      <stop offset=".82" stop-color="#ffffff" stop-opacity=".48"/>
+      <stop offset=".82" stop-color="#ffffff" stop-opacity=".58"/>
       <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
     </radialGradient>
     <mask id="dotFadeMask" x="0" y="0" width="840" height="840" maskUnits="userSpaceOnUse">
       <rect width="840" height="840" rx="206" ry="206" fill="url(#dotFade)"/>
     </mask>
-    <pattern id="dotGrid" x="12" y="12" width="80" height="80" patternUnits="userSpaceOnUse">
-      <circle cx="40" cy="40" r="5.5" fill="#ffffff" opacity=".1"/>
+    <pattern id="dotGrid" x="10" y="10" width="104" height="104" patternUnits="userSpaceOnUse">
+      <circle cx="52" cy="52" r="13" fill="#ffffff" opacity=".18"/>
     </pattern>
     <style>
       .st0 {
