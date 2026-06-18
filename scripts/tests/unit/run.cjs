@@ -855,6 +855,134 @@ function testIpcHandlersModule() {
   );
 }
 
+async function testAutoUpdateModule() {
+  const { EventEmitter } = require("node:events");
+  const previousUpdateRepo = process.env.GOCUS_UPDATE_REPO;
+  delete process.env.GOCUS_UPDATE_REPO;
+
+  try {
+    const {
+      autoUpdateSupportReason,
+      buildUpdateFeedUrl,
+      createAutoUpdateController,
+      normalizeUpdateRepository,
+      updateRepositoryFromPackage,
+    } = require(path.join(projectRoot, "electron/lib/autoUpdate.cjs"));
+
+    assert.equal(normalizeUpdateRepository("jarvisluk/git-tree-vis"), "jarvisluk/git-tree-vis");
+    assert.equal(normalizeUpdateRepository("https://github.com/jarvisluk/git-tree-vis.git"), "jarvisluk/git-tree-vis");
+    assert.equal(normalizeUpdateRepository("git@github.com:jarvisluk/git-tree-vis.git"), "jarvisluk/git-tree-vis");
+    assert.equal(normalizeUpdateRepository("https://example.com/jarvisluk/git-tree-vis"), "");
+    assert.equal(
+      updateRepositoryFromPackage({ repository: { url: "git+https://github.com/jarvisluk/git-tree-vis.git" } }),
+      "jarvisluk/git-tree-vis",
+    );
+    assert.equal(
+      buildUpdateFeedUrl({
+        repository: "jarvisluk/git-tree-vis",
+        platform: "darwin",
+        arch: "arm64",
+        version: "0.2.0",
+      }),
+      "https://update.electronjs.org/jarvisluk/git-tree-vis/darwin-arm64/0.2.0",
+    );
+    assert.equal(
+      autoUpdateSupportReason({
+        platform: "darwin",
+        isPackaged: true,
+        isDevRuntime: false,
+        repository: "jarvisluk/git-tree-vis",
+      }),
+      "",
+    );
+    assert.equal(
+      autoUpdateSupportReason({
+        platform: "linux",
+        isPackaged: true,
+        isDevRuntime: false,
+        repository: "jarvisluk/git-tree-vis",
+      }),
+      "unsupported_platform",
+    );
+    assert.equal(
+      autoUpdateSupportReason({
+        platform: "darwin",
+        isPackaged: false,
+        isDevRuntime: false,
+        repository: "jarvisluk/git-tree-vis",
+      }),
+      "unpackaged",
+    );
+
+    const events = new EventEmitter();
+    const dialogs = [];
+    let feedOptions = null;
+    let checkedForUpdates = false;
+    let preparedForInstall = false;
+    let installed = false;
+    const controller = createAutoUpdateController({
+      app: {
+        isPackaged: true,
+        getVersion: () => "0.2.0",
+      },
+      autoUpdater: {
+        setFeedURL(options) {
+          feedOptions = options;
+        },
+        on(eventName, handler) {
+          events.on(eventName, handler);
+        },
+        checkForUpdates() {
+          checkedForUpdates = true;
+        },
+        quitAndInstall() {
+          installed = true;
+        },
+      },
+      dialog: {
+        showMessageBox(options) {
+          dialogs.push(options);
+          return Promise.resolve({ response: 0 });
+        },
+      },
+      logger: {
+        info() {},
+        warn() {},
+      },
+      packageMetadata: { repository: "https://github.com/jarvisluk/git-tree-vis.git" },
+      platform: "darwin",
+      arch: "arm64",
+      isDevRuntime: false,
+      prepareForInstall() {
+        preparedForInstall = true;
+      },
+    });
+
+    assert.equal(controller.isSupported(), true);
+    assert.equal(controller.checkForUpdates({ manual: true }), true);
+    assert.equal(checkedForUpdates, true);
+    assert.deepEqual(feedOptions, {
+      url: "https://update.electronjs.org/jarvisluk/git-tree-vis/darwin-arm64/0.2.0",
+    });
+
+    events.emit("update-not-available");
+    assert.equal(dialogs.at(-1).message, "Gocus is up to date.");
+
+    controller.checkForUpdates({ manual: true });
+    events.emit("update-downloaded", {}, "Fixed spacing", "Gocus 0.2.1");
+    await Promise.resolve();
+    assert.equal(dialogs.at(-1).message, "Gocus 0.2.1 is ready to install.");
+    assert.equal(preparedForInstall, true);
+    assert.equal(installed, true);
+  } finally {
+    if (previousUpdateRepo === undefined) {
+      delete process.env.GOCUS_UPDATE_REPO;
+    } else {
+      process.env.GOCUS_UPDATE_REPO = previousUpdateRepo;
+    }
+  }
+}
+
 function testGitStatusModule() {
   const { applyNumstat, isConflictedStatus, parseStatus } = require(path.join(projectRoot, "electron/lib/gitStatus.cjs"));
   const status = parseStatus("## main...origin/main [ahead 2, behind 1]\n M src/App.tsx\nA  README.md\n?? notes.txt\nUU src/conflict.ts\n");
@@ -6636,6 +6764,7 @@ async function main() {
   testShellSyntaxScript();
   testWindowGeometryModule();
   testIpcHandlersModule();
+  await testAutoUpdateModule();
   testGitStatusModule();
   await testGitModule();
   testGitGraphModule();

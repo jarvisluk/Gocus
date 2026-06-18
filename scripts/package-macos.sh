@@ -13,7 +13,7 @@ By default, it also updates /Applications/Gocus.app.
 
 Outputs:
   release/macos/Gocus.app
-  release/macos/Gocus-<version>-macOS.zip
+  release/macos/Gocus-<version>-mac-<arch>.zip
 
 Options:
   --install      Copy the packaged app into /Applications/Gocus.app (default)
@@ -26,6 +26,8 @@ Environment:
   GOCUS_BUNDLE_ID     Override the bundle identifier
   GOCUS_VERSION       Override CFBundleShortVersionString
   GOCUS_BUILD         Override CFBundleVersion
+  GOCUS_ARCH          Override the release asset architecture label
+  GOCUS_UPDATE_REPO   Override the GitHub owner/repo used for updates
   CODESIGN_IDENTITY      Use a signing identity instead of ad-hoc signing
   SKIP_CODESIGN=1        Skip codesign
 EOF

@@ -1,0 +1,219 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version without the leading v, for example 0.2.0"
+        required: true
+        type: string
+      prerelease:
+        description: "Mark the GitHub Release as a prerelease"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    name: macOS Release
+    runs-on: macos-latest
+    env:
+      GOCUS_BUNDLE_ID: com.junrong.gocus
+      GOCUS_PRODUCT_NAME: Gocus
+      GOCUS_UPDATE_REPO: jarvisluk/git-tree-vis
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve release version
+        id: release
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            tag="${GITHUB_REF_NAME}"
+            version="${tag#v}"
+          else
+            version="${INPUT_VERSION}"
+            tag="v${version}"
+          fi
+
+          if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release version must be semver-like: ${version}" >&2
+            exit 1
+          fi
+
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Require release commit on main
+        run: |
+          set -euo pipefail
+
+          git fetch origin main:refs/remotes/origin/main --tags
+          release_commit="$(git rev-parse "${GITHUB_SHA}^{commit}")"
+          main_commit="$(git rev-parse "origin/main^{commit}")"
+
+          if ! git merge-base --is-ancestor "${release_commit}" "${main_commit}"; then
+            echo "Release commit ${release_commit} is not contained in origin/main." >&2
+            echo "Merge this commit into main before creating or running a release." >&2
+            exit 1
+          fi
+
+          echo "Release commit ${release_commit} is contained in origin/main (${main_commit})."
+
+      - name: Verify
+        run: npm run verify
+
+      - name: Import Developer ID certificate
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${MACOS_CERTIFICATE_P12_BASE64}" ]]; then
+            echo "No signing certificate configured; package step will use ad-hoc signing."
+            exit 0
+          fi
+
+          certificate_path="${RUNNER_TEMP}/developer-id.p12"
+          keychain_path="${RUNNER_TEMP}/gocus-release.keychain-db"
+          keychain_password="${MACOS_KEYCHAIN_PASSWORD:-temporary-keychain-password}"
+
+          echo "${MACOS_CERTIFICATE_P12_BASE64}" | base64 --decode > "${certificate_path}"
+          security create-keychain -p "${keychain_password}" "${keychain_path}"
+          security set-keychain-settings -lut 21600 "${keychain_path}"
+          security unlock-keychain -p "${keychain_password}" "${keychain_path}"
+          security import "${certificate_path}" -P "${MACOS_CERTIFICATE_PASSWORD}" -A -t cert -f pkcs12 -k "${keychain_path}"
+          security list-keychains -d user -s "${keychain_path}"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${keychain_password}" "${keychain_path}"
+
+      - name: Package macOS app
+        env:
+          CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+          GOCUS_BUILD: ${{ github.run_number }}
+          GOCUS_VERSION: ${{ steps.release.outputs.version }}
+        run: npm run package:mac:release
+
+      - name: Notarize and staple app
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          app_path="release/macos/Gocus.app"
+          zip_path="$(ls release/macos/*-mac-*.zip)"
+
+          if [[ -z "${APPLE_ID}" || -z "${APPLE_TEAM_ID}" || -z "${APPLE_APP_SPECIFIC_PASSWORD}" ]]; then
+            echo "Notarization secrets are not configured; leaving the app signed without notarization."
+            exit 0
+          fi
+
+          xcrun notarytool submit "${zip_path}" \
+            --apple-id "${APPLE_ID}" \
+            --team-id "${APPLE_TEAM_ID}" \
+            --password "${APPLE_APP_SPECIFIC_PASSWORD}" \
+            --wait
+          xcrun stapler staple "${app_path}"
+
+          rm -f "${zip_path}"
+          zip_name="$(basename "${zip_path}")"
+          (cd release/macos && /usr/bin/ditto -c -k --keepParent "Gocus.app" "${zip_name}")
+
+      - name: Verify release bundle
+        env:
+          CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+        run: |
+          set -euo pipefail
+
+          codesign --verify --deep --strict --verbose=2 "release/macos/Gocus.app"
+          if [[ -n "${CODESIGN_IDENTITY}" ]]; then
+            spctl --assess --type execute --verbose=4 "release/macos/Gocus.app"
+          else
+            echo "Skipping Gatekeeper assessment because this build is ad-hoc signed."
+          fi
+
+      - name: Generate release metadata
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          shasum -a 256 release/macos/*-mac-*.zip > release/macos/SHA256SUMS.txt
+
+          previous_tag="$(git describe --tags --abbrev=0 "${RELEASE_TAG}^" 2>/dev/null || true)"
+          if [[ -n "${previous_tag}" ]]; then
+            range="${previous_tag}..HEAD"
+          else
+            range="HEAD"
+          fi
+
+          {
+            echo "# Gocus ${RELEASE_VERSION}"
+            echo
+            echo "macOS release artifact:"
+            echo
+            for artifact in release/macos/*-mac-*.zip; do
+              echo "- $(basename "${artifact}")"
+            done
+            echo
+            echo "Changes:"
+            git log --pretty="- %s (%h)" "${range}"
+          } > release/macos/RELEASE_NOTES.md
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gocus-macos-${{ steps.release.outputs.version }}
+          path: |
+            release/macos/*-mac-*.zip
+            release/macos/SHA256SUMS.txt
+            release/macos/RELEASE_NOTES.md
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          PRERELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || false }}
+        run: |
+          set -euo pipefail
+
+          release_args=(
+            --title "Gocus ${RELEASE_VERSION}"
+            --notes-file release/macos/RELEASE_NOTES.md
+          )
+          if [[ "${PRERELEASE}" == "true" ]]; then
+            release_args+=(--prerelease)
+          fi
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release edit "${RELEASE_TAG}" "${release_args[@]}"
+            gh release upload "${RELEASE_TAG}" release/macos/*-mac-*.zip release/macos/SHA256SUMS.txt --clobber
+          else
+            gh release create "${RELEASE_TAG}" release/macos/*-mac-*.zip release/macos/SHA256SUMS.txt --target "${GITHUB_SHA}" "${release_args[@]}"
+          fi

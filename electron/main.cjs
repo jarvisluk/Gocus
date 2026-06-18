@@ -1,5 +1,20 @@
-const { app, BrowserWindow, Menu, Tray, clipboard, dialog, ipcMain, nativeImage, nativeTheme, screen, shell } = require("electron");
+const {
+  app,
+  autoUpdater,
+  BrowserWindow,
+  Menu,
+  Tray,
+  clipboard,
+  dialog,
+  ipcMain,
+  nativeImage,
+  nativeTheme,
+  screen,
+  shell,
+} = require("electron");
 const path = require("node:path");
+const packageMetadata = require("../package.json");
+const { createAutoUpdateController } = require("./lib/autoUpdate.cjs");
 const { createAssetLoader } = require("./lib/assets.cjs");
 const { createConfigStore } = require("./lib/config.cjs");
 const { registerIpcHandlers } = require("./lib/ipcHandlers.cjs");
@@ -71,6 +86,14 @@ const assets = createAssetLoader({
   nativeImage,
   resourcesPath: process.resourcesPath,
   electronDir: __dirname,
+});
+const autoUpdates = createAutoUpdateController({
+  app,
+  autoUpdater,
+  dialog,
+  isDevRuntime,
+  packageMetadata,
+  prepareForInstall: prepareForUpdateInstall,
 });
 
 function applyWindowShadow(targetWindow) {
@@ -145,6 +168,11 @@ function softQuitToMenuBar() {
 function requestRealQuit() {
   realQuitRequested = true;
   app.quit();
+}
+
+function prepareForUpdateInstall() {
+  realQuitRequested = true;
+  stopRepositoryWatcher();
 }
 
 function stopRepositoryWatcher() {
@@ -1157,6 +1185,12 @@ function buildMenus() {
     sendSnapshotResponse(noRepositoryResponse());
     buildMenus();
   };
+  const updateAction = () => autoUpdates.checkForUpdates({ manual: true });
+  const updateMenuItem = () => ({
+    label: autoUpdates.isChecking() ? "Checking for Updates..." : "Check for Updates...",
+    enabled: autoUpdates.isSupported() && !autoUpdates.isChecking(),
+    click: updateAction,
+  });
   const menuBarModeEnabled = shouldUseMenuBarResidency();
   const buildRecentRepositorySubmenu = () =>
     recentRepositories.length
@@ -1178,6 +1212,8 @@ function buildMenus() {
           label: app.name,
           submenu: [
             { role: "about" },
+            { type: "separator" },
+            updateMenuItem(),
             { type: "separator" },
             { label: "Show Gocus", click: showMainWindow },
             { label: "Hide Gocus", click: () => mainWindow?.hide() },
@@ -1258,6 +1294,8 @@ function buildMenus() {
     {
       label: "Help",
       submenu: [
+        updateMenuItem(),
+        { type: "separator" },
         { label: "Gocus remembers the last working folder", enabled: false },
         { label: "Git-changing actions ask from the panel before running", enabled: false },
       ],
@@ -1280,6 +1318,8 @@ function buildMenus() {
         { type: "separator" },
         { label: "Always on Top", type: "checkbox", checked: pinnedState, click: (item) => setPinnedWindow(item.checked) },
         { type: "separator" },
+        updateMenuItem(),
+        { type: "separator" },
         { label: "Quit Gocus", click: requestRealQuit },
       ]),
     );
@@ -1301,6 +1341,7 @@ app.whenReady().then(() => {
   if (startInMenuBar) hideDockIcon();
   createWindow({ showOnReady: !startInMenuBar });
   if (currentRepository) startRepositoryWatcher(currentRepository);
+  autoUpdates.start();
 
   app.on("activate", () => {
     showMainWindow();
