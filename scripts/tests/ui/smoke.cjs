@@ -2254,6 +2254,10 @@ async function testWorktreeCleanupButtonOpensPanel(browser, baseUrl) {
 
     const currentViewButton = page.getByRole("button", { name: "Current" });
     assert.equal(await currentViewButton.getAttribute("aria-pressed"), "false");
+    const settingsButton = page.getByRole("button", { name: "Settings" });
+    const settingsButtonColor = await settingsButton.evaluate((button) => window.getComputedStyle(button).color);
+    await settingsButton.hover();
+    assert.notEqual(await settingsButton.evaluate((button) => window.getComputedStyle(button).color), settingsButtonColor);
 
     await page.getByRole("button", { name: "Choose worktree" }).click();
     await page.getByRole("button", { name: "Clean feature/footer-toggle - git-tree-vis-linked" }).click();
@@ -2263,6 +2267,8 @@ async function testWorktreeCleanupButtonOpensPanel(browser, baseUrl) {
     assert.equal(await page.locator("#worktree-context-menu").count(), 0);
     assert.match(await cleanupPanel.innerText(), /feature\/footer-toggle - git-tree-vis-linked/);
     assert.match(await cleanupPanel.innerText(), /Branch preserved\./);
+    await settingsButton.hover({ force: true });
+    assert.equal(await settingsButton.evaluate((button) => window.getComputedStyle(button).color), settingsButtonColor);
 
     await currentViewButton.click();
     await cleanupPanel.waitFor({ state: "detached" });
