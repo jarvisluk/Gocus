@@ -11,9 +11,14 @@ export const workspaceOpenTargetValues: WorkspaceOpenTarget[] = [
   "xcode",
 ];
 export const defaultWorkspaceOpenTargets: WorkspaceOpenTarget[] = [...workspaceOpenTargetValues];
+export const defaultWorkspaceOpenTarget: WorkspaceOpenTarget = "vscode";
 
 export function isWorkspaceOpenTarget(value: unknown): value is WorkspaceOpenTarget {
   return typeof value === "string" && (workspaceOpenTargetValues as readonly string[]).includes(value);
+}
+
+export function sanitizeWorkspaceOpenTarget(value: unknown, fallback = defaultWorkspaceOpenTarget): WorkspaceOpenTarget {
+  return isWorkspaceOpenTarget(value) ? value : fallback;
 }
 
 export function sanitizeWorkspaceOpenTargets(value: unknown, fallback = defaultWorkspaceOpenTargets): WorkspaceOpenTarget[] {

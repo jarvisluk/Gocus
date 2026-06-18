@@ -47,7 +47,6 @@ export function WorktreeContext({
 
   useDismissableLayer({
     active: Boolean(cleanupDialog),
-    dismissTiming: "afterTargetAction",
     refs: [cleanupPanelRef],
     onDismiss: () => setCleanupDialog(null),
   });

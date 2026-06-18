@@ -5,7 +5,7 @@ export function DropdownMenuHost({
   active,
   children,
   className,
-  dismissTiming = "afterTargetAction",
+  dismissTiming = "beforeTargetAction",
   hostRef,
   onDismiss,
 }: {

@@ -855,6 +855,40 @@ function testIpcHandlersModule() {
   );
 }
 
+function testConfigStoreModule() {
+  const {
+    createConfigStore,
+    defaultActiveWorkspaceOpenTarget,
+    sanitizeActiveWorkspaceOpenTarget,
+  } = require(path.join(projectRoot, "electron/lib/config.cjs"));
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-config-"));
+  const app = {
+    getPath(name) {
+      assert.equal(name, "userData");
+      return userDataDir;
+    },
+  };
+
+  try {
+    const config = createConfigStore(app);
+    assert.equal(defaultActiveWorkspaceOpenTarget, "vscode");
+    assert.equal(sanitizeActiveWorkspaceOpenTarget("finder"), "finder");
+    assert.equal(sanitizeActiveWorkspaceOpenTarget("unknown"), "vscode");
+    assert.equal(sanitizeActiveWorkspaceOpenTarget("unknown", "terminal"), "terminal");
+    assert.equal(config.readActiveWorkspaceOpenTarget(), "vscode");
+
+    config.saveActiveWorkspaceOpenTarget("finder");
+    assert.equal(config.readActiveWorkspaceOpenTarget(), "finder");
+    assert.equal(createConfigStore(app).readActiveWorkspaceOpenTarget(), "finder");
+    assert.equal(JSON.parse(fs.readFileSync(path.join(userDataDir, "config.json"), "utf8")).activeWorkspaceOpenTarget, "finder");
+
+    config.saveActiveWorkspaceOpenTarget("unknown");
+    assert.equal(config.readActiveWorkspaceOpenTarget(), "finder");
+  } finally {
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+}
+
 async function testAutoUpdateModule() {
   const { EventEmitter } = require("node:events");
   const previousUpdateRepo = process.env.GOCUS_UPDATE_REPO;
@@ -3655,7 +3689,14 @@ async function testAutoRefresh(server) {
 async function testPreferences(server) {
   const workspaceTargets = await loadTsModule(server, "src/lib/workspaceOpenTargets.ts");
   const preferences = await loadTsModule(server, "src/lib/preferences.ts");
-  const { defaultWorkspaceOpenTargets, isWorkspaceOpenTarget, sanitizeWorkspaceOpenTargets, workspaceOpenTargetValues } = workspaceTargets;
+  const {
+    defaultWorkspaceOpenTarget,
+    defaultWorkspaceOpenTargets,
+    isWorkspaceOpenTarget,
+    sanitizeWorkspaceOpenTarget,
+    sanitizeWorkspaceOpenTargets,
+    workspaceOpenTargetValues,
+  } = workspaceTargets;
   const {
     defaultPreferences,
     mergePreferences,
@@ -3666,6 +3707,7 @@ async function testPreferences(server) {
     systemThemeFromMediaMatches,
   } = preferences;
 
+  assert.equal(defaultWorkspaceOpenTarget, "vscode");
   assert.equal(isWorkspaceOpenTarget("cursor"), true);
   assert.equal(isWorkspaceOpenTarget("unknown"), false);
   assert.deepEqual(workspaceOpenTargetValues, [
@@ -3678,6 +3720,9 @@ async function testPreferences(server) {
     "terminal",
     "xcode",
   ]);
+  assert.equal(sanitizeWorkspaceOpenTarget("finder"), "finder");
+  assert.equal(sanitizeWorkspaceOpenTarget("unknown"), defaultWorkspaceOpenTarget);
+  assert.equal(sanitizeWorkspaceOpenTarget("unknown", "terminal"), "terminal");
   assert.deepEqual(sanitizeWorkspaceOpenTargets(["cursor", "finder", "cursor", "unknown"]), ["cursor", "finder"]);
   assert.deepEqual(sanitizeWorkspaceOpenTargets(null, ["terminal"]), ["terminal"]);
 
@@ -4695,14 +4740,21 @@ async function testCopyText(server) {
 async function testDismissableLayer(server) {
   const {
     dismissableLayerContainsTarget,
+    dismissableLayerConsumesOutsideInteraction,
     dismissableLayerEventForTiming,
     dismissableLayerShouldDismissKey,
     dismissableLayerShouldDismissPointer,
+    dismissableLayerTargetsOverlap,
   } = await loadTsModule(server, "src/lib/useDismissableLayer.ts");
   const inside = { nodeType: 1 };
   const outside = { nodeType: 1 };
+  const child = { nodeType: 1 };
   const host = {
     contains: (target) => target === inside,
+  };
+  const parent = {
+    nodeType: 1,
+    contains: (target) => target === child,
   };
   const refs = [{ current: host }];
 
@@ -4722,6 +4774,13 @@ async function testDismissableLayer(server) {
 
   assert.equal(dismissableLayerEventForTiming("beforeTargetAction"), "pointerdown");
   assert.equal(dismissableLayerEventForTiming("afterTargetAction"), "click");
+  assert.equal(dismissableLayerConsumesOutsideInteraction("beforeTargetAction"), true);
+  assert.equal(dismissableLayerConsumesOutsideInteraction("afterTargetAction"), false);
+  assert.equal(dismissableLayerTargetsOverlap(inside, inside), true);
+  assert.equal(dismissableLayerTargetsOverlap(parent, child), true);
+  assert.equal(dismissableLayerTargetsOverlap(child, parent), true);
+  assert.equal(dismissableLayerTargetsOverlap(inside, outside), false);
+  assert.equal(dismissableLayerTargetsOverlap(null, outside), false);
 }
 
 async function testChangedNowView(server) {
@@ -6840,6 +6899,7 @@ async function main() {
   testNodeSyntaxScript();
   testShellSyntaxScript();
   testWindowGeometryModule();
+  testConfigStoreModule();
   testIpcHandlersModule();
   await testAutoUpdateModule();
   testGitStatusModule();
