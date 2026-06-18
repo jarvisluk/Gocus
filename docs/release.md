@@ -73,7 +73,7 @@ Help menu, or menu bar icon menu.
 The update feed is:
 
 ```text
-https://update.electronjs.org/jarvisluk/git-tree-vis/darwin-<arch>/<current-version>
+https://update.electronjs.org/jarvisluk/gocus/darwin-<arch>/<current-version>
 ```
 
 The feed is backed by GitHub Releases, so each release needs a non-draft zip asset named like:

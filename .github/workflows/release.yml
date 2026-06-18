@@ -26,7 +26,7 @@ jobs:
     env:
       GOCUS_BUNDLE_ID: com.junrong.gocus
       GOCUS_PRODUCT_NAME: Gocus
-      GOCUS_UPDATE_REPO: jarvisluk/git-tree-vis
+      GOCUS_UPDATE_REPO: jarvisluk/gocus
     steps:
       - name: Check out source
         uses: actions/checkout@v4

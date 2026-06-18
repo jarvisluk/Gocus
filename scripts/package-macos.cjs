@@ -143,7 +143,7 @@ function writePackageManifest() {
     description: sourcePackage.description,
     main: sourcePackage.main,
     repository: sourcePackage.repository,
-    updateRepository: process.env.GOCUS_UPDATE_REPO || "jarvisluk/git-tree-vis",
+    updateRepository: process.env.GOCUS_UPDATE_REPO || "jarvisluk/gocus",
     private: true,
   };
 

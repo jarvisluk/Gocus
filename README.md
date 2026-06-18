@@ -2,6 +2,8 @@
 
 Gocus is a compact Electron + React desktop utility for tracking a local Git repository from a side-floating panel.
 
+GitHub repository: [jarvisluk/gocus](https://github.com/jarvisluk/gocus)
+
 The product direction is the selected **Pinned Side Panel** design:
 
 - narrow floating drawer instead of a full Git client

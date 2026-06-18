@@ -1,4 +1,4 @@
-const defaultUpdateRepository = "jarvisluk/git-tree-vis";
+const defaultUpdateRepository = "jarvisluk/gocus";
 const defaultUpdateServer = "https://update.electronjs.org";
 const defaultCheckIntervalMs = 4 * 60 * 60 * 1000;
 const defaultStartupDelayMs = 15 * 1000;

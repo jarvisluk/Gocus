@@ -869,29 +869,29 @@ async function testAutoUpdateModule() {
       updateRepositoryFromPackage,
     } = require(path.join(projectRoot, "electron/lib/autoUpdate.cjs"));
 
-    assert.equal(normalizeUpdateRepository("jarvisluk/git-tree-vis"), "jarvisluk/git-tree-vis");
-    assert.equal(normalizeUpdateRepository("https://github.com/jarvisluk/git-tree-vis.git"), "jarvisluk/git-tree-vis");
-    assert.equal(normalizeUpdateRepository("git@github.com:jarvisluk/git-tree-vis.git"), "jarvisluk/git-tree-vis");
-    assert.equal(normalizeUpdateRepository("https://example.com/jarvisluk/git-tree-vis"), "");
+    assert.equal(normalizeUpdateRepository("jarvisluk/gocus"), "jarvisluk/gocus");
+    assert.equal(normalizeUpdateRepository("https://github.com/jarvisluk/gocus.git"), "jarvisluk/gocus");
+    assert.equal(normalizeUpdateRepository("git@github.com:jarvisluk/gocus.git"), "jarvisluk/gocus");
+    assert.equal(normalizeUpdateRepository("https://example.com/jarvisluk/gocus"), "");
     assert.equal(
-      updateRepositoryFromPackage({ repository: { url: "git+https://github.com/jarvisluk/git-tree-vis.git" } }),
-      "jarvisluk/git-tree-vis",
+      updateRepositoryFromPackage({ repository: { url: "git+https://github.com/jarvisluk/gocus.git" } }),
+      "jarvisluk/gocus",
     );
     assert.equal(
       buildUpdateFeedUrl({
-        repository: "jarvisluk/git-tree-vis",
+        repository: "jarvisluk/gocus",
         platform: "darwin",
         arch: "arm64",
         version: "0.2.0",
       }),
-      "https://update.electronjs.org/jarvisluk/git-tree-vis/darwin-arm64/0.2.0",
+      "https://update.electronjs.org/jarvisluk/gocus/darwin-arm64/0.2.0",
     );
     assert.equal(
       autoUpdateSupportReason({
         platform: "darwin",
         isPackaged: true,
         isDevRuntime: false,
-        repository: "jarvisluk/git-tree-vis",
+        repository: "jarvisluk/gocus",
       }),
       "",
     );
@@ -900,7 +900,7 @@ async function testAutoUpdateModule() {
         platform: "linux",
         isPackaged: true,
         isDevRuntime: false,
-        repository: "jarvisluk/git-tree-vis",
+        repository: "jarvisluk/gocus",
       }),
       "unsupported_platform",
     );
@@ -909,7 +909,7 @@ async function testAutoUpdateModule() {
         platform: "darwin",
         isPackaged: false,
         isDevRuntime: false,
-        repository: "jarvisluk/git-tree-vis",
+        repository: "jarvisluk/gocus",
       }),
       "unpackaged",
     );
@@ -949,7 +949,7 @@ async function testAutoUpdateModule() {
         info() {},
         warn() {},
       },
-      packageMetadata: { repository: "https://github.com/jarvisluk/git-tree-vis.git" },
+      packageMetadata: { repository: "https://github.com/jarvisluk/gocus.git" },
       platform: "darwin",
       arch: "arm64",
       isDevRuntime: false,
@@ -962,7 +962,7 @@ async function testAutoUpdateModule() {
     assert.equal(controller.checkForUpdates({ manual: true }), true);
     assert.equal(checkedForUpdates, true);
     assert.deepEqual(feedOptions, {
-      url: "https://update.electronjs.org/jarvisluk/git-tree-vis/darwin-arm64/0.2.0",
+      url: "https://update.electronjs.org/jarvisluk/gocus/darwin-arm64/0.2.0",
     });
 
     events.emit("update-not-available");

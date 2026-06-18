@@ -5,7 +5,7 @@
   "description": "A compact side-floating Git tracking utility for desktop.",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jarvisluk/git-tree-vis.git"
+    "url": "https://github.com/jarvisluk/gocus.git"
   },
   "main": "electron/main.cjs",
   "scripts": {
