@@ -53,7 +53,12 @@ export function WorkspaceOpenControl({
     if (workspaceView.shouldCloseMenu) setMenuOpen(false);
   }, [workspaceView.shouldCloseMenu]);
 
-  useDismissableLayer({ active: menuOpen, refs: [workspaceControlRef], onDismiss: () => setMenuOpen(false) });
+  useDismissableLayer({
+    active: menuOpen,
+    dismissTiming: "afterTargetAction",
+    refs: [workspaceControlRef],
+    onDismiss: () => setMenuOpen(false),
+  });
 
   function openTarget(target: WorkspaceOpenTarget) {
     const selection = footerWorkspaceSelection(target);

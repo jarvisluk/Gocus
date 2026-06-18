@@ -65,7 +65,12 @@ export function PanelHeader({
   const repositoryMenu = panelRepositoryMenuView();
   const actionsView = panelHeaderActionsView({ pinned, refreshing, hasRepository: Boolean(snapshot) });
 
-  useDismissableLayer({ active: repoMenuOpen, refs: [repoSwitcherRef], onDismiss: () => setRepoMenuOpen(false) });
+  useDismissableLayer({
+    active: repoMenuOpen,
+    dismissTiming: "afterTargetAction",
+    refs: [repoSwitcherRef],
+    onDismiss: () => setRepoMenuOpen(false),
+  });
 
   function switchRepository(repositoryPath: string) {
     const selection = panelRepositorySelection(snapshot, repositoryPath);

@@ -52,6 +52,7 @@ export function RepositoryControls({
 
   useDismissableLayer({
     active: branchMenuOpen,
+    dismissTiming: "afterTargetAction",
     refs: [branchControlRef],
     onDismiss: () => setMenuState(closedRepositoryControlsMenus),
   });
