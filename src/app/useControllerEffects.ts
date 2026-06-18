@@ -52,20 +52,20 @@ export function useRuntimePreferenceBridge({
   setSystemTheme: Dispatch<SetStateAction<Theme>>;
 }) {
   useEffect(() => {
-    if (window.gitPeek) {
-      window.gitPeek.getSystemTheme().then(setSystemTheme).catch((error) => logBridgeWarning("Unable to load system theme.", error));
-      window.gitPeek
+    if (window.gocus) {
+      window.gocus.getSystemTheme().then(setSystemTheme).catch((error) => logBridgeWarning("Unable to load system theme.", error));
+      window.gocus
         .getPreferences()
         .then((value) => setPreferencesState(mergePreferences(value)))
         .catch((error) => logBridgeWarning("Unable to load preferences.", error));
-      window.gitPeek
+      window.gocus
         .getAvailableWorkspaceTargets()
         .then((targets) => setAvailableWorkspaceTargets(sanitizeWorkspaceOpenTargets(targets, [])))
         .catch((error) => logBridgeWarning("Unable to load available workspace targets.", error));
-      window.gitPeek.getPinned().then(setPinned).catch((error) => logBridgeWarning("Unable to load pinned state.", error));
-      const unsubscribeTheme = window.gitPeek.onThemeChanged(setSystemTheme);
-      const unsubscribePreferences = window.gitPeek.onPreferencesChanged((value) => setPreferencesState(mergePreferences(value)));
-      const unsubscribePinned = window.gitPeek.onPinnedChanged(setPinned);
+      window.gocus.getPinned().then(setPinned).catch((error) => logBridgeWarning("Unable to load pinned state.", error));
+      const unsubscribeTheme = window.gocus.onThemeChanged(setSystemTheme);
+      const unsubscribePreferences = window.gocus.onPreferencesChanged((value) => setPreferencesState(mergePreferences(value)));
+      const unsubscribePinned = window.gocus.onPinnedChanged(setPinned);
       return () => {
         unsubscribeTheme();
         unsubscribePreferences();
@@ -101,29 +101,29 @@ export function useInitialGitData({
   setRepositoryDialogOpen: Dispatch<SetStateAction<boolean>>;
 }) {
   useEffect(() => {
-    if (!window.gitPeek) {
+    if (!window.gocus) {
       setLoading(false);
       setNotice(chooseLocalWorkingFolderInElectronNotice);
       return undefined;
     }
 
-    window.gitPeek
+    window.gocus
       .getSnapshot(commitView)
       .then((response) => applySnapshotResponse(response))
       .catch((error) => setNotice(errorMessage(error, "Unable to load Git status.")))
       .finally(() => setLoading(false));
-    window.gitPeek
+    window.gocus
       .getRecentRepositories()
       .then((repositories) => setRecentRepositories(dedupeRecentRepositories(repositories, maxRecentRepositories)))
       .catch((error) => logBridgeWarning("Unable to load recent repositories.", error));
 
-    const unsubscribeSnapshot = window.gitPeek.onSnapshotUpdated((response) => {
+    const unsubscribeSnapshot = window.gocus.onSnapshotUpdated((response) => {
       markGitRequest();
       applySnapshotResponse(response, response.ok ? "Git data updated from menu." : "Working folder cleared.");
       setLoading(false);
     });
-    const unsubscribeCollapsed = window.gitPeek.onCollapsedChanged(setCollapsed);
-    const unsubscribeRepositoryDialog = window.gitPeek.onRepositoryDialogOpenChanged(setRepositoryDialogOpen);
+    const unsubscribeCollapsed = window.gocus.onCollapsedChanged(setCollapsed);
+    const unsubscribeRepositoryDialog = window.gocus.onRepositoryDialogOpenChanged(setRepositoryDialogOpen);
 
     return () => {
       unsubscribeSnapshot();
@@ -176,7 +176,7 @@ export function useAutoRefreshLoop({
     }
 
     const timer = window.setInterval(async () => {
-      const bridge = window.gitPeek;
+      const bridge = window.gocus;
       if (!bridge) return;
       if (
         !shouldRunAutoRefreshTick({

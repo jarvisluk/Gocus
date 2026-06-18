@@ -10,7 +10,7 @@ const { parseLog } = require("./gitGraph.cjs");
 const { applyNumstat, isConflictedStatus, parseStatus } = require("./gitStatus.cjs");
 
 const starterGitIgnore = [
-  "# Git Peek starter .gitignore",
+  "# Gocus starter .gitignore",
   "",
   "# OS files",
   ".DS_Store",
@@ -49,7 +49,7 @@ const maxCommitLogLimit = 2000;
 const dirtyWorkspaceMergeNotice = "Workspace has uncommitted changes. Commit them before merging.";
 const cleanupFallbackBaseBranchCandidates = ["main", "master", "develop", "trunk"];
 
-function normalizeCommitLogLimit(value = process.env.GIT_PEEK_COMMIT_LOG_LIMIT) {
+function normalizeCommitLogLimit(value = process.env.GOCUS_COMMIT_LOG_LIMIT) {
   const parsed = Number.parseInt(`${value ?? ""}`, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return defaultCommitLogLimit;
   return Math.min(parsed, maxCommitLogLimit);

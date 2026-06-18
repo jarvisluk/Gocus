@@ -5,7 +5,7 @@ export function errorMessage(error: unknown, fallback: string) {
 }
 
 export function logBridgeWarning(context: string, error: unknown) {
-  console.warn(`[Git Peek] ${context}`, errorMessage(error, context));
+  console.warn(`[Gocus] ${context}`, errorMessage(error, context));
 }
 
 function isPromiseLike(value: unknown): value is PromiseLike<unknown> {

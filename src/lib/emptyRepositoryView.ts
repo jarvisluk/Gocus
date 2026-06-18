@@ -68,8 +68,8 @@ export function emptyRepositoryView({
     body: loading
       ? "Looking for the last saved repository."
       : folderWithoutGit
-        ? `${folderWithoutGit.name} can be initialized here and then tracked by Git Peek.`
-        : "Git Peek only shows real data from a folder you choose. It remembers that folder for next time.",
+        ? `${folderWithoutGit.name} can be initialized here and then tracked by Gocus.`
+        : "Gocus only shows real data from a folder you choose. It remembers that folder for next time.",
     primaryActionLabel,
     actionsClassName: "empty-actions",
     primaryButton: {

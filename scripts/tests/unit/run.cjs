@@ -181,7 +181,7 @@ function testFileChecksUtility() {
     processFailure,
     relativePath,
   } = require(path.join(projectRoot, "scripts/lib/file-checks.cjs"));
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-file-checks-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-file-checks-"));
 
   try {
     fs.mkdirSync(path.join(tempDir, "src/nested"), { recursive: true });
@@ -226,7 +226,7 @@ function testFileChecksUtility() {
 
 function testWorkspaceModule() {
   const { __private } = require(path.join(projectRoot, "electron/lib/workspace.cjs"));
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-workspace-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-workspace-"));
 
   try {
     const nodeVersionsDir = path.join(tempDir, ".nvm", "versions", "node");
@@ -244,7 +244,7 @@ function testWorkspaceModule() {
       path.join(tempDir, ".local", "bin", "codex"),
       ...expectedNvmPaths,
     ]);
-    assert.deepEqual(__private.codexCliCandidatePaths({ env: { GIT_PEEK_CODEX_CLI: "/tmp/codex" }, homeDir: tempDir }), [
+    assert.deepEqual(__private.codexCliCandidatePaths({ env: { GOCUS_CODEX_CLI: "/tmp/codex" }, homeDir: tempDir }), [
       "/tmp/codex",
       "/opt/homebrew/bin/codex",
       "/usr/local/bin/codex",
@@ -638,11 +638,11 @@ function testNodeSyntaxScript() {
   const nodeFileLabels = collectNodeFiles().map((filePath) => path.relative(projectRoot, filePath));
   assert.ok(nodeFileLabels.includes("electron/main.cjs"));
   assert.ok(nodeFileLabels.includes("scripts/check-node-syntax.cjs"));
-  assert.ok(nodeFileLabels.includes("tools/stylelint/git-peek-design.cjs"));
+  assert.ok(nodeFileLabels.includes("tools/stylelint/gocus-design.cjs"));
   assert.deepEqual(nodeFileLabels, [...nodeFileLabels].sort((left, right) => left.localeCompare(right)));
   assert.equal(checkNodeFileSyntax(path.join(projectRoot, "scripts/check-node-syntax.cjs")), null);
 
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-node-syntax-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-node-syntax-"));
   const invalidFile = path.join(tempDir, "invalid.cjs");
   fs.writeFileSync(invalidFile, "function broken( {\n", "utf8");
 
@@ -673,7 +673,7 @@ function testShellSyntaxScript() {
   assert.deepEqual(shellFileLabels, [...shellFileLabels].sort((left, right) => left.localeCompare(right)));
   assert.equal(checkShellFileSyntax(path.join(projectRoot, "scripts/package-macos.sh")), null);
 
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-shell-syntax-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-shell-syntax-"));
   const invalidFile = path.join(tempDir, "invalid.sh");
   fs.writeFileSync(invalidFile, "if true; then\n  echo bad\n", "utf8");
 
@@ -925,12 +925,12 @@ async function testGitModule() {
     "feature/footer-toggle",
   ]);
 
-  const mergeMessageDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-merge-message-"));
+  const mergeMessageDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-merge-message-"));
   try {
     runGitFixture(mergeMessageDir, ["init"]);
     runGitFixture(mergeMessageDir, ["checkout", "-b", "main"]);
-    runGitFixture(mergeMessageDir, ["config", "user.name", "Git Peek Test"]);
-    runGitFixture(mergeMessageDir, ["config", "user.email", "git-peek@example.com"]);
+    runGitFixture(mergeMessageDir, ["config", "user.name", "Gocus Test"]);
+    runGitFixture(mergeMessageDir, ["config", "user.email", "gocus@example.com"]);
     fs.writeFileSync(path.join(mergeMessageDir, "base.txt"), "base\n", "utf8");
     runGitFixture(mergeMessageDir, ["add", "base.txt"]);
     runGitFixture(mergeMessageDir, ["commit", "-m", "base"]);
@@ -949,12 +949,12 @@ async function testGitModule() {
     fs.rmSync(mergeMessageDir, { force: true, recursive: true });
   }
 
-  const dirtyMergeDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-dirty-merge-"));
+  const dirtyMergeDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-dirty-merge-"));
   try {
     runGitFixture(dirtyMergeDir, ["init"]);
     runGitFixture(dirtyMergeDir, ["checkout", "-b", "main"]);
-    runGitFixture(dirtyMergeDir, ["config", "user.name", "Git Peek Test"]);
-    runGitFixture(dirtyMergeDir, ["config", "user.email", "git-peek@example.com"]);
+    runGitFixture(dirtyMergeDir, ["config", "user.name", "Gocus Test"]);
+    runGitFixture(dirtyMergeDir, ["config", "user.email", "gocus@example.com"]);
     fs.writeFileSync(path.join(dirtyMergeDir, "base.txt"), "base\n", "utf8");
     runGitFixture(dirtyMergeDir, ["add", "base.txt"]);
     runGitFixture(dirtyMergeDir, ["commit", "-m", "base"]);
@@ -975,7 +975,7 @@ async function testGitModule() {
     fs.rmSync(dirtyMergeDir, { force: true, recursive: true });
   }
 
-  const cleanupDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-worktree-cleanup-"));
+  const cleanupDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-worktree-cleanup-"));
   const cleanupRepo = path.join(cleanupDir, "repo");
   const attachedWorktree = path.join(cleanupDir, "attached");
   const canonicalWorktree = path.join(cleanupDir, "canonical");
@@ -1012,8 +1012,8 @@ async function testGitModule() {
     fs.mkdirSync(cleanupRepo);
     runGitFixture(cleanupRepo, ["init"]);
     runGitFixture(cleanupRepo, ["checkout", "-b", "main"]);
-    runGitFixture(cleanupRepo, ["config", "user.name", "Git Peek Test"]);
-    runGitFixture(cleanupRepo, ["config", "user.email", "git-peek@example.com"]);
+    runGitFixture(cleanupRepo, ["config", "user.name", "Gocus Test"]);
+    runGitFixture(cleanupRepo, ["config", "user.email", "gocus@example.com"]);
     fs.writeFileSync(path.join(cleanupRepo, "base.txt"), "base\n", "utf8");
     runGitFixture(cleanupRepo, ["add", "base.txt"]);
     runGitFixture(cleanupRepo, ["commit", "-m", "base"]);
@@ -1100,15 +1100,15 @@ async function testGitModule() {
     fs.rmSync(cleanupDir, { force: true, recursive: true });
   }
 
-  const developCleanupDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-worktree-cleanup-develop-"));
+  const developCleanupDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-worktree-cleanup-develop-"));
   const developCleanupRepo = path.join(developCleanupDir, "repo");
   const developDetachedWorktree = path.join(developCleanupDir, "detached");
   try {
     fs.mkdirSync(developCleanupRepo);
     runGitFixture(developCleanupRepo, ["init"]);
     runGitFixture(developCleanupRepo, ["checkout", "-b", "develop"]);
-    runGitFixture(developCleanupRepo, ["config", "user.name", "Git Peek Test"]);
-    runGitFixture(developCleanupRepo, ["config", "user.email", "git-peek@example.com"]);
+    runGitFixture(developCleanupRepo, ["config", "user.name", "Gocus Test"]);
+    runGitFixture(developCleanupRepo, ["config", "user.email", "gocus@example.com"]);
     fs.writeFileSync(path.join(developCleanupRepo, "base.txt"), "base\n", "utf8");
     runGitFixture(developCleanupRepo, ["add", "base.txt"]);
     runGitFixture(developCleanupRepo, ["commit", "-m", "base"]);
@@ -1128,12 +1128,12 @@ async function testGitModule() {
     fs.rmSync(developCleanupDir, { force: true, recursive: true });
   }
 
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "git-peek-merge-state-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-merge-state-"));
   try {
     runGitFixture(tempDir, ["init"]);
     runGitFixture(tempDir, ["checkout", "-b", "main"]);
-    runGitFixture(tempDir, ["config", "user.name", "Git Peek Test"]);
-    runGitFixture(tempDir, ["config", "user.email", "git-peek@example.com"]);
+    runGitFixture(tempDir, ["config", "user.name", "Gocus Test"]);
+    runGitFixture(tempDir, ["config", "user.email", "gocus@example.com"]);
     fs.writeFileSync(path.join(tempDir, "file.txt"), "base\n", "utf8");
     runGitFixture(tempDir, ["add", "file.txt"]);
     runGitFixture(tempDir, ["commit", "-m", "base"]);
@@ -1838,7 +1838,7 @@ async function testAppShellView(server) {
   });
   assert.deepEqual(appPanelView(), {
     className: "peek-panel",
-    ariaLabel: "Git Peek side panel",
+    ariaLabel: "Gocus side panel",
   });
   const snapshot = gitSnapshot();
   assert.deepEqual(appPanelContentView({ snapshot, settingsOpen: true }), {
@@ -3649,11 +3649,11 @@ async function testCollapsedRailView(server) {
   assert.equal(collapsedRailHeightForBranchName("feature/super-long-branch-name-v2"), 307);
   assert.deepEqual(collapsedRailView(null), {
     className: "collapsed-rail",
-    ariaLabel: "Collapsed Git Peek",
+    ariaLabel: "Collapsed Gocus",
     title: "Drag to move. Double-click to dock to the screen edge.",
     expandButton: {
       className: "ui-icon-button rail-expand",
-      ariaLabel: "Expand Git Peek",
+      ariaLabel: "Expand Gocus",
     },
     branch: {
       className: "rail-branch",
@@ -3679,11 +3679,11 @@ async function testCollapsedRailView(server) {
     }),
     {
       className: "collapsed-rail",
-      ariaLabel: "Collapsed Git Peek",
+      ariaLabel: "Collapsed Gocus",
       title: "Drag to move. Double-click to dock to the screen edge.",
       expandButton: {
         className: "ui-icon-button rail-expand",
-        ariaLabel: "Expand Git Peek",
+        ariaLabel: "Expand Gocus",
       },
       branch: {
         className: "rail-branch",
@@ -4251,9 +4251,9 @@ async function testErrorMessages(server) {
   }
 
   assert.deepEqual(warnings, [
-    ["[Git Peek] Unable to load preferences.", "Bridge unavailable"],
-    ["[Git Peek] Unable to update pinned state.", "Pinned bridge failed"],
-    ["[Git Peek] Unable to dock window.", "Dock bridge failed"],
+    ["[Gocus] Unable to load preferences.", "Bridge unavailable"],
+    ["[Gocus] Unable to update pinned state.", "Pinned bridge failed"],
+    ["[Gocus] Unable to dock window.", "Dock bridge failed"],
   ]);
 }
 
@@ -5329,7 +5329,7 @@ async function testEmptyRepositoryView(server) {
   const plainView = emptyRepositoryView({ loading: false, folderWithoutGit: null, initializingRepository: false, recentRepositories });
   assert.equal(plainView.titleId, emptyRepositoryTitleId);
   assert.equal(plainView.title, "Open a working folder");
-  assert.equal(plainView.body, "Git Peek only shows real data from a folder you choose. It remembers that folder for next time.");
+  assert.equal(plainView.body, "Gocus only shows real data from a folder you choose. It remembers that folder for next time.");
   assert.equal(plainView.primaryActionLabel, "Choose folder");
   assert.equal(plainView.primaryAction, "open");
   assert.equal(plainView.primaryActionIcon, "folder");
@@ -5382,7 +5382,7 @@ async function testEmptyRepositoryView(server) {
   assert.equal(folderView.titleId, emptyRepositoryTitleId);
   assert.equal(folderView.icon, "folder-git");
   assert.equal(folderView.title, "Folder without Git");
-  assert.equal(folderView.body, "new-project can be initialized here and then tracked by Git Peek.");
+  assert.equal(folderView.body, "new-project can be initialized here and then tracked by Gocus.");
   assert.equal(folderView.primaryActionLabel, "Initialize Git");
   assert.equal(folderView.primaryAction, "initialize");
   assert.equal(folderView.primaryActionIcon, "branch-plus");
@@ -5489,7 +5489,7 @@ async function testPanelHeaderView(server) {
     currentRepository: null,
     recentRepositoryOptions: [current, other],
     canSwitchRepository: false,
-    repositoryTitle: "Git Peek",
+    repositoryTitle: "Gocus",
     repositoryPathLabel: "No working folder",
   });
 

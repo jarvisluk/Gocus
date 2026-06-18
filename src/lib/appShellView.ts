@@ -63,7 +63,7 @@ export function appEditorBackdropView() {
 export function appPanelView() {
   return {
     className: "peek-panel",
-    ariaLabel: "Git Peek side panel",
+    ariaLabel: "Gocus side panel",
   };
 }
 

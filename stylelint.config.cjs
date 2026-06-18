@@ -1,7 +1,7 @@
 module.exports = {
-  plugins: ["./tools/stylelint/git-peek-design.cjs"],
+  plugins: ["./tools/stylelint/gocus-design.cjs"],
   rules: {
-    "git-peek/design-guidelines": [
+    "gocus/design-guidelines": [
       true,
       {
         compactFontMaxPx: 16,

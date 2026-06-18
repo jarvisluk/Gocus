@@ -2,7 +2,7 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 
 const projectRoot = path.join(__dirname, "..");
-const preferredPort = Number.parseInt(process.env.GIT_PEEK_DEV_PORT ?? "43871", 10);
+const preferredPort = Number.parseInt(process.env.GOCUS_DEV_PORT ?? "43871", 10);
 
 async function main() {
   const { createServer } = await import("vite");
@@ -28,7 +28,7 @@ async function main() {
     cwd: projectRoot,
     env: {
       ...process.env,
-      GIT_PEEK_DEV_SERVER_URL: devServerUrl,
+      GOCUS_DEV_SERVER_URL: devServerUrl,
     },
     stdio: "inherit",
   });

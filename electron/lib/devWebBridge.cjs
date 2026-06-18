@@ -202,7 +202,7 @@ function createDevWebBridgeMiddleware(projectRoot) {
 
 function createDevWebBridgePlugin(projectRoot) {
   return {
-    name: "git-peek-dev-web-bridge",
+    name: "gocus-dev-web-bridge",
     apply: "serve",
     configureServer(server) {
       server.middlewares.use(createDevWebBridgeMiddleware(projectRoot));
