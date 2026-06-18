@@ -855,6 +855,40 @@ function testIpcHandlersModule() {
   );
 }
 
+function testConfigStoreModule() {
+  const {
+    createConfigStore,
+    defaultActiveWorkspaceOpenTarget,
+    sanitizeActiveWorkspaceOpenTarget,
+  } = require(path.join(projectRoot, "electron/lib/config.cjs"));
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-config-"));
+  const app = {
+    getPath(name) {
+      assert.equal(name, "userData");
+      return userDataDir;
+    },
+  };
+
+  try {
+    const config = createConfigStore(app);
+    assert.equal(defaultActiveWorkspaceOpenTarget, "vscode");
+    assert.equal(sanitizeActiveWorkspaceOpenTarget("finder"), "finder");
+    assert.equal(sanitizeActiveWorkspaceOpenTarget("unknown"), "vscode");
+    assert.equal(sanitizeActiveWorkspaceOpenTarget("unknown", "terminal"), "terminal");
+    assert.equal(config.readActiveWorkspaceOpenTarget(), "vscode");
+
+    config.saveActiveWorkspaceOpenTarget("finder");
+    assert.equal(config.readActiveWorkspaceOpenTarget(), "finder");
+    assert.equal(createConfigStore(app).readActiveWorkspaceOpenTarget(), "finder");
+    assert.equal(JSON.parse(fs.readFileSync(path.join(userDataDir, "config.json"), "utf8")).activeWorkspaceOpenTarget, "finder");
+
+    config.saveActiveWorkspaceOpenTarget("unknown");
+    assert.equal(config.readActiveWorkspaceOpenTarget(), "finder");
+  } finally {
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+}
+
 async function testAutoUpdateModule() {
   const { EventEmitter } = require("node:events");
   const previousUpdateRepo = process.env.GOCUS_UPDATE_REPO;
@@ -3655,7 +3689,14 @@ async function testAutoRefresh(server) {
 async function testPreferences(server) {
   const workspaceTargets = await loadTsModule(server, "src/lib/workspaceOpenTargets.ts");
   const preferences = await loadTsModule(server, "src/lib/preferences.ts");
-  const { defaultWorkspaceOpenTargets, isWorkspaceOpenTarget, sanitizeWorkspaceOpenTargets, workspaceOpenTargetValues } = workspaceTargets;
+  const {
+    defaultWorkspaceOpenTarget,
+    defaultWorkspaceOpenTargets,
+    isWorkspaceOpenTarget,
+    sanitizeWorkspaceOpenTarget,
+    sanitizeWorkspaceOpenTargets,
+    workspaceOpenTargetValues,
+  } = workspaceTargets;
   const {
     defaultPreferences,
     mergePreferences,
@@ -3666,6 +3707,7 @@ async function testPreferences(server) {
     systemThemeFromMediaMatches,
   } = preferences;
 
+  assert.equal(defaultWorkspaceOpenTarget, "vscode");
   assert.equal(isWorkspaceOpenTarget("cursor"), true);
   assert.equal(isWorkspaceOpenTarget("unknown"), false);
   assert.deepEqual(workspaceOpenTargetValues, [
@@ -3678,6 +3720,9 @@ async function testPreferences(server) {
     "terminal",
     "xcode",
   ]);
+  assert.equal(sanitizeWorkspaceOpenTarget("finder"), "finder");
+  assert.equal(sanitizeWorkspaceOpenTarget("unknown"), defaultWorkspaceOpenTarget);
+  assert.equal(sanitizeWorkspaceOpenTarget("unknown", "terminal"), "terminal");
   assert.deepEqual(sanitizeWorkspaceOpenTargets(["cursor", "finder", "cursor", "unknown"]), ["cursor", "finder"]);
   assert.deepEqual(sanitizeWorkspaceOpenTargets(null, ["terminal"]), ["terminal"]);
 
@@ -4695,13 +4740,21 @@ async function testCopyText(server) {
 async function testDismissableLayer(server) {
   const {
     dismissableLayerContainsTarget,
+    dismissableLayerConsumesOutsideInteraction,
+    dismissableLayerEventForTiming,
     dismissableLayerShouldDismissKey,
     dismissableLayerShouldDismissPointer,
+    dismissableLayerTargetsOverlap,
   } = await loadTsModule(server, "src/lib/useDismissableLayer.ts");
   const inside = { nodeType: 1 };
   const outside = { nodeType: 1 };
+  const child = { nodeType: 1 };
   const host = {
     contains: (target) => target === inside,
+  };
+  const parent = {
+    nodeType: 1,
+    contains: (target) => target === child,
   };
   const refs = [{ current: host }];
 
@@ -4718,6 +4771,16 @@ async function testDismissableLayer(server) {
   assert.equal(dismissableLayerShouldDismissKey("Escape"), true);
   assert.equal(dismissableLayerShouldDismissKey("Enter"), false);
   assert.equal(dismissableLayerShouldDismissKey("Esc"), false);
+
+  assert.equal(dismissableLayerEventForTiming("beforeTargetAction"), "pointerdown");
+  assert.equal(dismissableLayerEventForTiming("afterTargetAction"), "click");
+  assert.equal(dismissableLayerConsumesOutsideInteraction("beforeTargetAction"), true);
+  assert.equal(dismissableLayerConsumesOutsideInteraction("afterTargetAction"), false);
+  assert.equal(dismissableLayerTargetsOverlap(inside, inside), true);
+  assert.equal(dismissableLayerTargetsOverlap(parent, child), true);
+  assert.equal(dismissableLayerTargetsOverlap(child, parent), true);
+  assert.equal(dismissableLayerTargetsOverlap(inside, outside), false);
+  assert.equal(dismissableLayerTargetsOverlap(null, outside), false);
 }
 
 async function testChangedNowView(server) {
@@ -5845,8 +5908,11 @@ async function testRepositoryControlLabels(server) {
 
 async function testRepositoryControlsView(server) {
   const {
+    automaticWorktreeCleanupCandidates,
+    automaticWorktreeCleanupPaths,
     closedRepositoryControlsMenus,
     currentSwitchableWorktree,
+    isAutomaticWorktreeCleanupCandidate,
     repositoryBranchMenuItemView,
     repositoryBranchMenuView,
     repositoryBranchMenuChromeView,
@@ -5911,6 +5977,46 @@ async function testRepositoryControlsView(server) {
       containedBranches: ["feature/branch-shell"],
       prunableReason: "",
     },
+  });
+  const patchEquivalentDetached = worktree({
+    path: "/Users/junrong/.codex/worktrees/73f3/git-tree-vis",
+    branch: "",
+    current: false,
+    detached: true,
+    headShortHash: "73f34d4",
+    cleanup: {
+      status: "patch-equivalent",
+      safeToRemove: true,
+      action: "remove",
+      reason: "No unique patch vs main.",
+      detail: "Git's cherry-pick comparison found no patch content that only exists in this detached worktree.",
+      baseBranch: "main",
+      uniquePatchCount: 0,
+      containedBranches: [],
+      prunableReason: "",
+    },
+  });
+  const staleMetadata = worktree({
+    path: "/Users/junrong/.codex/worktrees/stale/git-tree-vis",
+    branch: "",
+    current: false,
+    detached: true,
+    headShortHash: "0000000",
+    cleanup: {
+      status: "prunable",
+      safeToRemove: true,
+      action: "prune",
+      reason: "Stale metadata.",
+      detail: "Git reports this worktree metadata can be pruned.",
+      baseBranch: "",
+      uniquePatchCount: null,
+      containedBranches: [],
+      prunableReason: "gone",
+    },
+  });
+  const otherStaleMetadata = worktree({
+    ...staleMetadata,
+    path: "/Users/junrong/.codex/worktrees/other-stale/git-tree-vis",
   });
   const dirtyBranch = worktree({
     path: "/Users/junrong/.codex/worktrees/b848/git-tree-vis",
@@ -6384,11 +6490,25 @@ async function testRepositoryControlsView(server) {
   });
   assert.equal(worktreeCleanupStatusLabel(removableDetached), "Contained by main.");
   assert.equal(worktreeCleanupStatusLabel(removableBranch), "Branch preserved.");
+  assert.equal(worktreeCleanupStatusLabel(patchEquivalentDetached), "No unique patch vs main.");
+  assert.equal(worktreeCleanupStatusLabel(staleMetadata), "Stale metadata.");
   assert.equal(worktreeCleanupStatusLabel(dirtyBranch), "Uncommitted changes.");
+  assert.equal(isAutomaticWorktreeCleanupCandidate(removableDetached), true);
+  assert.equal(isAutomaticWorktreeCleanupCandidate(removableBranch), false);
+  assert.equal(isAutomaticWorktreeCleanupCandidate(patchEquivalentDetached), true);
+  assert.equal(isAutomaticWorktreeCleanupCandidate(staleMetadata), true);
+  assert.deepEqual(
+    automaticWorktreeCleanupCandidates([current, removableBranch, removableDetached, dirtyBranch, patchEquivalentDetached, staleMetadata]),
+    [removableDetached, patchEquivalentDetached, staleMetadata],
+  );
+  assert.deepEqual(
+    automaticWorktreeCleanupPaths([staleMetadata, removableDetached, otherStaleMetadata, patchEquivalentDetached]),
+    [removableDetached.path, patchEquivalentDetached.path, staleMetadata.path],
+  );
   assert.deepEqual(repositoryWorktreeCleanupActionView(removableDetached), {
     show: true,
     disabled: false,
-    className: "worktree-cleanup-button",
+    className: "worktree-cleanup-button is-auto-safe",
     ariaLabel: "Clean Detached @ 02141bb - git-tree-vis",
     title: "This clean detached worktree points to history already reachable from the base branch.",
     label: "Clean",
@@ -6400,6 +6520,22 @@ async function testRepositoryControlsView(server) {
     ariaLabel: "Clean feature/branch-shell - git-tree-vis",
     title: "This clean worktree can be removed because feature/branch-shell preserves its HEAD.",
     label: "Clean",
+  });
+  assert.deepEqual(repositoryWorktreeCleanupActionView(patchEquivalentDetached), {
+    show: true,
+    disabled: false,
+    className: "worktree-cleanup-button is-auto-safe",
+    ariaLabel: "Clean Detached @ 73f34d4 - git-tree-vis",
+    title: "Git's cherry-pick comparison found no patch content that only exists in this detached worktree.",
+    label: "Clean",
+  });
+  assert.deepEqual(repositoryWorktreeCleanupActionView(staleMetadata), {
+    show: true,
+    disabled: false,
+    className: "worktree-cleanup-button is-auto-safe",
+    ariaLabel: "Prune Detached @ 0000000 - git-tree-vis",
+    title: "Git reports this worktree metadata can be pruned.",
+    label: "Prune",
   });
   assert.deepEqual(repositoryWorktreeCleanupActionView(dirtyBranch), {
     show: true,
@@ -6763,6 +6899,7 @@ async function main() {
   testNodeSyntaxScript();
   testShellSyntaxScript();
   testWindowGeometryModule();
+  testConfigStoreModule();
   testIpcHandlersModule();
   await testAutoUpdateModule();
   testGitStatusModule();

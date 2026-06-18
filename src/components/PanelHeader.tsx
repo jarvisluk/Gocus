@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Check, ChevronDown, ChevronLeft, GitBranch, Pin, PinOff, RefreshCw, Route } from "lucide-react";
+import { DropdownMenuHost } from "./DropdownMenuHost";
 import { IconButton } from "./IconButton";
 import {
   panelHeaderActionsView,
@@ -13,7 +14,6 @@ import {
   type PanelHeaderActionIcon,
   type PanelHeaderBranchPillIcon,
 } from "../lib/panelHeaderView";
-import { useDismissableLayer } from "../lib/useDismissableLayer";
 import type { GitSnapshot, RecentRepository } from "../types";
 
 function panelHeaderActionIcon(icon: PanelHeaderActionIcon, className = "") {
@@ -50,7 +50,6 @@ export function PanelHeader({
   onCollapse: () => void;
 }) {
   const [repoMenuOpen, setRepoMenuOpen] = useState(false);
-  const repoSwitcherRef = useRef<HTMLDivElement>(null);
   const panelView = panelHeaderView(snapshot, recentRepositories);
   const {
     branchPill,
@@ -65,8 +64,6 @@ export function PanelHeader({
   const repositoryMenu = panelRepositoryMenuView();
   const actionsView = panelHeaderActionsView({ pinned, refreshing, hasRepository: Boolean(snapshot) });
 
-  useDismissableLayer({ active: repoMenuOpen, refs: [repoSwitcherRef], onDismiss: () => setRepoMenuOpen(false) });
-
   function switchRepository(repositoryPath: string) {
     const selection = panelRepositorySelection(snapshot, repositoryPath);
     setRepoMenuOpen(selection.menuOpen);
@@ -78,7 +75,11 @@ export function PanelHeader({
       <IconButton label={openRepositoryButton.label} onClick={onOpen}>
         <Route aria-hidden="true" />
       </IconButton>
-      <div className={panelView.repoSwitcher.className} ref={repoSwitcherRef}>
+      <DropdownMenuHost
+        active={repoMenuOpen}
+        className={panelView.repoSwitcher.className}
+        onDismiss={() => setRepoMenuOpen(false)}
+      >
         {canSwitchRepository ? (
           <button
             id={repositoryTrigger.id}
@@ -132,7 +133,7 @@ export function PanelHeader({
             })}
           </div>
         ) : null}
-      </div>
+      </DropdownMenuHost>
       {branchPill ? (
         <span className={branchPill.className} title={branchPill.title}>
           {panelHeaderBranchPillIcon(branchPill.icon)}

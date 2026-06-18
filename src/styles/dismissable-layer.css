@@ -1,0 +1,47 @@
+:root[data-dismissable-layer-open="true"] .commit-row:not(.is-selected):hover .commit-content,
+:root[data-dismissable-layer-open="true"] .file-row:not(.is-selected):hover,
+:root[data-dismissable-layer-open="true"] .empty-recent-repos button:hover:not(:disabled),
+:root[data-dismissable-layer-open="true"] :is(
+    .heading-tools button:hover,
+    .branch-switch-button:hover:not(:disabled),
+    .icon-button:hover:not(.is-active),
+    .ui-button:hover:not(.is-active),
+    .ui-icon-button:hover:not(.is-active),
+    .ui-segmented button:hover:not(.is-active),
+    .workspace-open-trigger:hover:not(:disabled),
+    .workspace-open-menu-toggle:hover:not(:disabled):not(.is-open),
+    .view-chip:hover:not(:disabled):not(.is-active):not(.is-open),
+    .worktree-trigger:hover:not(.is-open),
+    .repo-title-button:hover:not(.is-open),
+    .ui-disclosure-button:hover:not(.is-open),
+    .workspace-target-toggle:hover,
+    .footer-primary:hover,
+    .footer-changed-now:hover:not(.is-open),
+    .rail-count:hover
+  ):not(.ui-menu *) {
+  background: transparent;
+}
+
+:root[data-dismissable-layer-open="true"] .worktree-context-trigger:hover:not(.is-open):not(.ui-menu *) {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+:root[data-dismissable-layer-open="true"] :is(
+    .branch-switch-button:hover:not(:disabled),
+    .icon-button:hover:not(.is-active),
+    .ui-button:hover:not(.is-active),
+    .ui-icon-button:hover:not(.is-active),
+    .ui-segmented button:hover:not(.is-active),
+    .workspace-open-trigger:hover:not(:disabled),
+    .workspace-open-menu-toggle:hover:not(:disabled):not(.is-open),
+    .view-chip:hover:not(:disabled):not(.is-active):not(.is-open),
+    .worktree-trigger:hover:not(.is-open),
+    .footer-changed-now:hover:not(.is-open)
+  ):not(.ui-menu *) {
+  color: var(--text-muted);
+}
+
+:root[data-dismissable-layer-open="true"] :is(.footer-primary:hover, .repo-title-button:hover:not(.is-open)):not(.ui-menu *) {
+  color: var(--text);
+}

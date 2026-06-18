@@ -26,6 +26,7 @@ import { collapsedRailHeightForBranchName } from "./lib/collapsedRailView";
 import { logBridgeWarning } from "./lib/errorMessages";
 import { activeWorkspaceOpenTarget, visibleWorkspaceOpenOptions } from "./lib/workspaceOpenChoices";
 import { workspaceOpenOptions } from "./lib/workspaceOpenOptions";
+import { defaultWorkspaceOpenTarget } from "./lib/workspaceOpenTargets";
 import type { WorkspaceOpenTarget } from "./types";
 
 function commitGraphNodeY(density: "compact" | "comfortable") {
@@ -49,7 +50,7 @@ function EditorBackdrop() {
 
 export default function App() {
   const controller = useGocusController();
-  const [workspaceOpenTarget, setWorkspaceOpenTarget] = useState<WorkspaceOpenTarget>("cursor");
+  const [workspaceOpenTarget, setWorkspaceOpenTarget] = useState<WorkspaceOpenTarget>(defaultWorkspaceOpenTarget);
   const panelContent = appPanelContentView({
     snapshot: controller.snapshot,
     settingsOpen: controller.settingsOpen,
@@ -177,7 +178,7 @@ export default function App() {
                   <WorktreeContext
                     worktrees={panelContent.snapshot.worktrees}
                     onOpenWorktree={controller.openWorktree}
-                    onCleanupWorktree={controller.cleanupWorktree}
+                    onCleanupWorktrees={controller.cleanupWorktrees}
                   />
                   <div className={commitScrollRegion.className}>
                     <RecentCommits

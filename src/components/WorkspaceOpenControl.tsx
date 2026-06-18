@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { DropdownMenuHost } from "./DropdownMenuHost";
 import {
   footerWorkspaceMenuItemView,
   footerWorkspaceMenuOpenAfterToggle,
@@ -11,7 +12,6 @@ import {
   footerWorkspaceView,
 } from "../lib/footerWorkspaceView";
 import { joinClass } from "../lib/classNames";
-import { useDismissableLayer } from "../lib/useDismissableLayer";
 import { workspaceOpenOptions } from "../lib/workspaceOpenOptions";
 import type { WorkspaceOpenMenuAnchorBounds, WorkspaceOpenTarget } from "../types";
 
@@ -53,8 +53,6 @@ export function WorkspaceOpenControl({
     if (workspaceView.shouldCloseMenu) setMenuOpen(false);
   }, [workspaceView.shouldCloseMenu]);
 
-  useDismissableLayer({ active: menuOpen, refs: [workspaceControlRef], onDismiss: () => setMenuOpen(false) });
-
   function openTarget(target: WorkspaceOpenTarget) {
     const selection = footerWorkspaceSelection(target);
     onActiveWorkspaceTargetChange(selection.activeTarget);
@@ -85,9 +83,11 @@ export function WorkspaceOpenControl({
   if (!workspaceView.activeOption) return <>{fallback}</>;
 
   return (
-    <div
+    <DropdownMenuHost
+      active={menuOpen}
       className={joinClass(workspaceView.control.className, menuPlacement === "below" && "opens-below")}
-      ref={workspaceControlRef}
+      hostRef={workspaceControlRef}
+      onDismiss={() => setMenuOpen(false)}
     >
       <button
         className={workspaceOpenButton?.className}
@@ -143,6 +143,6 @@ export function WorkspaceOpenControl({
           })}
         </div>
       ) : null}
-    </div>
+    </DropdownMenuHost>
   );
 }

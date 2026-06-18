@@ -8,6 +8,7 @@ import type {
   WorkspaceOpenMenuPayload,
   WorkspaceOpenTarget,
 } from "../types";
+import { defaultWorkspaceOpenTarget } from "./workspaceOpenTargets";
 
 const bridgePrefix = "/__git_peek_dev_bridge";
 const localHostnames = new Set(["localhost", "127.0.0.1"]);
@@ -46,7 +47,7 @@ export function installDevWebBridge() {
   let temporaryInfoPayload: TemporaryInfoPayload = null;
   let changedFileInfoPayload: ChangedFileInfoPayload = null;
   let commitInfoPayload: CommitInfoPayload = null;
-  let activeWorkspaceTarget: WorkspaceOpenTarget = "cursor";
+  let activeWorkspaceTarget: WorkspaceOpenTarget = defaultWorkspaceOpenTarget;
   const temporaryInfoCallbacks = new Set<(payload: TemporaryInfoPayload) => void>();
   const changedFileInfoCallbacks = new Set<(payload: ChangedFileInfoPayload) => void>();
   const commitInfoCallbacks = new Set<(payload: CommitInfoPayload) => void>();

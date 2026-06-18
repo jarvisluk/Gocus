@@ -16,7 +16,7 @@ const path = require("node:path");
 const packageMetadata = require("../package.json");
 const { createAutoUpdateController } = require("./lib/autoUpdate.cjs");
 const { createAssetLoader } = require("./lib/assets.cjs");
-const { createConfigStore } = require("./lib/config.cjs");
+const { createConfigStore, defaultActiveWorkspaceOpenTarget } = require("./lib/config.cjs");
 const { registerIpcHandlers } = require("./lib/ipcHandlers.cjs");
 const { createLaunchAtLoginController } = require("./lib/launchAtLogin.cjs");
 const { installOutputErrorGuard } = require("./lib/outputGuard.cjs");
@@ -75,12 +75,13 @@ let commitInfoWindow = null;
 let commitInfoPayload = null;
 let commitInfoWindowHeight = commitInfoWindowSize.height;
 let commitInfoInteractionHoldUntil = 0;
-let activeWorkspaceOpenTarget = "cursor";
+let activeWorkspaceOpenTarget = defaultActiveWorkspaceOpenTarget;
 let workspaceOpenMenuActive = false;
 let repositoryWatcher = null;
 
 const hiddenLaunchArg = "--hidden";
 const config = createConfigStore(app);
+activeWorkspaceOpenTarget = config.readActiveWorkspaceOpenTarget();
 const launchAtLogin = createLaunchAtLoginController(app, hiddenLaunchArg);
 const assets = createAssetLoader({
   nativeImage,
@@ -446,8 +447,10 @@ function sendActiveWorkspaceOpenTarget() {
 
 function setActiveWorkspaceOpenTarget(target) {
   if (typeof target !== "string" || target.length === 0) return activeWorkspaceOpenTarget;
-  activeWorkspaceOpenTarget = target;
-  sendActiveWorkspaceOpenTarget();
+  const previousTarget = activeWorkspaceOpenTarget;
+  config.saveActiveWorkspaceOpenTarget(target);
+  activeWorkspaceOpenTarget = config.readActiveWorkspaceOpenTarget();
+  if (activeWorkspaceOpenTarget !== previousTarget) sendActiveWorkspaceOpenTarget();
   return activeWorkspaceOpenTarget;
 }
 

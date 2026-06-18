@@ -2,6 +2,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const maxRecentRepositories = 8;
+const workspaceOpenTargetValues = ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"];
+const defaultActiveWorkspaceOpenTarget = "vscode";
 
 const defaultPreferences = {
   themeMode: "dark",
@@ -10,13 +12,17 @@ const defaultPreferences = {
   density: "compact",
   fontFamily: "system",
   graphStyle: "solid",
-  workspaceOpenTargets: ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"],
+  workspaceOpenTargets: [...workspaceOpenTargetValues],
   showMenuBarIcon: true,
   launchAtLogin: false,
   createMergeCommit: true,
   autoRefreshInterval: "off",
   promptLanguage: "en",
 };
+
+function sanitizeActiveWorkspaceOpenTarget(target, fallback = defaultActiveWorkspaceOpenTarget) {
+  return workspaceOpenTargetValues.includes(target) ? target : fallback;
+}
 
 function sanitizePreferences(preferences) {
   const source = preferences && typeof preferences === "object" ? preferences : {};
@@ -182,6 +188,17 @@ function createConfigStore(app) {
     savePreferences(preferences) {
       writeConfig({ ...readConfig(), preferences: sanitizePreferences(preferences) });
     },
+    readActiveWorkspaceOpenTarget() {
+      return sanitizeActiveWorkspaceOpenTarget(readConfig().activeWorkspaceOpenTarget);
+    },
+    saveActiveWorkspaceOpenTarget(target) {
+      const config = readConfig();
+      const fallback = sanitizeActiveWorkspaceOpenTarget(config.activeWorkspaceOpenTarget);
+      writeConfig({
+        ...config,
+        activeWorkspaceOpenTarget: sanitizeActiveWorkspaceOpenTarget(target, fallback),
+      });
+    },
     readExpandedWindowSize() {
       const size = readConfig().expandedWindowSize;
       if (!size || typeof size !== "object") return null;
@@ -207,4 +224,4 @@ function createConfigStore(app) {
   };
 }
 
-module.exports = { createConfigStore, defaultPreferences };
+module.exports = { createConfigStore, defaultActiveWorkspaceOpenTarget, defaultPreferences, sanitizeActiveWorkspaceOpenTarget };

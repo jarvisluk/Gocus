@@ -71,6 +71,11 @@
   width: min(248px, calc(100vw - 24px));
   max-height: 290px;
   overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.branch-ref-menu::-webkit-scrollbar {
+  display: none;
 }
 
 .branch-ref-menu-row {

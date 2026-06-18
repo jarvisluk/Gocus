@@ -13,6 +13,7 @@ const {
 const { getAvailableWorkspaceTargets, openWorkspace, openWorkspaceFile } = require("./workspace.cjs");
 
 const bridgePrefix = "/__git_peek_dev_bridge";
+const defaultActiveWorkspaceOpenTarget = "vscode";
 const defaultPreferences = {
   themeMode: "dark",
   lightThemePreset: "paper",
@@ -79,7 +80,7 @@ function errorResponse(error, fallbackMessage) {
 
 function createDevWebBridgeMiddleware(projectRoot) {
   let repositoryPath = path.resolve(projectRoot);
-  let activeWorkspaceTarget = "cursor";
+  let activeWorkspaceTarget = defaultActiveWorkspaceOpenTarget;
   let preferences = { ...defaultPreferences };
 
   async function snapshotResponse(view) {

@@ -302,20 +302,61 @@ export function useGocusController() {
     }
   }
 
-  async function cleanupWorktree(worktreePath: string) {
+  async function cleanupWorktrees(worktreePaths: readonly string[]) {
     const bridge = window.gocus;
     if (blockGitActionWithoutBridge(bridge) || !bridge) return;
 
+    const cleanupPaths = Array.from(new Set(worktreePaths.map((worktreePath) => worktreePath.trim()).filter(Boolean)));
+    if (!cleanupPaths.length) return;
+
     setRefreshing(true);
     try {
-      await runAction(
-        () => bridge.cleanupWorktree(worktreePath, commitView),
-        "Cleaned up worktree.",
-        "Unable to clean up worktree.",
-      );
+      if (cleanupPaths.length === 1) {
+        await runAction(
+          () => bridge.cleanupWorktree(cleanupPaths[0], commitView),
+          "Cleaned up worktree.",
+          "Unable to clean up worktree.",
+        );
+        return;
+      }
+
+      markGitRequest();
+      let latestResponse: ActionResponse | null = null;
+
+      for (const worktreePath of cleanupPaths) {
+        const response = await bridge.cleanupWorktree(worktreePath, commitView);
+        latestResponse = response;
+
+        if (!response.ok) {
+          const nextNotice = actionResponseNotice(response, "Cleaned up selected worktrees.", "Unable to clean up worktree.");
+          const nextSnapshot = actionResponseSnapshot(response);
+
+          if (nextSnapshot) {
+            applySnapshotResponse({ ok: true, snapshot: nextSnapshot }, nextNotice);
+          } else if (nextNotice !== null) {
+            setNotice(nextNotice);
+          }
+          return;
+        }
+      }
+
+      if (!latestResponse) return;
+
+      const nextSnapshot = actionResponseSnapshot(latestResponse);
+      if (nextSnapshot) {
+        applySnapshotResponse({ ok: true, snapshot: nextSnapshot }, "Cleaned up selected worktrees.");
+      } else {
+        setNotice("Cleaned up selected worktrees.");
+      }
+    } catch (error) {
+      setNotice(errorMessage(error, "Unable to clean up worktree."));
     } finally {
       setRefreshing(false);
     }
+  }
+
+  async function cleanupWorktree(worktreePath: string) {
+    await cleanupWorktrees([worktreePath]);
   }
 
   function updateActionBranchName(branchName: string) {
@@ -503,6 +544,7 @@ export function useGocusController() {
     switchBranch,
     openWorktree,
     cleanupWorktree,
+    cleanupWorktrees,
     updateActionBranchPrefix,
     updateActionBranchName,
     updateActionMergeTarget,

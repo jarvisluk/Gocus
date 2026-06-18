@@ -242,7 +242,7 @@ function installGocusMock(config) {
     config.activeWorkspaceTarget ??
     config.changedFileInfoPayload?.workspaceOpenTarget ??
     config.temporaryInfoPayload?.workspaceOpenTarget ??
-    "cursor";
+    "vscode";
   window.__gocusActiveWorkspaceTargetListeners = [];
   window.__gocusSavedPreferences = [];
   window.__gocusSnapshotRequests = [];
@@ -688,6 +688,17 @@ function dismissableMenuScenario() {
             bare: false,
             current: false,
             counts: { modified: 0, staged: 0, untracked: 0 },
+            cleanup: {
+              status: "branch-preserved",
+              safeToRemove: true,
+              action: "remove",
+              reason: "Branch preserved.",
+              detail: "This clean worktree can be removed because feature/footer-toggle preserves its HEAD.",
+              baseBranch: "feature/footer-toggle",
+              uniquePatchCount: null,
+              containedBranches: [],
+              prunableReason: "",
+            },
           },
         ],
       }),
@@ -2236,6 +2247,39 @@ async function testOpenWorktreeKeepsCommitView(browser, baseUrl) {
   }
 }
 
+async function testWorktreeCleanupButtonOpensPanel(browser, baseUrl) {
+  const { page, errors } = await openMockedPage(browser, baseUrl, dismissableMenuScenario(), { viewport: desktopViewport });
+  try {
+    await assertHealthyPage(page, errors);
+
+    const currentViewButton = page.getByRole("button", { name: "Current" });
+    assert.equal(await currentViewButton.getAttribute("aria-pressed"), "false");
+    const settingsButton = page.getByRole("button", { name: "Settings" });
+    const settingsButtonColor = await settingsButton.evaluate((button) => window.getComputedStyle(button).color);
+    await settingsButton.hover();
+    assert.notEqual(await settingsButton.evaluate((button) => window.getComputedStyle(button).color), settingsButtonColor);
+
+    await page.getByRole("button", { name: "Choose worktree" }).click();
+    await page.getByRole("button", { name: "Clean feature/footer-toggle - git-tree-vis-linked" }).click();
+
+    const cleanupPanel = page.getByRole("dialog", { name: "Clean worktree" });
+    await cleanupPanel.waitFor();
+    assert.equal(await page.locator("#worktree-context-menu").count(), 0);
+    assert.match(await cleanupPanel.innerText(), /feature\/footer-toggle - git-tree-vis-linked/);
+    assert.match(await cleanupPanel.innerText(), /Branch preserved\./);
+    await settingsButton.hover({ force: true });
+    assert.equal(await settingsButton.evaluate((button) => window.getComputedStyle(button).color), settingsButtonColor);
+
+    await currentViewButton.click();
+    await cleanupPanel.waitFor({ state: "detached" });
+    assert.equal(await currentViewButton.getAttribute("aria-pressed"), "false");
+    await assertGitActions(page, []);
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
 async function testRefreshFailureRecovers(browser, baseUrl) {
   const { page, errors } = await openMockedPage(browser, baseUrl, refreshFailureScenario());
   try {
@@ -2401,15 +2445,32 @@ async function testDismissableMenus(browser, baseUrl) {
     assert.equal(await page.locator("#repo-switch-menu").count(), 0);
     assert.equal(await repoMenuButton.getAttribute("aria-expanded"), "false");
 
+    const currentViewButton = page.getByRole("button", { name: "Current" });
+    const currentViewBackground = await currentViewButton.evaluate((button) => window.getComputedStyle(button).backgroundColor);
+    await currentViewButton.hover();
+    const currentViewHoverBackground = await currentViewButton.evaluate((button) => window.getComputedStyle(button).backgroundColor);
+    assert.notEqual(currentViewHoverBackground, currentViewBackground);
+
     const branchMenuButton = page.getByRole("button", { name: "Choose branch view" });
     await branchMenuButton.click();
     await page.locator("#branch-ref-menu").waitFor();
     assert.equal(await branchMenuButton.getAttribute("id"), "branch-ref-trigger");
     assert.equal(await branchMenuButton.getAttribute("aria-expanded"), "true");
     assert.equal(await page.locator("#branch-ref-menu").getAttribute("aria-labelledby"), "branch-ref-trigger");
+    assert.equal(await page.evaluate(() => document.documentElement.dataset.dismissableLayerOpen), "true");
+
+    await currentViewButton.hover({ force: true });
+    assert.equal(await currentViewButton.evaluate((button) => window.getComputedStyle(button).backgroundColor), currentViewBackground);
+
+    const branchMenuItem = page.locator("#branch-ref-menu .branch-ref-menu-item:not(.is-active)").first();
+    const branchMenuItemBackground = await branchMenuItem.evaluate((item) => window.getComputedStyle(item).backgroundColor);
+    await branchMenuItem.hover();
+    assert.notEqual(await branchMenuItem.evaluate((item) => window.getComputedStyle(item).backgroundColor), branchMenuItemBackground);
+
     await page.getByRole("heading", { name: "Commits" }).click();
     assert.equal(await page.locator("#branch-ref-menu").count(), 0);
     assert.equal(await branchMenuButton.getAttribute("aria-expanded"), "false");
+    assert.equal(await page.evaluate(() => document.documentElement.dataset.dismissableLayerOpen ?? ""), "");
 
     const workspaceMenuButton = page.getByRole("button", { name: "Choose external app" });
     await workspaceMenuButton.click();
@@ -2586,6 +2647,7 @@ async function main() {
     await testBranchSwitchDisabledTooltipIsCompact(browser, baseUrl);
     await testMergeTargetDropdownShowsPriorityBranches(browser, baseUrl);
     await testOpenWorktreeKeepsCommitView(browser, baseUrl);
+    await testWorktreeCleanupButtonOpensPanel(browser, baseUrl);
     await testRefreshFailureRecovers(browser, baseUrl);
     await testPreviewRefreshWithoutBridge(browser, baseUrl);
     await testOptionalStartupFailuresDoNotBreakMainWindow(browser, baseUrl);

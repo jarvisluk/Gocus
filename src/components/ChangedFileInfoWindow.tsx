@@ -8,7 +8,7 @@ import {
   preferencesDocumentThemeView,
   systemThemeFallback,
 } from "../lib/preferences";
-import { defaultWorkspaceOpenTargets, sanitizeWorkspaceOpenTargets } from "../lib/workspaceOpenTargets";
+import { defaultWorkspaceOpenTarget, defaultWorkspaceOpenTargets, sanitizeWorkspaceOpenTargets } from "../lib/workspaceOpenTargets";
 import type { ChangedFileInfoPayload, Theme, UiPreferences, WorkspaceOpenMenuAnchorBounds, WorkspaceOpenTarget } from "../types";
 import { ChangedFileInfoPanel } from "./ChangedNow";
 import { WorkspaceOpenControl } from "./WorkspaceOpenControl";
@@ -17,7 +17,7 @@ export function ChangedFileInfoWindow() {
   const [payload, setPayload] = useState<ChangedFileInfoPayload>(null);
   const [preferences, setPreferences] = useState<UiPreferences>(defaultPreferences);
   const [availableWorkspaceTargets, setAvailableWorkspaceTargets] = useState<WorkspaceOpenTarget[]>(defaultWorkspaceOpenTargets);
-  const [activeWorkspaceTarget, setActiveWorkspaceTarget] = useState<WorkspaceOpenTarget>("cursor");
+  const [activeWorkspaceTarget, setActiveWorkspaceTarget] = useState<WorkspaceOpenTarget>(defaultWorkspaceOpenTarget);
   const [systemTheme, setSystemTheme] = useState<Theme>(systemThemeFallback);
   const { theme, themePreset } = preferencesDocumentThemeView(preferences, systemTheme);
   const view = changedFileInfoWindowView(payload);
