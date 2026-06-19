@@ -2777,17 +2777,6 @@ async function testCommitListView(server) {
     ariaLabel: "Search commits",
     placeholder: "Search",
   });
-  assert.deepEqual(commitListView(commits, "", true).searchCopyButton, {
-    className: "commit-search-copy",
-    ariaLabel: "Copy commit search",
-    disabled: true,
-    title: "Nothing to copy",
-  });
-  assert.deepEqual(commitListView(commits, "", true).searchPasteButton, {
-    className: "commit-search-paste",
-    ariaLabel: "Paste commit search",
-    title: "Paste search",
-  });
   assert.deepEqual(commitListView(commits, "", true).searchClearButton, {
     show: false,
     className: "commit-search-clear",
@@ -2800,12 +2789,6 @@ async function testCommitListView(server) {
     show: true,
     className: "commit-search-clear",
     ariaLabel: "Clear commit search",
-  });
-  assert.deepEqual(commitListView(commits, "footer").searchCopyButton, {
-    className: "commit-search-copy",
-    ariaLabel: "Copy commit search",
-    disabled: false,
-    title: "Copy search",
   });
   assert.deepEqual(
     commitListView(commits, "footer").filteredCommits.map((item) => item.id),

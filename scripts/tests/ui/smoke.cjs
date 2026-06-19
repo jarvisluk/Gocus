@@ -1218,25 +1218,18 @@ async function testCommitSearch(browser, baseUrl) {
     assert.equal(await closeSearchToggle.getAttribute("aria-controls"), "commit-search-form");
     assert.equal(await closeSearchToggle.getAttribute("aria-expanded"), "true");
     await page.locator("#commit-search-form").waitFor();
-    const copySearch = page.getByRole("button", { name: "Copy commit search" });
-    const pasteSearch = page.getByRole("button", { name: "Paste commit search" });
-    assert.equal(await copySearch.isDisabled(), true);
-    assert.equal(await pasteSearch.isEnabled(), true);
+    assert.equal(await page.getByRole("button", { name: "Copy commit search" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Paste commit search" }).count(), 0);
 
-    await page.evaluate(() => {
-      window.__gocusClipboardText = "footer";
-    });
-    await pasteSearch.click();
-    assert.equal(await page.getByRole("searchbox", { name: "Search commits" }).inputValue(), "footer");
+    const commitSearchInput = page.getByRole("searchbox", { name: "Search commits" });
+    await commitSearchInput.fill("footer");
+    assert.equal(await commitSearchInput.inputValue(), "footer");
     assert.equal(await page.locator(".commit-count").innerText(), "Showing 1/2");
     await page.getByRole("status").filter({ hasText: "Showing 1/2" }).waitFor();
-    assert.equal(await copySearch.isEnabled(), true);
-    await copySearch.click();
-    assert.equal(await page.evaluate(() => window.__gocusCopiedText), "footer");
-    await page.getByRole("searchbox", { name: "Search commits" }).press("Enter");
+    await commitSearchInput.press("Enter");
     assert.equal(await page.locator(".commit-row.is-selected .commit-title-text").innerText(), "Fix footer changed now toggle");
 
-    await page.getByRole("searchbox", { name: "Search commits" }).press("Escape");
+    await commitSearchInput.press("Escape");
     assert.equal(await page.getByRole("searchbox", { name: "Search commits" }).count(), 0);
     assert.equal(await page.locator(".commit-count").innerText(), "Showing 2");
     await page.getByRole("status").filter({ hasText: "Showing 2" }).waitFor();
@@ -2523,8 +2516,8 @@ async function testFocusedViewEscapeControls(browser, baseUrl) {
     await page.getByRole("heading", { name: "Settings" }).waitFor();
     assert.equal(await page.locator(".settings-page").getAttribute("aria-labelledby"), "settings-panel-title");
     assert.equal(await page.locator("#settings-panel-title").innerText(), "Settings");
-    assert.equal(await page.getByRole("button", { name: "Dark" }).getAttribute("aria-pressed"), "true");
-    assert.equal(await page.getByRole("button", { name: "Light" }).getAttribute("aria-pressed"), "false");
+    assert.equal(await page.getByRole("button", { name: "Dark", exact: true }).getAttribute("aria-pressed"), "true");
+    assert.equal(await page.getByRole("button", { name: "Light", exact: true }).getAttribute("aria-pressed"), "false");
     assert.equal(await page.getByRole("button", { name: "Compact" }).getAttribute("aria-pressed"), "true");
     assert.equal(await page.getByRole("button", { name: "Comfort" }).getAttribute("aria-pressed"), "false");
     assert.equal(await page.getByRole("button", { name: "Solid" }).getAttribute("aria-pressed"), "true");
@@ -2607,7 +2600,7 @@ async function testFocusedViewEscapeControls(browser, baseUrl) {
     );
     await page.keyboard.press("Escape");
     await page.getByRole("heading", { name: "Settings" }).waitFor();
-    assert.equal(await page.getByRole("heading", { name: "App" }).count(), 1);
+    assert.equal(await page.getByRole("heading", { name: "App", exact: true }).count(), 1);
 
     await page.getByRole("button", { name: "Open external app settings" }).click();
     await page.getByRole("heading", { name: "Open in" }).waitFor();
