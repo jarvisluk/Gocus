@@ -1,5 +1,5 @@
 import { ClipboardPaste, Copy, FileCode2, GitBranch, GitFork, GitMerge, Search, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type PointerEvent } from "react";
 import { CommitGraphLayer } from "./CommitGraphLayer";
 import {
   getGitTreeLaneCountForCommits,
@@ -218,6 +218,8 @@ export function RecentCommits({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchToggleRef = useRef<HTMLButtonElement>(null);
   const previousSearchTermCountRef = useRef(0);
+  const pendingCenterSelectedIdRef = useRef("");
+  const pendingCenterAttemptsRef = useRef(0);
   const [scrollFrame, setScrollFrame] = useState({ scrollTop: 0, viewportHeight: 0 });
   const {
     canSearch,
@@ -280,6 +282,8 @@ export function RecentCommits({
     const scrollRect = scrollNode.getBoundingClientRect();
     const listRect = listNode.getBoundingClientRect();
     const selectedIndex = filteredCommits.findIndex((commit) => commit.id === selectedId);
+    pendingCenterSelectedIdRef.current = selectedId;
+    pendingCenterAttemptsRef.current = 0;
     const maxScrollTop = Math.max(0, scrollNode.scrollHeight - scrollNode.clientHeight);
     const nextScrollTop = commitScrollTopForSelection({
       itemCount: filteredCommits.length,
@@ -295,44 +299,53 @@ export function RecentCommits({
       scrollNode.scrollTo({ top: nextScrollTop, behavior: "auto" });
       setScrollFrame({ scrollTop: nextScrollTop, viewportHeight: scrollNode.clientHeight });
     }
-
-    let centerFrame = 0;
-    let centerAttempts = 0;
-    const scheduleCenterRenderedSelection = () => {
-      if (centerFrame) return;
-      centerFrame = window.requestAnimationFrame(centerRenderedSelection);
-    };
-    const centerRenderedSelection = () => {
-      centerFrame = 0;
-      centerAttempts += 1;
-      const selectedRow = listNode.querySelector<HTMLElement>(".commit-row.is-selected");
-      if (!selectedRow) {
-        if (centerAttempts < 6) scheduleCenterRenderedSelection();
-        return;
-      }
-
-      const selectedRect = selectedRow.getBoundingClientRect();
-      const currentScrollRect = scrollNode.getBoundingClientRect();
-      const selectedCenter = selectedRect.top + selectedRect.height / 2;
-      const viewportCenter = currentScrollRect.top + currentScrollRect.height / 2;
-      const centerDelta = selectedCenter - viewportCenter;
-      if (Math.abs(centerDelta) < 1) return;
-      if (centerAttempts >= 6) return;
-
-      const currentMaxScrollTop = Math.max(0, scrollNode.scrollHeight - scrollNode.clientHeight);
-      const centeredScrollTop = Math.min(currentMaxScrollTop, Math.max(0, scrollNode.scrollTop + centerDelta));
-      if (centeredScrollTop === scrollNode.scrollTop) return;
-
-      scrollNode.scrollTo({ top: centeredScrollTop, behavior: "auto" });
-      setScrollFrame({ scrollTop: centeredScrollTop, viewportHeight: scrollNode.clientHeight });
-      scheduleCenterRenderedSelection();
-    };
-
-    scheduleCenterRenderedSelection();
-    return () => {
-      if (centerFrame) window.cancelAnimationFrame(centerFrame);
-    };
   }, [filteredCommits, searchTerms.length, selectedId]);
+
+  useLayoutEffect(() => {
+    const pendingSelectedId = pendingCenterSelectedIdRef.current;
+    if (!pendingSelectedId) return;
+    if (pendingSelectedId !== selectedId) {
+      pendingCenterSelectedIdRef.current = "";
+      pendingCenterAttemptsRef.current = 0;
+      return;
+    }
+
+    const listNode = listRef.current;
+    if (!listNode) return;
+
+    const scrollNode = commitScrollContainer(listNode);
+    const selectedRow = listNode.querySelector<HTMLElement>(".commit-row.is-selected");
+    if (!selectedRow) return;
+
+    pendingCenterAttemptsRef.current += 1;
+    const selectedRect = selectedRow.getBoundingClientRect();
+    const scrollRect = scrollNode.getBoundingClientRect();
+    const selectedCenter = selectedRect.top + selectedRect.height / 2;
+    const viewportCenter = scrollRect.top + scrollRect.height / 2;
+    const centerDelta = selectedCenter - viewportCenter;
+    if (Math.abs(centerDelta) < 1) {
+      pendingCenterSelectedIdRef.current = "";
+      pendingCenterAttemptsRef.current = 0;
+      return;
+    }
+
+    const maxScrollTop = Math.max(0, scrollNode.scrollHeight - scrollNode.clientHeight);
+    const centeredScrollTop = Math.min(maxScrollTop, Math.max(0, scrollNode.scrollTop + centerDelta));
+    if (centeredScrollTop === scrollNode.scrollTop || pendingCenterAttemptsRef.current >= 6) {
+      pendingCenterSelectedIdRef.current = "";
+      pendingCenterAttemptsRef.current = 0;
+      return;
+    }
+
+    scrollNode.scrollTo({ top: centeredScrollTop, behavior: "auto" });
+    setScrollFrame({ scrollTop: centeredScrollTop, viewportHeight: scrollNode.clientHeight });
+  }, [
+    scrollFrame.scrollTop,
+    scrollFrame.viewportHeight,
+    selectedId,
+    virtualWindow.endIndex,
+    virtualWindow.startIndex,
+  ]);
 
   useEffect(() => {
     if (!searchOpen) return;
