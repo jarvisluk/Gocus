@@ -57,10 +57,6 @@ if ! command -v npm >/dev/null 2>&1; then
   exit 1
 fi
 
-if [[ ! -d "${project_root}/node_modules/electron/dist/Electron.app" ]]; then
-  echo "Electron runtime is missing. Run npm install first." >&2
-  exit 1
-fi
-
 cd "$project_root"
+node "${project_root}/scripts/ensure-electron-runtime.cjs"
 exec node "${project_root}/scripts/package-macos.cjs" "$@"

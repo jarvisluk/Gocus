@@ -26,6 +26,16 @@ The release zip is written to:
 release/macos/Gocus-<version>-mac-<arch>.zip
 ```
 
+## Release Candidate
+
+Use `Actions > Release > Run workflow` for an artifact-only candidate before
+moving a public tag.
+
+- `version`: release version without `v`, such as `0.1.0`.
+- `create_release`: leave off for a candidate build.
+- `prerelease`: only applies when `create_release` is enabled.
+- `notarize`: `auto` uses notarization only when all Apple secrets exist.
+
 ## Tag Release Flow
 
 1. Sync `main` with `origin/main`.
@@ -42,8 +52,9 @@ release/macos/Gocus-<version>-mac-<arch>.zip
    Release.
 
 The workflow can also be run manually from GitHub Actions with a version input.
-Manual runs create the matching `v<version>` GitHub Release from the selected
-commit, and that selected commit must already be contained in `origin/main`.
+Manual artifact-only runs can be used as release candidates. Manual GitHub
+Release creation must run from `main`, and the selected commit must already be
+contained in `origin/main`.
 
 ## Required GitHub Secrets
 

@@ -10,6 +10,7 @@ const desktopViewport = { width: 960, height: 720 };
 const temporaryInfoViewport = { width: 280, height: 252 };
 const changedFileInfoViewport = { width: 280, height: 252 };
 const commitInfoViewport = { width: 348, height: 240 };
+const testTimeZone = "Asia/Shanghai";
 const allWorkspaceTargets = ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"];
 const footerCommitFullHash = "d4e5f6a000000000000000000000000000000000";
 
@@ -707,7 +708,7 @@ function dismissableMenuScenario() {
 }
 
 async function openMockedPage(browser, baseUrl, scenario, options = {}) {
-  const page = await browser.newPage({ viewport: options.viewport ?? compactViewport });
+  const page = await browser.newPage({ timezoneId: testTimeZone, viewport: options.viewport ?? compactViewport });
   const errors = [];
 
   page.on("console", (message) => {

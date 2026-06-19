@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+process.env.TZ = process.env.TZ || "Asia/Shanghai";
+
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
