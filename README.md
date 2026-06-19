@@ -10,7 +10,7 @@ GitHub repository: [jarvisluk/gocus](https://github.com/jarvisluk/gocus)
 
 The screenshot below shows Gocus at its normal floating-panel size.
 
-![Gocus repository overview](docs/screenshots/gocus-overview.png)
+<img src="docs/screenshots/gocus-overview.png" alt="Gocus repository overview" width="420">
 
 ## What Gocus Helps With
 
