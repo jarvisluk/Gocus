@@ -832,6 +832,8 @@ function testIpcHandlersModule() {
   const preferences = {
     launchAtLogin: false,
     showMenuBarIcon: true,
+    autoUpdateChecks: true,
+    autoUpdateInstall: false,
   };
 
   assert.deepEqual(
@@ -839,6 +841,7 @@ function testIpcHandlersModule() {
     {
       syncLaunchAtLogin: false,
       syncMenuBarIcon: false,
+      syncAutoUpdates: false,
     },
   );
   assert.deepEqual(
@@ -846,6 +849,7 @@ function testIpcHandlersModule() {
     {
       syncLaunchAtLogin: true,
       syncMenuBarIcon: false,
+      syncAutoUpdates: false,
     },
   );
   assert.deepEqual(
@@ -853,6 +857,23 @@ function testIpcHandlersModule() {
     {
       syncLaunchAtLogin: false,
       syncMenuBarIcon: true,
+      syncAutoUpdates: false,
+    },
+  );
+  assert.deepEqual(
+    preferencesSaveSideEffects(preferences, preferences, { ...preferences, autoUpdateChecks: false }),
+    {
+      syncLaunchAtLogin: false,
+      syncMenuBarIcon: false,
+      syncAutoUpdates: true,
+    },
+  );
+  assert.deepEqual(
+    preferencesSaveSideEffects(preferences, preferences, { ...preferences, autoUpdateInstall: true }),
+    {
+      syncLaunchAtLogin: false,
+      syncMenuBarIcon: false,
+      syncAutoUpdates: true,
     },
   );
 }
@@ -878,6 +899,8 @@ function testConfigStoreModule() {
     assert.equal(sanitizeActiveWorkspaceOpenTarget("unknown"), "vscode");
     assert.equal(sanitizeActiveWorkspaceOpenTarget("unknown", "terminal"), "terminal");
     assert.equal(config.readActiveWorkspaceOpenTarget(), "vscode");
+    assert.equal(config.readPreferences().autoUpdateChecks, true);
+    assert.equal(config.readPreferences().autoUpdateInstall, false);
 
     config.saveActiveWorkspaceOpenTarget("finder");
     assert.equal(config.readActiveWorkspaceOpenTarget(), "finder");
@@ -995,6 +1018,10 @@ async function testAutoUpdateModule() {
     });
 
     assert.equal(controller.isSupported(), true);
+    controller.setPreferences({ autoUpdateChecks: false, autoUpdateInstall: false });
+    assert.equal(controller.start(), false);
+    assert.equal(controller.isStarted(), false);
+    controller.setPreferences({ autoUpdateChecks: true, autoUpdateInstall: false });
     assert.equal(controller.checkForUpdates({ manual: true }), true);
     assert.equal(checkedForUpdates, true);
     assert.deepEqual(feedOptions, {
@@ -1006,6 +1033,16 @@ async function testAutoUpdateModule() {
 
     controller.checkForUpdates({ manual: true });
     events.emit("update-downloaded", {}, "Fixed spacing", "Gocus 0.2.1");
+    await Promise.resolve();
+    assert.equal(dialogs.at(-1).message, "Gocus 0.2.1 is ready to install.");
+    assert.equal(preparedForInstall, true);
+    assert.equal(installed, true);
+
+    preparedForInstall = false;
+    installed = false;
+    controller.setPreferences({ autoUpdateChecks: true, autoUpdateInstall: true });
+    controller.checkForUpdates({ manual: true });
+    events.emit("update-downloaded", {}, "Fixed spacing", "Gocus 0.2.2");
     await Promise.resolve();
     assert.equal(dialogs.at(-1).message, "Gocus 0.2.1 is ready to install.");
     assert.equal(preparedForInstall, true);
@@ -1142,6 +1179,7 @@ async function testGitModule() {
   const cleanupDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-worktree-cleanup-"));
   const cleanupRepo = path.join(cleanupDir, "repo");
   const attachedWorktree = path.join(cleanupDir, "attached");
+  const unmergedAttachedWorktree = path.join(cleanupDir, "attached-unmerged");
   const canonicalWorktree = path.join(cleanupDir, "canonical");
   const canonicalWorktreeLink = path.join(cleanupDir, "canonical-link");
   const modifiedWorktree = path.join(cleanupDir, "modified");
@@ -1182,6 +1220,7 @@ async function testGitModule() {
     runGitFixture(cleanupRepo, ["add", "base.txt"]);
     runGitFixture(cleanupRepo, ["commit", "-m", "base"]);
     runGitFixture(cleanupRepo, ["worktree", "add", "-b", "feature/attached-cleanup", attachedWorktree, "HEAD"]);
+    runGitFixture(cleanupRepo, ["worktree", "add", "-b", "feature/unmerged-attached-cleanup", unmergedAttachedWorktree, "HEAD"]);
     runGitFixture(cleanupRepo, ["worktree", "add", "--detach", canonicalWorktree, "HEAD"]);
     runGitFixture(cleanupRepo, ["worktree", "add", "--detach", modifiedWorktree, "HEAD"]);
     runGitFixture(cleanupRepo, ["worktree", "add", "--detach", removableWorktree, "HEAD"]);
@@ -1190,6 +1229,9 @@ async function testGitModule() {
     runGitFixture(cleanupRepo, ["worktree", "add", "--detach", staleWorktree, "HEAD"]);
     runGitFixture(cleanupRepo, ["worktree", "add", "--detach", untrackedWorktree, "HEAD"]);
     fs.symlinkSync(canonicalWorktree, canonicalWorktreeLink, "dir");
+    fs.writeFileSync(path.join(unmergedAttachedWorktree, "unmerged.txt"), "unmerged\n", "utf8");
+    runGitFixture(unmergedAttachedWorktree, ["add", "unmerged.txt"]);
+    runGitFixture(unmergedAttachedWorktree, ["commit", "-m", "unmerged attached"]);
     fs.appendFileSync(path.join(modifiedWorktree, "base.txt"), "modified\n", "utf8");
     fs.writeFileSync(path.join(reviewWorktree, "review.txt"), "review\n", "utf8");
     runGitFixture(reviewWorktree, ["add", "review.txt"]);
@@ -1201,6 +1243,7 @@ async function testGitModule() {
 
     const cleanupSnapshot = await readGitSnapshot(cleanupRepo, { mode: "all" });
     const attached = worktreeByRealPath(cleanupSnapshot, attachedWorktree);
+    const unmergedAttached = worktreeByRealPath(cleanupSnapshot, unmergedAttachedWorktree);
     const modified = worktreeByRealPath(cleanupSnapshot, modifiedWorktree);
     const removable = worktreeByRealPath(cleanupSnapshot, removableWorktree);
     const review = worktreeByRealPath(cleanupSnapshot, reviewWorktree);
@@ -1208,9 +1251,14 @@ async function testGitModule() {
     const untracked = worktreeByRealPath(cleanupSnapshot, untrackedWorktree);
     const stale = worktreeByRealPath(cleanupSnapshot, staleWorktree);
     assert.equal(worktreeByRealPath(cleanupSnapshot, cleanupRepo).cleanup.status, "current");
-    assert.equal(attached.cleanup.status, "branch-preserved");
+    assert.equal(attached.cleanup.status, "merged");
     assert.equal(attached.cleanup.safeToRemove, true);
+    assert.equal(attached.cleanup.baseBranch, "main");
+    assert.equal(attached.cleanup.reason, "Merged into main.");
     assert.deepEqual(attached.cleanup.containedBranches, ["feature/attached-cleanup"]);
+    assert.equal(unmergedAttached.cleanup.status, "branch-preserved");
+    assert.equal(unmergedAttached.cleanup.safeToRemove, true);
+    assert.deepEqual(unmergedAttached.cleanup.containedBranches, ["feature/unmerged-attached-cleanup"]);
     assert.equal(modified.cleanup.status, "dirty");
     assert.equal(removable.cleanup.status, "merged");
     assert.equal(removable.cleanup.safeToRemove, true);
@@ -2731,17 +2779,6 @@ async function testCommitListView(server) {
     ariaLabel: "Search commits",
     placeholder: "Search",
   });
-  assert.deepEqual(commitListView(commits, "", true).searchCopyButton, {
-    className: "commit-search-copy",
-    ariaLabel: "Copy commit search",
-    disabled: true,
-    title: "Nothing to copy",
-  });
-  assert.deepEqual(commitListView(commits, "", true).searchPasteButton, {
-    className: "commit-search-paste",
-    ariaLabel: "Paste commit search",
-    title: "Paste search",
-  });
   assert.deepEqual(commitListView(commits, "", true).searchClearButton, {
     show: false,
     className: "commit-search-clear",
@@ -2754,12 +2791,6 @@ async function testCommitListView(server) {
     show: true,
     className: "commit-search-clear",
     ariaLabel: "Clear commit search",
-  });
-  assert.deepEqual(commitListView(commits, "footer").searchCopyButton, {
-    className: "commit-search-copy",
-    ariaLabel: "Copy commit search",
-    disabled: false,
-    title: "Copy search",
   });
   assert.deepEqual(
     commitListView(commits, "footer").filteredCommits.map((item) => item.id),
@@ -3739,6 +3770,8 @@ async function testPreferences(server) {
       workspaceOpenTargets: ["codex", "codex", "bad", "terminal"],
       showMenuBarIcon: false,
       launchAtLogin: "yes",
+      autoUpdateChecks: "yes",
+      autoUpdateInstall: true,
       createMergeCommit: false,
       autoRefreshInterval: "2m",
       promptLanguage: "zh",
@@ -3750,6 +3783,7 @@ async function testPreferences(server) {
       fontFamily: "mono",
       workspaceOpenTargets: ["codex", "terminal"],
       showMenuBarIcon: false,
+      autoUpdateInstall: true,
       createMergeCommit: false,
       promptLanguage: "zh",
     },
@@ -4206,6 +4240,22 @@ async function testSettingsPanelView(server) {
     { target: "terminal", label: "Terminal", iconSrc: "terminal.png" },
   ];
   const expectedSections = {
+    app: {
+      titleId: "settings-app-title",
+      title: "App",
+      rowLabel: "Updates",
+      disclosureAriaLabel: "Open app settings",
+      disclosureLabel: "Settings",
+      disclosureValue: "",
+      updatesTitleId: "settings-app-updates-title",
+      updatesTitle: "Updates",
+      rows: {
+        updates: "Auto update",
+        install: "Auto install",
+      },
+      autoUpdateChecksAriaLabel: "Automatically check for updates",
+      autoUpdateInstallAriaLabel: "Automatically install updates",
+    },
     appearance: {
       titleId: "settings-appearance-title",
       title: "Appearance",
@@ -4230,13 +4280,13 @@ async function testSettingsPanelView(server) {
     behavior: {
       titleId: "settings-behavior-title",
       title: "Behavior",
-        rows: {
-          refresh: "Refresh",
-          startup: "Startup",
-          menuBar: "Menu bar",
-          merge: "No-FF",
-          prompt: "Prompt",
-        },
+      rows: {
+        refresh: "Refresh",
+        startup: "Startup",
+        menuBar: "Menu bar",
+        merge: "No-FF",
+        prompt: "Prompt",
+      },
       autoRefreshAriaLabel: "Auto refresh interval",
       launchAtLoginAriaLabel: "Launch at login",
       showMenuBarIconAriaLabel: "Show menu bar icon",
@@ -4298,6 +4348,8 @@ async function testSettingsPanelView(server) {
       refreshMenuItemClassName: "ui-menu-item settings-refresh-menu-item",
       refreshMenuRole: "menu",
       launchAtLoginToggleClassName: "ui-toggle settings-launch-at-login-toggle",
+      autoUpdateChecksToggleClassName: "ui-toggle settings-auto-update-checks-toggle",
+      autoUpdateInstallToggleClassName: "ui-toggle settings-auto-update-install-toggle",
       menuBarIconToggleClassName: "ui-toggle settings-menu-bar-icon-toggle",
       mergeCommitToggleClassName: "ui-toggle settings-merge-commit-toggle",
       disclosureFrameClassName: "ui-select-frame ui-disclosure-frame",
@@ -4313,6 +4365,7 @@ async function testSettingsPanelView(server) {
   assert.equal(settingsRefreshMenuId, "settings-refresh-menu");
   assert.equal(settingsRefreshTriggerId, "settings-refresh-trigger");
   assert.deepEqual(settingsPanelView("main", options, ["cursor", "terminal"]), {
+    appPageActive: false,
     openInPageActive: false,
     ...expectedSettingsChrome,
     titleId: "settings-panel-title",
@@ -4321,7 +4374,31 @@ async function testSettingsPanelView(server) {
     workspaceTargetsSummary: "2 enabled",
     sections: expectedSections,
   });
+  assert.deepEqual(settingsPanelView("app", options, ["cursor"]), {
+    appPageActive: true,
+    openInPageActive: false,
+    ...expectedSettingsChrome,
+    header: {
+      ...expectedSettingsChrome.header,
+      backButton: {
+        ...expectedSettingsChrome.header.backButton,
+        ariaLabel: "Back to settings",
+      },
+    },
+    titleId: "settings-panel-title",
+    title: "App",
+    subtitle: "Application settings",
+    workspaceTargetsSummary: "1 enabled",
+    sections: {
+      ...expectedSections,
+      workspace: {
+        ...expectedSections.workspace,
+        disclosureValue: "1 enabled",
+      },
+    },
+  });
   assert.deepEqual(settingsPanelView("openIn", options, ["cursor"]), {
+    appPageActive: false,
     openInPageActive: true,
     ...expectedSettingsChrome,
     header: {
@@ -4344,8 +4421,10 @@ async function testSettingsPanelView(server) {
     },
   });
   assert.equal(settingsPanelView("main", [], ["cursor"]).workspaceTargetsSummary, "Unavailable");
+  assert.equal(settingsPageAfterBack("app"), "main");
   assert.equal(settingsPageAfterBack("openIn"), "main");
   assert.equal(settingsPageAfterBack("main"), null);
+  assert.equal(settingsPageAfterEscape("app"), "main");
   assert.equal(settingsPageAfterEscape("openIn"), "main");
   assert.equal(settingsPageAfterEscape("main"), null);
   assert.deepEqual(
@@ -5980,6 +6059,22 @@ async function testRepositoryControlsView(server) {
       prunableReason: "",
     },
   });
+  const mergedBranch = worktree({
+    path: "/Users/junrong/.codex/worktrees/4d5e/git-tree-vis",
+    branch: "feature/merged-shell",
+    current: false,
+    cleanup: {
+      status: "merged",
+      safeToRemove: true,
+      action: "remove",
+      reason: "Merged into main.",
+      detail: "This clean branch worktree has already been merged into main.",
+      baseBranch: "main",
+      uniquePatchCount: 0,
+      containedBranches: ["feature/merged-shell"],
+      prunableReason: "",
+    },
+  });
   const patchEquivalentDetached = worktree({
     path: "/Users/junrong/.codex/worktrees/73f3/git-tree-vis",
     branch: "",
@@ -6492,20 +6587,30 @@ async function testRepositoryControlsView(server) {
   });
   assert.equal(worktreeCleanupStatusLabel(removableDetached), "Contained by main.");
   assert.equal(worktreeCleanupStatusLabel(removableBranch), "Branch preserved.");
+  assert.equal(worktreeCleanupStatusLabel(mergedBranch), "Merged into main.");
   assert.equal(worktreeCleanupStatusLabel(patchEquivalentDetached), "No unique patch vs main.");
   assert.equal(worktreeCleanupStatusLabel(staleMetadata), "Stale metadata.");
   assert.equal(worktreeCleanupStatusLabel(dirtyBranch), "Uncommitted changes.");
   assert.equal(isAutomaticWorktreeCleanupCandidate(removableDetached), true);
   assert.equal(isAutomaticWorktreeCleanupCandidate(removableBranch), false);
+  assert.equal(isAutomaticWorktreeCleanupCandidate(mergedBranch), true);
   assert.equal(isAutomaticWorktreeCleanupCandidate(patchEquivalentDetached), true);
   assert.equal(isAutomaticWorktreeCleanupCandidate(staleMetadata), true);
   assert.deepEqual(
-    automaticWorktreeCleanupCandidates([current, removableBranch, removableDetached, dirtyBranch, patchEquivalentDetached, staleMetadata]),
-    [removableDetached, patchEquivalentDetached, staleMetadata],
+    automaticWorktreeCleanupCandidates([
+      current,
+      removableBranch,
+      mergedBranch,
+      removableDetached,
+      dirtyBranch,
+      patchEquivalentDetached,
+      staleMetadata,
+    ]),
+    [mergedBranch, removableDetached, patchEquivalentDetached, staleMetadata],
   );
   assert.deepEqual(
-    automaticWorktreeCleanupPaths([staleMetadata, removableDetached, otherStaleMetadata, patchEquivalentDetached]),
-    [removableDetached.path, patchEquivalentDetached.path, staleMetadata.path],
+    automaticWorktreeCleanupPaths([staleMetadata, removableDetached, mergedBranch, otherStaleMetadata, patchEquivalentDetached]),
+    [removableDetached.path, mergedBranch.path, patchEquivalentDetached.path, staleMetadata.path],
   );
   assert.deepEqual(repositoryWorktreeCleanupActionView(removableDetached), {
     show: true,
@@ -6521,6 +6626,14 @@ async function testRepositoryControlsView(server) {
     className: "worktree-cleanup-button",
     ariaLabel: "Clean feature/branch-shell - git-tree-vis",
     title: "This clean worktree can be removed because feature/branch-shell preserves its HEAD.",
+    label: "Clean",
+  });
+  assert.deepEqual(repositoryWorktreeCleanupActionView(mergedBranch), {
+    show: true,
+    disabled: false,
+    className: "worktree-cleanup-button is-auto-safe",
+    ariaLabel: "Clean feature/merged-shell - git-tree-vis",
+    title: "This clean branch worktree has already been merged into main.",
     label: "Clean",
   });
   assert.deepEqual(repositoryWorktreeCleanupActionView(patchEquivalentDetached), {

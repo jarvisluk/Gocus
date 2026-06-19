@@ -1,4 +1,4 @@
-import { ClipboardPaste, Copy, FileCode2, GitBranch, GitFork, GitMerge, Search, X } from "lucide-react";
+import { FileCode2, GitBranch, GitFork, GitMerge, Search, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type PointerEvent } from "react";
 import { CommitGraphLayer } from "./CommitGraphLayer";
 import {
@@ -21,8 +21,6 @@ import {
 } from "../lib/commitListView";
 import { runCommitInfoPanelBridgeSideEffect } from "../lib/commitInfoPanelBridge";
 import { commitRowView, type CommitRowAction, type CommitRowActionIcon } from "../lib/commitRowView";
-import { copyTextWithFallback, readTextWithFallback } from "../lib/copyText";
-import { logBridgeWarning } from "../lib/errorMessages";
 import type { CommitInfoAnchorBounds, CommitItem, UiPreferences } from "../types";
 
 function commitActionIcon(icon: CommitRowActionIcon) {
@@ -230,10 +228,8 @@ export function RecentCommits({
     headingToolsClassName,
     list,
     searchClearButton,
-    searchCopyButton,
     searchForm,
     searchInput,
-    searchPasteButton,
     searchTerms,
     searchToggle,
     section,
@@ -425,33 +421,6 @@ export function RecentCommits({
     applySearchState(commitSearchStateAfterToggle({ searchOpen, searchQuery }, searchToggle));
   }
 
-  function focusSearchInput(textLength = searchQuery.length) {
-    searchInputRef.current?.focus();
-    searchInputRef.current?.setSelectionRange(textLength, textLength);
-  }
-
-  async function copySearchQuery() {
-    if (!searchQuery) return;
-
-    try {
-      await copyTextWithFallback(searchQuery, { bridge: window.gocus, clipboard: navigator.clipboard });
-      focusSearchInput();
-    } catch (error) {
-      logBridgeWarning("Unable to copy commit search.", error);
-    }
-  }
-
-  async function pasteSearchQuery() {
-    try {
-      const clipboardText = await readTextWithFallback({ bridge: window.gocus, clipboard: navigator.clipboard });
-      setSearchQuery(clipboardText);
-      window.requestAnimationFrame(() => focusSearchInput(clipboardText.length));
-    } catch (error) {
-      logBridgeWarning("Unable to paste commit search.", error);
-      focusSearchInput();
-    }
-  }
-
   function previewCommit(commit: CommitItem, anchorBounds: CommitInfoAnchorBounds) {
     if (commitPreviewOpenRef.current && commitPreviewCommitIdRef.current === commit.id) return;
 
@@ -542,29 +511,6 @@ export function RecentCommits({
                   }
                 }}
               />
-              <button
-                className={searchCopyButton.className}
-                type="button"
-                aria-label={searchCopyButton.ariaLabel}
-                disabled={searchCopyButton.disabled}
-                title={searchCopyButton.title}
-                onClick={() => {
-                  void copySearchQuery();
-                }}
-              >
-                <Copy aria-hidden="true" />
-              </button>
-              <button
-                className={searchPasteButton.className}
-                type="button"
-                aria-label={searchPasteButton.ariaLabel}
-                title={searchPasteButton.title}
-                onClick={() => {
-                  void pasteSearchQuery();
-                }}
-              >
-                <ClipboardPaste aria-hidden="true" />
-              </button>
               {searchClearButton.show ? (
                 <button
                   className={searchClearButton.className}

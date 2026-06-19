@@ -125,6 +125,15 @@ function syncLaunchAtLogin(preferences = config.readPreferences()) {
   launchAtLogin.syncLaunchAtLogin(preferences);
 }
 
+function syncAutoUpdates(preferences = config.readPreferences()) {
+  autoUpdates.setPreferences(preferences);
+  if (preferences.autoUpdateChecks === false) {
+    autoUpdates.stop();
+  } else if (!autoUpdates.isStarted()) {
+    autoUpdates.start();
+  }
+}
+
 function shouldStartInMenuBar() {
   return launchAtLogin.shouldStartInMenuBar(config.readPreferences());
 }
@@ -1344,7 +1353,7 @@ app.whenReady().then(() => {
   if (startInMenuBar) hideDockIcon();
   createWindow({ showOnReady: !startInMenuBar });
   if (currentRepository) startRepositoryWatcher(currentRepository);
-  autoUpdates.start();
+  syncAutoUpdates(preferences);
 
   app.on("activate", () => {
     showMainWindow();
@@ -1425,6 +1434,7 @@ registerIpcHandlers({
   },
   setPinnedWindow,
   setTemporaryInfoPanel,
+  syncAutoUpdates,
   syncLaunchAtLogin,
   syncMenuBarIcon,
   syncNativeThemeSource,

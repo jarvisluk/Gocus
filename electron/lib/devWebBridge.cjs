@@ -24,6 +24,8 @@ const defaultPreferences = {
   workspaceOpenTargets: ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"],
   showMenuBarIcon: true,
   launchAtLogin: false,
+  autoUpdateChecks: true,
+  autoUpdateInstall: false,
   createMergeCommit: true,
   autoRefreshInterval: "off",
   promptLanguage: "en",

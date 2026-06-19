@@ -22,23 +22,36 @@ function settingsSegmentIcon(icon: SettingsSegmentIcon | undefined) {
   return null;
 }
 
-function AutoRefreshDropdown({
+type SettingsDropdownName = "lightTheme" | "darkTheme" | "fontFamily" | "autoRefresh";
+
+interface SettingsDropdownOption<T extends string> {
+  value: T;
+  label: string;
+}
+
+function SettingsDropdown<T extends string>({
   value,
+  options,
   open,
   view,
   ariaLabel,
+  triggerId,
+  menuId,
   onOpenChange,
   onChange,
 }: {
-  value: UiPreferences["autoRefreshInterval"];
+  value: T;
+  options: readonly SettingsDropdownOption<T>[];
   open: boolean;
   view: ReturnType<typeof settingsPanelView>["mainPanel"];
   ariaLabel: string;
+  triggerId: string;
+  menuId: string;
   onOpenChange: (open: boolean) => void;
-  onChange: (interval: UiPreferences["autoRefreshInterval"]) => void;
+  onChange: (value: T) => void;
 }) {
   const controlRef = useRef<HTMLDivElement>(null);
-  const selectedOption = autoRefreshIntervalOptions.find((option) => option.value === value) ?? autoRefreshIntervalOptions[0];
+  const selectedOption = options.find((option) => option.value === value) ?? options[0];
 
   useDismissableLayer({
     active: open,
@@ -46,8 +59,8 @@ function AutoRefreshDropdown({
     onDismiss: () => onOpenChange(false),
   });
 
-  function selectInterval(interval: UiPreferences["autoRefreshInterval"]) {
-    onChange(interval);
+  function selectOption(nextValue: T) {
+    onChange(nextValue);
     onOpenChange(false);
   }
 
@@ -62,13 +75,13 @@ function AutoRefreshDropdown({
     <div className={view.refreshControlClassName} ref={controlRef} onKeyDown={handleKeyDown}>
       <div className={view.refreshFrameClassName}>
         <button
-          id={view.refreshTriggerId}
+          id={triggerId}
           className={`${view.refreshTriggerClassName}${open ? " is-open" : ""}`}
           type="button"
           aria-label={ariaLabel}
           aria-haspopup="menu"
           aria-expanded={open}
-          aria-controls={view.refreshMenuId}
+          aria-controls={menuId}
           onClick={() => onOpenChange(!open)}
         >
           <span className={view.disclosureLabelClassName}>{selectedOption.label}</span>
@@ -79,11 +92,11 @@ function AutoRefreshDropdown({
       {open ? (
         <div
           className={view.refreshMenuClassName}
-          id={view.refreshMenuId}
+          id={menuId}
           role={view.refreshMenuRole}
-          aria-labelledby={view.refreshTriggerId}
+          aria-labelledby={triggerId}
         >
-          {autoRefreshIntervalOptions.map((option) => {
+          {options.map((option) => {
             const active = option.value === value;
 
             return (
@@ -93,7 +106,7 @@ function AutoRefreshDropdown({
                 role="menuitemradio"
                 aria-checked={active}
                 key={option.value}
-                onClick={() => selectInterval(option.value)}
+                onClick={() => selectOption(option.value)}
               >
                 {active ? <Check aria-hidden="true" /> : <span aria-hidden="true" />}
                 <span>{option.label}</span>
@@ -120,12 +133,16 @@ export function SettingsPanel({
   onReset: () => void;
 }) {
   const [settingsPage, setSettingsPage] = useState<SettingsPage>("main");
-  const [autoRefreshMenuOpen, setAutoRefreshMenuOpen] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState<SettingsDropdownName | null>(null);
   const availableWorkspaceOptions = availableWorkspaceOpenOptions(workspaceOpenOptions, availableWorkspaceTargets);
   const view = settingsPanelView(settingsPage, availableWorkspaceOptions, preferences.workspaceOpenTargets);
   const preferenceView = settingsPreferencesView(preferences);
   const sections = view.sections;
   const workspaceTargetItems = settingsWorkspaceTargetItems(availableWorkspaceOptions, preferences.workspaceOpenTargets);
+
+  function setDropdownOpen(name: SettingsDropdownName, open: boolean) {
+    setOpenDropdown(open ? name : null);
+  }
 
   useEffect(() => {
     const nextPage = settingsPageAfterEscape(settingsPage);
@@ -178,7 +195,37 @@ export function SettingsPanel({
         </div>
       </header>
 
-      {view.openInPageActive ? (
+      {view.appPageActive ? (
+        <div className={view.mainPanel.className}>
+          <div className={view.mainPanel.sectionClassName} aria-labelledby={sections.app.updatesTitleId}>
+            <h2 className={view.mainPanel.sectionTitleClassName} id={sections.app.updatesTitleId}>
+              {sections.app.updatesTitle}
+            </h2>
+            <div className={view.mainPanel.rowClassName}>
+              <span className={view.mainPanel.labelClassName}>{sections.app.rows.updates}</span>
+              <label className={view.mainPanel.autoUpdateChecksToggleClassName}>
+                <input
+                  type="checkbox"
+                  aria-label={sections.app.autoUpdateChecksAriaLabel}
+                  checked={preferences.autoUpdateChecks}
+                  onChange={(event) => onChange({ ...preferences, autoUpdateChecks: event.target.checked })}
+                />
+              </label>
+            </div>
+            <div className={view.mainPanel.rowClassName}>
+              <span className={view.mainPanel.labelClassName}>{sections.app.rows.install}</span>
+              <label className={view.mainPanel.autoUpdateInstallToggleClassName}>
+                <input
+                  type="checkbox"
+                  aria-label={sections.app.autoUpdateInstallAriaLabel}
+                  checked={preferences.autoUpdateInstall}
+                  onChange={(event) => onChange({ ...preferences, autoUpdateInstall: event.target.checked })}
+                />
+              </label>
+            </div>
+          </div>
+        </div>
+      ) : view.openInPageActive ? (
         <div className={view.openInPanel.className}>
           {workspaceTargetItems.length ? (
             <div className={view.openInPanel.listClassName}>
@@ -209,6 +256,27 @@ export function SettingsPanel({
         </div>
       ) : (
         <div className={view.mainPanel.className}>
+          <div className={view.mainPanel.sectionClassName} aria-labelledby={sections.app.titleId}>
+            <h2 className={view.mainPanel.sectionTitleClassName} id={sections.app.titleId}>
+              {sections.app.title}
+            </h2>
+            <div className={view.mainPanel.rowClassName}>
+              <span className={view.mainPanel.labelClassName}>{sections.app.rowLabel}</span>
+              <div className={view.mainPanel.disclosureFrameClassName}>
+                <button
+                  className={view.mainPanel.disclosureButtonClassName}
+                  type="button"
+                  aria-label={sections.app.disclosureAriaLabel}
+                  onClick={() => setSettingsPage("app")}
+                >
+                  <span className={view.mainPanel.disclosureLabelClassName}>{sections.app.disclosureLabel}</span>
+                  <span className={view.mainPanel.disclosureValueClassName}>{sections.app.disclosureValue}</span>
+                  <ChevronRight aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div className={view.mainPanel.sectionClassName} aria-labelledby={sections.appearance.titleId}>
             <h2 className={view.mainPanel.sectionTitleClassName} id={sections.appearance.titleId}>
               {sections.appearance.title}
@@ -232,47 +300,31 @@ export function SettingsPanel({
             </div>
             <div className={view.mainPanel.rowClassName}>
               <span className={view.mainPanel.labelClassName}>{sections.appearance.rows.light}</span>
-              <div className={view.mainPanel.selectFrameClassName}>
-                <select
-                  className={view.mainPanel.selectClassName}
-                  value={preferences.lightThemePreset}
-                  aria-label={sections.appearance.lightThemeAriaLabel}
-                  onChange={(event) =>
-                    onChange({
-                      ...preferences,
-                      lightThemePreset: event.target.value as UiPreferences["lightThemePreset"],
-                    })
-                  }
-                >
-                  {lightThemePresetOptions.map((option) => (
-                    <option value={option.value} key={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <SettingsDropdown
+                value={preferences.lightThemePreset}
+                options={lightThemePresetOptions}
+                open={openDropdown === "lightTheme"}
+                view={view.mainPanel}
+                ariaLabel={sections.appearance.lightThemeAriaLabel}
+                triggerId="settings-light-theme-trigger"
+                menuId="settings-light-theme-menu"
+                onOpenChange={(open) => setDropdownOpen("lightTheme", open)}
+                onChange={(lightThemePreset) => onChange({ ...preferences, lightThemePreset })}
+              />
             </div>
             <div className={view.mainPanel.rowClassName}>
               <span className={view.mainPanel.labelClassName}>{sections.appearance.rows.dark}</span>
-              <div className={view.mainPanel.selectFrameClassName}>
-                <select
-                  className={view.mainPanel.selectClassName}
-                  value={preferences.darkThemePreset}
-                  aria-label={sections.appearance.darkThemeAriaLabel}
-                  onChange={(event) =>
-                    onChange({
-                      ...preferences,
-                      darkThemePreset: event.target.value as UiPreferences["darkThemePreset"],
-                    })
-                  }
-                >
-                  {darkThemePresetOptions.map((option) => (
-                    <option value={option.value} key={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <SettingsDropdown
+                value={preferences.darkThemePreset}
+                options={darkThemePresetOptions}
+                open={openDropdown === "darkTheme"}
+                view={view.mainPanel}
+                ariaLabel={sections.appearance.darkThemeAriaLabel}
+                triggerId="settings-dark-theme-trigger"
+                menuId="settings-dark-theme-menu"
+                onOpenChange={(open) => setDropdownOpen("darkTheme", open)}
+                onChange={(darkThemePreset) => onChange({ ...preferences, darkThemePreset })}
+              />
             </div>
             <div className={view.mainPanel.rowClassName}>
               <span className={view.mainPanel.labelClassName}>{sections.appearance.rows.density}</span>
@@ -292,25 +344,17 @@ export function SettingsPanel({
             </div>
             <div className={view.mainPanel.rowClassName}>
               <span className={view.mainPanel.labelClassName}>{sections.appearance.rows.font}</span>
-              <div className={view.mainPanel.selectFrameClassName}>
-                <select
-                  className={view.mainPanel.selectClassName}
-                  value={preferences.fontFamily}
-                  aria-label={sections.appearance.fontFamilyAriaLabel}
-                  onChange={(event) =>
-                    onChange({
-                      ...preferences,
-                      fontFamily: event.target.value as UiPreferences["fontFamily"],
-                    })
-                  }
-                >
-                  {preferenceView.fontFamilyOptions.map((option) => (
-                    <option value={option.value} key={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <SettingsDropdown
+                value={preferences.fontFamily}
+                options={preferenceView.fontFamilyOptions}
+                open={openDropdown === "fontFamily"}
+                view={view.mainPanel}
+                ariaLabel={sections.appearance.fontFamilyAriaLabel}
+                triggerId="settings-font-family-trigger"
+                menuId="settings-font-family-menu"
+                onOpenChange={(open) => setDropdownOpen("fontFamily", open)}
+                onChange={(fontFamily) => onChange({ ...preferences, fontFamily })}
+              />
             </div>
           </div>
 
@@ -342,12 +386,15 @@ export function SettingsPanel({
             </h2>
             <div className={view.mainPanel.rowClassName}>
               <span className={view.mainPanel.labelClassName}>{sections.behavior.rows.refresh}</span>
-              <AutoRefreshDropdown
+              <SettingsDropdown
                 value={preferences.autoRefreshInterval}
-                open={autoRefreshMenuOpen}
+                options={autoRefreshIntervalOptions}
+                open={openDropdown === "autoRefresh"}
                 view={view.mainPanel}
                 ariaLabel={sections.behavior.autoRefreshAriaLabel}
-                onOpenChange={setAutoRefreshMenuOpen}
+                triggerId={view.mainPanel.refreshTriggerId}
+                menuId={view.mainPanel.refreshMenuId}
+                onOpenChange={(open) => setDropdownOpen("autoRefresh", open)}
                 onChange={(autoRefreshInterval) => onChange({ ...preferences, autoRefreshInterval })}
               />
             </div>

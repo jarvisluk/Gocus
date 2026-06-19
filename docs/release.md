@@ -81,6 +81,11 @@ Packaged macOS builds check for updates shortly after launch and then
 periodically. Users can also run **Check for Updates...** from the app menu,
 Help menu, or menu bar icon menu.
 
+The Settings panel's **App** page includes **Automatically check for updates**
+and **Automatically install updates** toggles. Automatic checks are on by
+default. Automatic install is off by default, so downloaded updates ask before
+relaunching.
+
 The update feed is:
 
 ```text

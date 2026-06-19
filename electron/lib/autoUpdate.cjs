@@ -81,6 +81,7 @@ function createAutoUpdateController({
   checkIntervalMs = defaultCheckIntervalMs,
   startupDelayMs = defaultStartupDelayMs,
   prepareForInstall = () => {},
+  initialPreferences = {},
 } = {}) {
   const updateRepository = updateRepositoryFromPackage(packageMetadata);
   let initialized = false;
@@ -88,6 +89,7 @@ function createAutoUpdateController({
   let manualCheckPending = false;
   let updateTimer = null;
   let feedUrl = "";
+  let preferences = initialPreferences && typeof initialPreferences === "object" ? initialPreferences : {};
 
   function supportReason() {
     return autoUpdateSupportReason({
@@ -115,6 +117,19 @@ function createAutoUpdateController({
   function showManualMessage(message, detail = "") {
     if (!dialog || typeof dialog.showMessageBox !== "function") return Promise.resolve({ response: 0 });
     return dialog.showMessageBox(manualDialogOptions(message, detail));
+  }
+
+  function shouldCheckAutomatically() {
+    return preferences.autoUpdateChecks !== false;
+  }
+
+  function shouldInstallAutomatically() {
+    return preferences.autoUpdateInstall === true;
+  }
+
+  function installUpdate() {
+    prepareForInstall();
+    autoUpdater.quitAndInstall();
   }
 
   function initialize() {
@@ -145,9 +160,14 @@ function createAutoUpdateController({
     autoUpdater.on("update-downloaded", (_event, releaseNotes, releaseName) => {
       checking = false;
       const versionLabel = releaseName || "the latest version";
+      if (shouldInstallAutomatically()) {
+        installUpdate();
+        manualCheckPending = false;
+        return;
+      }
       if (!dialog || typeof dialog.showMessageBox !== "function") {
-        prepareForInstall();
-        autoUpdater.quitAndInstall();
+        logger.info("[Gocus] Update downloaded, but the install prompt is unavailable.");
+        manualCheckPending = false;
         return;
       }
 
@@ -162,8 +182,7 @@ function createAutoUpdateController({
         })
         .then((result) => {
           if (result.response !== 0) return;
-          prepareForInstall();
-          autoUpdater.quitAndInstall();
+          installUpdate();
         })
         .catch((error) => logger.warn("[Gocus] Unable to show update install prompt.", error));
       manualCheckPending = false;
@@ -216,6 +235,10 @@ function createAutoUpdateController({
   }
 
   function start() {
+    if (!shouldCheckAutomatically()) {
+      stop();
+      return false;
+    }
     if (!initialize()) return false;
     if (updateTimer) clearTimeout(updateTimer);
 
@@ -233,11 +256,17 @@ function createAutoUpdateController({
     updateTimer = null;
   }
 
+  function setPreferences(nextPreferences = {}) {
+    preferences = nextPreferences && typeof nextPreferences === "object" ? nextPreferences : {};
+  }
+
   return {
     checkForUpdates,
     feedUrl: () => feedUrl,
     isChecking: () => checking,
+    isStarted: () => Boolean(updateTimer),
     isSupported,
+    setPreferences,
     start,
     stop,
     supportReason,
