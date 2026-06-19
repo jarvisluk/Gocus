@@ -3,7 +3,7 @@ import { politeStatusView } from "./statusView";
 import { workspaceOpenTargetsSummary } from "./workspaceOpenChoices";
 import type { WorkspaceOpenOption } from "./workspaceOpenOptions";
 
-export type SettingsPage = "main" | "openIn";
+export type SettingsPage = "main" | "app" | "openIn";
 export type SettingsSegmentIcon = "monitor" | "sun" | "moon";
 
 export const settingsPanelTitleId = "settings-panel-title";
@@ -90,10 +90,13 @@ export function settingsPanelView(
   availableWorkspaceOptions: readonly WorkspaceOpenOption[],
   enabledWorkspaceTargets: readonly WorkspaceOpenTarget[],
 ) {
+  const appPageActive = page === "app";
   const openInPageActive = page === "openIn";
+  const secondaryPageActive = appPageActive || openInPageActive;
   const workspaceTargetsSummary = workspaceOpenTargetsSummary(availableWorkspaceOptions, enabledWorkspaceTargets);
 
   return {
+    appPageActive,
     openInPageActive,
     page: {
       className: "ui-page settings-page",
@@ -103,12 +106,12 @@ export function settingsPanelView(
       className: "ui-page-header settings-page-header",
       backButton: {
         className: "ui-icon-button",
-        ariaLabel: openInPageActive ? "Back to settings" : "Back to Git view",
+        ariaLabel: secondaryPageActive ? "Back to settings" : "Back to Git view",
       },
     },
     titleId: settingsPanelTitleId,
-    title: openInPageActive ? "Open in" : "Settings",
-    subtitle: openInPageActive ? "External apps" : "Interface preferences",
+    title: appPageActive ? "App" : openInPageActive ? "Open in" : "Settings",
+    subtitle: appPageActive ? "Application settings" : openInPageActive ? "External apps" : "Interface preferences",
     workspaceTargetsSummary,
     openInPanel: {
       className: "ui-form settings-panel settings-workspace-targets-panel",
@@ -139,6 +142,8 @@ export function settingsPanelView(
       refreshMenuItemClassName: "ui-menu-item settings-refresh-menu-item",
       refreshMenuRole: "menu",
       launchAtLoginToggleClassName: "ui-toggle settings-launch-at-login-toggle",
+      autoUpdateChecksToggleClassName: "ui-toggle settings-auto-update-checks-toggle",
+      autoUpdateInstallToggleClassName: "ui-toggle settings-auto-update-install-toggle",
       menuBarIconToggleClassName: "ui-toggle settings-menu-bar-icon-toggle",
       mergeCommitToggleClassName: "ui-toggle settings-merge-commit-toggle",
       disclosureFrameClassName: "ui-select-frame ui-disclosure-frame",
@@ -149,6 +154,22 @@ export function settingsPanelView(
       resetButtonClassName: "ui-button settings-reset",
     },
     sections: {
+      app: {
+        titleId: "settings-app-title",
+        title: "App",
+        rowLabel: "Updates",
+        disclosureAriaLabel: "Open app settings",
+        disclosureLabel: "Settings",
+        disclosureValue: "",
+        updatesTitleId: "settings-app-updates-title",
+        updatesTitle: "Updates",
+        rows: {
+          updates: "Auto update",
+          install: "Auto install",
+        },
+        autoUpdateChecksAriaLabel: "Automatically check for updates",
+        autoUpdateInstallAriaLabel: "Automatically install updates",
+      },
       appearance: {
         titleId: "settings-appearance-title",
         title: "Appearance",
@@ -202,9 +223,9 @@ export function settingsPanelView(
 }
 
 export function settingsPageAfterBack(page: SettingsPage) {
-  return page === "openIn" ? "main" : null;
+  return page === "main" ? null : "main";
 }
 
 export function settingsPageAfterEscape(page: SettingsPage) {
-  return page === "openIn" ? "main" : null;
+  return page === "main" ? null : "main";
 }

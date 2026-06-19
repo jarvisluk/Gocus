@@ -178,7 +178,37 @@ export function SettingsPanel({
         </div>
       </header>
 
-      {view.openInPageActive ? (
+      {view.appPageActive ? (
+        <div className={view.mainPanel.className}>
+          <div className={view.mainPanel.sectionClassName} aria-labelledby={sections.app.updatesTitleId}>
+            <h2 className={view.mainPanel.sectionTitleClassName} id={sections.app.updatesTitleId}>
+              {sections.app.updatesTitle}
+            </h2>
+            <div className={view.mainPanel.rowClassName}>
+              <span className={view.mainPanel.labelClassName}>{sections.app.rows.updates}</span>
+              <label className={view.mainPanel.autoUpdateChecksToggleClassName}>
+                <input
+                  type="checkbox"
+                  aria-label={sections.app.autoUpdateChecksAriaLabel}
+                  checked={preferences.autoUpdateChecks}
+                  onChange={(event) => onChange({ ...preferences, autoUpdateChecks: event.target.checked })}
+                />
+              </label>
+            </div>
+            <div className={view.mainPanel.rowClassName}>
+              <span className={view.mainPanel.labelClassName}>{sections.app.rows.install}</span>
+              <label className={view.mainPanel.autoUpdateInstallToggleClassName}>
+                <input
+                  type="checkbox"
+                  aria-label={sections.app.autoUpdateInstallAriaLabel}
+                  checked={preferences.autoUpdateInstall}
+                  onChange={(event) => onChange({ ...preferences, autoUpdateInstall: event.target.checked })}
+                />
+              </label>
+            </div>
+          </div>
+        </div>
+      ) : view.openInPageActive ? (
         <div className={view.openInPanel.className}>
           {workspaceTargetItems.length ? (
             <div className={view.openInPanel.listClassName}>
@@ -209,6 +239,27 @@ export function SettingsPanel({
         </div>
       ) : (
         <div className={view.mainPanel.className}>
+          <div className={view.mainPanel.sectionClassName} aria-labelledby={sections.app.titleId}>
+            <h2 className={view.mainPanel.sectionTitleClassName} id={sections.app.titleId}>
+              {sections.app.title}
+            </h2>
+            <div className={view.mainPanel.rowClassName}>
+              <span className={view.mainPanel.labelClassName}>{sections.app.rowLabel}</span>
+              <div className={view.mainPanel.disclosureFrameClassName}>
+                <button
+                  className={view.mainPanel.disclosureButtonClassName}
+                  type="button"
+                  aria-label={sections.app.disclosureAriaLabel}
+                  onClick={() => setSettingsPage("app")}
+                >
+                  <span className={view.mainPanel.disclosureLabelClassName}>{sections.app.disclosureLabel}</span>
+                  <span className={view.mainPanel.disclosureValueClassName}>{sections.app.disclosureValue}</span>
+                  <ChevronRight aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div className={view.mainPanel.sectionClassName} aria-labelledby={sections.appearance.titleId}>
             <h2 className={view.mainPanel.sectionTitleClassName} id={sections.appearance.titleId}>
               {sections.appearance.title}

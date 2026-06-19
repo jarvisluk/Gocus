@@ -52,6 +52,8 @@ export interface UiPreferences {
   workspaceOpenTargets: WorkspaceOpenTarget[];
   showMenuBarIcon: boolean;
   launchAtLogin: boolean;
+  autoUpdateChecks: boolean;
+  autoUpdateInstall: boolean;
   createMergeCommit: boolean;
   autoRefreshInterval: AutoRefreshInterval;
   promptLanguage: PromptLanguage;

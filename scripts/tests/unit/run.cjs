@@ -830,6 +830,8 @@ function testIpcHandlersModule() {
   const preferences = {
     launchAtLogin: false,
     showMenuBarIcon: true,
+    autoUpdateChecks: true,
+    autoUpdateInstall: false,
   };
 
   assert.deepEqual(
@@ -837,6 +839,7 @@ function testIpcHandlersModule() {
     {
       syncLaunchAtLogin: false,
       syncMenuBarIcon: false,
+      syncAutoUpdates: false,
     },
   );
   assert.deepEqual(
@@ -844,6 +847,7 @@ function testIpcHandlersModule() {
     {
       syncLaunchAtLogin: true,
       syncMenuBarIcon: false,
+      syncAutoUpdates: false,
     },
   );
   assert.deepEqual(
@@ -851,6 +855,23 @@ function testIpcHandlersModule() {
     {
       syncLaunchAtLogin: false,
       syncMenuBarIcon: true,
+      syncAutoUpdates: false,
+    },
+  );
+  assert.deepEqual(
+    preferencesSaveSideEffects(preferences, preferences, { ...preferences, autoUpdateChecks: false }),
+    {
+      syncLaunchAtLogin: false,
+      syncMenuBarIcon: false,
+      syncAutoUpdates: true,
+    },
+  );
+  assert.deepEqual(
+    preferencesSaveSideEffects(preferences, preferences, { ...preferences, autoUpdateInstall: true }),
+    {
+      syncLaunchAtLogin: false,
+      syncMenuBarIcon: false,
+      syncAutoUpdates: true,
     },
   );
 }
@@ -876,6 +897,8 @@ function testConfigStoreModule() {
     assert.equal(sanitizeActiveWorkspaceOpenTarget("unknown"), "vscode");
     assert.equal(sanitizeActiveWorkspaceOpenTarget("unknown", "terminal"), "terminal");
     assert.equal(config.readActiveWorkspaceOpenTarget(), "vscode");
+    assert.equal(config.readPreferences().autoUpdateChecks, true);
+    assert.equal(config.readPreferences().autoUpdateInstall, false);
 
     config.saveActiveWorkspaceOpenTarget("finder");
     assert.equal(config.readActiveWorkspaceOpenTarget(), "finder");
@@ -993,6 +1016,10 @@ async function testAutoUpdateModule() {
     });
 
     assert.equal(controller.isSupported(), true);
+    controller.setPreferences({ autoUpdateChecks: false, autoUpdateInstall: false });
+    assert.equal(controller.start(), false);
+    assert.equal(controller.isStarted(), false);
+    controller.setPreferences({ autoUpdateChecks: true, autoUpdateInstall: false });
     assert.equal(controller.checkForUpdates({ manual: true }), true);
     assert.equal(checkedForUpdates, true);
     assert.deepEqual(feedOptions, {
@@ -1004,6 +1031,16 @@ async function testAutoUpdateModule() {
 
     controller.checkForUpdates({ manual: true });
     events.emit("update-downloaded", {}, "Fixed spacing", "Gocus 0.2.1");
+    await Promise.resolve();
+    assert.equal(dialogs.at(-1).message, "Gocus 0.2.1 is ready to install.");
+    assert.equal(preparedForInstall, true);
+    assert.equal(installed, true);
+
+    preparedForInstall = false;
+    installed = false;
+    controller.setPreferences({ autoUpdateChecks: true, autoUpdateInstall: true });
+    controller.checkForUpdates({ manual: true });
+    events.emit("update-downloaded", {}, "Fixed spacing", "Gocus 0.2.2");
     await Promise.resolve();
     assert.equal(dialogs.at(-1).message, "Gocus 0.2.1 is ready to install.");
     assert.equal(preparedForInstall, true);
@@ -3737,6 +3774,8 @@ async function testPreferences(server) {
       workspaceOpenTargets: ["codex", "codex", "bad", "terminal"],
       showMenuBarIcon: false,
       launchAtLogin: "yes",
+      autoUpdateChecks: "yes",
+      autoUpdateInstall: true,
       createMergeCommit: false,
       autoRefreshInterval: "2m",
       promptLanguage: "zh",
@@ -3748,6 +3787,7 @@ async function testPreferences(server) {
       fontFamily: "mono",
       workspaceOpenTargets: ["codex", "terminal"],
       showMenuBarIcon: false,
+      autoUpdateInstall: true,
       createMergeCommit: false,
       promptLanguage: "zh",
     },
@@ -4204,6 +4244,22 @@ async function testSettingsPanelView(server) {
     { target: "terminal", label: "Terminal", iconSrc: "terminal.png" },
   ];
   const expectedSections = {
+    app: {
+      titleId: "settings-app-title",
+      title: "App",
+      rowLabel: "Updates",
+      disclosureAriaLabel: "Open app settings",
+      disclosureLabel: "Settings",
+      disclosureValue: "",
+      updatesTitleId: "settings-app-updates-title",
+      updatesTitle: "Updates",
+      rows: {
+        updates: "Auto update",
+        install: "Auto install",
+      },
+      autoUpdateChecksAriaLabel: "Automatically check for updates",
+      autoUpdateInstallAriaLabel: "Automatically install updates",
+    },
     appearance: {
       titleId: "settings-appearance-title",
       title: "Appearance",
@@ -4228,13 +4284,13 @@ async function testSettingsPanelView(server) {
     behavior: {
       titleId: "settings-behavior-title",
       title: "Behavior",
-        rows: {
-          refresh: "Refresh",
-          startup: "Startup",
-          menuBar: "Menu bar",
-          merge: "No-FF",
-          prompt: "Prompt",
-        },
+      rows: {
+        refresh: "Refresh",
+        startup: "Startup",
+        menuBar: "Menu bar",
+        merge: "No-FF",
+        prompt: "Prompt",
+      },
       autoRefreshAriaLabel: "Auto refresh interval",
       launchAtLoginAriaLabel: "Launch at login",
       showMenuBarIconAriaLabel: "Show menu bar icon",
@@ -4296,6 +4352,8 @@ async function testSettingsPanelView(server) {
       refreshMenuItemClassName: "ui-menu-item settings-refresh-menu-item",
       refreshMenuRole: "menu",
       launchAtLoginToggleClassName: "ui-toggle settings-launch-at-login-toggle",
+      autoUpdateChecksToggleClassName: "ui-toggle settings-auto-update-checks-toggle",
+      autoUpdateInstallToggleClassName: "ui-toggle settings-auto-update-install-toggle",
       menuBarIconToggleClassName: "ui-toggle settings-menu-bar-icon-toggle",
       mergeCommitToggleClassName: "ui-toggle settings-merge-commit-toggle",
       disclosureFrameClassName: "ui-select-frame ui-disclosure-frame",
@@ -4311,6 +4369,7 @@ async function testSettingsPanelView(server) {
   assert.equal(settingsRefreshMenuId, "settings-refresh-menu");
   assert.equal(settingsRefreshTriggerId, "settings-refresh-trigger");
   assert.deepEqual(settingsPanelView("main", options, ["cursor", "terminal"]), {
+    appPageActive: false,
     openInPageActive: false,
     ...expectedSettingsChrome,
     titleId: "settings-panel-title",
@@ -4319,7 +4378,31 @@ async function testSettingsPanelView(server) {
     workspaceTargetsSummary: "2 enabled",
     sections: expectedSections,
   });
+  assert.deepEqual(settingsPanelView("app", options, ["cursor"]), {
+    appPageActive: true,
+    openInPageActive: false,
+    ...expectedSettingsChrome,
+    header: {
+      ...expectedSettingsChrome.header,
+      backButton: {
+        ...expectedSettingsChrome.header.backButton,
+        ariaLabel: "Back to settings",
+      },
+    },
+    titleId: "settings-panel-title",
+    title: "App",
+    subtitle: "Application settings",
+    workspaceTargetsSummary: "1 enabled",
+    sections: {
+      ...expectedSections,
+      workspace: {
+        ...expectedSections.workspace,
+        disclosureValue: "1 enabled",
+      },
+    },
+  });
   assert.deepEqual(settingsPanelView("openIn", options, ["cursor"]), {
+    appPageActive: false,
     openInPageActive: true,
     ...expectedSettingsChrome,
     header: {
@@ -4342,8 +4425,10 @@ async function testSettingsPanelView(server) {
     },
   });
   assert.equal(settingsPanelView("main", [], ["cursor"]).workspaceTargetsSummary, "Unavailable");
+  assert.equal(settingsPageAfterBack("app"), "main");
   assert.equal(settingsPageAfterBack("openIn"), "main");
   assert.equal(settingsPageAfterBack("main"), null);
+  assert.equal(settingsPageAfterEscape("app"), "main");
   assert.equal(settingsPageAfterEscape("openIn"), "main");
   assert.equal(settingsPageAfterEscape("main"), null);
   assert.deepEqual(

@@ -45,6 +45,7 @@ function registerIpcHandlers({
   setCurrentView,
   setPinnedWindow,
   setTemporaryInfoPanel,
+  syncAutoUpdates,
   syncLaunchAtLogin,
   syncMenuBarIcon,
   syncNativeThemeSource,
@@ -221,6 +222,7 @@ function registerIpcHandlers({
 
     if (sideEffects.syncLaunchAtLogin) syncLaunchAtLogin(savedConfigPreferences);
     if (sideEffects.syncMenuBarIcon) syncMenuBarIcon(savedConfigPreferences);
+    if (sideEffects.syncAutoUpdates) syncAutoUpdates(savedConfigPreferences);
 
     const savedPreferences = readPreferences();
     syncNativeThemeSource(savedPreferences);
@@ -286,6 +288,9 @@ function preferencesSaveSideEffects(previousEffectivePreferences, previousConfig
   return {
     syncLaunchAtLogin: Boolean(previousEffectivePreferences.launchAtLogin) !== Boolean(savedConfigPreferences.launchAtLogin),
     syncMenuBarIcon: Boolean(previousConfigPreferences.showMenuBarIcon) !== Boolean(savedConfigPreferences.showMenuBarIcon),
+    syncAutoUpdates:
+      Boolean(previousConfigPreferences.autoUpdateChecks) !== Boolean(savedConfigPreferences.autoUpdateChecks) ||
+      Boolean(previousConfigPreferences.autoUpdateInstall) !== Boolean(savedConfigPreferences.autoUpdateInstall),
   };
 }
 

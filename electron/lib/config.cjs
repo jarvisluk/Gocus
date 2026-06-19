@@ -15,6 +15,8 @@ const defaultPreferences = {
   workspaceOpenTargets: [...workspaceOpenTargetValues],
   showMenuBarIcon: true,
   launchAtLogin: false,
+  autoUpdateChecks: true,
+  autoUpdateInstall: false,
   createMergeCommit: true,
   autoRefreshInterval: "off",
   promptLanguage: "en",

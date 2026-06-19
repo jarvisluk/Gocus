@@ -2546,6 +2546,14 @@ async function testFocusedViewEscapeControls(browser, baseUrl) {
     await refreshMenu.waitFor({ state: "detached" });
     assert.equal(await refreshDropdown.innerText(), "5 min");
     assert.equal(await page.evaluate(() => window.__gocusSavedPreferences.at(-1)?.autoRefreshInterval), "5m");
+
+    const appSettingsButton = page.getByRole("button", { name: "Open app settings" });
+    await appSettingsButton.waitFor();
+    const appSettingsBox = await appSettingsButton.boundingBox();
+    const appearanceHeadingBox = await page.getByRole("heading", { name: "Appearance" }).boundingBox();
+    assert.ok(appSettingsBox && appearanceHeadingBox, "App settings should render above Appearance");
+    assert.ok(appSettingsBox.y < appearanceHeadingBox.y, "App settings should be the first settings section");
+
     const behaviorToggleLabels = [
       "Launch at login",
       "Show menu bar icon",
@@ -2569,6 +2577,27 @@ async function testFocusedViewEscapeControls(browser, baseUrl) {
       await page.evaluate(() => window.__gocusSavedPreferences.map((preferences) => preferences.autoRefreshInterval)),
       ["5m"],
     );
+
+    await appSettingsButton.click();
+    await page.waitForFunction(() => document.querySelector("#settings-panel-title")?.textContent === "App");
+    assert.equal(await page.locator("#settings-panel-title").innerText(), "App");
+    assert.equal(await page.getByRole("checkbox", { name: "Automatically check for updates" }).isChecked(), true);
+    assert.equal(await page.getByRole("checkbox", { name: "Automatically install updates" }).isChecked(), false);
+    const appToggleLabels = ["Automatically check for updates", "Automatically install updates"];
+    const appToggleBounds = await Promise.all(
+      appToggleLabels.map(async (name) => {
+        const box = await page.getByRole("checkbox", { name }).boundingBox();
+        assert.ok(box, `${name} toggle should be visible`);
+        return { name, right: Math.round(box.x + box.width) };
+      }),
+    );
+    assert.ok(
+      Math.abs(appToggleBounds[0].right - appToggleBounds[1].right) <= 1,
+      `App toggles should align: ${JSON.stringify(appToggleBounds)}`,
+    );
+    await page.keyboard.press("Escape");
+    await page.getByRole("heading", { name: "Settings" }).waitFor();
+    assert.equal(await page.getByRole("heading", { name: "App" }).count(), 1);
 
     await page.getByRole("button", { name: "Open external app settings" }).click();
     await page.getByRole("heading", { name: "Open in" }).waitFor();

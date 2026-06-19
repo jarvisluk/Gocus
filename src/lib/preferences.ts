@@ -11,6 +11,8 @@ export const defaultPreferences: UiPreferences = {
   workspaceOpenTargets: defaultWorkspaceOpenTargets,
   showMenuBarIcon: true,
   launchAtLogin: false,
+  autoUpdateChecks: true,
+  autoUpdateInstall: false,
   createMergeCommit: true,
   autoRefreshInterval: "off",
   promptLanguage: "en",
@@ -71,6 +73,10 @@ export function mergePreferences(value: Partial<UiPreferences> | null | undefine
     workspaceOpenTargets: sanitizeWorkspaceOpenTargets(candidate.workspaceOpenTargets),
     showMenuBarIcon: typeof candidate.showMenuBarIcon === "boolean" ? candidate.showMenuBarIcon : defaultPreferences.showMenuBarIcon,
     launchAtLogin: typeof candidate.launchAtLogin === "boolean" ? candidate.launchAtLogin : defaultPreferences.launchAtLogin,
+    autoUpdateChecks:
+      typeof candidate.autoUpdateChecks === "boolean" ? candidate.autoUpdateChecks : defaultPreferences.autoUpdateChecks,
+    autoUpdateInstall:
+      typeof candidate.autoUpdateInstall === "boolean" ? candidate.autoUpdateInstall : defaultPreferences.autoUpdateInstall,
     createMergeCommit:
       typeof candidate.createMergeCommit === "boolean" ? candidate.createMergeCommit : defaultPreferences.createMergeCommit,
     autoRefreshInterval: includesValue(autoRefreshIntervalValues, candidate.autoRefreshInterval)

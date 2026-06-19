@@ -23,7 +23,13 @@
   justify-items: start;
 }
 
-:is(.settings-launch-at-login-toggle, .settings-menu-bar-icon-toggle, .settings-merge-commit-toggle) {
+:is(
+  .settings-launch-at-login-toggle,
+  .settings-auto-update-checks-toggle,
+  .settings-auto-update-install-toggle,
+  .settings-menu-bar-icon-toggle,
+  .settings-merge-commit-toggle
+) {
   justify-content: flex-end;
 }
 
