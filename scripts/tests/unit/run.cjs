@@ -1177,6 +1177,7 @@ async function testGitModule() {
   const cleanupDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-worktree-cleanup-"));
   const cleanupRepo = path.join(cleanupDir, "repo");
   const attachedWorktree = path.join(cleanupDir, "attached");
+  const unmergedAttachedWorktree = path.join(cleanupDir, "attached-unmerged");
   const canonicalWorktree = path.join(cleanupDir, "canonical");
   const canonicalWorktreeLink = path.join(cleanupDir, "canonical-link");
   const modifiedWorktree = path.join(cleanupDir, "modified");
@@ -1217,6 +1218,7 @@ async function testGitModule() {
     runGitFixture(cleanupRepo, ["add", "base.txt"]);
     runGitFixture(cleanupRepo, ["commit", "-m", "base"]);
     runGitFixture(cleanupRepo, ["worktree", "add", "-b", "feature/attached-cleanup", attachedWorktree, "HEAD"]);
+    runGitFixture(cleanupRepo, ["worktree", "add", "-b", "feature/unmerged-attached-cleanup", unmergedAttachedWorktree, "HEAD"]);
     runGitFixture(cleanupRepo, ["worktree", "add", "--detach", canonicalWorktree, "HEAD"]);
     runGitFixture(cleanupRepo, ["worktree", "add", "--detach", modifiedWorktree, "HEAD"]);
     runGitFixture(cleanupRepo, ["worktree", "add", "--detach", removableWorktree, "HEAD"]);
@@ -1225,6 +1227,9 @@ async function testGitModule() {
     runGitFixture(cleanupRepo, ["worktree", "add", "--detach", staleWorktree, "HEAD"]);
     runGitFixture(cleanupRepo, ["worktree", "add", "--detach", untrackedWorktree, "HEAD"]);
     fs.symlinkSync(canonicalWorktree, canonicalWorktreeLink, "dir");
+    fs.writeFileSync(path.join(unmergedAttachedWorktree, "unmerged.txt"), "unmerged\n", "utf8");
+    runGitFixture(unmergedAttachedWorktree, ["add", "unmerged.txt"]);
+    runGitFixture(unmergedAttachedWorktree, ["commit", "-m", "unmerged attached"]);
     fs.appendFileSync(path.join(modifiedWorktree, "base.txt"), "modified\n", "utf8");
     fs.writeFileSync(path.join(reviewWorktree, "review.txt"), "review\n", "utf8");
     runGitFixture(reviewWorktree, ["add", "review.txt"]);
@@ -1236,6 +1241,7 @@ async function testGitModule() {
 
     const cleanupSnapshot = await readGitSnapshot(cleanupRepo, { mode: "all" });
     const attached = worktreeByRealPath(cleanupSnapshot, attachedWorktree);
+    const unmergedAttached = worktreeByRealPath(cleanupSnapshot, unmergedAttachedWorktree);
     const modified = worktreeByRealPath(cleanupSnapshot, modifiedWorktree);
     const removable = worktreeByRealPath(cleanupSnapshot, removableWorktree);
     const review = worktreeByRealPath(cleanupSnapshot, reviewWorktree);
@@ -1243,9 +1249,14 @@ async function testGitModule() {
     const untracked = worktreeByRealPath(cleanupSnapshot, untrackedWorktree);
     const stale = worktreeByRealPath(cleanupSnapshot, staleWorktree);
     assert.equal(worktreeByRealPath(cleanupSnapshot, cleanupRepo).cleanup.status, "current");
-    assert.equal(attached.cleanup.status, "branch-preserved");
+    assert.equal(attached.cleanup.status, "merged");
     assert.equal(attached.cleanup.safeToRemove, true);
+    assert.equal(attached.cleanup.baseBranch, "main");
+    assert.equal(attached.cleanup.reason, "Merged into main.");
     assert.deepEqual(attached.cleanup.containedBranches, ["feature/attached-cleanup"]);
+    assert.equal(unmergedAttached.cleanup.status, "branch-preserved");
+    assert.equal(unmergedAttached.cleanup.safeToRemove, true);
+    assert.deepEqual(unmergedAttached.cleanup.containedBranches, ["feature/unmerged-attached-cleanup"]);
     assert.equal(modified.cleanup.status, "dirty");
     assert.equal(removable.cleanup.status, "merged");
     assert.equal(removable.cleanup.safeToRemove, true);
@@ -6063,6 +6074,22 @@ async function testRepositoryControlsView(server) {
       prunableReason: "",
     },
   });
+  const mergedBranch = worktree({
+    path: "/Users/junrong/.codex/worktrees/4d5e/git-tree-vis",
+    branch: "feature/merged-shell",
+    current: false,
+    cleanup: {
+      status: "merged",
+      safeToRemove: true,
+      action: "remove",
+      reason: "Merged into main.",
+      detail: "This clean branch worktree has already been merged into main.",
+      baseBranch: "main",
+      uniquePatchCount: 0,
+      containedBranches: ["feature/merged-shell"],
+      prunableReason: "",
+    },
+  });
   const patchEquivalentDetached = worktree({
     path: "/Users/junrong/.codex/worktrees/73f3/git-tree-vis",
     branch: "",
@@ -6575,20 +6602,30 @@ async function testRepositoryControlsView(server) {
   });
   assert.equal(worktreeCleanupStatusLabel(removableDetached), "Contained by main.");
   assert.equal(worktreeCleanupStatusLabel(removableBranch), "Branch preserved.");
+  assert.equal(worktreeCleanupStatusLabel(mergedBranch), "Merged into main.");
   assert.equal(worktreeCleanupStatusLabel(patchEquivalentDetached), "No unique patch vs main.");
   assert.equal(worktreeCleanupStatusLabel(staleMetadata), "Stale metadata.");
   assert.equal(worktreeCleanupStatusLabel(dirtyBranch), "Uncommitted changes.");
   assert.equal(isAutomaticWorktreeCleanupCandidate(removableDetached), true);
   assert.equal(isAutomaticWorktreeCleanupCandidate(removableBranch), false);
+  assert.equal(isAutomaticWorktreeCleanupCandidate(mergedBranch), true);
   assert.equal(isAutomaticWorktreeCleanupCandidate(patchEquivalentDetached), true);
   assert.equal(isAutomaticWorktreeCleanupCandidate(staleMetadata), true);
   assert.deepEqual(
-    automaticWorktreeCleanupCandidates([current, removableBranch, removableDetached, dirtyBranch, patchEquivalentDetached, staleMetadata]),
-    [removableDetached, patchEquivalentDetached, staleMetadata],
+    automaticWorktreeCleanupCandidates([
+      current,
+      removableBranch,
+      mergedBranch,
+      removableDetached,
+      dirtyBranch,
+      patchEquivalentDetached,
+      staleMetadata,
+    ]),
+    [mergedBranch, removableDetached, patchEquivalentDetached, staleMetadata],
   );
   assert.deepEqual(
-    automaticWorktreeCleanupPaths([staleMetadata, removableDetached, otherStaleMetadata, patchEquivalentDetached]),
-    [removableDetached.path, patchEquivalentDetached.path, staleMetadata.path],
+    automaticWorktreeCleanupPaths([staleMetadata, removableDetached, mergedBranch, otherStaleMetadata, patchEquivalentDetached]),
+    [removableDetached.path, mergedBranch.path, patchEquivalentDetached.path, staleMetadata.path],
   );
   assert.deepEqual(repositoryWorktreeCleanupActionView(removableDetached), {
     show: true,
@@ -6604,6 +6641,14 @@ async function testRepositoryControlsView(server) {
     className: "worktree-cleanup-button",
     ariaLabel: "Clean feature/branch-shell - git-tree-vis",
     title: "This clean worktree can be removed because feature/branch-shell preserves its HEAD.",
+    label: "Clean",
+  });
+  assert.deepEqual(repositoryWorktreeCleanupActionView(mergedBranch), {
+    show: true,
+    disabled: false,
+    className: "worktree-cleanup-button is-auto-safe",
+    ariaLabel: "Clean feature/merged-shell - git-tree-vis",
+    title: "This clean branch worktree has already been merged into main.",
     label: "Clean",
   });
   assert.deepEqual(repositoryWorktreeCleanupActionView(patchEquivalentDetached), {

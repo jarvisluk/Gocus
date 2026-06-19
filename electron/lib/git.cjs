@@ -382,6 +382,28 @@ async function auditWorktreeCleanup(root, worktree) {
 
   if (!worktree.detached) {
     const branchName = worktree.branch || "this branch";
+    const baseBranch = await cleanupBaseBranch(root);
+    const branchIsBase = worktree.branch === baseBranch;
+    const [headContainedByBase, uniquePatchCount] = await Promise.all([
+      headIsAncestorOfBranch(root, worktree.head, baseBranch),
+      uniquePatchCountFromBranch(root, baseBranch, worktree.head),
+    ]);
+
+    if (!branchIsBase && headContainedByBase) {
+      return {
+        ...worktree,
+        cleanup: defaultWorktreeCleanup({
+          status: "merged",
+          safeToRemove: true,
+          action: "remove",
+          reason: `Merged into ${baseBranch}.`,
+          detail: `This clean branch worktree has already been merged into ${baseBranch}.`,
+          baseBranch,
+          uniquePatchCount,
+          containedBranches: worktree.branch ? [worktree.branch] : [],
+        }),
+      };
+    }
 
     return {
       ...worktree,
