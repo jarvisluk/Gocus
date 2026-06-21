@@ -39,19 +39,27 @@ moving a public tag.
 ## Develop Candidate Flow
 
 The `Develop Release Candidate` workflow builds candidate artifacts from
-`develop` without creating GitHub Releases or tags. It runs automatically on
-pushes to `develop` and can also be started manually from Actions.
+`develop`, uploads them to the workflow run, and publishes an update release to
+the dedicated `jarvisluk/Gocus-Develop-Releases` repository. It runs
+automatically on pushes to `develop` and can also be started manually from
+Actions.
 
 - Manual `version` is optional. If omitted, CI derives
   `<package patch + 1>-dev.<run number>`, such as `0.1.2-dev.123`.
 - `notarize`: `auto` uses notarization only when all Apple secrets exist.
+- `publish_update_release`: `true` publishes the develop update release when
+  `DEVELOP_RELEASE_TOKEN` is configured.
 - Artifacts are uploaded to the workflow run as
   `gocus-develop-macos-<version>`.
+- The develop update release is a normal GitHub Release in
+  `jarvisluk/Gocus-Develop-Releases`, tagged `v<version>`. Do not mark these
+  releases as GitHub prereleases; the public Electron update service ignores
+  prerelease releases.
 
 Use this workflow for internal validation before merging `develop` into `main`.
-Develop candidate packages are marked with the `develop` update channel. The
-official auto-update feed still comes only from public GitHub Releases created
-by the main/tag release flow unless a develop channel repository is configured.
+Develop candidate packages are marked with the `develop` update channel and
+point their develop update feed at `jarvisluk/Gocus-Develop-Releases`. Stable
+packages continue to use `jarvisluk/Gocus`.
 
 For manual runs to appear in the Actions UI, the workflow file must exist on
 the repository's default branch. Push-triggered candidate builds run once the
@@ -90,11 +98,16 @@ MACOS_CODESIGN_IDENTITY
 APPLE_ID
 APPLE_TEAM_ID
 APPLE_APP_SPECIFIC_PASSWORD
+DEVELOP_RELEASE_TOKEN
 ```
 
 If the certificate secrets are missing, CI falls back to ad-hoc signing.
 If notarization secrets are missing while a Developer ID identity is used,
 Gatekeeper verification will fail before publishing.
+
+`DEVELOP_RELEASE_TOKEN` needs permission to create and edit releases in
+`jarvisluk/Gocus-Develop-Releases`. A fine-grained token limited to that
+repository with Contents read/write permission is preferred.
 
 ## Auto Update
 
@@ -114,15 +127,15 @@ https://update.electronjs.org/jarvisluk/gocus/darwin-<arch>/<current-version>
 ```
 
 The stable channel uses `GOCUS_UPDATE_REPO` / `GOCUS_UPDATE_STABLE_REPO`, and
-the develop channel uses `GOCUS_UPDATE_DEVELOP_REPO`. `GOCUS_UPDATE_CHANNELS`
-can also provide a JSON map such as:
+the develop channel uses `GOCUS_UPDATE_DEVELOP_REPO`. CI packages develop
+builds with:
 
-```json
-{
-  "stable": "jarvisluk/Gocus",
-  "develop": "jarvisluk/Gocus"
-}
+```bash
+GOCUS_UPDATE_CHANNEL=develop
+GOCUS_UPDATE_DEVELOP_REPO=jarvisluk/Gocus-Develop-Releases
 ```
+
+`GOCUS_UPDATE_CHANNELS` can also provide a JSON map when packaging locally.
 
 If the selected channel has no configured GitHub Releases repository, manual
 checks report that updates are unavailable for that channel instead of falling

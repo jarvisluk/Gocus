@@ -205,18 +205,21 @@ export function SettingsPanel({
             </h2>
             <div className={view.mainPanel.rowClassName}>
               <span className={view.mainPanel.labelClassName}>{sections.app.rows.channel}</span>
-              <div className={view.mainPanel.compactSegmentedClassName} role="group" aria-label={sections.app.autoUpdateChannelAriaLabel}>
-                {preferenceView.autoUpdateChannelOptions.map((option) => (
-                  <button
-                    className={option.className}
-                    type="button"
-                    aria-pressed={option.ariaPressed}
-                    key={option.value}
-                    onClick={() => onChange({ ...preferences, autoUpdateChannel: option.value })}
-                  >
-                    {option.label}
-                  </button>
-                ))}
+              <div className={view.mainPanel.autoUpdateChannelControlClassName}>
+                <div className={view.mainPanel.compactSegmentedClassName} role="group" aria-label={sections.app.autoUpdateChannelAriaLabel}>
+                  {preferenceView.autoUpdateChannelOptions.map((option) => (
+                    <button
+                      className={option.className}
+                      type="button"
+                      aria-pressed={option.ariaPressed}
+                      key={option.value}
+                      onClick={() => onChange({ ...preferences, autoUpdateChannel: option.value })}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <span className={view.mainPanel.autoUpdateChannelDetailClassName}>{preferenceView.autoUpdateChannelDetail}</span>
               </div>
             </div>
             <div className={view.mainPanel.rowClassName}>

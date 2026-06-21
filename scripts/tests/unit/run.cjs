@@ -1000,6 +1000,9 @@ async function testAutoUpdateModule() {
     process.env.GOCUS_UPDATE_CHANNELS = JSON.stringify({ develop: "jarvisluk/gocus-dev-env" });
     assert.equal(updateRepositoryForChannel({}, "develop"), "jarvisluk/gocus-dev-env");
     delete process.env.GOCUS_UPDATE_CHANNELS;
+    process.env.GOCUS_UPDATE_DEVELOP_REPO = "jarvisluk/gocus-develop-env";
+    assert.equal(updateRepositoryForChannel({}, "develop"), "jarvisluk/gocus-develop-env");
+    delete process.env.GOCUS_UPDATE_DEVELOP_REPO;
     assert.equal(
       buildUpdateFeedUrl({
         repository: "jarvisluk/gocus",
@@ -4478,6 +4481,8 @@ async function testSettingsPanelView(server) {
       launchAtLoginToggleClassName: "ui-toggle settings-launch-at-login-toggle",
       autoUpdateChecksToggleClassName: "ui-toggle settings-auto-update-checks-toggle",
       autoUpdateInstallToggleClassName: "ui-toggle settings-auto-update-install-toggle",
+      autoUpdateChannelControlClassName: "settings-update-channel-control",
+      autoUpdateChannelDetailClassName: "ui-label settings-update-channel-detail",
       manualUpdateButtonClassName: "ui-button settings-check-updates",
       menuBarIconToggleClassName: "ui-toggle settings-menu-bar-icon-toggle",
       dockIconToggleClassName: "ui-toggle settings-dock-icon-toggle",
@@ -4588,6 +4593,7 @@ async function testSettingsPanelView(server) {
         { value: "stable", label: "Stable", className: "", ariaPressed: false },
         { value: "develop", label: "Develop", className: "is-active", ariaPressed: true },
       ],
+      autoUpdateChannelDetail: "Develop candidates",
       fontFamilyOptions: [
         { value: "system", label: "System" },
         { value: "inter", label: "Inter" },
