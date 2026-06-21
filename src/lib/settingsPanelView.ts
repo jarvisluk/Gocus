@@ -64,6 +64,10 @@ export function settingsPreferencesView(preferences: UiPreferences) {
       settingsSegmentOption("en", preferences.promptLanguage, "English"),
       settingsSegmentOption("zh", preferences.promptLanguage, "中文"),
     ],
+    autoUpdateChannelOptions: [
+      settingsSegmentOption("stable", preferences.autoUpdateChannel, "Stable"),
+      settingsSegmentOption("develop", preferences.autoUpdateChannel, "Develop"),
+    ],
     fontFamilyOptions: [
       { value: "system", label: "System" },
       { value: "inter", label: "Inter" },
@@ -166,10 +170,12 @@ export function settingsPanelView(
         updatesTitleId: "settings-app-updates-title",
         updatesTitle: "Updates",
         rows: {
+          channel: "Channel",
           updates: "Auto update",
           install: "Auto install",
           check: "Manual",
         },
+        autoUpdateChannelAriaLabel: "Update channel",
         autoUpdateChecksAriaLabel: "Automatically check for updates",
         autoUpdateInstallAriaLabel: "Automatically install updates",
         checkForUpdatesAriaLabel: "Check for updates",

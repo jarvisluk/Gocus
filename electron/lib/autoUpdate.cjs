@@ -1,5 +1,7 @@
 const defaultUpdateRepository = "jarvisluk/gocus";
 const defaultUpdateServer = "https://update.electronjs.org";
+const defaultUpdateChannel = "stable";
+const updateChannelValues = ["stable", "develop"];
 const defaultCheckIntervalMs = 4 * 60 * 60 * 1000;
 const defaultStartupDelayMs = 15 * 1000;
 
@@ -32,6 +34,41 @@ function normalizeUpdateRepository(repository) {
   }
 }
 
+function normalizeUpdateChannel(channel, fallback = defaultUpdateChannel) {
+  const normalized = typeof channel === "string" ? channel.trim().toLowerCase() : "";
+  return updateChannelValues.includes(normalized) ? normalized : fallback;
+}
+
+function normalizeConfiguredUpdateChannel(channel) {
+  return normalizeUpdateChannel(channel, "");
+}
+
+function readUpdateChannelMap(value) {
+  if (!value) return {};
+  if (typeof value === "object" && !Array.isArray(value)) return value;
+  if (typeof value !== "string") return {};
+
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function normalizedUpdateChannelMap(value) {
+  const channels = {};
+  const source = readUpdateChannelMap(value);
+
+  for (const [channel, repository] of Object.entries(source)) {
+    const normalizedChannel = normalizeConfiguredUpdateChannel(channel);
+    const normalizedRepository = normalizeUpdateRepository(repository);
+    if (normalizedChannel && normalizedRepository) channels[normalizedChannel] = normalizedRepository;
+  }
+
+  return channels;
+}
+
 function updateRepositoryFromPackage(packageMetadata = {}) {
   return normalizeUpdateRepository(
     process.env.GOCUS_UPDATE_REPO ||
@@ -39,6 +76,31 @@ function updateRepositoryFromPackage(packageMetadata = {}) {
       packageMetadata.repository ||
       defaultUpdateRepository,
   );
+}
+
+function updateChannelFromPackage(packageMetadata = {}) {
+  return normalizeUpdateChannel(process.env.GOCUS_UPDATE_CHANNEL || packageMetadata.updateChannel || defaultUpdateChannel);
+}
+
+function updateChannelsFromPackage(packageMetadata = {}) {
+  const channels = {
+    stable: normalizeUpdateRepository(packageMetadata.updateRepository || packageMetadata.repository || defaultUpdateRepository),
+  };
+
+  Object.assign(channels, normalizedUpdateChannelMap(packageMetadata.updateChannels));
+  Object.assign(channels, normalizedUpdateChannelMap(process.env.GOCUS_UPDATE_CHANNELS));
+
+  const stableRepository = normalizeUpdateRepository(process.env.GOCUS_UPDATE_STABLE_REPO || process.env.GOCUS_UPDATE_REPO);
+  if (stableRepository) channels.stable = stableRepository;
+
+  const developRepository = normalizeUpdateRepository(process.env.GOCUS_UPDATE_DEVELOP_REPO);
+  if (developRepository) channels.develop = developRepository;
+
+  return channels;
+}
+
+function updateRepositoryForChannel(packageMetadata = {}, channel = defaultUpdateChannel) {
+  return updateChannelsFromPackage(packageMetadata)[normalizeUpdateChannel(channel)] || "";
 }
 
 function buildUpdateFeedUrl({
@@ -83,7 +145,8 @@ function createAutoUpdateController({
   prepareForInstall = () => {},
   initialPreferences = {},
 } = {}) {
-  const updateRepository = updateRepositoryFromPackage(packageMetadata);
+  const defaultChannel = updateChannelFromPackage(packageMetadata);
+  const updateChannels = updateChannelsFromPackage(packageMetadata);
   let initialized = false;
   let checking = false;
   let manualCheckPending = false;
@@ -91,12 +154,20 @@ function createAutoUpdateController({
   let feedUrl = "";
   let preferences = initialPreferences && typeof initialPreferences === "object" ? initialPreferences : {};
 
+  function updateChannel() {
+    return normalizeUpdateChannel(preferences.autoUpdateChannel, defaultChannel);
+  }
+
+  function updateRepository() {
+    return updateChannels[updateChannel()] || "";
+  }
+
   function supportReason() {
     return autoUpdateSupportReason({
       platform,
       isPackaged: Boolean(app?.isPackaged),
       isDevRuntime,
-      repository: updateRepository,
+      repository: updateRepository(),
     });
   }
 
@@ -132,18 +203,35 @@ function createAutoUpdateController({
     autoUpdater.quitAndInstall();
   }
 
-  function initialize() {
-    if (initialized) return isSupported();
-    if (!isSupported()) return false;
+  function configureFeed() {
+    if (!isSupported()) {
+      feedUrl = "";
+      return false;
+    }
 
-    feedUrl = buildUpdateFeedUrl({
-      repository: updateRepository,
+    const nextFeedUrl = buildUpdateFeedUrl({
+      repository: updateRepository(),
       platform,
       arch,
       version: app.getVersion(),
     });
+    if (!nextFeedUrl) {
+      feedUrl = "";
+      return false;
+    }
 
-    autoUpdater.setFeedURL({ url: feedUrl });
+    if (feedUrl !== nextFeedUrl) {
+      autoUpdater.setFeedURL({ url: nextFeedUrl });
+      feedUrl = nextFeedUrl;
+    }
+
+    return true;
+  }
+
+  function initialize() {
+    if (!configureFeed()) return false;
+    if (initialized) return true;
+
     autoUpdater.on("checking-for-update", () => {
       checking = true;
     });
@@ -201,12 +289,20 @@ function createAutoUpdateController({
     return true;
   }
 
+  function manualUnsupportedDetail() {
+    const reason = supportReason();
+    if (reason === "missing_repository") {
+      return `The ${updateChannel()} update channel has no GitHub Releases feed configured for this build.`;
+    }
+    return "Gocus can check GitHub Releases only from a packaged macOS app.";
+  }
+
   function checkForUpdates({ manual = false } = {}) {
     if (!initialize()) {
       if (manual) {
         showManualMessage(
           "Updates are unavailable in this build.",
-          "Gocus can check GitHub Releases only from a packaged macOS app.",
+          manualUnsupportedDetail(),
         );
       }
       return false;
@@ -258,6 +354,7 @@ function createAutoUpdateController({
 
   function setPreferences(nextPreferences = {}) {
     preferences = nextPreferences && typeof nextPreferences === "object" ? nextPreferences : {};
+    if (initialized && !checking) configureFeed();
   }
 
   return {
@@ -270,7 +367,9 @@ function createAutoUpdateController({
     start,
     stop,
     supportReason,
-    updateRepository: () => updateRepository,
+    updateChannel,
+    updateChannels: () => ({ ...updateChannels }),
+    updateRepository,
   };
 }
 
@@ -280,8 +379,13 @@ module.exports = {
   createAutoUpdateController,
   defaultCheckIntervalMs,
   defaultStartupDelayMs,
+  defaultUpdateChannel,
   defaultUpdateRepository,
   defaultUpdateServer,
   normalizeUpdateRepository,
+  normalizeUpdateChannel,
+  updateChannelFromPackage,
+  updateChannelsFromPackage,
+  updateRepositoryForChannel,
   updateRepositoryFromPackage,
 };

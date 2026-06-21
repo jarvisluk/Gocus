@@ -303,6 +303,7 @@ function preferencesSaveSideEffects(previousEffectivePreferences, previousConfig
     syncMenuBarIcon: Boolean(previousConfigPreferences.showMenuBarIcon) !== Boolean(savedConfigPreferences.showMenuBarIcon),
     syncDockIcon: Boolean(previousConfigPreferences.showDockIcon) !== Boolean(savedConfigPreferences.showDockIcon),
     syncAutoUpdates:
+      previousConfigPreferences.autoUpdateChannel !== savedConfigPreferences.autoUpdateChannel ||
       Boolean(previousConfigPreferences.autoUpdateChecks) !== Boolean(savedConfigPreferences.autoUpdateChecks) ||
       Boolean(previousConfigPreferences.autoUpdateInstall) !== Boolean(savedConfigPreferences.autoUpdateInstall),
   };

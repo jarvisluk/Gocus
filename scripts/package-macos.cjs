@@ -9,6 +9,8 @@ const productName = process.env.GOCUS_PRODUCT_NAME || "Gocus";
 const bundleIdentifier = process.env.GOCUS_BUNDLE_ID || "com.junrong.gocus";
 const version = process.env.GOCUS_VERSION || sourcePackage.version || "0.1.0";
 const appArchitecture = process.env.GOCUS_ARCH || process.arch;
+const defaultUpdateChannel = "stable";
+const defaultUpdateRepository = "jarvisluk/gocus";
 const outputRoot = path.join(projectRoot, "release", "macos");
 const appPath = path.join(outputRoot, `${productName}.app`);
 const installedAppPath = path.join("/Applications", `${productName}.app`);
@@ -102,6 +104,34 @@ function waitForInstalledAppExit(timeoutMs) {
   return runningInstalledAppPids().length === 0;
 }
 
+function updateChannel() {
+  const channel = (process.env.GOCUS_UPDATE_CHANNEL || defaultUpdateChannel).trim().toLowerCase();
+  return channel === "develop" ? "develop" : "stable";
+}
+
+function readUpdateChannelOverrides() {
+  const rawChannels = process.env.GOCUS_UPDATE_CHANNELS;
+  if (!rawChannels || !rawChannels.trim()) return {};
+
+  const parsed = JSON.parse(rawChannels);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("GOCUS_UPDATE_CHANNELS must be a JSON object.");
+  }
+  return parsed;
+}
+
+function updateChannels() {
+  const channels = {
+    stable: process.env.GOCUS_UPDATE_REPO || defaultUpdateRepository,
+    ...readUpdateChannelOverrides(),
+  };
+
+  if (process.env.GOCUS_UPDATE_STABLE_REPO) channels.stable = process.env.GOCUS_UPDATE_STABLE_REPO;
+  if (process.env.GOCUS_UPDATE_DEVELOP_REPO) channels.develop = process.env.GOCUS_UPDATE_DEVELOP_REPO;
+
+  return channels;
+}
+
 function quitInstalledApp() {
   const pids = runningInstalledAppPids();
   if (pids.length === 0) return false;
@@ -136,6 +166,7 @@ function quitInstalledApp() {
 }
 
 function writePackageManifest() {
+  const channels = updateChannels();
   const manifest = {
     name: sourcePackage.name,
     productName,
@@ -143,7 +174,9 @@ function writePackageManifest() {
     description: sourcePackage.description,
     main: sourcePackage.main,
     repository: sourcePackage.repository,
-    updateRepository: process.env.GOCUS_UPDATE_REPO || "jarvisluk/gocus",
+    updateRepository: channels.stable || defaultUpdateRepository,
+    updateChannel: updateChannel(),
+    updateChannels: channels,
     private: true,
   };
 

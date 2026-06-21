@@ -28,6 +28,10 @@ Environment:
   GOCUS_BUILD         Override CFBundleVersion
   GOCUS_ARCH          Override the release asset architecture label
   GOCUS_UPDATE_REPO   Override the GitHub owner/repo used for updates
+  GOCUS_UPDATE_CHANNEL          Mark the packaged update channel: stable or develop
+  GOCUS_UPDATE_CHANNELS         JSON owner/repo map, for example {"stable":"owner/repo"}
+  GOCUS_UPDATE_STABLE_REPO      Override the stable update repository
+  GOCUS_UPDATE_DEVELOP_REPO     Override the develop update repository
   CODESIGN_IDENTITY      Use a signing identity instead of ad-hoc signing
   SKIP_CODESIGN=1        Skip codesign
 EOF
