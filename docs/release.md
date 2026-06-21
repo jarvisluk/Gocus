@@ -141,6 +141,14 @@ If the selected channel has no configured GitHub Releases repository, manual
 checks report that updates are unavailable for that channel instead of falling
 back to another channel.
 
+Stable and develop versions are compared independently. Same-channel checks use
+the installed app version. When the selected channel differs from the installed
+package channel, Gocus checks the target channel from a `0.0.0` baseline so the
+latest target-channel package can install even if its version is lower than the
+currently installed package. This allows switching from a develop candidate
+back to the latest stable release, and from stable to the latest develop
+candidate, without coordinating the two version sequences.
+
 The feed is backed by GitHub Releases, so each release needs a non-draft zip asset named like:
 
 ```text
