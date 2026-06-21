@@ -18,6 +18,7 @@ export type CommitViewMode = "current" | "all" | "branch";
 export type CommitAction = "branch" | "merge" | "checkout";
 export type GraphLineVariant = "solid" | "dashed";
 export type AutoRefreshInterval = "off" | "1m" | "5m" | "15m";
+export type AutoUpdateChannel = "stable" | "develop";
 export type PromptLanguage = "en" | "zh";
 export type GitRepositoryOperation = "none" | "merge" | "rebase" | "cherry-pick" | "revert" | "bisect";
 
@@ -53,6 +54,7 @@ export interface UiPreferences {
   showMenuBarIcon: boolean;
   showDockIcon: boolean;
   launchAtLogin: boolean;
+  autoUpdateChannel: AutoUpdateChannel;
   autoUpdateChecks: boolean;
   autoUpdateInstall: boolean;
   createMergeCommit: boolean;

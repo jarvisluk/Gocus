@@ -37,6 +37,7 @@ jobs:
       INPUT_NOTARIZE: ${{ github.event.inputs.notarize || 'auto' }}
       GOCUS_BUNDLE_ID: com.junrong.gocus
       GOCUS_PRODUCT_NAME: Gocus
+      GOCUS_UPDATE_CHANNEL: develop
       GOCUS_UPDATE_REPO: jarvisluk/Gocus
       MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
       MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}

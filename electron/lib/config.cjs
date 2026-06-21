@@ -16,6 +16,7 @@ const defaultPreferences = {
   showMenuBarIcon: true,
   showDockIcon: true,
   launchAtLogin: false,
+  autoUpdateChannel: "stable",
   autoUpdateChecks: true,
   autoUpdateInstall: false,
   createMergeCommit: true,

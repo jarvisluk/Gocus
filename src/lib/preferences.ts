@@ -12,6 +12,7 @@ export const defaultPreferences: UiPreferences = {
   showMenuBarIcon: true,
   showDockIcon: true,
   launchAtLogin: false,
+  autoUpdateChannel: "stable",
   autoUpdateChecks: true,
   autoUpdateInstall: false,
   createMergeCommit: true,
@@ -54,6 +55,7 @@ const darkPresetValues = darkThemePresetOptions.map((option) => option.value);
 const densityValues: UiPreferences["density"][] = ["compact", "comfortable"];
 const fontFamilyValues: UiPreferences["fontFamily"][] = ["system", "inter", "mono"];
 const graphStyleValues: UiPreferences["graphStyle"][] = ["solid", "soft"];
+const autoUpdateChannelValues: UiPreferences["autoUpdateChannel"][] = ["stable", "develop"];
 const autoRefreshIntervalValues = autoRefreshIntervalOptions.map((option) => option.value);
 const promptLanguageValues: UiPreferences["promptLanguage"][] = ["en", "zh"];
 
@@ -75,6 +77,9 @@ export function mergePreferences(value: Partial<UiPreferences> | null | undefine
     showMenuBarIcon: typeof candidate.showMenuBarIcon === "boolean" ? candidate.showMenuBarIcon : defaultPreferences.showMenuBarIcon,
     showDockIcon: typeof candidate.showDockIcon === "boolean" ? candidate.showDockIcon : defaultPreferences.showDockIcon,
     launchAtLogin: typeof candidate.launchAtLogin === "boolean" ? candidate.launchAtLogin : defaultPreferences.launchAtLogin,
+    autoUpdateChannel: includesValue(autoUpdateChannelValues, candidate.autoUpdateChannel)
+      ? candidate.autoUpdateChannel
+      : defaultPreferences.autoUpdateChannel,
     autoUpdateChecks:
       typeof candidate.autoUpdateChecks === "boolean" ? candidate.autoUpdateChecks : defaultPreferences.autoUpdateChecks,
     autoUpdateInstall:

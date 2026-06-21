@@ -833,6 +833,7 @@ function testIpcHandlersModule() {
     launchAtLogin: false,
     showMenuBarIcon: true,
     showDockIcon: true,
+    autoUpdateChannel: "stable",
     autoUpdateChecks: true,
     autoUpdateInstall: false,
   };
@@ -883,6 +884,15 @@ function testIpcHandlersModule() {
     },
   );
   assert.deepEqual(
+    preferencesSaveSideEffects(preferences, preferences, { ...preferences, autoUpdateChannel: "develop" }),
+    {
+      syncLaunchAtLogin: false,
+      syncMenuBarIcon: false,
+      syncDockIcon: false,
+      syncAutoUpdates: true,
+    },
+  );
+  assert.deepEqual(
     preferencesSaveSideEffects(preferences, preferences, { ...preferences, autoUpdateInstall: true }),
     {
       syncLaunchAtLogin: false,
@@ -914,6 +924,7 @@ function testConfigStoreModule() {
     assert.equal(sanitizeActiveWorkspaceOpenTarget("unknown"), "vscode");
     assert.equal(sanitizeActiveWorkspaceOpenTarget("unknown", "terminal"), "terminal");
     assert.equal(config.readActiveWorkspaceOpenTarget(), "vscode");
+    assert.equal(config.readPreferences().autoUpdateChannel, "stable");
     assert.equal(config.readPreferences().autoUpdateChecks, true);
     assert.equal(config.readPreferences().autoUpdateInstall, false);
     assert.equal(config.readPreferences().showDockIcon, true);
@@ -932,26 +943,63 @@ function testConfigStoreModule() {
 
 async function testAutoUpdateModule() {
   const { EventEmitter } = require("node:events");
-  const previousUpdateRepo = process.env.GOCUS_UPDATE_REPO;
-  delete process.env.GOCUS_UPDATE_REPO;
+  const updateEnvNames = [
+    "GOCUS_UPDATE_REPO",
+    "GOCUS_UPDATE_STABLE_REPO",
+    "GOCUS_UPDATE_DEVELOP_REPO",
+    "GOCUS_UPDATE_CHANNEL",
+    "GOCUS_UPDATE_CHANNELS",
+  ];
+  const previousUpdateEnv = Object.fromEntries(updateEnvNames.map((name) => [name, process.env[name]]));
+  for (const name of updateEnvNames) delete process.env[name];
 
   try {
     const {
       autoUpdateSupportReason,
       buildUpdateFeedUrl,
       createAutoUpdateController,
+      normalizeUpdateChannel,
       normalizeUpdateRepository,
+      updateChannelFromPackage,
+      updateChannelsFromPackage,
       updateRepositoryFromPackage,
+      updateRepositoryForChannel,
     } = require(path.join(projectRoot, "electron/lib/autoUpdate.cjs"));
 
     assert.equal(normalizeUpdateRepository("jarvisluk/gocus"), "jarvisluk/gocus");
     assert.equal(normalizeUpdateRepository("https://github.com/jarvisluk/gocus.git"), "jarvisluk/gocus");
     assert.equal(normalizeUpdateRepository("git@github.com:jarvisluk/gocus.git"), "jarvisluk/gocus");
     assert.equal(normalizeUpdateRepository("https://example.com/jarvisluk/gocus"), "");
+    assert.equal(normalizeUpdateChannel("develop"), "develop");
+    assert.equal(normalizeUpdateChannel("nightly"), "stable");
+    assert.equal(updateChannelFromPackage({ updateChannel: "develop" }), "develop");
     assert.equal(
       updateRepositoryFromPackage({ repository: { url: "git+https://github.com/jarvisluk/gocus.git" } }),
       "jarvisluk/gocus",
     );
+    assert.deepEqual(
+      updateChannelsFromPackage({
+        updateRepository: "jarvisluk/gocus",
+        updateChannels: { develop: "jarvisluk/gocus-develop" },
+      }),
+      {
+        stable: "jarvisluk/gocus",
+        develop: "jarvisluk/gocus-develop",
+      },
+    );
+    assert.equal(
+      updateRepositoryForChannel(
+        {
+          updateRepository: "jarvisluk/gocus",
+          updateChannels: { develop: "jarvisluk/gocus-develop" },
+        },
+        "develop",
+      ),
+      "jarvisluk/gocus-develop",
+    );
+    process.env.GOCUS_UPDATE_CHANNELS = JSON.stringify({ develop: "jarvisluk/gocus-dev-env" });
+    assert.equal(updateRepositoryForChannel({}, "develop"), "jarvisluk/gocus-dev-env");
+    delete process.env.GOCUS_UPDATE_CHANNELS;
     assert.equal(
       buildUpdateFeedUrl({
         repository: "jarvisluk/gocus",
@@ -1024,7 +1072,10 @@ async function testAutoUpdateModule() {
         info() {},
         warn() {},
       },
-      packageMetadata: { repository: "https://github.com/jarvisluk/gocus.git" },
+      packageMetadata: {
+        repository: "https://github.com/jarvisluk/gocus.git",
+        updateChannels: { develop: "jarvisluk/gocus-develop" },
+      },
       platform: "darwin",
       arch: "arm64",
       isDevRuntime: false,
@@ -1034,6 +1085,8 @@ async function testAutoUpdateModule() {
     });
 
     assert.equal(controller.isSupported(), true);
+    assert.equal(controller.updateChannel(), "stable");
+    assert.equal(controller.updateRepository(), "jarvisluk/gocus");
     controller.setPreferences({ autoUpdateChecks: false, autoUpdateInstall: false });
     assert.equal(controller.start(), false);
     assert.equal(controller.isStarted(), false);
@@ -1054,6 +1107,17 @@ async function testAutoUpdateModule() {
     assert.equal(preparedForInstall, true);
     assert.equal(installed, true);
 
+    controller.setPreferences({ autoUpdateChannel: "develop", autoUpdateChecks: true, autoUpdateInstall: false });
+    assert.equal(controller.updateChannel(), "develop");
+    assert.equal(controller.updateRepository(), "jarvisluk/gocus-develop");
+    checkedForUpdates = false;
+    assert.equal(controller.checkForUpdates(), true);
+    assert.equal(checkedForUpdates, true);
+    assert.deepEqual(feedOptions, {
+      url: "https://update.electronjs.org/jarvisluk/gocus-develop/darwin-arm64/0.2.0",
+    });
+    events.emit("update-not-available");
+
     preparedForInstall = false;
     installed = false;
     controller.setPreferences({ autoUpdateChecks: true, autoUpdateInstall: true });
@@ -1063,11 +1127,47 @@ async function testAutoUpdateModule() {
     assert.equal(dialogs.at(-1).message, "Gocus 0.2.1 is ready to install.");
     assert.equal(preparedForInstall, true);
     assert.equal(installed, true);
+
+    const missingChannelDialogs = [];
+    const missingChannelController = createAutoUpdateController({
+      app: {
+        isPackaged: true,
+        getVersion: () => "0.2.0",
+      },
+      autoUpdater: {
+        setFeedURL() {
+          throw new Error("Missing channel feed should not be configured.");
+        },
+        on() {},
+        checkForUpdates() {},
+        quitAndInstall() {},
+      },
+      dialog: {
+        showMessageBox(options) {
+          missingChannelDialogs.push(options);
+          return Promise.resolve({ response: 0 });
+        },
+      },
+      packageMetadata: { updateRepository: "jarvisluk/gocus" },
+      platform: "darwin",
+      arch: "arm64",
+      isDevRuntime: false,
+    });
+    missingChannelController.setPreferences({ autoUpdateChannel: "develop", autoUpdateChecks: true });
+    assert.equal(missingChannelController.isSupported(), false);
+    assert.equal(missingChannelController.supportReason(), "missing_repository");
+    assert.equal(missingChannelController.checkForUpdates({ manual: true }), false);
+    assert.equal(
+      missingChannelDialogs.at(-1).detail,
+      "The develop update channel has no GitHub Releases feed configured for this build.",
+    );
   } finally {
-    if (previousUpdateRepo === undefined) {
-      delete process.env.GOCUS_UPDATE_REPO;
-    } else {
-      process.env.GOCUS_UPDATE_REPO = previousUpdateRepo;
+    for (const [name, value] of Object.entries(previousUpdateEnv)) {
+      if (value === undefined) {
+        delete process.env[name];
+      } else {
+        process.env[name] = value;
+      }
     }
   }
 }
@@ -3787,6 +3887,7 @@ async function testPreferences(server) {
       showMenuBarIcon: false,
       showDockIcon: false,
       launchAtLogin: "yes",
+      autoUpdateChannel: "develop",
       autoUpdateChecks: "yes",
       autoUpdateInstall: true,
       createMergeCommit: false,
@@ -3801,11 +3902,13 @@ async function testPreferences(server) {
       workspaceOpenTargets: ["codex", "terminal"],
       showMenuBarIcon: false,
       showDockIcon: false,
+      autoUpdateChannel: "develop",
       autoUpdateInstall: true,
       createMergeCommit: false,
       promptLanguage: "zh",
     },
   );
+  assert.equal(mergePreferences({ autoUpdateChannel: "nightly" }).autoUpdateChannel, "stable");
   assert.deepEqual(mergePreferences({ workspaceOpenTargets: [] }).workspaceOpenTargets, []);
   assert.deepEqual(mergePreferences({ workspaceOpenTargets: "cursor" }).workspaceOpenTargets, defaultWorkspaceOpenTargets);
   assert.equal(resolveThemePreset({ ...defaultPreferences, lightThemePreset: "mist", darkThemePreset: "cursor" }, "light"), "mist");
@@ -4268,10 +4371,12 @@ async function testSettingsPanelView(server) {
       updatesTitleId: "settings-app-updates-title",
       updatesTitle: "Updates",
       rows: {
+        channel: "Channel",
         updates: "Auto update",
         install: "Auto install",
         check: "Manual",
       },
+      autoUpdateChannelAriaLabel: "Update channel",
       autoUpdateChecksAriaLabel: "Automatically check for updates",
       autoUpdateInstallAriaLabel: "Automatically install updates",
       checkForUpdatesAriaLabel: "Check for updates",
@@ -4458,6 +4563,7 @@ async function testSettingsPanelView(server) {
       themeMode: "system",
       density: "comfortable",
       graphStyle: "soft",
+      autoUpdateChannel: "develop",
       promptLanguage: "zh",
     }),
     {
@@ -4477,6 +4583,10 @@ async function testSettingsPanelView(server) {
       promptLanguageOptions: [
         { value: "en", label: "English", className: "", ariaPressed: false },
         { value: "zh", label: "中文", className: "is-active", ariaPressed: true },
+      ],
+      autoUpdateChannelOptions: [
+        { value: "stable", label: "Stable", className: "", ariaPressed: false },
+        { value: "develop", label: "Develop", className: "is-active", ariaPressed: true },
       ],
       fontFamilyOptions: [
         { value: "system", label: "System" },

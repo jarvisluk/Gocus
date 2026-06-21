@@ -49,8 +49,9 @@ pushes to `develop` and can also be started manually from Actions.
   `gocus-develop-macos-<version>`.
 
 Use this workflow for internal validation before merging `develop` into `main`.
-The official auto-update feed still comes only from public GitHub Releases
-created by the main/tag release flow.
+Develop candidate packages are marked with the `develop` update channel. The
+official auto-update feed still comes only from public GitHub Releases created
+by the main/tag release flow unless a develop channel repository is configured.
 
 For manual runs to appear in the Actions UI, the workflow file must exist on
 the repository's default branch. Push-triggered candidate builds run once the
@@ -102,15 +103,30 @@ periodically. Users can also run **Check for Updates...** from the app menu,
 Help menu, or menu bar icon menu.
 
 The Settings panel's **App** page includes **Automatically check for updates**
-and **Automatically install updates** toggles. Automatic checks are on by
-default. Automatic install is off by default, so downloaded updates ask before
-relaunching.
+and **Automatically install updates** toggles plus a **Channel** selector.
+Automatic checks are on by default. Automatic install is off by default, so
+downloaded updates ask before relaunching.
 
 The update feed is:
 
 ```text
 https://update.electronjs.org/jarvisluk/gocus/darwin-<arch>/<current-version>
 ```
+
+The stable channel uses `GOCUS_UPDATE_REPO` / `GOCUS_UPDATE_STABLE_REPO`, and
+the develop channel uses `GOCUS_UPDATE_DEVELOP_REPO`. `GOCUS_UPDATE_CHANNELS`
+can also provide a JSON map such as:
+
+```json
+{
+  "stable": "jarvisluk/Gocus",
+  "develop": "jarvisluk/Gocus"
+}
+```
+
+If the selected channel has no configured GitHub Releases repository, manual
+checks report that updates are unavailable for that channel instead of falling
+back to another channel.
 
 The feed is backed by GitHub Releases, so each release needs a non-draft zip asset named like:
 

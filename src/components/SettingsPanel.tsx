@@ -204,6 +204,22 @@ export function SettingsPanel({
               {sections.app.updatesTitle}
             </h2>
             <div className={view.mainPanel.rowClassName}>
+              <span className={view.mainPanel.labelClassName}>{sections.app.rows.channel}</span>
+              <div className={view.mainPanel.compactSegmentedClassName} role="group" aria-label={sections.app.autoUpdateChannelAriaLabel}>
+                {preferenceView.autoUpdateChannelOptions.map((option) => (
+                  <button
+                    className={option.className}
+                    type="button"
+                    aria-pressed={option.ariaPressed}
+                    key={option.value}
+                    onClick={() => onChange({ ...preferences, autoUpdateChannel: option.value })}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className={view.mainPanel.rowClassName}>
               <span className={view.mainPanel.labelClassName}>{sections.app.rows.updates}</span>
               <label className={view.mainPanel.autoUpdateChecksToggleClassName}>
                 <input
