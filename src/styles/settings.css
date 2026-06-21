@@ -40,6 +40,17 @@
   padding: 0 var(--space-md);
 }
 
+.settings-update-channel-control {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.settings-update-channel-detail {
+  min-width: 0;
+  text-align: right;
+}
+
 .settings-refresh-control {
   position: relative;
   min-width: 0;

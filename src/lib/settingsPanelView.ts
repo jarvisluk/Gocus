@@ -46,6 +46,9 @@ function settingsSegmentOption<T extends string>(
 }
 
 export function settingsPreferencesView(preferences: UiPreferences) {
+  const autoUpdateChannelDetail =
+    preferences.autoUpdateChannel === "develop" ? "Develop candidates" : "Stable releases";
+
   return {
     themeModeOptions: [
       settingsSegmentOption("system", preferences.themeMode, "System", "monitor"),
@@ -68,6 +71,7 @@ export function settingsPreferencesView(preferences: UiPreferences) {
       settingsSegmentOption("stable", preferences.autoUpdateChannel, "Stable"),
       settingsSegmentOption("develop", preferences.autoUpdateChannel, "Develop"),
     ],
+    autoUpdateChannelDetail,
     fontFamilyOptions: [
       { value: "system", label: "System" },
       { value: "inter", label: "Inter" },
@@ -148,6 +152,8 @@ export function settingsPanelView(
       launchAtLoginToggleClassName: "ui-toggle settings-launch-at-login-toggle",
       autoUpdateChecksToggleClassName: "ui-toggle settings-auto-update-checks-toggle",
       autoUpdateInstallToggleClassName: "ui-toggle settings-auto-update-install-toggle",
+      autoUpdateChannelControlClassName: "settings-update-channel-control",
+      autoUpdateChannelDetailClassName: "ui-label settings-update-channel-detail",
       manualUpdateButtonClassName: "ui-button settings-check-updates",
       menuBarIconToggleClassName: "ui-toggle settings-menu-bar-icon-toggle",
       dockIconToggleClassName: "ui-toggle settings-dock-icon-toggle",
