@@ -1,6 +1,7 @@
 const defaultUpdateRepository = "jarvisluk/gocus";
 const defaultUpdateServer = "https://update.electronjs.org";
 const defaultUpdateChannel = "stable";
+const defaultChannelSwitchVersion = "0.0.0";
 const updateChannelValues = ["stable", "develop"];
 const defaultCheckIntervalMs = 4 * 60 * 60 * 1000;
 const defaultStartupDelayMs = 15 * 1000;
@@ -162,6 +163,14 @@ function createAutoUpdateController({
     return updateChannels[updateChannel()] || "";
   }
 
+  function isSwitchingChannels() {
+    return updateChannel() !== defaultChannel;
+  }
+
+  function updateFeedVersion() {
+    return isSwitchingChannels() ? defaultChannelSwitchVersion : app.getVersion();
+  }
+
   function supportReason() {
     return autoUpdateSupportReason({
       platform,
@@ -213,7 +222,7 @@ function createAutoUpdateController({
       repository: updateRepository(),
       platform,
       arch,
-      version: app.getVersion(),
+      version: updateFeedVersion(),
     });
     if (!nextFeedUrl) {
       feedUrl = "";
@@ -367,6 +376,7 @@ function createAutoUpdateController({
     start,
     stop,
     supportReason,
+    updateFeedVersion,
     updateChannel,
     updateChannels: () => ({ ...updateChannels }),
     updateRepository,
@@ -378,6 +388,7 @@ module.exports = {
   buildUpdateFeedUrl,
   createAutoUpdateController,
   defaultCheckIntervalMs,
+  defaultChannelSwitchVersion,
   defaultStartupDelayMs,
   defaultUpdateChannel,
   defaultUpdateRepository,

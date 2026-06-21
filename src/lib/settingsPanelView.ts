@@ -47,7 +47,7 @@ function settingsSegmentOption<T extends string>(
 
 export function settingsPreferencesView(preferences: UiPreferences) {
   const autoUpdateChannelDetail =
-    preferences.autoUpdateChannel === "develop" ? "Develop candidates" : "Stable releases";
+    preferences.autoUpdateChannel === "develop" ? "Latest develop candidate" : "Latest stable release";
 
   return {
     themeModeOptions: [

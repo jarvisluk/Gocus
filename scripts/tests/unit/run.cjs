@@ -845,6 +845,7 @@ function testIpcHandlersModule() {
       syncMenuBarIcon: false,
       syncDockIcon: false,
       syncAutoUpdates: false,
+      checkAutoUpdatesNow: false,
     },
   );
   assert.deepEqual(
@@ -854,6 +855,7 @@ function testIpcHandlersModule() {
       syncMenuBarIcon: false,
       syncDockIcon: false,
       syncAutoUpdates: false,
+      checkAutoUpdatesNow: false,
     },
   );
   assert.deepEqual(
@@ -863,6 +865,7 @@ function testIpcHandlersModule() {
       syncMenuBarIcon: true,
       syncDockIcon: false,
       syncAutoUpdates: false,
+      checkAutoUpdatesNow: false,
     },
   );
   assert.deepEqual(
@@ -872,6 +875,7 @@ function testIpcHandlersModule() {
       syncMenuBarIcon: false,
       syncDockIcon: true,
       syncAutoUpdates: false,
+      checkAutoUpdatesNow: false,
     },
   );
   assert.deepEqual(
@@ -881,6 +885,7 @@ function testIpcHandlersModule() {
       syncMenuBarIcon: false,
       syncDockIcon: false,
       syncAutoUpdates: true,
+      checkAutoUpdatesNow: false,
     },
   );
   assert.deepEqual(
@@ -890,6 +895,7 @@ function testIpcHandlersModule() {
       syncMenuBarIcon: false,
       syncDockIcon: false,
       syncAutoUpdates: true,
+      checkAutoUpdatesNow: true,
     },
   );
   assert.deepEqual(
@@ -899,6 +905,7 @@ function testIpcHandlersModule() {
       syncMenuBarIcon: false,
       syncDockIcon: false,
       syncAutoUpdates: true,
+      checkAutoUpdatesNow: false,
     },
   );
 }
@@ -958,6 +965,7 @@ async function testAutoUpdateModule() {
       autoUpdateSupportReason,
       buildUpdateFeedUrl,
       createAutoUpdateController,
+      defaultChannelSwitchVersion,
       normalizeUpdateChannel,
       normalizeUpdateRepository,
       updateChannelFromPackage,
@@ -972,6 +980,7 @@ async function testAutoUpdateModule() {
     assert.equal(normalizeUpdateRepository("https://example.com/jarvisluk/gocus"), "");
     assert.equal(normalizeUpdateChannel("develop"), "develop");
     assert.equal(normalizeUpdateChannel("nightly"), "stable");
+    assert.equal(defaultChannelSwitchVersion, "0.0.0");
     assert.equal(updateChannelFromPackage({ updateChannel: "develop" }), "develop");
     assert.equal(
       updateRepositoryFromPackage({ repository: { url: "git+https://github.com/jarvisluk/gocus.git" } }),
@@ -1089,6 +1098,7 @@ async function testAutoUpdateModule() {
 
     assert.equal(controller.isSupported(), true);
     assert.equal(controller.updateChannel(), "stable");
+    assert.equal(controller.updateFeedVersion(), "0.2.0");
     assert.equal(controller.updateRepository(), "jarvisluk/gocus");
     controller.setPreferences({ autoUpdateChecks: false, autoUpdateInstall: false });
     assert.equal(controller.start(), false);
@@ -1112,14 +1122,46 @@ async function testAutoUpdateModule() {
 
     controller.setPreferences({ autoUpdateChannel: "develop", autoUpdateChecks: true, autoUpdateInstall: false });
     assert.equal(controller.updateChannel(), "develop");
+    assert.equal(controller.updateFeedVersion(), "0.0.0");
     assert.equal(controller.updateRepository(), "jarvisluk/gocus-develop");
     checkedForUpdates = false;
     assert.equal(controller.checkForUpdates(), true);
     assert.equal(checkedForUpdates, true);
     assert.deepEqual(feedOptions, {
-      url: "https://update.electronjs.org/jarvisluk/gocus-develop/darwin-arm64/0.2.0",
+      url: "https://update.electronjs.org/jarvisluk/gocus-develop/darwin-arm64/0.0.0",
     });
     events.emit("update-not-available");
+
+    const stableSwitchFeedOptions = [];
+    const installedDevelopController = createAutoUpdateController({
+      app: {
+        isPackaged: true,
+        getVersion: () => "0.2.0-dev.4",
+      },
+      autoUpdater: {
+        setFeedURL(options) {
+          stableSwitchFeedOptions.push(options);
+        },
+        on() {},
+        checkForUpdates() {},
+        quitAndInstall() {},
+      },
+      packageMetadata: {
+        updateChannel: "develop",
+        updateRepository: "jarvisluk/gocus",
+        updateChannels: { develop: "jarvisluk/gocus-develop" },
+      },
+      platform: "darwin",
+      arch: "arm64",
+      isDevRuntime: false,
+    });
+    installedDevelopController.setPreferences({ autoUpdateChannel: "stable", autoUpdateChecks: true });
+    assert.equal(installedDevelopController.updateChannel(), "stable");
+    assert.equal(installedDevelopController.updateFeedVersion(), "0.0.0");
+    assert.equal(installedDevelopController.checkForUpdates(), true);
+    assert.deepEqual(stableSwitchFeedOptions.at(-1), {
+      url: "https://update.electronjs.org/jarvisluk/gocus/darwin-arm64/0.0.0",
+    });
 
     preparedForInstall = false;
     installed = false;
@@ -4593,7 +4635,7 @@ async function testSettingsPanelView(server) {
         { value: "stable", label: "Stable", className: "", ariaPressed: false },
         { value: "develop", label: "Develop", className: "is-active", ariaPressed: true },
       ],
-      autoUpdateChannelDetail: "Develop candidates",
+      autoUpdateChannelDetail: "Latest develop candidate",
       fontFamilyOptions: [
         { value: "system", label: "System" },
         { value: "inter", label: "Inter" },

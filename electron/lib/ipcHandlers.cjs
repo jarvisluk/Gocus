@@ -236,6 +236,7 @@ function registerIpcHandlers({
     if (sideEffects.syncMenuBarIcon) syncMenuBarIcon(savedConfigPreferences);
     if (sideEffects.syncDockIcon) syncDockIcon(savedConfigPreferences);
     if (sideEffects.syncAutoUpdates) syncAutoUpdates(savedConfigPreferences);
+    if (sideEffects.checkAutoUpdatesNow) checkForUpdates();
 
     const savedPreferences = readPreferences();
     syncNativeThemeSource(savedPreferences);
@@ -298,14 +299,17 @@ function registerIpcHandlers({
 }
 
 function preferencesSaveSideEffects(previousEffectivePreferences, previousConfigPreferences, savedConfigPreferences) {
+  const autoUpdateChannelChanged = previousConfigPreferences.autoUpdateChannel !== savedConfigPreferences.autoUpdateChannel;
+
   return {
     syncLaunchAtLogin: Boolean(previousEffectivePreferences.launchAtLogin) !== Boolean(savedConfigPreferences.launchAtLogin),
     syncMenuBarIcon: Boolean(previousConfigPreferences.showMenuBarIcon) !== Boolean(savedConfigPreferences.showMenuBarIcon),
     syncDockIcon: Boolean(previousConfigPreferences.showDockIcon) !== Boolean(savedConfigPreferences.showDockIcon),
     syncAutoUpdates:
-      previousConfigPreferences.autoUpdateChannel !== savedConfigPreferences.autoUpdateChannel ||
+      autoUpdateChannelChanged ||
       Boolean(previousConfigPreferences.autoUpdateChecks) !== Boolean(savedConfigPreferences.autoUpdateChecks) ||
       Boolean(previousConfigPreferences.autoUpdateInstall) !== Boolean(savedConfigPreferences.autoUpdateInstall),
+    checkAutoUpdatesNow: autoUpdateChannelChanged,
   };
 }
 
