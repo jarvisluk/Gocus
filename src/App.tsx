@@ -137,6 +137,7 @@ export default function App() {
               preferences={controller.preferences}
               availableWorkspaceTargets={controller.availableWorkspaceTargets}
               onChange={updatePreferences}
+              onCheckForUpdates={controller.checkForUpdates}
               onBack={() => controller.setSettingsOpen(false)}
               onReset={controller.resetPreferences}
             />

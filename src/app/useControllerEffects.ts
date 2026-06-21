@@ -83,6 +83,7 @@ export function useRuntimePreferenceBridge({
 
 export function useInitialGitData({
   applySnapshotResponse,
+  beginGitRequest,
   commitView,
   markGitRequest,
   setCollapsed,
@@ -91,7 +92,12 @@ export function useInitialGitData({
   setRecentRepositories,
   setRepositoryDialogOpen,
 }: {
-  applySnapshotResponse: (response: SnapshotResponse, successNotice?: string | null) => void;
+  applySnapshotResponse: (
+    response: SnapshotResponse,
+    successNotice?: string | null,
+    options?: { requestId?: number; allowRepositoryChange?: boolean },
+  ) => void;
+  beginGitRequest: () => number;
   commitView: CommitViewSelection;
   markGitRequest: () => void;
   setCollapsed: Dispatch<SetStateAction<boolean>>;
@@ -107,9 +113,10 @@ export function useInitialGitData({
       return undefined;
     }
 
+    const requestId = beginGitRequest();
     window.gocus
       .getSnapshot(commitView)
-      .then((response) => applySnapshotResponse(response))
+      .then((response) => applySnapshotResponse(response, undefined, { requestId }))
       .catch((error) => setNotice(errorMessage(error, "Unable to load Git status.")))
       .finally(() => setLoading(false));
     window.gocus
@@ -119,7 +126,9 @@ export function useInitialGitData({
 
     const unsubscribeSnapshot = window.gocus.onSnapshotUpdated((response) => {
       markGitRequest();
-      applySnapshotResponse(response, response.ok ? "Git data updated from menu." : "Working folder cleared.");
+      applySnapshotResponse(response, response.ok ? "Git data updated from menu." : "Working folder cleared.", {
+        allowRepositoryChange: response.updateSource === "repository",
+      });
       setLoading(false);
     });
     const unsubscribeCollapsed = window.gocus.onCollapsedChanged(setCollapsed);
@@ -137,6 +146,7 @@ export function useAutoRefreshLoop({
   actionDialog,
   applySnapshotResponse,
   autoRefreshInFlightRef,
+  beginGitRequest,
   commitView,
   electron,
   hasSnapshot,
@@ -149,8 +159,13 @@ export function useAutoRefreshLoop({
   setRefreshing,
 }: {
   actionDialog: ActionDialogState | null;
-  applySnapshotResponse: (response: SnapshotResponse, successNotice?: string | null) => void;
+  applySnapshotResponse: (
+    response: SnapshotResponse,
+    successNotice?: string | null,
+    options?: { requestId?: number; allowRepositoryChange?: boolean },
+  ) => void;
   autoRefreshInFlightRef: RefValue<boolean>;
+  beginGitRequest: () => number;
   commitView: CommitViewSelection;
   electron: boolean;
   hasSnapshot: boolean;
@@ -192,11 +207,12 @@ export function useAutoRefreshLoop({
       }
 
       autoRefreshInFlightRef.current = true;
+      const requestId = beginGitRequest();
       setRefreshing(true);
 
       try {
         const response = await bridge.refresh(commitView);
-        applySnapshotResponse(response, response.ok ? null : "Auto refresh failed.");
+        applySnapshotResponse(response, response.ok ? null : "Auto refresh failed.", { requestId });
       } catch (error) {
         setNotice(errorMessage(error, "Auto refresh failed."));
       } finally {

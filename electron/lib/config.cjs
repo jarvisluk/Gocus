@@ -14,6 +14,7 @@ const defaultPreferences = {
   graphStyle: "solid",
   workspaceOpenTargets: [...workspaceOpenTargetValues],
   showMenuBarIcon: true,
+  showDockIcon: true,
   launchAtLogin: false,
   autoUpdateChecks: true,
   autoUpdateInstall: false,

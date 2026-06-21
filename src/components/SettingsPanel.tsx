@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Monitor, Moon, RotateCcw, Sun } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Monitor, Moon, RefreshCw, RotateCcw, Sun } from "lucide-react";
 import { autoRefreshIntervalOptions, darkThemePresetOptions, lightThemePresetOptions } from "../lib/preferences";
 import {
   settingsPageAfterBack,
@@ -123,12 +123,14 @@ export function SettingsPanel({
   preferences,
   availableWorkspaceTargets,
   onChange,
+  onCheckForUpdates,
   onBack,
   onReset,
 }: {
   preferences: UiPreferences;
   availableWorkspaceTargets: WorkspaceOpenTarget[];
   onChange: (preferences: UiPreferences) => void;
+  onCheckForUpdates: () => void;
   onBack: () => void;
   onReset: () => void;
 }) {
@@ -222,6 +224,18 @@ export function SettingsPanel({
                   onChange={(event) => onChange({ ...preferences, autoUpdateInstall: event.target.checked })}
                 />
               </label>
+            </div>
+            <div className={view.mainPanel.rowClassName}>
+              <span className={view.mainPanel.labelClassName}>{sections.app.rows.check}</span>
+              <button
+                className={view.mainPanel.manualUpdateButtonClassName}
+                type="button"
+                aria-label={sections.app.checkForUpdatesAriaLabel}
+                onClick={onCheckForUpdates}
+              >
+                <RefreshCw aria-hidden="true" />
+                <span>{sections.app.checkForUpdatesLabel}</span>
+              </button>
             </div>
           </div>
         </div>
@@ -417,6 +431,17 @@ export function SettingsPanel({
                   aria-label={sections.behavior.showMenuBarIconAriaLabel}
                   checked={preferences.showMenuBarIcon}
                   onChange={(event) => onChange({ ...preferences, showMenuBarIcon: event.target.checked })}
+                />
+              </label>
+            </div>
+            <div className={view.mainPanel.rowClassName}>
+              <span className={view.mainPanel.labelClassName}>{sections.behavior.rows.dock}</span>
+              <label className={view.mainPanel.dockIconToggleClassName}>
+                <input
+                  type="checkbox"
+                  aria-label={sections.behavior.showDockIconAriaLabel}
+                  checked={preferences.showDockIcon}
+                  onChange={(event) => onChange({ ...preferences, showDockIcon: event.target.checked })}
                 />
               </label>
             </div>
