@@ -1,0 +1,321 @@
+name: Develop Release Candidate
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Candidate version. Leave blank to derive from package.json, for example 0.1.2-dev.123"
+        required: false
+        default: ""
+        type: string
+      notarize:
+        description: "Use Apple Developer ID signing and notarization"
+        required: false
+        default: auto
+        type: choice
+        options:
+          - auto
+          - "true"
+          - "false"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: develop-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: macOS Develop Candidate
+    runs-on: macos-15
+    env:
+      INPUT_VERSION: ${{ github.event.inputs.version || '' }}
+      INPUT_NOTARIZE: ${{ github.event.inputs.notarize || 'auto' }}
+      GOCUS_BUNDLE_ID: com.junrong.gocus
+      GOCUS_PRODUCT_NAME: Gocus
+      GOCUS_UPDATE_REPO: jarvisluk/Gocus
+      MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+      MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+      MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enforce develop branch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_REF_TYPE" != "branch" || "$GITHUB_REF_NAME" != "develop" ]]; then
+            echo "::error::Develop release candidates must run from the develop branch."
+            exit 2
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Resolve candidate metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="$INPUT_VERSION"
+          if [[ -z "$version" ]]; then
+            package_version="$(node -p 'require("./package.json").version')"
+            IFS=. read -r major minor patch_extra <<<"$package_version"
+            patch="${patch_extra%%[-+]*}"
+            if [[ ! "$major" =~ ^[0-9]+$ || ! "$minor" =~ ^[0-9]+$ || ! "$patch" =~ ^[0-9]+$ ]]; then
+              echo "::error::Cannot derive a develop candidate version from package.json version: $package_version"
+              exit 2
+            fi
+            version="$major.$minor.$((patch + 1))-dev.$GITHUB_RUN_NUMBER"
+          fi
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Candidate version must be semver-like: $version."
+            exit 2
+          fi
+
+          case "$INPUT_NOTARIZE" in
+            auto|true|false) ;;
+            *)
+              echo "::error::notarize must be auto, true, or false."
+              exit 2
+              ;;
+          esac
+
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+          echo "notarize=$INPUT_NOTARIZE" >>"$GITHUB_OUTPUT"
+
+      - name: Resolve signing mode
+        id: release_mode
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          has_signing_identity=false
+          has_notary_credentials=false
+          signing_enabled=false
+          notarize_enabled=false
+
+          if [[ -n "$MACOS_CERTIFICATE_P12_BASE64" \
+            && -n "$MACOS_CERTIFICATE_PASSWORD" \
+            && -n "$MACOS_CODESIGN_IDENTITY" ]]; then
+            has_signing_identity=true
+            signing_enabled=true
+          fi
+
+          if [[ -n "$APPLE_ID" \
+            && -n "$APPLE_TEAM_ID" \
+            && -n "$APPLE_APP_SPECIFIC_PASSWORD" ]]; then
+            has_notary_credentials=true
+          fi
+
+          case "${{ steps.meta.outputs.notarize }}" in
+            true)
+              if [[ "$has_signing_identity" != "true" ]]; then
+                echo "::error::notarize=true requires MACOS_CERTIFICATE_P12_BASE64, MACOS_CERTIFICATE_PASSWORD, and MACOS_CODESIGN_IDENTITY secrets."
+                exit 2
+              fi
+              if [[ "$has_notary_credentials" != "true" ]]; then
+                echo "::error::notarize=true requires APPLE_ID, APPLE_TEAM_ID, and APPLE_APP_SPECIFIC_PASSWORD secrets."
+                exit 2
+              fi
+              notarize_enabled=true
+              ;;
+            auto)
+              if [[ "$has_signing_identity" == "true" \
+                && "$has_notary_credentials" == "true" ]]; then
+                notarize_enabled=true
+              else
+                echo "::notice::Developer ID notarization is disabled because one or more Apple release secrets are missing."
+              fi
+              ;;
+            false)
+              ;;
+          esac
+
+          if [[ "$signing_enabled" == "true" && "$notarize_enabled" != "true" ]]; then
+            echo "::notice::Candidate will be Developer ID signed but not notarized."
+          elif [[ "$signing_enabled" != "true" ]]; then
+            echo "::notice::Candidate will use ad hoc signing."
+          fi
+
+          echo "signing_enabled=$signing_enabled" >>"$GITHUB_OUTPUT"
+          echo "notarize_enabled=$notarize_enabled" >>"$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: |
+          unset ELECTRON_OVERRIDE_DIST_PATH
+          unset ELECTRON_SKIP_BINARY_DOWNLOAD
+          unset npm_config_electron_skip_binary_download
+          npm ci --ignore-scripts=false
+          node scripts/ensure-electron-runtime.cjs
+          node -e 'console.log(`Electron runtime: ${require("electron")}`)'
+
+      - name: Verify
+        run: |
+          npm run lint
+          npm run test:unit
+          npm run build
+
+      - name: Import Developer ID certificate
+        if: steps.release_mode.outputs.signing_enabled == 'true'
+        env:
+          KEYCHAIN_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          certificate_path="$RUNNER_TEMP/developer-id-application.p12"
+          keychain_path="$RUNNER_TEMP/gocus-develop-signing.keychain-db"
+          keychain_password="${MACOS_KEYCHAIN_PASSWORD:-$KEYCHAIN_PASSWORD}"
+
+          printf '%s' "$MACOS_CERTIFICATE_P12_BASE64" \
+            | /usr/bin/base64 --decode >"$certificate_path"
+
+          /usr/bin/security create-keychain -p "$keychain_password" "$keychain_path"
+          /usr/bin/security set-keychain-settings -lut 21600 "$keychain_path"
+          /usr/bin/security unlock-keychain -p "$keychain_password" "$keychain_path"
+          /usr/bin/security import "$certificate_path" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -A \
+            -k "$keychain_path"
+          /usr/bin/security list-keychains -d user -s "$keychain_path"
+          /usr/bin/security default-keychain -s "$keychain_path"
+          /usr/bin/security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$keychain_password" \
+            "$keychain_path"
+          /usr/bin/security find-identity -v -p codesigning "$keychain_path"
+
+      - name: Package macOS app
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          package_env=(
+            "GOCUS_BUILD=develop-${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}"
+            "GOCUS_VERSION=${{ steps.meta.outputs.version }}"
+          )
+
+          if [[ "${{ steps.release_mode.outputs.signing_enabled }}" == "true" ]]; then
+            package_env+=("CODESIGN_IDENTITY=$MACOS_CODESIGN_IDENTITY")
+          fi
+
+          env "${package_env[@]}" npm run package:mac:release
+
+      - name: Notarize and staple app
+        if: steps.release_mode.outputs.notarize_enabled == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          app_path="release/macos/Gocus.app"
+          zip_path="$(ls release/macos/*-mac-*.zip)"
+
+          xcrun notarytool submit "$zip_path" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --wait
+          xcrun stapler staple "$app_path"
+          xcrun stapler validate "$app_path"
+          spctl --assess --type execute --verbose=4 "$app_path"
+
+          rm -f "$zip_path"
+          zip_name="$(basename "$zip_path")"
+          (cd release/macos && /usr/bin/ditto -c -k --keepParent "Gocus.app" "$zip_name")
+
+      - name: Verify release bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          codesign --verify --deep --strict --verbose=2 "release/macos/Gocus.app"
+          if [[ "${{ steps.release_mode.outputs.notarize_enabled }}" == "true" ]]; then
+            spctl --assess --type execute --verbose=4 "release/macos/Gocus.app"
+          else
+            echo "::notice::Skipping Gatekeeper assessment because notarization is disabled for this candidate."
+          fi
+
+      - name: Generate candidate metadata
+        env:
+          RELEASE_VERSION: ${{ steps.meta.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd release/macos
+          for artifact in *-mac-*.zip; do
+            shasum -a 256 "$artifact" >"$artifact.sha256"
+          done
+
+          {
+            echo "# Gocus ${RELEASE_VERSION} develop candidate"
+            echo
+            echo "Source branch: develop"
+            echo "Source commit: ${GITHUB_SHA}"
+            echo
+            echo "macOS candidate artifact:"
+            echo
+            for artifact in *-mac-*.zip; do
+              echo "- $artifact"
+            done
+            echo
+            if [[ "${{ steps.release_mode.outputs.notarize_enabled }}" == "true" ]]; then
+              echo "This app bundle was Developer ID signed, notarized, stapled, and validated with Gatekeeper before packaging."
+            elif [[ "${{ steps.release_mode.outputs.signing_enabled }}" == "true" ]]; then
+              echo "This app bundle was Developer ID signed, but notarization was not enabled for this candidate."
+            else
+              echo "This candidate uses ad hoc signing and is not a public distribution build."
+            fi
+            echo
+            echo "Changes since the latest reachable tag:"
+            latest_tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+            if [[ -n "$latest_tag" ]]; then
+              git log --pretty="- %s (%h)" "$latest_tag..HEAD"
+            else
+              git log --pretty="- %s (%h)" HEAD
+            fi
+          } >"Gocus-${RELEASE_VERSION}-develop-notes.md"
+
+      - name: Verify candidate artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd release/macos
+          for checksum in *.sha256; do
+            shasum -a 256 -c "$checksum"
+          done
+          ls -lh
+
+      - name: Upload develop candidate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gocus-develop-macos-${{ steps.meta.outputs.version }}
+          path: |
+            release/macos/*-mac-*.zip
+            release/macos/*.sha256
+            release/macos/*develop-notes.md
+
+      - name: Delete signing keychain
+        if: always() && steps.release_mode.outputs.signing_enabled == 'true'
+        run: /usr/bin/security delete-keychain "$RUNNER_TEMP/gocus-develop-signing.keychain-db" || true
