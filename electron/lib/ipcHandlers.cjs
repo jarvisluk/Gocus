@@ -1,6 +1,7 @@
 function registerIpcHandlers({
   buildMenus,
   checkout,
+  checkForUpdates,
   chooseRepository,
   clearRepositoryPath,
   cleanupWorktree,
@@ -46,6 +47,7 @@ function registerIpcHandlers({
   setPinnedWindow,
   setTemporaryInfoPanel,
   syncAutoUpdates,
+  syncDockIcon,
   syncLaunchAtLogin,
   syncMenuBarIcon,
   syncNativeThemeSource,
@@ -55,7 +57,13 @@ function registerIpcHandlers({
   });
 
   ipcMain.handle("git:switchRepository", async (_event, repositoryPath, view) => {
-    return openRepositoryPath(repositoryPath, normalizeRepositorySwitchView(view), "Unable to open the saved working folder.");
+    const response = await openRepositoryPath(
+      repositoryPath,
+      normalizeRepositorySwitchView(view),
+      "Unable to open the saved working folder.",
+    );
+    sendSnapshotResponse(response, "repository");
+    return response;
   });
 
   ipcMain.handle("git:getRecentRepositories", () => {
@@ -75,7 +83,7 @@ function registerIpcHandlers({
       const result = await initializeRepository(repositoryPath, normalizeView(view));
       saveRepositoryPath(result.snapshot.repoPath, result.snapshot.repositoryKey);
       buildMenus();
-      sendSnapshotResponse({ ok: true, snapshot: result.snapshot });
+      sendSnapshotResponse({ ok: true, snapshot: result.snapshot }, "repository");
       return {
         ok: true,
         message: result.gitIgnoreCreated
@@ -101,7 +109,7 @@ function registerIpcHandlers({
     try {
       const snapshot = await createBranch(repositoryPath, branchName, startPoint, normalizeView(view));
       saveRepositoryPath(snapshot.repoPath, snapshot.repositoryKey);
-      sendSnapshotResponse({ ok: true, snapshot });
+      sendSnapshotResponse({ ok: true, snapshot }, "action");
       return { ok: true, message: `Created branch ${branchName}.`, snapshot };
     } catch (error) {
       return errorResponse(error, "Unable to create branch.");
@@ -116,14 +124,14 @@ function registerIpcHandlers({
     try {
       const snapshot = await merge(repositoryPath, ref, targetBranch, normalizedView, options);
       saveRepositoryPath(snapshot.repoPath, snapshot.repositoryKey);
-      sendSnapshotResponse({ ok: true, snapshot });
+      sendSnapshotResponse({ ok: true, snapshot }, "action");
       return { ok: true, message: `Merged into ${targetBranch}.`, snapshot };
     } catch (error) {
       const response = errorResponse(error, "Unable to merge ref.");
       const snapshotResponse = await getSnapshotResponse(normalizedView);
       if (!snapshotResponse.ok) return response;
 
-      sendSnapshotResponse(snapshotResponse);
+      sendSnapshotResponse(snapshotResponse, "refresh");
       return { ...response, snapshot: snapshotResponse.snapshot };
     }
   });
@@ -135,7 +143,7 @@ function registerIpcHandlers({
     try {
       const snapshot = await checkout(repositoryPath, ref, normalizeView(view));
       saveRepositoryPath(snapshot.repoPath, snapshot.repositoryKey);
-      sendSnapshotResponse({ ok: true, snapshot });
+      sendSnapshotResponse({ ok: true, snapshot }, "action");
       return { ok: true, message: `Checked out ${snapshot.branch.name}.`, snapshot };
     } catch (error) {
       return errorResponse(error, "Unable to checkout ref.");
@@ -151,7 +159,7 @@ function registerIpcHandlers({
       setCurrentView(snapshot.view);
       saveRepositoryPath(snapshot.repoPath, snapshot.repositoryKey);
       buildMenus();
-      sendSnapshotResponse({ ok: true, snapshot });
+      sendSnapshotResponse({ ok: true, snapshot }, "repository");
       return {
         ok: true,
         message: `Opened ${snapshot.branch.detached ? "detached worktree" : `${snapshot.branch.name} worktree`}.`,
@@ -170,7 +178,7 @@ function registerIpcHandlers({
       const snapshot = await cleanupWorktree(repositoryPath, worktreePath, normalizeView(view));
       saveRepositoryPath(snapshot.repoPath, snapshot.repositoryKey);
       buildMenus();
-      sendSnapshotResponse({ ok: true, snapshot });
+      sendSnapshotResponse({ ok: true, snapshot }, "action");
       return {
         ok: true,
         message: "Cleaned up worktree.",
@@ -205,6 +213,10 @@ function registerIpcHandlers({
     openWorkspaceFileMenu(event.sender, payload);
   });
 
+  ipcMain.handle("updates:check", () => {
+    return checkForUpdates();
+  });
+
   ipcMain.handle("preferences:get", () => {
     return readPreferences();
   });
@@ -222,6 +234,7 @@ function registerIpcHandlers({
 
     if (sideEffects.syncLaunchAtLogin) syncLaunchAtLogin(savedConfigPreferences);
     if (sideEffects.syncMenuBarIcon) syncMenuBarIcon(savedConfigPreferences);
+    if (sideEffects.syncDockIcon) syncDockIcon(savedConfigPreferences);
     if (sideEffects.syncAutoUpdates) syncAutoUpdates(savedConfigPreferences);
 
     const savedPreferences = readPreferences();
@@ -288,6 +301,7 @@ function preferencesSaveSideEffects(previousEffectivePreferences, previousConfig
   return {
     syncLaunchAtLogin: Boolean(previousEffectivePreferences.launchAtLogin) !== Boolean(savedConfigPreferences.launchAtLogin),
     syncMenuBarIcon: Boolean(previousConfigPreferences.showMenuBarIcon) !== Boolean(savedConfigPreferences.showMenuBarIcon),
+    syncDockIcon: Boolean(previousConfigPreferences.showDockIcon) !== Boolean(savedConfigPreferences.showDockIcon),
     syncAutoUpdates:
       Boolean(previousConfigPreferences.autoUpdateChecks) !== Boolean(savedConfigPreferences.autoUpdateChecks) ||
       Boolean(previousConfigPreferences.autoUpdateInstall) !== Boolean(savedConfigPreferences.autoUpdateInstall),

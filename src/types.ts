@@ -51,6 +51,7 @@ export interface UiPreferences {
   graphStyle: "solid" | "soft";
   workspaceOpenTargets: WorkspaceOpenTarget[];
   showMenuBarIcon: boolean;
+  showDockIcon: boolean;
   launchAtLogin: boolean;
   autoUpdateChecks: boolean;
   autoUpdateInstall: boolean;
@@ -256,10 +257,25 @@ export interface GitSnapshot {
   isSample: boolean;
 }
 
+export type SnapshotUpdateSource = "refresh" | "repository" | "action";
+
 export type SnapshotResponse =
-  | { ok: true; snapshot: GitSnapshot }
-  | { ok: false; reason: "not_git_repository"; error?: string; canceled?: boolean; folder: FolderWithoutGit }
-  | { ok: false; error?: string; canceled?: boolean; reason?: "not_configured" | "invalid_repository" | "read_failed" };
+  | { ok: true; snapshot: GitSnapshot; updateSource?: SnapshotUpdateSource }
+  | {
+      ok: false;
+      reason: "not_git_repository";
+      error?: string;
+      canceled?: boolean;
+      folder: FolderWithoutGit;
+      updateSource?: SnapshotUpdateSource;
+    }
+  | {
+      ok: false;
+      error?: string;
+      canceled?: boolean;
+      reason?: "not_configured" | "invalid_repository" | "read_failed";
+      updateSource?: SnapshotUpdateSource;
+    };
 
 export type ActionResponse =
   | { ok: true; message?: string; snapshot?: GitSnapshot }

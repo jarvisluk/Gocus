@@ -832,6 +832,7 @@ function testIpcHandlersModule() {
   const preferences = {
     launchAtLogin: false,
     showMenuBarIcon: true,
+    showDockIcon: true,
     autoUpdateChecks: true,
     autoUpdateInstall: false,
   };
@@ -841,6 +842,7 @@ function testIpcHandlersModule() {
     {
       syncLaunchAtLogin: false,
       syncMenuBarIcon: false,
+      syncDockIcon: false,
       syncAutoUpdates: false,
     },
   );
@@ -849,6 +851,7 @@ function testIpcHandlersModule() {
     {
       syncLaunchAtLogin: true,
       syncMenuBarIcon: false,
+      syncDockIcon: false,
       syncAutoUpdates: false,
     },
   );
@@ -857,6 +860,16 @@ function testIpcHandlersModule() {
     {
       syncLaunchAtLogin: false,
       syncMenuBarIcon: true,
+      syncDockIcon: false,
+      syncAutoUpdates: false,
+    },
+  );
+  assert.deepEqual(
+    preferencesSaveSideEffects(preferences, preferences, { ...preferences, showDockIcon: false }),
+    {
+      syncLaunchAtLogin: false,
+      syncMenuBarIcon: false,
+      syncDockIcon: true,
       syncAutoUpdates: false,
     },
   );
@@ -865,6 +878,7 @@ function testIpcHandlersModule() {
     {
       syncLaunchAtLogin: false,
       syncMenuBarIcon: false,
+      syncDockIcon: false,
       syncAutoUpdates: true,
     },
   );
@@ -873,6 +887,7 @@ function testIpcHandlersModule() {
     {
       syncLaunchAtLogin: false,
       syncMenuBarIcon: false,
+      syncDockIcon: false,
       syncAutoUpdates: true,
     },
   );
@@ -901,6 +916,7 @@ function testConfigStoreModule() {
     assert.equal(config.readActiveWorkspaceOpenTarget(), "vscode");
     assert.equal(config.readPreferences().autoUpdateChecks, true);
     assert.equal(config.readPreferences().autoUpdateInstall, false);
+    assert.equal(config.readPreferences().showDockIcon, true);
 
     config.saveActiveWorkspaceOpenTarget("finder");
     assert.equal(config.readActiveWorkspaceOpenTarget(), "finder");
@@ -3769,6 +3785,7 @@ async function testPreferences(server) {
       graphStyle: "wire",
       workspaceOpenTargets: ["codex", "codex", "bad", "terminal"],
       showMenuBarIcon: false,
+      showDockIcon: false,
       launchAtLogin: "yes",
       autoUpdateChecks: "yes",
       autoUpdateInstall: true,
@@ -3783,6 +3800,7 @@ async function testPreferences(server) {
       fontFamily: "mono",
       workspaceOpenTargets: ["codex", "terminal"],
       showMenuBarIcon: false,
+      showDockIcon: false,
       autoUpdateInstall: true,
       createMergeCommit: false,
       promptLanguage: "zh",
@@ -4252,9 +4270,12 @@ async function testSettingsPanelView(server) {
       rows: {
         updates: "Auto update",
         install: "Auto install",
+        check: "Manual",
       },
       autoUpdateChecksAriaLabel: "Automatically check for updates",
       autoUpdateInstallAriaLabel: "Automatically install updates",
+      checkForUpdatesAriaLabel: "Check for updates",
+      checkForUpdatesLabel: "Check now",
     },
     appearance: {
       titleId: "settings-appearance-title",
@@ -4284,12 +4305,14 @@ async function testSettingsPanelView(server) {
         refresh: "Refresh",
         startup: "Startup",
         menuBar: "Menu bar",
+        dock: "Dock",
         merge: "No-FF",
         prompt: "Prompt",
       },
       autoRefreshAriaLabel: "Auto refresh interval",
       launchAtLoginAriaLabel: "Launch at login",
       showMenuBarIconAriaLabel: "Show menu bar icon",
+      showDockIconAriaLabel: "Show Dock icon",
       createMergeCommitAriaLabel: "Disable fast-forward merges",
     },
     workspace: {
@@ -4350,7 +4373,9 @@ async function testSettingsPanelView(server) {
       launchAtLoginToggleClassName: "ui-toggle settings-launch-at-login-toggle",
       autoUpdateChecksToggleClassName: "ui-toggle settings-auto-update-checks-toggle",
       autoUpdateInstallToggleClassName: "ui-toggle settings-auto-update-install-toggle",
+      manualUpdateButtonClassName: "ui-button settings-check-updates",
       menuBarIconToggleClassName: "ui-toggle settings-menu-bar-icon-toggle",
+      dockIconToggleClassName: "ui-toggle settings-dock-icon-toggle",
       mergeCommitToggleClassName: "ui-toggle settings-merge-commit-toggle",
       disclosureFrameClassName: "ui-select-frame ui-disclosure-frame",
       disclosureButtonClassName: "ui-disclosure-button",

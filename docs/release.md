@@ -36,6 +36,26 @@ moving a public tag.
 - `prerelease`: only applies when `create_release` is enabled.
 - `notarize`: `auto` uses notarization only when all Apple secrets exist.
 
+## Develop Candidate Flow
+
+The `Develop Release Candidate` workflow builds candidate artifacts from
+`develop` without creating GitHub Releases or tags. It runs automatically on
+pushes to `develop` and can also be started manually from Actions.
+
+- Manual `version` is optional. If omitted, CI derives
+  `<package patch + 1>-dev.<run number>`, such as `0.1.2-dev.123`.
+- `notarize`: `auto` uses notarization only when all Apple secrets exist.
+- Artifacts are uploaded to the workflow run as
+  `gocus-develop-macos-<version>`.
+
+Use this workflow for internal validation before merging `develop` into `main`.
+The official auto-update feed still comes only from public GitHub Releases
+created by the main/tag release flow.
+
+For manual runs to appear in the Actions UI, the workflow file must exist on
+the repository's default branch. Push-triggered candidate builds run once the
+workflow file exists on `develop`.
+
 ## Tag Release Flow
 
 1. Sync `main` with `origin/main`.

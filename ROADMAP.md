@@ -22,4 +22,6 @@
  - [ ] a web socket, for using the tool in browser. so can see git tree in codex sidebar
  - [ ] remove some settings like lines, fonts, and theme style (no one would use light theme for coding tools)
  - [x] feat: Auto update. Auto fetch update from github release.
- - [ ] bug: change workspace in top list often fails, flash back into old workspace
+ - [x] bug: change workspace in top list often fails, flash back into old workspace
+ - [x] feat: manual update button
+ - [x] feat: hide dock icon in settings

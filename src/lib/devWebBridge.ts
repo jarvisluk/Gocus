@@ -72,6 +72,7 @@ export function installDevWebBridge() {
       requestBridge("cleanupWorktree", { worktreePath, view }),
     openWorkspace: (target: WorkspaceOpenTarget) => requestBridge("openWorkspace", { target }),
     openWorkspaceFile: (target: WorkspaceOpenTarget, filePath: string) => requestBridge("openWorkspaceFile", { target, filePath }),
+    checkForUpdates: () => requestBridge("checkForUpdates"),
     getAvailableWorkspaceTargets: () => requestBridge("getAvailableWorkspaceTargets"),
     getActiveWorkspaceTarget: async () => requestBridge<WorkspaceOpenTarget>("getActiveWorkspaceTarget"),
     setActiveWorkspaceTarget: async (target: WorkspaceOpenTarget) => {

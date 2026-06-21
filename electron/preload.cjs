@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld("gocus", {
   cleanupWorktree: (worktreePath, view) => ipcRenderer.invoke("git:cleanupWorktree", worktreePath, view),
   openWorkspace: (target) => ipcRenderer.invoke("workspace:open", target),
   openWorkspaceFile: (target, filePath) => ipcRenderer.invoke("workspace:openFile", target, filePath),
+  checkForUpdates: () => ipcRenderer.invoke("updates:check"),
   getAvailableWorkspaceTargets: () => ipcRenderer.invoke("workspace:getAvailableTargets"),
   getActiveWorkspaceTarget: () => ipcRenderer.invoke("workspace:getActiveTarget"),
   setActiveWorkspaceTarget: (target) => ipcRenderer.invoke("workspace:setActiveTarget", target),

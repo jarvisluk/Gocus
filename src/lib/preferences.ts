@@ -10,6 +10,7 @@ export const defaultPreferences: UiPreferences = {
   graphStyle: "solid",
   workspaceOpenTargets: defaultWorkspaceOpenTargets,
   showMenuBarIcon: true,
+  showDockIcon: true,
   launchAtLogin: false,
   autoUpdateChecks: true,
   autoUpdateInstall: false,
@@ -72,6 +73,7 @@ export function mergePreferences(value: Partial<UiPreferences> | null | undefine
     graphStyle: includesValue(graphStyleValues, candidate.graphStyle) ? candidate.graphStyle : defaultPreferences.graphStyle,
     workspaceOpenTargets: sanitizeWorkspaceOpenTargets(candidate.workspaceOpenTargets),
     showMenuBarIcon: typeof candidate.showMenuBarIcon === "boolean" ? candidate.showMenuBarIcon : defaultPreferences.showMenuBarIcon,
+    showDockIcon: typeof candidate.showDockIcon === "boolean" ? candidate.showDockIcon : defaultPreferences.showDockIcon,
     launchAtLogin: typeof candidate.launchAtLogin === "boolean" ? candidate.launchAtLogin : defaultPreferences.launchAtLogin,
     autoUpdateChecks:
       typeof candidate.autoUpdateChecks === "boolean" ? candidate.autoUpdateChecks : defaultPreferences.autoUpdateChecks,
