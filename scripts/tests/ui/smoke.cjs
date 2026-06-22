@@ -872,6 +872,34 @@ async function assertVisibleCommitRowsHaveOwnedGraphNodes(page, label) {
   assert.deepEqual(missingOrMisplacedRows, [], `${label} should align every graph node with its own row`);
 }
 
+async function assertCommitListBackdropAndCollapsedPadding(page) {
+  const metrics = await page.locator(".commit-list").evaluate((list) => {
+    const backdropStyle = getComputedStyle(list, "::before");
+    const collapsedContentPadding = [...list.querySelectorAll(".commit-row:not(.is-selected) .commit-content")].map(
+      (content) => {
+        const style = getComputedStyle(content);
+        return {
+          paddingLeft: style.paddingLeft,
+          paddingRight: style.paddingRight,
+        };
+      },
+    );
+
+    return {
+      backdropAttachment: backdropStyle.backgroundAttachment,
+      collapsedContentPadding,
+    };
+  });
+
+  assert.equal(metrics.backdropAttachment, "fixed", `commit dotted backdrop should not scroll: ${JSON.stringify(metrics)}`);
+  assert.ok(metrics.collapsedContentPadding.length > 0, "commit list should include collapsed rows");
+  assert.deepEqual(
+    metrics.collapsedContentPadding.filter((padding) => padding.paddingLeft !== padding.paddingRight),
+    [],
+    `collapsed commit content should have matching horizontal padding: ${JSON.stringify(metrics)}`,
+  );
+}
+
 async function assertGitActions(page, expectedActions) {
   assert.deepEqual(await page.evaluate(() => window.__gocusActions), expectedActions);
 }
@@ -924,6 +952,7 @@ async function testSelectedCommitGraphAnchor(browser, baseUrl) {
   const { page, errors } = await openMockedPage(browser, baseUrl, mockedSnapshotScenario(graphAnchorCommits));
   try {
     await assertHealthyPage(page, errors);
+    await assertCommitListBackdropAndCollapsedPadding(page);
 
     await page.getByRole("button", { name: /Add commit search polish/ }).click();
     assert.equal(await page.locator(".commit-row.is-selected .commit-title-text").innerText(), "Add commit search polish");
