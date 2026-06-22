@@ -10,7 +10,7 @@ export const defaultPreferences: UiPreferences = {
   graphStyle: "solid",
   workspaceOpenTargets: defaultWorkspaceOpenTargets,
   showMenuBarIcon: true,
-  showDockIcon: true,
+  showDockIcon: false,
   launchAtLogin: false,
   autoUpdateChannel: "stable",
   autoUpdateChecks: true,
