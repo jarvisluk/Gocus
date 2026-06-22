@@ -20,6 +20,7 @@
 .timeline-cell {
   position: relative;
   width: var(--git-tree-rail-width);
+  height: calc(100% + var(--commit-row-gap, 0px));
   min-height: 100%;
   overflow: hidden;
 }

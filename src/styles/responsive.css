@@ -9,11 +9,11 @@
   }
 
   .commit-row {
-    min-height: 60px;
+    min-height: 64px;
   }
 
   .commit-row.is-selected {
-    min-height: 104px;
+    min-height: 108px;
   }
 }
 

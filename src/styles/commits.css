@@ -1,6 +1,7 @@
 .commit-list {
   --git-tree-rail-width: 42px;
   --commit-list-padding-top: 6px;
+  --commit-row-gap: 4px;
   position: relative;
   flex: 1 0 auto;
   isolation: isolate;
@@ -21,7 +22,7 @@
 .commit-empty-state {
   position: relative;
   z-index: 1;
-  min-height: 72px;
+  min-height: 68px;
   display: grid;
   place-items: center;
   padding: 12px;
@@ -38,7 +39,8 @@
   z-index: 1;
   display: grid;
   grid-template-columns: var(--git-tree-rail-width) minmax(0, 1fr);
-  min-height: 64px;
+  min-height: 72px;
+  padding-bottom: var(--commit-row-gap);
   border-radius: var(--radius);
 }
 
@@ -47,7 +49,7 @@
 }
 
 .commit-row.is-selected {
-  min-height: 112px;
+  min-height: 116px;
 }
 
 .commit-content {

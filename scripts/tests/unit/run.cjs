@@ -3144,7 +3144,7 @@ async function testCommitListView(server) {
       endIndex: 2,
       topPadding: 0,
       bottomPadding: 0,
-      totalHeight: 128,
+      totalHeight: 136,
       virtualized: false,
     },
   );
@@ -3157,15 +3157,15 @@ async function testCommitListView(server) {
     }),
     {
       startIndex: 0,
-      endIndex: 13,
+      endIndex: 12,
       topPadding: 0,
-      bottomPadding: 11968,
-      totalHeight: 12800,
+      bottomPadding: 12784,
+      totalHeight: 13600,
       virtualized: true,
     },
   );
-  assert.equal(commitVirtualTotalHeight(200, 10), 12848);
-  assert.equal(commitVirtualRowOffset(11, 200, 10), 752);
+  assert.equal(commitVirtualTotalHeight(200, 10), 13648);
+  assert.equal(commitVirtualRowOffset(11, 200, 10), 796);
   assert.equal(
     commitScrollTopForSelection({
       itemCount: 20,
@@ -3173,7 +3173,7 @@ async function testCommitListView(server) {
       scrollTop: 0,
       viewportHeight: 256,
     }),
-    496,
+    540,
   );
   assert.equal(
     commitScrollTopForSelection({
@@ -3182,7 +3182,7 @@ async function testCommitListView(server) {
       scrollTop: 300,
       viewportHeight: 256,
     }),
-    128,
+    136,
   );
   assert.equal(
     commitScrollTopForSelection({
@@ -3201,7 +3201,7 @@ async function testCommitListView(server) {
       viewportHeight: 256,
       alignment: "center",
     }),
-    568,
+    610,
   );
   assert.equal(
     commitScrollTopForSelection({
@@ -3211,7 +3211,7 @@ async function testCommitListView(server) {
       viewportHeight: 256,
       alignment: "center",
     }),
-    56,
+    66,
   );
   assert.equal(
     commitScrollTopForSelection({
@@ -3221,7 +3221,7 @@ async function testCommitListView(server) {
       viewportHeight: 256,
       listViewportTop: 200,
     }),
-    596,
+    640,
   );
   assert.equal(
     commitScrollTopForSelection({
@@ -3232,7 +3232,7 @@ async function testCommitListView(server) {
       alignment: "center",
       listViewportTop: 200,
     }),
-    668,
+    710,
   );
   assert.equal(
     commitScrollTopForSelection({
@@ -3242,7 +3242,7 @@ async function testCommitListView(server) {
       viewportHeight: 256,
       alignment: "center",
     }),
-    1072,
+    1152,
   );
   assert.equal(
     commitScrollTopForSelection({
@@ -3251,7 +3251,7 @@ async function testCommitListView(server) {
       scrollTop: 0,
       viewportHeight: 256,
     }),
-    1072,
+    1152,
   );
   assert.equal(
     commitScrollTopForSelection({
@@ -3266,16 +3266,16 @@ async function testCommitListView(server) {
     commitVirtualWindow({
       itemCount: 200,
       selectedIndex: 10,
-      scrollTop: 640,
-      viewportHeight: 64,
+      scrollTop: 680,
+      viewportHeight: 68,
       overscanRows: 0,
     }),
     {
       startIndex: 10,
       endIndex: 11,
-      topPadding: 640,
-      bottomPadding: 12096,
-      totalHeight: 12848,
+      topPadding: 680,
+      bottomPadding: 12852,
+      totalHeight: 13648,
       virtualized: true,
     },
   );
@@ -6984,11 +6984,11 @@ async function testClassNamesAndGraph(server) {
     nodeY: 22,
   });
   assert.equal(gitTreeNodeY, 22);
-  assert.equal(gitTreeSelectedRowHeight(), 112);
-  assert.equal(gitTreeCanvasTotalHeight(2, 0), 176);
+  assert.equal(gitTreeSelectedRowHeight(), 116);
+  assert.equal(gitTreeCanvasTotalHeight(2, 0), 184);
   assert.equal(canvasModel.top, 0);
   assert.equal(canvasModel.width, 54);
-  assert.equal(canvasModel.height, 176);
+  assert.equal(canvasModel.height, 184);
   assert.equal(canvasModel.nodes.length, 2);
   assert.deepEqual(canvasModel.nodes[0], {
     id: "commit-a",
@@ -7011,7 +7011,7 @@ async function testClassNamesAndGraph(server) {
   assert.equal(nodeStartedBridgeLine.controlToX, 9);
   assert.equal(nodeStartedBridgeLine.toY, nodeStartedBridgeLine.joinY);
   assert.ok(nodeStartedBridgeLine.controlFromY < nodeStartedBridgeLine.controlToY);
-  assert.ok(nodeStartedBridgeLine.toY < 112);
+  assert.ok(nodeStartedBridgeLine.toY < 116);
   const measuredCanvasModel = buildGitTreeCanvasModel({
     commits: [
       {
@@ -7062,8 +7062,8 @@ async function testClassNamesAndGraph(server) {
       rows: [{ id: "other-commit", top: 0, bottom: 84 }],
     },
   });
-  assert.equal(staleMeasuredCanvasModel.top, 64);
-  assert.equal(staleMeasuredCanvasModel.height, 64);
+  assert.equal(staleMeasuredCanvasModel.top, 68);
+  assert.equal(staleMeasuredCanvasModel.height, 68);
   const laneStartedBridgeCanvasModel = buildGitTreeCanvasModel({
     commits: [
       {
@@ -7104,7 +7104,7 @@ async function testClassNamesAndGraph(server) {
     openBridgeCanvasModel.lines.some(
       (line) =>
         line.kind === "bridge" &&
-        line.toY === 112 &&
+        line.toY === 116 &&
         line.joinY < line.toY &&
         line.startX === line.fromX &&
         line.fromY > 31 &&
