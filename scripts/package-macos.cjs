@@ -44,6 +44,100 @@ function runQuiet(command, args) {
   return result.status === 0 ? result.stdout.trim() : "";
 }
 
+function relativePath(targetPath) {
+  return path.relative(projectRoot, targetPath);
+}
+
+function walkPath(rootPath, visit) {
+  if (!fs.existsSync(rootPath)) return;
+
+  for (const entry of fs.readdirSync(rootPath, { withFileTypes: true })) {
+    const targetPath = path.join(rootPath, entry.name);
+    if (entry.isSymbolicLink()) continue;
+
+    visit(targetPath, entry);
+    if (entry.isDirectory()) walkPath(targetPath, visit);
+  }
+}
+
+function findRegularFiles(rootPath, predicate) {
+  const files = [];
+  walkPath(rootPath, (targetPath, entry) => {
+    if (entry.isFile() && predicate(targetPath)) files.push(targetPath);
+  });
+  return files.sort();
+}
+
+function findBundlePaths(rootPath, extension) {
+  const bundles = [];
+  walkPath(rootPath, (targetPath, entry) => {
+    if (entry.isDirectory() && targetPath.endsWith(extension)) bundles.push(targetPath);
+  });
+  return bundles.sort((a, b) => b.length - a.length);
+}
+
+function pathHasBundleComponent(targetPath, extension, rootPath = "") {
+  const pathToCheck = rootPath ? path.relative(rootPath, targetPath) : targetPath;
+  return pathToCheck.split(path.sep).some((part) => part.endsWith(extension));
+}
+
+function isExecutableFile(targetPath) {
+  try {
+    return (fs.statSync(targetPath).mode & 0o111) !== 0;
+  } catch {
+    return false;
+  }
+}
+
+function isFrameworkMainExecutable(targetPath) {
+  const parts = targetPath.split(path.sep);
+  const frameworkPart = parts.find((part) => part.endsWith(".framework"));
+  if (!frameworkPart) return false;
+
+  const frameworkName = frameworkPart.replace(/\.framework$/, "");
+  return path.basename(targetPath) === frameworkName;
+}
+
+function codeSignPath(identity, targetPath, options = {}) {
+  console.log(`Signing ${relativePath(targetPath)}`);
+  const args = ["--force", "--sign", identity];
+  if (options.hardenedRuntime) args.push("--options", "runtime");
+  if (options.timestamp) args.push("--timestamp");
+  if (options.entitlements) args.push("--entitlements", macosEntitlementsPath);
+  args.push(targetPath);
+  run("/usr/bin/codesign", args);
+}
+
+function signDeveloperIdApp(identity) {
+  const frameworksPath = path.join(appContentsPath, "Frameworks");
+  const signedCodeOptions = {
+    hardenedRuntime: true,
+    timestamp: true,
+  };
+  const appBundleOptions = {
+    ...signedCodeOptions,
+    entitlements: true,
+  };
+
+  const dylibs = findRegularFiles(frameworksPath, (targetPath) => targetPath.endsWith(".dylib"));
+  const frameworkExecutables = findRegularFiles(
+    frameworksPath,
+    (targetPath) =>
+      isExecutableFile(targetPath) &&
+      !targetPath.endsWith(".dylib") &&
+      !pathHasBundleComponent(targetPath, ".app", frameworksPath) &&
+      !isFrameworkMainExecutable(targetPath),
+  );
+  const frameworks = findBundlePaths(frameworksPath, ".framework");
+  const helperApps = findBundlePaths(frameworksPath, ".app");
+
+  for (const dylib of dylibs) codeSignPath(identity, dylib, signedCodeOptions);
+  for (const executable of frameworkExecutables) codeSignPath(identity, executable, signedCodeOptions);
+  for (const framework of frameworks) codeSignPath(identity, framework, signedCodeOptions);
+  for (const helperApp of helperApps) codeSignPath(identity, helperApp, appBundleOptions);
+  codeSignPath(identity, appPath, appBundleOptions);
+}
+
 function sleep(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
@@ -197,12 +291,12 @@ function maybeSignApp() {
   if (process.env.SKIP_CODESIGN === "1") return;
 
   const identity = process.env.CODESIGN_IDENTITY || "-";
-  const args = ["--force", "--deep"];
   if (identity !== "-") {
-    args.push("--options", "runtime", "--timestamp", "--entitlements", macosEntitlementsPath);
+    signDeveloperIdApp(identity);
+    return;
   }
-  args.push("--sign", identity, appPath);
-  run("/usr/bin/codesign", args);
+
+  run("/usr/bin/codesign", ["--force", "--deep", "--sign", identity, appPath]);
 }
 
 function zipApp() {
