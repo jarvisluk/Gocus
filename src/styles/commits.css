@@ -1,12 +1,29 @@
 .commit-list {
   --git-tree-rail-width: 42px;
   --commit-list-padding-top: 6px;
+  --commit-row-gap: 4px;
   position: relative;
+  flex: 1 0 auto;
+  isolation: isolate;
   padding-top: var(--commit-list-padding-top);
 }
 
+.commit-list::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background-image: radial-gradient(var(--border) 0.8px, transparent 0.8px);
+  background-attachment: fixed;
+  background-position: calc(var(--git-tree-rail-width) / 2) var(--commit-list-padding-top);
+  background-size: 12px 12px;
+  pointer-events: none;
+}
+
 .commit-empty-state {
-  min-height: 72px;
+  position: relative;
+  z-index: 1;
+  min-height: 68px;
   display: grid;
   place-items: center;
   padding: 12px;
@@ -23,30 +40,32 @@
   z-index: 1;
   display: grid;
   grid-template-columns: var(--git-tree-rail-width) minmax(0, 1fr);
-  min-height: 64px;
+  min-height: 72px;
+  padding-bottom: var(--commit-row-gap);
   border-radius: var(--radius);
 }
 
 .commit-row:hover .commit-content {
-  background: var(--surface);
+  background: linear-gradient(var(--surface), var(--surface)), var(--panel-solid);
 }
 
 .commit-row.is-selected {
-  min-height: 112px;
+  min-height: 116px;
 }
 
 .commit-content {
   min-width: 0;
-  padding: 9px 0 7px 8px;
+  padding: 9px 10px 7px;
   border-bottom: 1px solid var(--border-soft);
   border-radius: var(--radius);
+  background: var(--panel-solid);
   transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .commit-row.is-selected .commit-content {
   padding: 9px 10px 8px;
   border: 1px solid var(--focus);
-  background: var(--focus-soft);
+  background: linear-gradient(var(--focus-soft), var(--focus-soft)), var(--panel-solid);
   box-shadow: var(--commit-selected-shadow);
 }
 

@@ -7,8 +7,8 @@ export type CommitSearchToggleAction = "open" | "close";
 export type CommitSearchInputKeyAction = "selectFirst" | "close" | "ignore";
 const commitSearchFormId = "commit-search-form";
 export const recentCommitsTitleId = "recent-commits-title";
-export const commitVirtualRowHeight = 64;
-export const selectedCommitVirtualRowHeight = 112;
+export const commitVirtualRowHeight = 68;
+export const selectedCommitVirtualRowHeight = 116;
 export const commitVirtualOverscanRows = 8;
 export const commitVirtualizationThreshold = 120;
 
