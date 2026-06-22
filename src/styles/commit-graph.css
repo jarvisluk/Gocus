@@ -20,11 +20,9 @@
 .timeline-cell {
   position: relative;
   width: var(--git-tree-rail-width);
+  height: calc(100% + var(--commit-row-gap, 0px));
   min-height: 100%;
   overflow: hidden;
-  background-image: radial-gradient(var(--border) 0.8px, transparent 0.8px);
-  background-position: center;
-  background-size: 12px 12px;
 }
 
 .graph-node {
@@ -56,7 +54,7 @@
   background: var(--git-tree-color, var(--main));
 }
 
-:root[data-graph-style="soft"] .timeline-cell {
+:root[data-graph-style="soft"] .commit-list::before {
   background-image: radial-gradient(color-mix(in srgb, var(--border) 52%, transparent) 0.7px, transparent 0.7px);
   background-size: 16px 16px;
 }

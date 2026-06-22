@@ -14,7 +14,7 @@ const {
 } = require("electron");
 const path = require("node:path");
 const packageMetadata = require("../package.json");
-const { createAutoUpdateController } = require("./lib/autoUpdate.cjs");
+const { createAutoUpdateController, releaseUrlForRepository } = require("./lib/autoUpdate.cjs");
 const { createAssetLoader } = require("./lib/assets.cjs");
 const { createConfigStore, defaultActiveWorkspaceOpenTarget } = require("./lib/config.cjs");
 const { registerIpcHandlers } = require("./lib/ipcHandlers.cjs");
@@ -66,7 +66,7 @@ let applyingWindowBounds = false;
 let applyingWindowBoundsTimer = null;
 let expandedWindowSizeSaveTimer = null;
 let realQuitRequested = false;
-let dockHiddenForMenuBarMode = false;
+let dockIconHidden = false;
 let temporaryInfoWindow = null;
 let temporaryInfoPayload = null;
 let changedFileInfoWindow = null;
@@ -134,12 +134,23 @@ function syncAutoUpdates(preferences = config.readPreferences()) {
   }
 }
 
+async function openGitHubReleases() {
+  const releaseUrl = releaseUrlForRepository(autoUpdates.updateRepository());
+  if (!releaseUrl) throw new Error("GitHub Releases URL is unavailable.");
+  await shell.openExternal(releaseUrl);
+}
+
 function shouldStartInMenuBar() {
   return launchAtLogin.shouldStartInMenuBar(config.readPreferences());
 }
 
 function shouldShowMenuBarIcon(preferences = config.readPreferences()) {
   return preferences.showMenuBarIcon !== false;
+}
+
+function shouldShowDockIcon(preferences = config.readPreferences()) {
+  if (!isDevRuntime && !shouldUseMenuBarResidency(preferences)) return true;
+  return preferences.showDockIcon === true;
 }
 
 function shouldUseMenuBarResidency(preferences = config.readPreferences()) {
@@ -149,18 +160,24 @@ function shouldUseMenuBarResidency(preferences = config.readPreferences()) {
 function hideDockIcon() {
   if (process.platform !== "darwin" || !app.dock) return;
   app.dock.hide();
-  dockHiddenForMenuBarMode = true;
+  dockIconHidden = true;
 }
 
 function showDockIcon() {
-  if (process.platform !== "darwin" || !app.dock || !dockHiddenForMenuBarMode) return;
+  if (process.platform !== "darwin" || !app.dock) return;
+  if (!dockIconHidden) {
+    app.dock.setIcon(assets.loadImageAsset("app-icon.png"));
+    return;
+  }
+
   app.dock.show();
   app.dock.setIcon(assets.loadImageAsset("app-icon.png"));
-  dockHiddenForMenuBarMode = false;
+  dockIconHidden = false;
 }
 
 function softQuitToMenuBar() {
-  if (!shouldUseMenuBarResidency()) {
+  const preferences = config.readPreferences();
+  if (!shouldUseMenuBarResidency(preferences)) {
     requestRealQuit();
     return;
   }
@@ -172,7 +189,7 @@ function softQuitToMenuBar() {
     saveCurrentExpandedWindowSize(mainWindow);
     mainWindow.hide();
   }
-  hideDockIcon();
+  syncDockIcon(preferences);
 }
 
 function requestRealQuit() {
@@ -212,7 +229,7 @@ function startRepositoryWatcher(repoPath) {
         const response = await getSnapshotResponse();
         const latestRepository = repositoryPathForAction();
         if (!latestRepository || path.resolve(latestRepository) !== path.resolve(nextWatcher.repositoryPath)) return;
-        sendSnapshotResponse(response);
+        sendSnapshotResponse(response, "refresh");
       },
       { logger: console },
     );
@@ -373,8 +390,13 @@ async function chooseRepository(view = currentView) {
   return openRepositoryPath(result.filePaths[0], view, "The selected folder is not a readable Git repository.");
 }
 
-function sendSnapshotResponse(response) {
-  sendToWindow(mainWindow, "git:snapshotUpdated", response);
+function snapshotResponseWithSource(response, updateSource) {
+  if (!updateSource || !response || typeof response !== "object") return response;
+  return { ...response, updateSource };
+}
+
+function sendSnapshotResponse(response, updateSource) {
+  sendToWindow(mainWindow, "git:snapshotUpdated", snapshotResponseWithSource(response, updateSource));
 }
 
 function sendRepositoryDialogOpen(open) {
@@ -465,7 +487,7 @@ function setActiveWorkspaceOpenTarget(target) {
 
 async function refreshAndSendSnapshot() {
   const response = await getSnapshotResponse();
-  sendSnapshotResponse(response);
+  sendSnapshotResponse(response, "refresh");
   return response;
 }
 
@@ -1030,7 +1052,7 @@ function setPinnedWindow(pinned) {
 }
 
 function showMainWindow() {
-  showDockIcon();
+  syncDockIcon();
   if (!mainWindow || mainWindow.isDestroyed()) {
     createWindow({ showOnReady: true });
     return;
@@ -1163,12 +1185,21 @@ function destroyTray() {
 function syncMenuBarIcon(preferences = config.readPreferences()) {
   if (shouldUseMenuBarResidency(preferences)) {
     createTray();
+  } else {
+    destroyTray();
+  }
+
+  syncDockIcon(preferences);
+  buildMenus();
+}
+
+function syncDockIcon(preferences = config.readPreferences()) {
+  if (shouldShowDockIcon(preferences)) {
+    showDockIcon();
     return;
   }
 
-  destroyTray();
-  showDockIcon();
-  buildMenus();
+  hideDockIcon();
 }
 
 function buildMenus() {
@@ -1177,7 +1208,7 @@ function buildMenus() {
   const activeRepository = repositoryPathForAction();
   const hasRepository = Boolean(activeRepository);
   const recentRepositories = readRecentRepositories();
-  const openFolderAction = async () => sendSnapshotResponse(await chooseRepository());
+  const openFolderAction = async () => sendSnapshotResponse(await chooseRepository(), "repository");
   const refreshAction = async () => refreshAndSendSnapshot();
   const openRecentAction = async (repositoryPath) => {
     sendSnapshotResponse(
@@ -1186,6 +1217,7 @@ function buildMenus() {
         normalizeRepositorySwitchView(currentView),
         "Unable to open the recent working folder.",
       ),
+      "repository",
     );
   };
   const revealAction = () => {
@@ -1194,7 +1226,7 @@ function buildMenus() {
   };
   const clearAction = () => {
     clearRepositoryPath();
-    sendSnapshotResponse(noRepositoryResponse());
+    sendSnapshotResponse(noRepositoryResponse(), "repository");
     buildMenus();
   };
   const updateAction = () => autoUpdates.checkForUpdates({ manual: true });
@@ -1350,6 +1382,7 @@ app.whenReady().then(() => {
     app.dock.setIcon(assets.loadImageAsset("app-icon.png"));
   }
   if (menuBarModeEnabled) createTray();
+  syncDockIcon(preferences);
   if (startInMenuBar) hideDockIcon();
   createWindow({ showOnReady: !startInMenuBar });
   if (currentRepository) startRepositoryWatcher(currentRepository);
@@ -1388,6 +1421,7 @@ app.on("window-all-closed", () => {
 registerIpcHandlers({
   buildMenus,
   checkout,
+  checkForUpdates: () => autoUpdates.checkForUpdates({ manual: true }),
   chooseRepository,
   clearRepositoryPath,
   clipboard,
@@ -1416,6 +1450,7 @@ registerIpcHandlers({
   openWorkspace,
   openWorkspaceFile,
   openWorkspaceFileMenu,
+  openGitHubReleases,
   openWorktree,
   readPreferences,
   readRecentRepositories,
@@ -1435,6 +1470,7 @@ registerIpcHandlers({
   setPinnedWindow,
   setTemporaryInfoPanel,
   syncAutoUpdates,
+  syncDockIcon,
   syncLaunchAtLogin,
   syncMenuBarIcon,
   syncNativeThemeSource,

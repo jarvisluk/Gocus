@@ -23,7 +23,9 @@ const defaultPreferences = {
   graphStyle: "solid",
   workspaceOpenTargets: ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"],
   showMenuBarIcon: true,
+  showDockIcon: false,
   launchAtLogin: false,
+  autoUpdateChannel: "stable",
   autoUpdateChecks: true,
   autoUpdateInstall: false,
   createMergeCommit: true,
@@ -126,6 +128,7 @@ function createDevWebBridgeMiddleware(projectRoot) {
     },
     "/openWorkspace": async (payload) => openWorkspace(repositoryPath, payload.target),
     "/openWorkspaceFile": async (payload) => openWorkspaceFile(repositoryPath, payload.target, payload.filePath),
+    "/checkForUpdates": async () => ({ ok: true }),
     "/getPreferences": async () => preferences,
     "/savePreferences": async (payload) => {
       preferences = { ...defaultPreferences, ...(payload.preferences ?? {}) };

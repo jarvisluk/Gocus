@@ -1,6 +1,19 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Monitor, Moon, RotateCcw, Sun } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Monitor,
+  Moon,
+  RefreshCw,
+  RotateCcw,
+  Sun,
+} from "lucide-react";
+import { runBridgeSideEffect } from "../lib/errorMessages";
 import { autoRefreshIntervalOptions, darkThemePresetOptions, lightThemePresetOptions } from "../lib/preferences";
+import { gitHubReleasesUrl } from "../lib/releaseLinks";
 import {
   settingsPageAfterBack,
   settingsPageAfterEscape,
@@ -123,12 +136,14 @@ export function SettingsPanel({
   preferences,
   availableWorkspaceTargets,
   onChange,
+  onCheckForUpdates,
   onBack,
   onReset,
 }: {
   preferences: UiPreferences;
   availableWorkspaceTargets: WorkspaceOpenTarget[];
   onChange: (preferences: UiPreferences) => void;
+  onCheckForUpdates: () => void;
   onBack: () => void;
   onReset: () => void;
 }) {
@@ -178,6 +193,15 @@ export function SettingsPanel({
     });
   }
 
+  function openGitHubReleases() {
+    if (window.gocus?.openGitHubReleases) {
+      runBridgeSideEffect("Unable to open GitHub Releases.", () => window.gocus?.openGitHubReleases?.());
+      return;
+    }
+
+    window.open(gitHubReleasesUrl, "_blank", "noopener,noreferrer");
+  }
+
   return (
     <section className={view.page.className} aria-labelledby={view.page.ariaLabelledBy}>
       <header className={view.header.className}>
@@ -202,6 +226,25 @@ export function SettingsPanel({
               {sections.app.updatesTitle}
             </h2>
             <div className={view.mainPanel.rowClassName}>
+              <span className={view.mainPanel.labelClassName}>{sections.app.rows.channel}</span>
+              <div className={view.mainPanel.autoUpdateChannelControlClassName}>
+                <div className={view.mainPanel.compactSegmentedClassName} role="group" aria-label={sections.app.autoUpdateChannelAriaLabel}>
+                  {preferenceView.autoUpdateChannelOptions.map((option) => (
+                    <button
+                      className={option.className}
+                      type="button"
+                      aria-pressed={option.ariaPressed}
+                      key={option.value}
+                      onClick={() => onChange({ ...preferences, autoUpdateChannel: option.value })}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <span className={view.mainPanel.autoUpdateChannelDetailClassName}>{preferenceView.autoUpdateChannelDetail}</span>
+              </div>
+            </div>
+            <div className={view.mainPanel.rowClassName}>
               <span className={view.mainPanel.labelClassName}>{sections.app.rows.updates}</span>
               <label className={view.mainPanel.autoUpdateChecksToggleClassName}>
                 <input
@@ -222,6 +265,30 @@ export function SettingsPanel({
                   onChange={(event) => onChange({ ...preferences, autoUpdateInstall: event.target.checked })}
                 />
               </label>
+            </div>
+            <div className={view.mainPanel.rowClassName}>
+              <span className={view.mainPanel.labelClassName}>{sections.app.rows.check}</span>
+              <button
+                className={view.mainPanel.manualUpdateButtonClassName}
+                type="button"
+                aria-label={sections.app.checkForUpdatesAriaLabel}
+                onClick={onCheckForUpdates}
+              >
+                <RefreshCw aria-hidden="true" />
+                <span>{sections.app.checkForUpdatesLabel}</span>
+              </button>
+            </div>
+            <div className={view.mainPanel.rowClassName}>
+              <span className={view.mainPanel.labelClassName}>{sections.app.rows.releases}</span>
+              <button
+                className={view.mainPanel.releaseLinkButtonClassName}
+                type="button"
+                aria-label={sections.app.releaseLinkAriaLabel}
+                onClick={openGitHubReleases}
+              >
+                <ExternalLink aria-hidden="true" />
+                <span>{sections.app.releaseLinkLabel}</span>
+              </button>
             </div>
           </div>
         </div>
@@ -417,6 +484,17 @@ export function SettingsPanel({
                   aria-label={sections.behavior.showMenuBarIconAriaLabel}
                   checked={preferences.showMenuBarIcon}
                   onChange={(event) => onChange({ ...preferences, showMenuBarIcon: event.target.checked })}
+                />
+              </label>
+            </div>
+            <div className={view.mainPanel.rowClassName}>
+              <span className={view.mainPanel.labelClassName}>{sections.behavior.rows.dock}</span>
+              <label className={view.mainPanel.dockIconToggleClassName}>
+                <input
+                  type="checkbox"
+                  aria-label={sections.behavior.showDockIconAriaLabel}
+                  checked={preferences.showDockIcon}
+                  onChange={(event) => onChange({ ...preferences, showDockIcon: event.target.checked })}
                 />
               </label>
             </div>

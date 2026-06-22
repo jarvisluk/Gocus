@@ -9,6 +9,8 @@ const productName = process.env.GOCUS_PRODUCT_NAME || "Gocus";
 const bundleIdentifier = process.env.GOCUS_BUNDLE_ID || "com.junrong.gocus";
 const version = process.env.GOCUS_VERSION || sourcePackage.version || "0.1.0";
 const appArchitecture = process.env.GOCUS_ARCH || process.arch;
+const defaultUpdateChannel = "stable";
+const defaultUpdateRepository = "jarvisluk/gocus";
 const outputRoot = path.join(projectRoot, "release", "macos");
 const appPath = path.join(outputRoot, `${productName}.app`);
 const installedAppPath = path.join("/Applications", `${productName}.app`);
@@ -17,6 +19,7 @@ const appMacOSPath = path.join(appContentsPath, "MacOS");
 const appResourcesPath = path.join(appContentsPath, "Resources");
 const payloadPath = path.join(appResourcesPath, "app");
 const plistPath = path.join(appContentsPath, "Info.plist");
+const macosEntitlementsPath = path.join(projectRoot, "scripts", "macos-entitlements.plist");
 const installedExecutablePath = path.join(installedAppPath, "Contents", "MacOS", productName);
 
 function run(command, args, options = {}) {
@@ -39,6 +42,100 @@ function runQuiet(command, args) {
   });
 
   return result.status === 0 ? result.stdout.trim() : "";
+}
+
+function relativePath(targetPath) {
+  return path.relative(projectRoot, targetPath);
+}
+
+function walkPath(rootPath, visit) {
+  if (!fs.existsSync(rootPath)) return;
+
+  for (const entry of fs.readdirSync(rootPath, { withFileTypes: true })) {
+    const targetPath = path.join(rootPath, entry.name);
+    if (entry.isSymbolicLink()) continue;
+
+    visit(targetPath, entry);
+    if (entry.isDirectory()) walkPath(targetPath, visit);
+  }
+}
+
+function findRegularFiles(rootPath, predicate) {
+  const files = [];
+  walkPath(rootPath, (targetPath, entry) => {
+    if (entry.isFile() && predicate(targetPath)) files.push(targetPath);
+  });
+  return files.sort();
+}
+
+function findBundlePaths(rootPath, extension) {
+  const bundles = [];
+  walkPath(rootPath, (targetPath, entry) => {
+    if (entry.isDirectory() && targetPath.endsWith(extension)) bundles.push(targetPath);
+  });
+  return bundles.sort((a, b) => b.length - a.length);
+}
+
+function pathHasBundleComponent(targetPath, extension, rootPath = "") {
+  const pathToCheck = rootPath ? path.relative(rootPath, targetPath) : targetPath;
+  return pathToCheck.split(path.sep).some((part) => part.endsWith(extension));
+}
+
+function isExecutableFile(targetPath) {
+  try {
+    return (fs.statSync(targetPath).mode & 0o111) !== 0;
+  } catch {
+    return false;
+  }
+}
+
+function isFrameworkMainExecutable(targetPath) {
+  const parts = targetPath.split(path.sep);
+  const frameworkPart = parts.find((part) => part.endsWith(".framework"));
+  if (!frameworkPart) return false;
+
+  const frameworkName = frameworkPart.replace(/\.framework$/, "");
+  return path.basename(targetPath) === frameworkName;
+}
+
+function codeSignPath(identity, targetPath, options = {}) {
+  console.log(`Signing ${relativePath(targetPath)}`);
+  const args = ["--force", "--sign", identity];
+  if (options.hardenedRuntime) args.push("--options", "runtime");
+  if (options.timestamp) args.push("--timestamp");
+  if (options.entitlements) args.push("--entitlements", macosEntitlementsPath);
+  args.push(targetPath);
+  run("/usr/bin/codesign", args);
+}
+
+function signDeveloperIdApp(identity) {
+  const frameworksPath = path.join(appContentsPath, "Frameworks");
+  const signedCodeOptions = {
+    hardenedRuntime: true,
+    timestamp: true,
+  };
+  const appBundleOptions = {
+    ...signedCodeOptions,
+    entitlements: true,
+  };
+
+  const dylibs = findRegularFiles(frameworksPath, (targetPath) => targetPath.endsWith(".dylib"));
+  const frameworkExecutables = findRegularFiles(
+    frameworksPath,
+    (targetPath) =>
+      isExecutableFile(targetPath) &&
+      !targetPath.endsWith(".dylib") &&
+      !pathHasBundleComponent(targetPath, ".app", frameworksPath) &&
+      !isFrameworkMainExecutable(targetPath),
+  );
+  const frameworks = findBundlePaths(frameworksPath, ".framework");
+  const helperApps = findBundlePaths(frameworksPath, ".app");
+
+  for (const dylib of dylibs) codeSignPath(identity, dylib, signedCodeOptions);
+  for (const executable of frameworkExecutables) codeSignPath(identity, executable, signedCodeOptions);
+  for (const framework of frameworks) codeSignPath(identity, framework, signedCodeOptions);
+  for (const helperApp of helperApps) codeSignPath(identity, helperApp, appBundleOptions);
+  codeSignPath(identity, appPath, appBundleOptions);
 }
 
 function sleep(ms) {
@@ -102,6 +199,34 @@ function waitForInstalledAppExit(timeoutMs) {
   return runningInstalledAppPids().length === 0;
 }
 
+function updateChannel() {
+  const channel = (process.env.GOCUS_UPDATE_CHANNEL || defaultUpdateChannel).trim().toLowerCase();
+  return channel === "develop" ? "develop" : "stable";
+}
+
+function readUpdateChannelOverrides() {
+  const rawChannels = process.env.GOCUS_UPDATE_CHANNELS;
+  if (!rawChannels || !rawChannels.trim()) return {};
+
+  const parsed = JSON.parse(rawChannels);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("GOCUS_UPDATE_CHANNELS must be a JSON object.");
+  }
+  return parsed;
+}
+
+function updateChannels() {
+  const channels = {
+    stable: process.env.GOCUS_UPDATE_REPO || defaultUpdateRepository,
+    ...readUpdateChannelOverrides(),
+  };
+
+  if (process.env.GOCUS_UPDATE_STABLE_REPO) channels.stable = process.env.GOCUS_UPDATE_STABLE_REPO;
+  if (process.env.GOCUS_UPDATE_DEVELOP_REPO) channels.develop = process.env.GOCUS_UPDATE_DEVELOP_REPO;
+
+  return channels;
+}
+
 function quitInstalledApp() {
   const pids = runningInstalledAppPids();
   if (pids.length === 0) return false;
@@ -136,6 +261,7 @@ function quitInstalledApp() {
 }
 
 function writePackageManifest() {
+  const channels = updateChannels();
   const manifest = {
     name: sourcePackage.name,
     productName,
@@ -143,7 +269,9 @@ function writePackageManifest() {
     description: sourcePackage.description,
     main: sourcePackage.main,
     repository: sourcePackage.repository,
-    updateRepository: process.env.GOCUS_UPDATE_REPO || "jarvisluk/gocus",
+    updateRepository: channels.stable || defaultUpdateRepository,
+    updateChannel: updateChannel(),
+    updateChannels: channels,
     private: true,
   };
 
@@ -163,6 +291,11 @@ function maybeSignApp() {
   if (process.env.SKIP_CODESIGN === "1") return;
 
   const identity = process.env.CODESIGN_IDENTITY || "-";
+  if (identity !== "-") {
+    signDeveloperIdApp(identity);
+    return;
+  }
+
   run("/usr/bin/codesign", ["--force", "--deep", "--sign", identity, appPath]);
 }
 

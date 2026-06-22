@@ -1,25 +1,16 @@
-name: Release
+name: Develop Release Candidate
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - develop
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version without the leading v, for example 0.2.0"
-        required: true
+        description: "Exact candidate version override, for example 0.2.0-dev.123"
+        required: false
+        default: ""
         type: string
-      create_release:
-        description: "Create or update a GitHub Release"
-        required: false
-        default: false
-        type: boolean
-      prerelease:
-        description: "Mark the GitHub Release as a prerelease"
-        required: false
-        default: false
-        type: boolean
       notarize:
         description: "Use Apple Developer ID signing and notarization"
         required: false
@@ -29,27 +20,37 @@ on:
           - auto
           - "true"
           - "false"
+      publish_update_release:
+        description: "Publish this candidate to the develop auto-update release repository"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
+  group: develop-release-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   macos:
-    name: macOS Release
+    name: macOS Develop Candidate
     runs-on: macos-15
     env:
       INPUT_VERSION: ${{ github.event.inputs.version || '' }}
-      INPUT_CREATE_RELEASE: ${{ github.event.inputs.create_release || 'false' }}
-      INPUT_PRERELEASE: ${{ github.event.inputs.prerelease || 'false' }}
       INPUT_NOTARIZE: ${{ github.event.inputs.notarize || 'auto' }}
+      INPUT_PUBLISH_UPDATE_RELEASE: ${{ github.event.inputs.publish_update_release || 'true' }}
+      DEVELOP_UPDATE_REPOSITORY: jarvisluk/Gocus-Develop-Releases
       GOCUS_BUNDLE_ID: com.junrong.gocus
       GOCUS_PRODUCT_NAME: Gocus
-      GOCUS_UPDATE_CHANNEL: stable
+      GOCUS_UPDATE_CHANNEL: develop
       GOCUS_UPDATE_REPO: jarvisluk/Gocus
+      GOCUS_UPDATE_DEVELOP_REPO: jarvisluk/Gocus-Develop-Releases
+      DEVELOP_RELEASE_TOKEN: ${{ secrets.DEVELOP_RELEASE_TOKEN }}
       MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
       MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
       MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
@@ -64,53 +65,29 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Enforce main release branch
+      - name: Enforce develop branch
         shell: bash
         run: |
           set -euo pipefail
 
-          release_branch="main"
-          git fetch --no-tags --prune origin \
-            "+refs/heads/$release_branch:refs/remotes/origin/$release_branch"
-
-          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            if ! git merge-base --is-ancestor "$GITHUB_SHA" "origin/$release_branch"; then
-              echo "::error::Release tags must point to a commit on origin/$release_branch."
-              exit 2
-            fi
-          elif [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" \
-            && "$INPUT_CREATE_RELEASE" == "true" ]]; then
-            if [[ "$GITHUB_REF_TYPE" != "branch" || "$GITHUB_REF_NAME" != "$release_branch" ]]; then
-              echo "::error::Manual GitHub Release creation must run from $release_branch."
-              exit 2
-            fi
+          if [[ "$GITHUB_REF_TYPE" != "branch" || "$GITHUB_REF_NAME" != "develop" ]]; then
+            echo "::error::Develop release candidates must run from the develop branch."
+            exit 2
           fi
 
-      - name: Resolve release metadata
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Resolve candidate metadata
         id: meta
         shell: bash
         run: |
           set -euo pipefail
 
-          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            version="${GITHUB_REF_NAME#v}"
-            tag="$GITHUB_REF_NAME"
-            create_release="true"
-          else
-            version="$INPUT_VERSION"
-            tag="v$version"
-            create_release="$INPUT_CREATE_RELEASE"
-          fi
-
-          if [[ -z "$version" ]]; then
-            echo "::error::Provide a version input or push a v* tag."
-            exit 2
-          fi
-
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo "::error::Release version must be semver-like: $version."
-            exit 2
-          fi
+          node scripts/resolve-develop-version.cjs
 
           case "$INPUT_NOTARIZE" in
             auto|true|false) ;;
@@ -120,10 +97,6 @@ jobs:
               ;;
           esac
 
-          echo "version=$version" >>"$GITHUB_OUTPUT"
-          echo "tag=$tag" >>"$GITHUB_OUTPUT"
-          echo "create_release=$create_release" >>"$GITHUB_OUTPUT"
-          echo "prerelease=$INPUT_PRERELEASE" >>"$GITHUB_OUTPUT"
           echo "notarize=$INPUT_NOTARIZE" >>"$GITHUB_OUTPUT"
 
       - name: Resolve signing mode
@@ -175,19 +148,13 @@ jobs:
           esac
 
           if [[ "$signing_enabled" == "true" && "$notarize_enabled" != "true" ]]; then
-            echo "::notice::Release will be Developer ID signed but not notarized."
+            echo "::notice::Candidate will be Developer ID signed but not notarized."
           elif [[ "$signing_enabled" != "true" ]]; then
-            echo "::notice::Release will use ad hoc signing."
+            echo "::notice::Candidate will use ad hoc signing."
           fi
 
           echo "signing_enabled=$signing_enabled" >>"$GITHUB_OUTPUT"
           echo "notarize_enabled=$notarize_enabled" >>"$GITHUB_OUTPUT"
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: npm
 
       - name: Install dependencies
         run: |
@@ -213,7 +180,7 @@ jobs:
           set -euo pipefail
 
           certificate_path="$RUNNER_TEMP/developer-id-application.p12"
-          keychain_path="$RUNNER_TEMP/gocus-release-signing.keychain-db"
+          keychain_path="$RUNNER_TEMP/gocus-develop-signing.keychain-db"
           keychain_password="${MACOS_KEYCHAIN_PASSWORD:-$KEYCHAIN_PASSWORD}"
 
           printf '%s' "$MACOS_CERTIFICATE_P12_BASE64" \
@@ -241,8 +208,9 @@ jobs:
           set -euo pipefail
 
           package_env=(
-            "GOCUS_BUILD=$GITHUB_RUN_NUMBER"
+            "GOCUS_BUILD=develop-${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}"
             "GOCUS_VERSION=${{ steps.meta.outputs.version }}"
+            "GOCUS_UPDATE_DEVELOP_REPO=$DEVELOP_UPDATE_REPOSITORY"
           )
 
           if [[ "${{ steps.release_mode.outputs.signing_enabled }}" == "true" ]]; then
@@ -282,12 +250,11 @@ jobs:
           if [[ "${{ steps.release_mode.outputs.notarize_enabled }}" == "true" ]]; then
             spctl --assess --type execute --verbose=4 "release/macos/Gocus.app"
           else
-            echo "::notice::Skipping Gatekeeper assessment because notarization is disabled for this build."
+            echo "::notice::Skipping Gatekeeper assessment because notarization is disabled for this candidate."
           fi
 
-      - name: Generate release metadata
+      - name: Generate candidate metadata
         env:
-          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
           RELEASE_VERSION: ${{ steps.meta.outputs.version }}
         shell: bash
         run: |
@@ -298,17 +265,14 @@ jobs:
             shasum -a 256 "$artifact" >"$artifact.sha256"
           done
 
-          previous_tag="$(git describe --tags --abbrev=0 "${RELEASE_TAG}^" 2>/dev/null || true)"
-          if [[ -n "$previous_tag" ]]; then
-            range="$previous_tag..HEAD"
-          else
-            range="HEAD"
-          fi
-
           {
-            echo "# Gocus ${RELEASE_VERSION}"
+            echo "# Gocus ${RELEASE_VERSION} develop candidate"
             echo
-            echo "macOS release artifact:"
+            echo "Source branch: develop"
+            echo "Source commit: ${GITHUB_SHA}"
+            echo "Update repository: ${DEVELOP_UPDATE_REPOSITORY}"
+            echo
+            echo "macOS candidate artifact:"
             echo
             for artifact in *-mac-*.zip; do
               echo "- $artifact"
@@ -317,16 +281,21 @@ jobs:
             if [[ "${{ steps.release_mode.outputs.notarize_enabled }}" == "true" ]]; then
               echo "This app bundle was Developer ID signed, notarized, stapled, and validated with Gatekeeper before packaging."
             elif [[ "${{ steps.release_mode.outputs.signing_enabled }}" == "true" ]]; then
-              echo "This app bundle was Developer ID signed, but notarization was not enabled for this build."
+              echo "This app bundle was Developer ID signed, but notarization was not enabled for this candidate."
             else
-              echo "This build uses ad hoc signing. Configure Developer ID signing and notarization secrets before treating it as a public macOS distribution build."
+              echo "This candidate uses ad hoc signing and is not a public distribution build."
             fi
             echo
-            echo "Changes:"
-            git log --pretty="- %s (%h)" "$range"
-          } >"Gocus-${RELEASE_VERSION}-release-notes.md"
+            echo "Changes since the latest reachable tag:"
+            latest_tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+            if [[ -n "$latest_tag" ]]; then
+              git log --pretty="- %s (%h)" "$latest_tag..HEAD"
+            else
+              git log --pretty="- %s (%h)" HEAD
+            fi
+          } >"Gocus-${RELEASE_VERSION}-develop-notes.md"
 
-      - name: Verify release artifacts
+      - name: Verify candidate artifacts
         shell: bash
         run: |
           set -euo pipefail
@@ -337,48 +306,59 @@ jobs:
           done
           ls -lh
 
-      - name: Upload workflow artifact
+      - name: Upload develop candidate artifact
         uses: actions/upload-artifact@v4
         with:
-          name: gocus-macos-${{ steps.meta.outputs.version }}
+          name: gocus-develop-macos-${{ steps.meta.outputs.version }}
           path: |
             release/macos/*-mac-*.zip
             release/macos/*.sha256
-            release/macos/*release-notes.md
+            release/macos/*develop-notes.md
 
-      - name: Publish GitHub Release
-        if: steps.meta.outputs.create_release == 'true'
+      - name: Publish develop update release
+        if: env.INPUT_PUBLISH_UPDATE_RELEASE == 'true' && env.DEVELOP_RELEASE_TOKEN != ''
         env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+          GH_TOKEN: ${{ secrets.DEVELOP_RELEASE_TOKEN }}
+          RELEASE_TAG: v${{ steps.meta.outputs.version }}
           RELEASE_VERSION: ${{ steps.meta.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
 
-          notes_file="release/macos/Gocus-${RELEASE_VERSION}-release-notes.md"
+          notes_file="release/macos/Gocus-${RELEASE_VERSION}-develop-notes.md"
           assets=(
             release/macos/*-mac-*.zip
             release/macos/*.sha256
+            release/macos/*develop-notes.md
           )
 
           release_args=(
-            --title "Gocus ${RELEASE_VERSION}"
+            --repo "$DEVELOP_UPDATE_REPOSITORY"
+            --title "Gocus ${RELEASE_VERSION} develop"
             --notes-file "$notes_file"
           )
-          if [[ "${{ steps.meta.outputs.prerelease }}" == "true" ]]; then
-            release_args+=(--prerelease)
+
+          if gh release view "$RELEASE_TAG" --repo "$DEVELOP_UPDATE_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" "${release_args[@]}"
+            gh release upload "$RELEASE_TAG" "${assets[@]}" \
+              --repo "$DEVELOP_UPDATE_REPOSITORY" \
+              --clobber
+          else
+            gh release create "$RELEASE_TAG" "${assets[@]}" "${release_args[@]}"
           fi
 
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release edit "$RELEASE_TAG" "${release_args[@]}"
-            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
-          else
-            gh release create "$RELEASE_TAG" "${assets[@]}" \
-              --target "$GITHUB_SHA" \
-              "${release_args[@]}"
-          fi
+      - name: Report skipped develop update release
+        if: env.INPUT_PUBLISH_UPDATE_RELEASE == 'true' && env.DEVELOP_RELEASE_TOKEN == ''
+        shell: bash
+        run: |
+          echo "::warning::Skipping develop update release because DEVELOP_RELEASE_TOKEN is not configured."
+
+      - name: Report disabled develop update release
+        if: env.INPUT_PUBLISH_UPDATE_RELEASE != 'true'
+        shell: bash
+        run: |
+          echo "::notice::Develop update release publishing was disabled for this run."
 
       - name: Delete signing keychain
         if: always() && steps.release_mode.outputs.signing_enabled == 'true'
-        run: /usr/bin/security delete-keychain "$RUNNER_TEMP/gocus-release-signing.keychain-db" || true
+        run: /usr/bin/security delete-keychain "$RUNNER_TEMP/gocus-develop-signing.keychain-db" || true

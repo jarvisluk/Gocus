@@ -8,6 +8,10 @@ const os = require("node:os");
 const { spawnSync } = require("node:child_process");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
+const {
+  resolveDevelopReleaseVersion,
+  targetVersionFromPackageVersion,
+} = require("../../resolve-develop-version.cjs");
 
 const projectRoot = path.resolve(__dirname, "../../..");
 
@@ -28,6 +32,67 @@ function runGitFixture(cwd, args, options = {}) {
   }
 
   return result.stdout.trim();
+}
+
+function testDevelopReleaseVersionScript() {
+  assert.equal(targetVersionFromPackageVersion("0.1.1"), "0.1.2");
+  assert.equal(targetVersionFromPackageVersion("0.1.1-beta.4"), "0.1.2");
+
+  assert.deepEqual(
+    resolveDevelopReleaseVersion({
+      inputVersion: "0.3.0-dev.7",
+      developNextVersion: "0.2.0",
+      packageVersion: "0.1.1",
+      runNumber: "99",
+    }),
+    {
+      source: "manual",
+      targetVersion: "",
+      version: "0.3.0-dev.7",
+    },
+  );
+  assert.deepEqual(
+    resolveDevelopReleaseVersion({
+      developNextVersion: "0.2.0\n",
+      packageVersion: "0.1.1",
+      runNumber: "42",
+    }),
+    {
+      source: "develop-next-version",
+      targetVersion: "0.2.0",
+      version: "0.2.0-dev.42",
+    },
+  );
+  assert.deepEqual(
+    resolveDevelopReleaseVersion({
+      developNextVersion: "",
+      packageVersion: "0.1.1",
+      runNumber: "9",
+    }),
+    {
+      source: "package-json-patch",
+      targetVersion: "0.1.2",
+      version: "0.1.2-dev.9",
+    },
+  );
+  assert.throws(
+    () =>
+      resolveDevelopReleaseVersion({
+        developNextVersion: "0.2.0-dev.1",
+        packageVersion: "0.1.1",
+        runNumber: "9",
+      }),
+    /Develop target version must be stable semver/,
+  );
+  assert.throws(
+    () =>
+      resolveDevelopReleaseVersion({
+        developNextVersion: "0.2.0",
+        packageVersion: "0.1.1",
+        runNumber: "",
+      }),
+    /GITHUB_RUN_NUMBER is required/,
+  );
 }
 
 function commit(overrides = {}) {
@@ -832,6 +897,8 @@ function testIpcHandlersModule() {
   const preferences = {
     launchAtLogin: false,
     showMenuBarIcon: true,
+    showDockIcon: true,
+    autoUpdateChannel: "stable",
     autoUpdateChecks: true,
     autoUpdateInstall: false,
   };
@@ -841,7 +908,9 @@ function testIpcHandlersModule() {
     {
       syncLaunchAtLogin: false,
       syncMenuBarIcon: false,
+      syncDockIcon: false,
       syncAutoUpdates: false,
+      checkAutoUpdatesNow: false,
     },
   );
   assert.deepEqual(
@@ -849,7 +918,9 @@ function testIpcHandlersModule() {
     {
       syncLaunchAtLogin: true,
       syncMenuBarIcon: false,
+      syncDockIcon: false,
       syncAutoUpdates: false,
+      checkAutoUpdatesNow: false,
     },
   );
   assert.deepEqual(
@@ -857,7 +928,19 @@ function testIpcHandlersModule() {
     {
       syncLaunchAtLogin: false,
       syncMenuBarIcon: true,
+      syncDockIcon: true,
       syncAutoUpdates: false,
+      checkAutoUpdatesNow: false,
+    },
+  );
+  assert.deepEqual(
+    preferencesSaveSideEffects(preferences, preferences, { ...preferences, showDockIcon: false }),
+    {
+      syncLaunchAtLogin: false,
+      syncMenuBarIcon: false,
+      syncDockIcon: true,
+      syncAutoUpdates: false,
+      checkAutoUpdatesNow: false,
     },
   );
   assert.deepEqual(
@@ -865,7 +948,19 @@ function testIpcHandlersModule() {
     {
       syncLaunchAtLogin: false,
       syncMenuBarIcon: false,
+      syncDockIcon: false,
       syncAutoUpdates: true,
+      checkAutoUpdatesNow: false,
+    },
+  );
+  assert.deepEqual(
+    preferencesSaveSideEffects(preferences, preferences, { ...preferences, autoUpdateChannel: "develop" }),
+    {
+      syncLaunchAtLogin: false,
+      syncMenuBarIcon: false,
+      syncDockIcon: false,
+      syncAutoUpdates: true,
+      checkAutoUpdatesNow: true,
     },
   );
   assert.deepEqual(
@@ -873,7 +968,9 @@ function testIpcHandlersModule() {
     {
       syncLaunchAtLogin: false,
       syncMenuBarIcon: false,
+      syncDockIcon: false,
       syncAutoUpdates: true,
+      checkAutoUpdatesNow: false,
     },
   );
 }
@@ -899,8 +996,10 @@ function testConfigStoreModule() {
     assert.equal(sanitizeActiveWorkspaceOpenTarget("unknown"), "vscode");
     assert.equal(sanitizeActiveWorkspaceOpenTarget("unknown", "terminal"), "terminal");
     assert.equal(config.readActiveWorkspaceOpenTarget(), "vscode");
+    assert.equal(config.readPreferences().autoUpdateChannel, "stable");
     assert.equal(config.readPreferences().autoUpdateChecks, true);
     assert.equal(config.readPreferences().autoUpdateInstall, false);
+    assert.equal(config.readPreferences().showDockIcon, false);
 
     config.saveActiveWorkspaceOpenTarget("finder");
     assert.equal(config.readActiveWorkspaceOpenTarget(), "finder");
@@ -916,26 +1015,69 @@ function testConfigStoreModule() {
 
 async function testAutoUpdateModule() {
   const { EventEmitter } = require("node:events");
-  const previousUpdateRepo = process.env.GOCUS_UPDATE_REPO;
-  delete process.env.GOCUS_UPDATE_REPO;
+  const updateEnvNames = [
+    "GOCUS_UPDATE_REPO",
+    "GOCUS_UPDATE_STABLE_REPO",
+    "GOCUS_UPDATE_DEVELOP_REPO",
+    "GOCUS_UPDATE_CHANNEL",
+    "GOCUS_UPDATE_CHANNELS",
+  ];
+  const previousUpdateEnv = Object.fromEntries(updateEnvNames.map((name) => [name, process.env[name]]));
+  for (const name of updateEnvNames) delete process.env[name];
 
   try {
     const {
       autoUpdateSupportReason,
       buildUpdateFeedUrl,
       createAutoUpdateController,
+      defaultChannelSwitchVersion,
+      normalizeUpdateChannel,
       normalizeUpdateRepository,
+      updateChannelFromPackage,
+      updateChannelsFromPackage,
+      releaseUrlForRepository,
       updateRepositoryFromPackage,
+      updateRepositoryForChannel,
     } = require(path.join(projectRoot, "electron/lib/autoUpdate.cjs"));
 
     assert.equal(normalizeUpdateRepository("jarvisluk/gocus"), "jarvisluk/gocus");
     assert.equal(normalizeUpdateRepository("https://github.com/jarvisluk/gocus.git"), "jarvisluk/gocus");
     assert.equal(normalizeUpdateRepository("git@github.com:jarvisluk/gocus.git"), "jarvisluk/gocus");
     assert.equal(normalizeUpdateRepository("https://example.com/jarvisluk/gocus"), "");
+    assert.equal(normalizeUpdateChannel("develop"), "develop");
+    assert.equal(normalizeUpdateChannel("nightly"), "stable");
+    assert.equal(defaultChannelSwitchVersion, "0.0.0");
+    assert.equal(updateChannelFromPackage({ updateChannel: "develop" }), "develop");
     assert.equal(
       updateRepositoryFromPackage({ repository: { url: "git+https://github.com/jarvisluk/gocus.git" } }),
       "jarvisluk/gocus",
     );
+    assert.deepEqual(
+      updateChannelsFromPackage({
+        updateRepository: "jarvisluk/gocus",
+        updateChannels: { develop: "jarvisluk/gocus-develop" },
+      }),
+      {
+        stable: "jarvisluk/gocus",
+        develop: "jarvisluk/gocus-develop",
+      },
+    );
+    assert.equal(
+      updateRepositoryForChannel(
+        {
+          updateRepository: "jarvisluk/gocus",
+          updateChannels: { develop: "jarvisluk/gocus-develop" },
+        },
+        "develop",
+      ),
+      "jarvisluk/gocus-develop",
+    );
+    process.env.GOCUS_UPDATE_CHANNELS = JSON.stringify({ develop: "jarvisluk/gocus-dev-env" });
+    assert.equal(updateRepositoryForChannel({}, "develop"), "jarvisluk/gocus-dev-env");
+    delete process.env.GOCUS_UPDATE_CHANNELS;
+    process.env.GOCUS_UPDATE_DEVELOP_REPO = "jarvisluk/gocus-develop-env";
+    assert.equal(updateRepositoryForChannel({}, "develop"), "jarvisluk/gocus-develop-env");
+    delete process.env.GOCUS_UPDATE_DEVELOP_REPO;
     assert.equal(
       buildUpdateFeedUrl({
         repository: "jarvisluk/gocus",
@@ -945,6 +1087,9 @@ async function testAutoUpdateModule() {
       }),
       "https://update.electronjs.org/jarvisluk/gocus/darwin-arm64/0.2.0",
     );
+    assert.equal(releaseUrlForRepository("jarvisluk/gocus"), "https://github.com/jarvisluk/gocus/releases");
+    assert.equal(releaseUrlForRepository("https://github.com/jarvisluk/gocus.git"), "https://github.com/jarvisluk/gocus/releases");
+    assert.equal(releaseUrlForRepository("https://example.com/jarvisluk/gocus"), "");
     assert.equal(
       autoUpdateSupportReason({
         platform: "darwin",
@@ -1008,7 +1153,10 @@ async function testAutoUpdateModule() {
         info() {},
         warn() {},
       },
-      packageMetadata: { repository: "https://github.com/jarvisluk/gocus.git" },
+      packageMetadata: {
+        repository: "https://github.com/jarvisluk/gocus.git",
+        updateChannels: { develop: "jarvisluk/gocus-develop" },
+      },
       platform: "darwin",
       arch: "arm64",
       isDevRuntime: false,
@@ -1018,6 +1166,9 @@ async function testAutoUpdateModule() {
     });
 
     assert.equal(controller.isSupported(), true);
+    assert.equal(controller.updateChannel(), "stable");
+    assert.equal(controller.updateFeedVersion(), "0.2.0");
+    assert.equal(controller.updateRepository(), "jarvisluk/gocus");
     controller.setPreferences({ autoUpdateChecks: false, autoUpdateInstall: false });
     assert.equal(controller.start(), false);
     assert.equal(controller.isStarted(), false);
@@ -1038,6 +1189,49 @@ async function testAutoUpdateModule() {
     assert.equal(preparedForInstall, true);
     assert.equal(installed, true);
 
+    controller.setPreferences({ autoUpdateChannel: "develop", autoUpdateChecks: true, autoUpdateInstall: false });
+    assert.equal(controller.updateChannel(), "develop");
+    assert.equal(controller.updateFeedVersion(), "0.0.0");
+    assert.equal(controller.updateRepository(), "jarvisluk/gocus-develop");
+    checkedForUpdates = false;
+    assert.equal(controller.checkForUpdates(), true);
+    assert.equal(checkedForUpdates, true);
+    assert.deepEqual(feedOptions, {
+      url: "https://update.electronjs.org/jarvisluk/gocus-develop/darwin-arm64/0.0.0",
+    });
+    events.emit("update-not-available");
+
+    const stableSwitchFeedOptions = [];
+    const installedDevelopController = createAutoUpdateController({
+      app: {
+        isPackaged: true,
+        getVersion: () => "0.2.0-dev.4",
+      },
+      autoUpdater: {
+        setFeedURL(options) {
+          stableSwitchFeedOptions.push(options);
+        },
+        on() {},
+        checkForUpdates() {},
+        quitAndInstall() {},
+      },
+      packageMetadata: {
+        updateChannel: "develop",
+        updateRepository: "jarvisluk/gocus",
+        updateChannels: { develop: "jarvisluk/gocus-develop" },
+      },
+      platform: "darwin",
+      arch: "arm64",
+      isDevRuntime: false,
+    });
+    installedDevelopController.setPreferences({ autoUpdateChannel: "stable", autoUpdateChecks: true });
+    assert.equal(installedDevelopController.updateChannel(), "stable");
+    assert.equal(installedDevelopController.updateFeedVersion(), "0.0.0");
+    assert.equal(installedDevelopController.checkForUpdates(), true);
+    assert.deepEqual(stableSwitchFeedOptions.at(-1), {
+      url: "https://update.electronjs.org/jarvisluk/gocus/darwin-arm64/0.0.0",
+    });
+
     preparedForInstall = false;
     installed = false;
     controller.setPreferences({ autoUpdateChecks: true, autoUpdateInstall: true });
@@ -1047,11 +1241,47 @@ async function testAutoUpdateModule() {
     assert.equal(dialogs.at(-1).message, "Gocus 0.2.1 is ready to install.");
     assert.equal(preparedForInstall, true);
     assert.equal(installed, true);
+
+    const missingChannelDialogs = [];
+    const missingChannelController = createAutoUpdateController({
+      app: {
+        isPackaged: true,
+        getVersion: () => "0.2.0",
+      },
+      autoUpdater: {
+        setFeedURL() {
+          throw new Error("Missing channel feed should not be configured.");
+        },
+        on() {},
+        checkForUpdates() {},
+        quitAndInstall() {},
+      },
+      dialog: {
+        showMessageBox(options) {
+          missingChannelDialogs.push(options);
+          return Promise.resolve({ response: 0 });
+        },
+      },
+      packageMetadata: { updateRepository: "jarvisluk/gocus" },
+      platform: "darwin",
+      arch: "arm64",
+      isDevRuntime: false,
+    });
+    missingChannelController.setPreferences({ autoUpdateChannel: "develop", autoUpdateChecks: true });
+    assert.equal(missingChannelController.isSupported(), false);
+    assert.equal(missingChannelController.supportReason(), "missing_repository");
+    assert.equal(missingChannelController.checkForUpdates({ manual: true }), false);
+    assert.equal(
+      missingChannelDialogs.at(-1).detail,
+      "The develop update channel has no GitHub Releases feed configured for this build.",
+    );
   } finally {
-    if (previousUpdateRepo === undefined) {
-      delete process.env.GOCUS_UPDATE_REPO;
-    } else {
-      process.env.GOCUS_UPDATE_REPO = previousUpdateRepo;
+    for (const [name, value] of Object.entries(previousUpdateEnv)) {
+      if (value === undefined) {
+        delete process.env[name];
+      } else {
+        process.env[name] = value;
+      }
     }
   }
 }
@@ -2983,7 +3213,7 @@ async function testCommitListView(server) {
       endIndex: 2,
       topPadding: 0,
       bottomPadding: 0,
-      totalHeight: 128,
+      totalHeight: 136,
       virtualized: false,
     },
   );
@@ -2996,15 +3226,15 @@ async function testCommitListView(server) {
     }),
     {
       startIndex: 0,
-      endIndex: 13,
+      endIndex: 12,
       topPadding: 0,
-      bottomPadding: 11968,
-      totalHeight: 12800,
+      bottomPadding: 12784,
+      totalHeight: 13600,
       virtualized: true,
     },
   );
-  assert.equal(commitVirtualTotalHeight(200, 10), 12848);
-  assert.equal(commitVirtualRowOffset(11, 200, 10), 752);
+  assert.equal(commitVirtualTotalHeight(200, 10), 13648);
+  assert.equal(commitVirtualRowOffset(11, 200, 10), 796);
   assert.equal(
     commitScrollTopForSelection({
       itemCount: 20,
@@ -3012,7 +3242,7 @@ async function testCommitListView(server) {
       scrollTop: 0,
       viewportHeight: 256,
     }),
-    496,
+    540,
   );
   assert.equal(
     commitScrollTopForSelection({
@@ -3021,7 +3251,7 @@ async function testCommitListView(server) {
       scrollTop: 300,
       viewportHeight: 256,
     }),
-    128,
+    136,
   );
   assert.equal(
     commitScrollTopForSelection({
@@ -3040,7 +3270,7 @@ async function testCommitListView(server) {
       viewportHeight: 256,
       alignment: "center",
     }),
-    568,
+    610,
   );
   assert.equal(
     commitScrollTopForSelection({
@@ -3050,7 +3280,7 @@ async function testCommitListView(server) {
       viewportHeight: 256,
       alignment: "center",
     }),
-    56,
+    66,
   );
   assert.equal(
     commitScrollTopForSelection({
@@ -3060,7 +3290,7 @@ async function testCommitListView(server) {
       viewportHeight: 256,
       listViewportTop: 200,
     }),
-    596,
+    640,
   );
   assert.equal(
     commitScrollTopForSelection({
@@ -3071,7 +3301,7 @@ async function testCommitListView(server) {
       alignment: "center",
       listViewportTop: 200,
     }),
-    668,
+    710,
   );
   assert.equal(
     commitScrollTopForSelection({
@@ -3081,7 +3311,7 @@ async function testCommitListView(server) {
       viewportHeight: 256,
       alignment: "center",
     }),
-    1072,
+    1152,
   );
   assert.equal(
     commitScrollTopForSelection({
@@ -3090,7 +3320,7 @@ async function testCommitListView(server) {
       scrollTop: 0,
       viewportHeight: 256,
     }),
-    1072,
+    1152,
   );
   assert.equal(
     commitScrollTopForSelection({
@@ -3105,16 +3335,16 @@ async function testCommitListView(server) {
     commitVirtualWindow({
       itemCount: 200,
       selectedIndex: 10,
-      scrollTop: 640,
-      viewportHeight: 64,
+      scrollTop: 680,
+      viewportHeight: 68,
       overscanRows: 0,
     }),
     {
       startIndex: 10,
       endIndex: 11,
-      topPadding: 640,
-      bottomPadding: 12096,
-      totalHeight: 12848,
+      topPadding: 680,
+      bottomPadding: 12852,
+      totalHeight: 13648,
       virtualized: true,
     },
   );
@@ -3769,7 +3999,9 @@ async function testPreferences(server) {
       graphStyle: "wire",
       workspaceOpenTargets: ["codex", "codex", "bad", "terminal"],
       showMenuBarIcon: false,
+      showDockIcon: false,
       launchAtLogin: "yes",
+      autoUpdateChannel: "develop",
       autoUpdateChecks: "yes",
       autoUpdateInstall: true,
       createMergeCommit: false,
@@ -3783,11 +4015,14 @@ async function testPreferences(server) {
       fontFamily: "mono",
       workspaceOpenTargets: ["codex", "terminal"],
       showMenuBarIcon: false,
+      showDockIcon: false,
+      autoUpdateChannel: "develop",
       autoUpdateInstall: true,
       createMergeCommit: false,
       promptLanguage: "zh",
     },
   );
+  assert.equal(mergePreferences({ autoUpdateChannel: "nightly" }).autoUpdateChannel, "stable");
   assert.deepEqual(mergePreferences({ workspaceOpenTargets: [] }).workspaceOpenTargets, []);
   assert.deepEqual(mergePreferences({ workspaceOpenTargets: "cursor" }).workspaceOpenTargets, defaultWorkspaceOpenTargets);
   assert.equal(resolveThemePreset({ ...defaultPreferences, lightThemePreset: "mist", darkThemePreset: "cursor" }, "light"), "mist");
@@ -3840,6 +4075,8 @@ async function testWorkspaceOpenOptions(server) {
 
 async function testCollapsedRailView(server) {
   const {
+    collapsedRailBranchLabel,
+    collapsedRailBranchLabelMaxLength,
     collapsedRailBranchColor,
     collapsedRailBranchSlotHeight,
     collapsedRailHeightForBranchName,
@@ -3849,13 +4086,16 @@ async function testCollapsedRailView(server) {
   } = await loadTsModule(server, "src/lib/collapsedRailView.ts");
 
   assert.equal(workingTreeChangeCount({ modified: 2, staged: 3, untracked: 5 }), 10);
+  assert.equal(collapsedRailBranchLabelMaxLength, 20);
+  assert.equal(collapsedRailBranchLabel("feature/collapsed-rail"), "feature/collapsed...");
   assert.equal(collapsedRailBranchSlotHeight("main"), 58);
   assert.equal(collapsedRailHeightForLabel("main"), 136);
   assert.equal(collapsedRailHeightForBranchName("main"), 136);
   assert.equal(collapsedRailHeightForBranchName("fix/worktree-render"), 230);
   assert.equal(collapsedRailBranchSlotHeight("refactor/codebase-optimization"), 229);
-  assert.equal(collapsedRailHeightForBranchName("refactor/codebase-optimization"), 307);
-  assert.equal(collapsedRailHeightForBranchName("feature/super-long-branch-name-v2"), 307);
+  assert.equal(collapsedRailBranchSlotHeight(collapsedRailBranchLabel("refactor/codebase-optimization")), 159);
+  assert.equal(collapsedRailHeightForBranchName("refactor/codebase-optimization"), 237);
+  assert.equal(collapsedRailHeightForBranchName("feature/super-long-branch-name-v2"), 237);
   assert.deepEqual(collapsedRailView(null), {
     className: "collapsed-rail",
     ariaLabel: "Collapsed Gocus",
@@ -3867,7 +4107,7 @@ async function testCollapsedRailView(server) {
     branch: {
       className: "rail-branch",
       label: "Open",
-      title: "Open",
+      title: "",
       ariaLabel: "Open working folder",
       color: undefined,
       icon: "folder",
@@ -3896,8 +4136,8 @@ async function testCollapsedRailView(server) {
       },
       branch: {
         className: "rail-branch",
-        label: "feature/collapsed-rail",
-        title: "feature/collapsed-rail",
+        label: "feature/collapsed...",
+        title: "",
         ariaLabel: "Current branch feature/collapsed-rail",
         color: undefined,
         icon: "branch",
@@ -3941,8 +4181,8 @@ async function testCollapsedRailView(server) {
     }).branch,
     {
       className: "rail-branch",
-      label: "refactor/codebase-optimization",
-      title: "refactor/codebase-optimization",
+      label: "refactor/codebase...",
+      title: "",
       ariaLabel: "Current branch refactor/codebase-optimization",
       color: undefined,
       icon: "branch",
@@ -3955,8 +4195,8 @@ async function testCollapsedRailView(server) {
     }).branch,
     {
       className: "rail-branch",
-      label: "feature/super-long-branch-n...",
-      title: "feature/super-long-branch-name-v2",
+      label: "feature/super-lon...",
+      title: "",
       ariaLabel: "Current branch feature/super-long-branch-name-v2",
       color: undefined,
       icon: "branch",
@@ -4250,11 +4490,19 @@ async function testSettingsPanelView(server) {
       updatesTitleId: "settings-app-updates-title",
       updatesTitle: "Updates",
       rows: {
+        channel: "Channel",
         updates: "Auto update",
         install: "Auto install",
+        check: "Manual",
+        releases: "Release page",
       },
+      autoUpdateChannelAriaLabel: "Update channel",
       autoUpdateChecksAriaLabel: "Automatically check for updates",
       autoUpdateInstallAriaLabel: "Automatically install updates",
+      checkForUpdatesAriaLabel: "Check for updates",
+      checkForUpdatesLabel: "Check now",
+      releaseLinkLabel: "GitHub Releases",
+      releaseLinkAriaLabel: "Open GitHub Releases",
     },
     appearance: {
       titleId: "settings-appearance-title",
@@ -4284,12 +4532,14 @@ async function testSettingsPanelView(server) {
         refresh: "Refresh",
         startup: "Startup",
         menuBar: "Menu bar",
+        dock: "Dock",
         merge: "No-FF",
         prompt: "Prompt",
       },
       autoRefreshAriaLabel: "Auto refresh interval",
       launchAtLoginAriaLabel: "Launch at login",
       showMenuBarIconAriaLabel: "Show menu bar icon",
+      showDockIconAriaLabel: "Show Dock icon",
       createMergeCommitAriaLabel: "Disable fast-forward merges",
     },
     workspace: {
@@ -4350,7 +4600,12 @@ async function testSettingsPanelView(server) {
       launchAtLoginToggleClassName: "ui-toggle settings-launch-at-login-toggle",
       autoUpdateChecksToggleClassName: "ui-toggle settings-auto-update-checks-toggle",
       autoUpdateInstallToggleClassName: "ui-toggle settings-auto-update-install-toggle",
+      autoUpdateChannelControlClassName: "settings-update-channel-control",
+      autoUpdateChannelDetailClassName: "ui-label settings-update-channel-detail",
+      manualUpdateButtonClassName: "ui-button settings-check-updates",
+      releaseLinkButtonClassName: "ui-button settings-release-link",
       menuBarIconToggleClassName: "ui-toggle settings-menu-bar-icon-toggle",
+      dockIconToggleClassName: "ui-toggle settings-dock-icon-toggle",
       mergeCommitToggleClassName: "ui-toggle settings-merge-commit-toggle",
       disclosureFrameClassName: "ui-select-frame ui-disclosure-frame",
       disclosureButtonClassName: "ui-disclosure-button",
@@ -4433,6 +4688,7 @@ async function testSettingsPanelView(server) {
       themeMode: "system",
       density: "comfortable",
       graphStyle: "soft",
+      autoUpdateChannel: "develop",
       promptLanguage: "zh",
     }),
     {
@@ -4453,6 +4709,11 @@ async function testSettingsPanelView(server) {
         { value: "en", label: "English", className: "", ariaPressed: false },
         { value: "zh", label: "中文", className: "is-active", ariaPressed: true },
       ],
+      autoUpdateChannelOptions: [
+        { value: "stable", label: "Stable", className: "", ariaPressed: false },
+        { value: "develop", label: "Develop", className: "is-active", ariaPressed: true },
+      ],
+      autoUpdateChannelDetail: "Latest develop candidate",
       fontFamilyOptions: [
         { value: "system", label: "System" },
         { value: "inter", label: "Inter" },
@@ -4568,11 +4829,13 @@ async function testBridgeAvailability(server) {
 
 async function testDevWebBridge(server) {
   const { devWebBridgeUrl, isLocalDevBridgeHost } = await loadTsModule(server, "src/lib/devWebBridge.ts");
+  const { gitHubReleasesUrl } = await loadTsModule(server, "src/lib/releaseLinks.ts");
 
   assert.equal(isLocalDevBridgeHost("localhost"), true);
   assert.equal(isLocalDevBridgeHost("127.0.0.1"), true);
   assert.equal(isLocalDevBridgeHost("example.com"), false);
   assert.equal(devWebBridgeUrl("getSnapshot"), "/__git_peek_dev_bridge/getSnapshot");
+  assert.equal(gitHubReleasesUrl, "https://github.com/jarvisluk/gocus/releases");
 }
 
 async function testPathAndFileStatus(server) {
@@ -6801,11 +7064,11 @@ async function testClassNamesAndGraph(server) {
     nodeY: 22,
   });
   assert.equal(gitTreeNodeY, 22);
-  assert.equal(gitTreeSelectedRowHeight(), 112);
-  assert.equal(gitTreeCanvasTotalHeight(2, 0), 176);
+  assert.equal(gitTreeSelectedRowHeight(), 116);
+  assert.equal(gitTreeCanvasTotalHeight(2, 0), 184);
   assert.equal(canvasModel.top, 0);
   assert.equal(canvasModel.width, 54);
-  assert.equal(canvasModel.height, 176);
+  assert.equal(canvasModel.height, 184);
   assert.equal(canvasModel.nodes.length, 2);
   assert.deepEqual(canvasModel.nodes[0], {
     id: "commit-a",
@@ -6828,7 +7091,7 @@ async function testClassNamesAndGraph(server) {
   assert.equal(nodeStartedBridgeLine.controlToX, 9);
   assert.equal(nodeStartedBridgeLine.toY, nodeStartedBridgeLine.joinY);
   assert.ok(nodeStartedBridgeLine.controlFromY < nodeStartedBridgeLine.controlToY);
-  assert.ok(nodeStartedBridgeLine.toY < 112);
+  assert.ok(nodeStartedBridgeLine.toY < 116);
   const measuredCanvasModel = buildGitTreeCanvasModel({
     commits: [
       {
@@ -6879,8 +7142,8 @@ async function testClassNamesAndGraph(server) {
       rows: [{ id: "other-commit", top: 0, bottom: 84 }],
     },
   });
-  assert.equal(staleMeasuredCanvasModel.top, 64);
-  assert.equal(staleMeasuredCanvasModel.height, 64);
+  assert.equal(staleMeasuredCanvasModel.top, 68);
+  assert.equal(staleMeasuredCanvasModel.height, 68);
   const laneStartedBridgeCanvasModel = buildGitTreeCanvasModel({
     commits: [
       {
@@ -6921,7 +7184,7 @@ async function testClassNamesAndGraph(server) {
     openBridgeCanvasModel.lines.some(
       (line) =>
         line.kind === "bridge" &&
-        line.toY === 112 &&
+        line.toY === 116 &&
         line.joinY < line.toY &&
         line.startX === line.fromX &&
         line.fromY > 31 &&
@@ -7007,6 +7270,7 @@ async function testClassNamesAndGraph(server) {
 }
 
 async function main() {
+  testDevelopReleaseVersionScript();
   testFileChecksUtility();
   testWorkspaceModule();
   testSourceHygieneScript();

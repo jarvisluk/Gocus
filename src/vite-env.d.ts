@@ -36,10 +36,12 @@ declare global {
       cleanupWorktree: (worktreePath: string, view?: CommitViewSelection) => Promise<ActionResponse>;
       openWorkspace: (target: WorkspaceOpenTarget) => Promise<ActionResponse>;
       openWorkspaceFile: (target: WorkspaceOpenTarget, filePath: string) => Promise<ActionResponse>;
+      checkForUpdates: () => Promise<unknown>;
       getAvailableWorkspaceTargets: () => Promise<WorkspaceOpenTarget[]>;
       getActiveWorkspaceTarget: () => Promise<WorkspaceOpenTarget>;
       setActiveWorkspaceTarget: (target: WorkspaceOpenTarget) => Promise<WorkspaceOpenTarget>;
       openWorkspaceFileMenu: (payload: WorkspaceOpenMenuPayload) => Promise<void>;
+      openGitHubReleases?: () => Promise<void>;
       getPreferences: () => Promise<UiPreferences>;
       savePreferences: (preferences: UiPreferences) => Promise<void>;
       setCollapsed: (collapsed: boolean) => Promise<void>;

@@ -46,6 +46,9 @@ function settingsSegmentOption<T extends string>(
 }
 
 export function settingsPreferencesView(preferences: UiPreferences) {
+  const autoUpdateChannelDetail =
+    preferences.autoUpdateChannel === "develop" ? "Latest develop candidate" : "Latest stable release";
+
   return {
     themeModeOptions: [
       settingsSegmentOption("system", preferences.themeMode, "System", "monitor"),
@@ -64,6 +67,11 @@ export function settingsPreferencesView(preferences: UiPreferences) {
       settingsSegmentOption("en", preferences.promptLanguage, "English"),
       settingsSegmentOption("zh", preferences.promptLanguage, "中文"),
     ],
+    autoUpdateChannelOptions: [
+      settingsSegmentOption("stable", preferences.autoUpdateChannel, "Stable"),
+      settingsSegmentOption("develop", preferences.autoUpdateChannel, "Develop"),
+    ],
+    autoUpdateChannelDetail,
     fontFamilyOptions: [
       { value: "system", label: "System" },
       { value: "inter", label: "Inter" },
@@ -144,7 +152,12 @@ export function settingsPanelView(
       launchAtLoginToggleClassName: "ui-toggle settings-launch-at-login-toggle",
       autoUpdateChecksToggleClassName: "ui-toggle settings-auto-update-checks-toggle",
       autoUpdateInstallToggleClassName: "ui-toggle settings-auto-update-install-toggle",
+      autoUpdateChannelControlClassName: "settings-update-channel-control",
+      autoUpdateChannelDetailClassName: "ui-label settings-update-channel-detail",
+      manualUpdateButtonClassName: "ui-button settings-check-updates",
+      releaseLinkButtonClassName: "ui-button settings-release-link",
       menuBarIconToggleClassName: "ui-toggle settings-menu-bar-icon-toggle",
+      dockIconToggleClassName: "ui-toggle settings-dock-icon-toggle",
       mergeCommitToggleClassName: "ui-toggle settings-merge-commit-toggle",
       disclosureFrameClassName: "ui-select-frame ui-disclosure-frame",
       disclosureButtonClassName: "ui-disclosure-button",
@@ -164,11 +177,19 @@ export function settingsPanelView(
         updatesTitleId: "settings-app-updates-title",
         updatesTitle: "Updates",
         rows: {
+          channel: "Channel",
           updates: "Auto update",
           install: "Auto install",
+          check: "Manual",
+          releases: "Release page",
         },
+        autoUpdateChannelAriaLabel: "Update channel",
         autoUpdateChecksAriaLabel: "Automatically check for updates",
         autoUpdateInstallAriaLabel: "Automatically install updates",
+        checkForUpdatesAriaLabel: "Check for updates",
+        checkForUpdatesLabel: "Check now",
+        releaseLinkLabel: "GitHub Releases",
+        releaseLinkAriaLabel: "Open GitHub Releases",
       },
       appearance: {
         titleId: "settings-appearance-title",
@@ -198,12 +219,14 @@ export function settingsPanelView(
           refresh: "Refresh",
           startup: "Startup",
           menuBar: "Menu bar",
+          dock: "Dock",
           merge: "No-FF",
           prompt: "Prompt",
         },
         autoRefreshAriaLabel: "Auto refresh interval",
         launchAtLoginAriaLabel: "Launch at login",
         showMenuBarIconAriaLabel: "Show menu bar icon",
+        showDockIconAriaLabel: "Show Dock icon",
         createMergeCommitAriaLabel: "Disable fast-forward merges",
       },
       workspace: {

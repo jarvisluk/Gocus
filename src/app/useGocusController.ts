@@ -85,6 +85,8 @@ export function useGocusController() {
   const [actionDialog, setActionDialog] = useState<ActionDialogState | null>(null);
   const [repositoryDialogOpen, setRepositoryDialogOpen] = useState(false);
   const lastGitRequestAtRef = useRef(Date.now());
+  const latestGitRequestIdRef = useRef(0);
+  const currentRepositoryPathRef = useRef("");
   const autoRefreshInFlightRef = useRef(false);
   const electron = isElectronRuntime();
   const { theme, themePreset } = preferencesDocumentThemeView(preferences, systemTheme);
@@ -102,10 +104,32 @@ export function useGocusController() {
     lastGitRequestAtRef.current = Date.now();
   }
 
-  function applySnapshotResponse(response: SnapshotResponse, successNotice: string | null = "Live Git data connected.") {
+  function beginGitRequest() {
+    markGitRequest();
+    latestGitRequestIdRef.current += 1;
+    return latestGitRequestIdRef.current;
+  }
+
+  function applySnapshotResponse(
+    response: SnapshotResponse,
+    successNotice: string | null = "Live Git data connected.",
+    options: { requestId?: number; allowRepositoryChange?: boolean } = {},
+  ) {
+    if (options.requestId !== undefined && options.requestId < latestGitRequestIdRef.current) return;
+    if (
+      response.ok &&
+      response.updateSource === "refresh" &&
+      !options.allowRepositoryChange &&
+      currentRepositoryPathRef.current &&
+      response.snapshot.repoPath !== currentRepositoryPathRef.current
+    ) {
+      return;
+    }
+
     const nextNotice = snapshotResponseNotice(response, successNotice);
 
     if (response.ok) {
+      currentRepositoryPathRef.current = response.snapshot.repoPath;
       setSnapshot(response.snapshot);
       setFolderWithoutGit(null);
       setRecentRepositories((current) => upsertRecentRepository(current, recentRepositoryFromSnapshot(response.snapshot)));
@@ -118,6 +142,8 @@ export function useGocusController() {
     const nextFolderWithoutGit = folderWithoutGitAfterSnapshotResponse(response);
     if (nextFolderWithoutGit === undefined) return;
 
+    if (response.reason === "not_git_repository") currentRepositoryPathRef.current = response.folder.path;
+    if (response.reason === "not_configured") currentRepositoryPathRef.current = "";
     setSnapshot(null);
     setSelectedCommitId((current) => selectedCommitIdAfterSnapshotResponse(response, current));
     setFolderWithoutGit(nextFolderWithoutGit);
@@ -140,7 +166,7 @@ export function useGocusController() {
       return;
     }
 
-    if (options.markActivity !== false) markGitRequest();
+    const requestId = options.markActivity === false ? undefined : beginGitRequest();
     setRefreshing(true);
 
     if (availability.kind === "preview" || !bridge) {
@@ -154,7 +180,7 @@ export function useGocusController() {
 
     try {
       const response = await bridge.refresh(view);
-      applySnapshotResponse(response, options.silent ? null : successNotice);
+      applySnapshotResponse(response, options.silent ? null : successNotice, { requestId });
     } catch (error) {
       setNotice(errorMessage(error, "Unable to refresh Git status."));
     } finally {
@@ -173,11 +199,14 @@ export function useGocusController() {
     const bridge = window.gocus;
     if (blockWithNotice(localFolderBridgeNotice("open", Boolean(bridge))) || !bridge) return;
 
-    markGitRequest();
+    const requestId = beginGitRequest();
     setLoading(true);
     try {
       const response = await bridge.openRepository(commitView);
-      applySnapshotResponse(response, response.ok ? `Opened ${response.snapshot.repoName}.` : undefined);
+      applySnapshotResponse(response, response.ok ? `Opened ${response.snapshot.repoName}.` : undefined, {
+        requestId,
+        allowRepositoryChange: true,
+      });
     } catch (error) {
       setNotice(errorMessage(error, "Unable to open repository."));
     } finally {
@@ -189,11 +218,14 @@ export function useGocusController() {
     const bridge = window.gocus;
     if (blockWithNotice(localFolderBridgeNotice("switch", Boolean(bridge))) || !bridge) return;
 
-    markGitRequest();
+    const requestId = beginGitRequest();
     setRefreshing(true);
     try {
       const response = await bridge.switchRepository(repositoryPath, commitView);
-      applySnapshotResponse(response, response.ok ? `Switched to ${response.snapshot.repoName}.` : "Unable to switch repository.");
+      applySnapshotResponse(response, response.ok ? `Switched to ${response.snapshot.repoName}.` : "Unable to switch repository.", {
+        requestId,
+        allowRepositoryChange: true,
+      });
     } catch (error) {
       setNotice(errorMessage(error, "Unable to switch repository."));
     } finally {
@@ -236,11 +268,11 @@ export function useGocusController() {
       return;
     }
 
-    markGitRequest();
+    const requestId = beginGitRequest();
     setRefreshing(true);
     try {
       const response = await bridge.getSnapshot(nextView);
-      applySnapshotResponse(response, response.ok ? decision.successNotice : "Unable to change commit view.");
+      applySnapshotResponse(response, response.ok ? decision.successNotice : "Unable to change commit view.", { requestId });
     } catch (error) {
       setNotice(errorMessage(error, "Unable to change commit view."));
     } finally {
@@ -249,14 +281,14 @@ export function useGocusController() {
   }
 
   async function runAction(responseRequest: () => Promise<ActionResponse>, fallbackNotice: string, failureNotice = "Action failed.") {
-    markGitRequest();
+    const requestId = beginGitRequest();
     try {
       const response = await responseRequest();
       const nextNotice = actionResponseNotice(response, fallbackNotice, failureNotice);
       const nextSnapshot = actionResponseSnapshot(response);
 
       if (nextSnapshot) {
-        applySnapshotResponse({ ok: true, snapshot: nextSnapshot }, nextNotice);
+        applySnapshotResponse({ ok: true, snapshot: nextSnapshot }, nextNotice, { requestId });
         return;
       }
 
@@ -320,7 +352,7 @@ export function useGocusController() {
         return;
       }
 
-      markGitRequest();
+      const requestId = beginGitRequest();
       let latestResponse: ActionResponse | null = null;
 
       for (const worktreePath of cleanupPaths) {
@@ -332,7 +364,7 @@ export function useGocusController() {
           const nextSnapshot = actionResponseSnapshot(response);
 
           if (nextSnapshot) {
-            applySnapshotResponse({ ok: true, snapshot: nextSnapshot }, nextNotice);
+            applySnapshotResponse({ ok: true, snapshot: nextSnapshot }, nextNotice, { requestId });
           } else if (nextNotice !== null) {
             setNotice(nextNotice);
           }
@@ -344,7 +376,7 @@ export function useGocusController() {
 
       const nextSnapshot = actionResponseSnapshot(latestResponse);
       if (nextSnapshot) {
-        applySnapshotResponse({ ok: true, snapshot: nextSnapshot }, "Cleaned up selected worktrees.");
+        applySnapshotResponse({ ok: true, snapshot: nextSnapshot }, "Cleaned up selected worktrees.", { requestId });
       } else {
         setNotice("Cleaned up selected worktrees.");
       }
@@ -398,7 +430,7 @@ export function useGocusController() {
         return;
       }
 
-      markGitRequest();
+      const requestId = beginGitRequest();
       try {
         const response = await bridge.merge(
           confirmation.ref,
@@ -412,14 +444,14 @@ export function useGocusController() {
         if (response.ok) {
           setActionDialog(null);
           if (nextSnapshot) {
-            applySnapshotResponse({ ok: true, snapshot: nextSnapshot }, nextNotice);
+            applySnapshotResponse({ ok: true, snapshot: nextSnapshot }, nextNotice, { requestId });
             return;
           }
           if (nextNotice !== null) setNotice(nextNotice);
           return;
         }
 
-        if (nextSnapshot) applySnapshotResponse({ ok: true, snapshot: nextSnapshot }, null);
+        if (nextSnapshot) applySnapshotResponse({ ok: true, snapshot: nextSnapshot }, null, { requestId });
         setActionDialog((current) => actionDialogAfterMergeError(current, nextNotice ?? confirmation.failureNotice));
       } catch (error) {
         setActionDialog((current) => actionDialogAfterMergeError(current, errorMessage(error, confirmation.failureNotice)));
@@ -462,6 +494,11 @@ export function useGocusController() {
     runBridgeSideEffect("Unable to dock window.", () => window.gocus?.dockToEdge(collapsed));
   }
 
+  function checkForUpdates() {
+    setNotice("Checking for updates.");
+    runBridgeSideEffect("Unable to check for updates.", () => window.gocus?.checkForUpdates());
+  }
+
   function selectCommit(commitId: string) {
     setSelectedCommitId((current) => selectedCommitIdAfterToggle(current, commitId));
   }
@@ -486,6 +523,7 @@ export function useGocusController() {
   });
   useInitialGitData({
     applySnapshotResponse,
+    beginGitRequest,
     commitView,
     markGitRequest,
     setCollapsed,
@@ -498,6 +536,7 @@ export function useGocusController() {
     actionDialog,
     applySnapshotResponse,
     autoRefreshInFlightRef,
+    beginGitRequest,
     commitView,
     electron,
     hasSnapshot: Boolean(snapshot),
@@ -539,6 +578,7 @@ export function useGocusController() {
     togglePinned,
     setCollapsedState,
     dockCurrentState,
+    checkForUpdates,
     selectCommit,
     handleCommitAction,
     switchBranch,
