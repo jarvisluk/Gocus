@@ -11,6 +11,8 @@
   "scripts": {
     "dev": "node scripts/dev.cjs",
     "dev:web": "vite --host 127.0.0.1 --port 43871",
+    "site:dev": "vite --config website/vite.config.ts --host 127.0.0.1 --port 43872",
+    "site:build": "tsc --project website/tsconfig.json --noEmit && vite build --config website/vite.config.ts",
     "lint": "npm run lint:design && npm run lint:hygiene && npm run lint:node && npm run lint:shell",
     "lint:design": "stylelint \"src/**/*.css\"",
     "lint:hygiene": "node scripts/check-source-hygiene.cjs",
