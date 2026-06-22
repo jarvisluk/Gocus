@@ -143,7 +143,8 @@ function shouldShowMenuBarIcon(preferences = config.readPreferences()) {
 }
 
 function shouldShowDockIcon(preferences = config.readPreferences()) {
-  return preferences.showDockIcon !== false;
+  if (!isDevRuntime && !shouldUseMenuBarResidency(preferences)) return true;
+  return preferences.showDockIcon === true;
 }
 
 function shouldUseMenuBarResidency(preferences = config.readPreferences()) {
@@ -169,7 +170,8 @@ function showDockIcon() {
 }
 
 function softQuitToMenuBar() {
-  if (!shouldUseMenuBarResidency()) {
+  const preferences = config.readPreferences();
+  if (!shouldUseMenuBarResidency(preferences)) {
     requestRealQuit();
     return;
   }
@@ -181,7 +183,7 @@ function softQuitToMenuBar() {
     saveCurrentExpandedWindowSize(mainWindow);
     mainWindow.hide();
   }
-  hideDockIcon();
+  syncDockIcon(preferences);
 }
 
 function requestRealQuit() {
@@ -1044,7 +1046,7 @@ function setPinnedWindow(pinned) {
 }
 
 function showMainWindow() {
-  if (shouldShowDockIcon()) showDockIcon();
+  syncDockIcon();
   if (!mainWindow || mainWindow.isDestroyed()) {
     createWindow({ showOnReady: true });
     return;

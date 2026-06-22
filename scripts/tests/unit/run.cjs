@@ -928,7 +928,7 @@ function testIpcHandlersModule() {
     {
       syncLaunchAtLogin: false,
       syncMenuBarIcon: true,
-      syncDockIcon: false,
+      syncDockIcon: true,
       syncAutoUpdates: false,
       checkAutoUpdatesNow: false,
     },
@@ -999,7 +999,7 @@ function testConfigStoreModule() {
     assert.equal(config.readPreferences().autoUpdateChannel, "stable");
     assert.equal(config.readPreferences().autoUpdateChecks, true);
     assert.equal(config.readPreferences().autoUpdateInstall, false);
-    assert.equal(config.readPreferences().showDockIcon, true);
+    assert.equal(config.readPreferences().showDockIcon, false);
 
     config.saveActiveWorkspaceOpenTarget("finder");
     assert.equal(config.readActiveWorkspaceOpenTarget(), "finder");
