@@ -4006,6 +4006,8 @@ async function testWorkspaceOpenOptions(server) {
 
 async function testCollapsedRailView(server) {
   const {
+    collapsedRailBranchLabel,
+    collapsedRailBranchLabelMaxLength,
     collapsedRailBranchColor,
     collapsedRailBranchSlotHeight,
     collapsedRailHeightForBranchName,
@@ -4015,13 +4017,16 @@ async function testCollapsedRailView(server) {
   } = await loadTsModule(server, "src/lib/collapsedRailView.ts");
 
   assert.equal(workingTreeChangeCount({ modified: 2, staged: 3, untracked: 5 }), 10);
+  assert.equal(collapsedRailBranchLabelMaxLength, 20);
+  assert.equal(collapsedRailBranchLabel("feature/collapsed-rail"), "feature/collapsed...");
   assert.equal(collapsedRailBranchSlotHeight("main"), 58);
   assert.equal(collapsedRailHeightForLabel("main"), 136);
   assert.equal(collapsedRailHeightForBranchName("main"), 136);
   assert.equal(collapsedRailHeightForBranchName("fix/worktree-render"), 230);
   assert.equal(collapsedRailBranchSlotHeight("refactor/codebase-optimization"), 229);
-  assert.equal(collapsedRailHeightForBranchName("refactor/codebase-optimization"), 307);
-  assert.equal(collapsedRailHeightForBranchName("feature/super-long-branch-name-v2"), 307);
+  assert.equal(collapsedRailBranchSlotHeight(collapsedRailBranchLabel("refactor/codebase-optimization")), 159);
+  assert.equal(collapsedRailHeightForBranchName("refactor/codebase-optimization"), 237);
+  assert.equal(collapsedRailHeightForBranchName("feature/super-long-branch-name-v2"), 237);
   assert.deepEqual(collapsedRailView(null), {
     className: "collapsed-rail",
     ariaLabel: "Collapsed Gocus",
@@ -4033,7 +4038,7 @@ async function testCollapsedRailView(server) {
     branch: {
       className: "rail-branch",
       label: "Open",
-      title: "Open",
+      title: "",
       ariaLabel: "Open working folder",
       color: undefined,
       icon: "folder",
@@ -4062,8 +4067,8 @@ async function testCollapsedRailView(server) {
       },
       branch: {
         className: "rail-branch",
-        label: "feature/collapsed-rail",
-        title: "feature/collapsed-rail",
+        label: "feature/collapsed...",
+        title: "",
         ariaLabel: "Current branch feature/collapsed-rail",
         color: undefined,
         icon: "branch",
@@ -4107,8 +4112,8 @@ async function testCollapsedRailView(server) {
     }).branch,
     {
       className: "rail-branch",
-      label: "refactor/codebase-optimization",
-      title: "refactor/codebase-optimization",
+      label: "refactor/codebase...",
+      title: "",
       ariaLabel: "Current branch refactor/codebase-optimization",
       color: undefined,
       icon: "branch",
@@ -4121,8 +4126,8 @@ async function testCollapsedRailView(server) {
     }).branch,
     {
       className: "rail-branch",
-      label: "feature/super-long-branch-n...",
-      title: "feature/super-long-branch-name-v2",
+      label: "feature/super-lon...",
+      title: "",
       ariaLabel: "Current branch feature/super-long-branch-name-v2",
       color: undefined,
       icon: "branch",
