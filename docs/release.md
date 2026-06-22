@@ -109,6 +109,40 @@ Gatekeeper verification will fail before publishing.
 `jarvisluk/Gocus-Develop-Releases`. A fine-grained token limited to that
 repository with Contents read/write permission is preferred.
 
+### Developer ID Signing Setup
+
+Create a **Developer ID Application** certificate in Apple Developer, install it
+in Keychain Access, then export the certificate and private key together as a
+password-protected `.p12`. Convert that file for GitHub Actions:
+
+```bash
+base64 -i DeveloperIDApplication.p12 | pbcopy
+```
+
+Store the copied value as `MACOS_CERTIFICATE_P12_BASE64`, and store the `.p12`
+export password as `MACOS_CERTIFICATE_PASSWORD`. The signing identity must match
+the Keychain identity exactly, for example:
+
+```bash
+security find-identity -v -p codesigning
+```
+
+Use the displayed `Developer ID Application: ... (TEAMID)` value for
+`MACOS_CODESIGN_IDENTITY`.
+
+For notarization, create an app-specific password for the Apple ID and configure
+`APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD`. `MACOS_KEYCHAIN_PASSWORD`
+is optional; CI uses a generated temporary keychain password when it is not set.
+
+After configuring the secrets, run the `Release` or `Develop Release Candidate`
+workflow with `notarize=true` once to fail fast if any credential is incomplete.
+Successful signed builds should pass:
+
+```bash
+codesign --verify --deep --strict --verbose=2 /Applications/Gocus.app
+spctl --assess --type execute --verbose=4 /Applications/Gocus.app
+```
+
 ## Auto Update
 
 Packaged macOS builds check for updates shortly after launch and then

@@ -19,6 +19,7 @@ const appMacOSPath = path.join(appContentsPath, "MacOS");
 const appResourcesPath = path.join(appContentsPath, "Resources");
 const payloadPath = path.join(appResourcesPath, "app");
 const plistPath = path.join(appContentsPath, "Info.plist");
+const macosEntitlementsPath = path.join(projectRoot, "scripts", "macos-entitlements.plist");
 const installedExecutablePath = path.join(installedAppPath, "Contents", "MacOS", productName);
 
 function run(command, args, options = {}) {
@@ -196,7 +197,12 @@ function maybeSignApp() {
   if (process.env.SKIP_CODESIGN === "1") return;
 
   const identity = process.env.CODESIGN_IDENTITY || "-";
-  run("/usr/bin/codesign", ["--force", "--deep", "--sign", identity, appPath]);
+  const args = ["--force", "--deep"];
+  if (identity !== "-") {
+    args.push("--options", "runtime", "--timestamp", "--entitlements", macosEntitlementsPath);
+  }
+  args.push("--sign", identity, appPath);
+  run("/usr/bin/codesign", args);
 }
 
 function zipApp() {
