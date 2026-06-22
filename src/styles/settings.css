@@ -27,10 +27,17 @@
   .settings-launch-at-login-toggle,
   .settings-auto-update-checks-toggle,
   .settings-auto-update-install-toggle,
+  .settings-release-link,
   .settings-menu-bar-icon-toggle,
   .settings-merge-commit-toggle
 ) {
   justify-content: flex-end;
+}
+
+.settings-release-link {
+  justify-self: end;
+  min-height: var(--control-md);
+  padding: 0 var(--space-md);
 }
 
 .settings-refresh-control {

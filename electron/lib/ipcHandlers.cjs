@@ -29,6 +29,7 @@ function registerIpcHandlers({
   openWorkspace,
   openWorkspaceFile,
   openWorkspaceFileMenu,
+  openGitHubReleases,
   openWorktree,
   readPreferences,
   readRecentRepositories,
@@ -204,6 +205,8 @@ function registerIpcHandlers({
   ipcMain.handle("workspace:openFileMenu", (event, payload) => {
     openWorkspaceFileMenu(event.sender, payload);
   });
+
+  ipcMain.handle("app:openGitHubReleases", () => openGitHubReleases());
 
   ipcMain.handle("preferences:get", () => {
     return readPreferences();

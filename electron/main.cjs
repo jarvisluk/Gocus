@@ -14,7 +14,7 @@ const {
 } = require("electron");
 const path = require("node:path");
 const packageMetadata = require("../package.json");
-const { createAutoUpdateController } = require("./lib/autoUpdate.cjs");
+const { createAutoUpdateController, releaseUrlForRepository } = require("./lib/autoUpdate.cjs");
 const { createAssetLoader } = require("./lib/assets.cjs");
 const { createConfigStore, defaultActiveWorkspaceOpenTarget } = require("./lib/config.cjs");
 const { registerIpcHandlers } = require("./lib/ipcHandlers.cjs");
@@ -132,6 +132,12 @@ function syncAutoUpdates(preferences = config.readPreferences()) {
   } else if (!autoUpdates.isStarted()) {
     autoUpdates.start();
   }
+}
+
+async function openGitHubReleases() {
+  const releaseUrl = releaseUrlForRepository(autoUpdates.updateRepository());
+  if (!releaseUrl) throw new Error("GitHub Releases URL is unavailable.");
+  await shell.openExternal(releaseUrl);
 }
 
 function shouldStartInMenuBar() {
@@ -1416,6 +1422,7 @@ registerIpcHandlers({
   openWorkspace,
   openWorkspaceFile,
   openWorkspaceFileMenu,
+  openGitHubReleases,
   openWorktree,
   readPreferences,
   readRecentRepositories,

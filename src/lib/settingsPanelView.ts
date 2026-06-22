@@ -144,6 +144,7 @@ export function settingsPanelView(
       launchAtLoginToggleClassName: "ui-toggle settings-launch-at-login-toggle",
       autoUpdateChecksToggleClassName: "ui-toggle settings-auto-update-checks-toggle",
       autoUpdateInstallToggleClassName: "ui-toggle settings-auto-update-install-toggle",
+      releaseLinkButtonClassName: "ui-button settings-release-link",
       menuBarIconToggleClassName: "ui-toggle settings-menu-bar-icon-toggle",
       mergeCommitToggleClassName: "ui-toggle settings-merge-commit-toggle",
       disclosureFrameClassName: "ui-select-frame ui-disclosure-frame",
@@ -166,9 +167,12 @@ export function settingsPanelView(
         rows: {
           updates: "Auto update",
           install: "Auto install",
+          releases: "Release page",
         },
         autoUpdateChecksAriaLabel: "Automatically check for updates",
         autoUpdateInstallAriaLabel: "Automatically install updates",
+        releaseLinkLabel: "GitHub Releases",
+        releaseLinkAriaLabel: "Open GitHub Releases",
       },
       appearance: {
         titleId: "settings-appearance-title",

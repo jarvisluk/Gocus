@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld("gocus", {
   getActiveWorkspaceTarget: () => ipcRenderer.invoke("workspace:getActiveTarget"),
   setActiveWorkspaceTarget: (target) => ipcRenderer.invoke("workspace:setActiveTarget", target),
   openWorkspaceFileMenu: (payload) => ipcRenderer.invoke("workspace:openFileMenu", payload),
+  openGitHubReleases: () => ipcRenderer.invoke("app:openGitHubReleases"),
   getPreferences: () => ipcRenderer.invoke("preferences:get"),
   savePreferences: (preferences) => ipcRenderer.invoke("preferences:save", preferences),
   setCollapsed: (collapsed) => ipcRenderer.invoke("window:setCollapsed", collapsed),
