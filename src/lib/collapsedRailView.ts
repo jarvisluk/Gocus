@@ -1,7 +1,9 @@
-import { branchDisplayName } from "./branchNames";
+import { branchDisplayName, branchNameMaxLength } from "./branchNames";
 import type { GitSnapshot, WorkingTreeCounts } from "../types";
 
 export type CollapsedRailRepositoryIcon = "branch" | "folder";
+
+export const collapsedRailBranchLabelMaxLength = Math.floor((branchNameMaxLength * 2) / 3);
 
 const collapsedRailTopRowHeight = 30;
 const collapsedRailCountRowHeight = 28;
@@ -35,7 +37,11 @@ export function collapsedRailHeightForLabel(label: string) {
 }
 
 export function collapsedRailHeightForBranchName(branchName: string | undefined) {
-  return collapsedRailHeightForLabel(branchDisplayName(branchName?.trim() || "Open"));
+  return collapsedRailHeightForLabel(collapsedRailBranchLabel(branchName?.trim() || "Open"));
+}
+
+export function collapsedRailBranchLabel(branchName: string) {
+  return branchDisplayName(branchName, collapsedRailBranchLabelMaxLength);
 }
 
 function normalizeBranchColorKey(ref: string) {
@@ -63,6 +69,7 @@ export function collapsedRailView(snapshot: GitSnapshot | null, changedNowOpen =
   const dirtyCount = snapshot ? workingTreeChangeCount(snapshot.counts) : 0;
   const repositoryIcon: CollapsedRailRepositoryIcon = snapshot ? "branch" : "folder";
   const branchName = snapshot?.branch.name ?? "Open";
+  const branchLabel = collapsedRailBranchLabel(branchName);
   const branchColor = collapsedRailBranchColor(snapshot);
   const changedNowLabel = changedNowOpen ? "Close Changed now" : "Open Changed now";
 
@@ -76,8 +83,8 @@ export function collapsedRailView(snapshot: GitSnapshot | null, changedNowOpen =
     },
     branch: {
       className: "rail-branch",
-      label: branchDisplayName(branchName),
-      title: branchName,
+      label: branchLabel,
+      title: "",
       ariaLabel: snapshot ? `Current branch ${branchName}` : "Open working folder",
       color: branchColor,
       icon: repositoryIcon,

@@ -1918,7 +1918,7 @@ async function testCollapsedRailChangedNowToggle(browser, baseUrl) {
     const branchLabel = page.getByLabel(`Current branch ${branchName}`);
     await branchLabel.waitFor();
     assert.equal(await branchLabel.locator("span").innerText(), branchName);
-    assert.equal(await branchLabel.getAttribute("title"), branchName);
+    assert.equal(await branchLabel.getAttribute("title"), "");
 
     const railMetrics = await page.locator(".collapsed-rail").evaluate((rail) => {
       const branch = rail.querySelector(".rail-branch");
