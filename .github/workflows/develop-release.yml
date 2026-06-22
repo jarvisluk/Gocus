@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Candidate version. Leave blank to derive from package.json, for example 0.1.2-dev.123"
+        description: "Exact candidate version override, for example 0.2.0-dev.123"
         required: false
         default: ""
         type: string
@@ -87,22 +87,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          version="$INPUT_VERSION"
-          if [[ -z "$version" ]]; then
-            package_version="$(node -p 'require("./package.json").version')"
-            IFS=. read -r major minor patch_extra <<<"$package_version"
-            patch="${patch_extra%%[-+]*}"
-            if [[ ! "$major" =~ ^[0-9]+$ || ! "$minor" =~ ^[0-9]+$ || ! "$patch" =~ ^[0-9]+$ ]]; then
-              echo "::error::Cannot derive a develop candidate version from package.json version: $package_version"
-              exit 2
-            fi
-            version="$major.$minor.$((patch + 1))-dev.$GITHUB_RUN_NUMBER"
-          fi
-
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo "::error::Candidate version must be semver-like: $version."
-            exit 2
-          fi
+          node scripts/resolve-develop-version.cjs
 
           case "$INPUT_NOTARIZE" in
             auto|true|false) ;;
@@ -112,7 +97,6 @@ jobs:
               ;;
           esac
 
-          echo "version=$version" >>"$GITHUB_OUTPUT"
           echo "notarize=$INPUT_NOTARIZE" >>"$GITHUB_OUTPUT"
 
       - name: Resolve signing mode

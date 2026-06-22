@@ -8,6 +8,10 @@ const os = require("node:os");
 const { spawnSync } = require("node:child_process");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
+const {
+  resolveDevelopReleaseVersion,
+  targetVersionFromPackageVersion,
+} = require("../../resolve-develop-version.cjs");
 
 const projectRoot = path.resolve(__dirname, "../../..");
 
@@ -28,6 +32,67 @@ function runGitFixture(cwd, args, options = {}) {
   }
 
   return result.stdout.trim();
+}
+
+function testDevelopReleaseVersionScript() {
+  assert.equal(targetVersionFromPackageVersion("0.1.1"), "0.1.2");
+  assert.equal(targetVersionFromPackageVersion("0.1.1-beta.4"), "0.1.2");
+
+  assert.deepEqual(
+    resolveDevelopReleaseVersion({
+      inputVersion: "0.3.0-dev.7",
+      developNextVersion: "0.2.0",
+      packageVersion: "0.1.1",
+      runNumber: "99",
+    }),
+    {
+      source: "manual",
+      targetVersion: "",
+      version: "0.3.0-dev.7",
+    },
+  );
+  assert.deepEqual(
+    resolveDevelopReleaseVersion({
+      developNextVersion: "0.2.0\n",
+      packageVersion: "0.1.1",
+      runNumber: "42",
+    }),
+    {
+      source: "develop-next-version",
+      targetVersion: "0.2.0",
+      version: "0.2.0-dev.42",
+    },
+  );
+  assert.deepEqual(
+    resolveDevelopReleaseVersion({
+      developNextVersion: "",
+      packageVersion: "0.1.1",
+      runNumber: "9",
+    }),
+    {
+      source: "package-json-patch",
+      targetVersion: "0.1.2",
+      version: "0.1.2-dev.9",
+    },
+  );
+  assert.throws(
+    () =>
+      resolveDevelopReleaseVersion({
+        developNextVersion: "0.2.0-dev.1",
+        packageVersion: "0.1.1",
+        runNumber: "9",
+      }),
+    /Develop target version must be stable semver/,
+  );
+  assert.throws(
+    () =>
+      resolveDevelopReleaseVersion({
+        developNextVersion: "0.2.0",
+        packageVersion: "0.1.1",
+        runNumber: "",
+      }),
+    /GITHUB_RUN_NUMBER is required/,
+  );
 }
 
 function commit(overrides = {}) {
@@ -7195,6 +7260,7 @@ async function testClassNamesAndGraph(server) {
 }
 
 async function main() {
+  testDevelopReleaseVersionScript();
   testFileChecksUtility();
   testWorkspaceModule();
   testSourceHygieneScript();

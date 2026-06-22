@@ -50,8 +50,14 @@ Actions.
   develop release candidate automatically.
 - Consecutive pushes to `develop` cancel the older in-progress candidate run
   and keep the newest commit as the release source.
-- Manual `version` is optional. If omitted, CI derives
-  `<package patch + 1>-dev.<run number>`, such as `0.1.2-dev.123`.
+- `.github/develop-next-version` is the target stable version for develop
+  candidates. CI publishes `<target>-dev.<run number>`, such as
+  `0.2.0-dev.123`.
+- To move develop from patch candidates to a larger release train, change
+  `.github/develop-next-version`, for example from `0.1.2` to `0.2.0`, then
+  merge that change into `develop`.
+- Manual `version` is optional. If provided, it is an exact candidate version
+  override and takes precedence over `.github/develop-next-version`.
 - `notarize`: `auto` uses notarization only when all Apple secrets exist.
 - `publish_update_release`: `true` publishes the develop update release when
   `DEVELOP_RELEASE_TOKEN` is configured.
