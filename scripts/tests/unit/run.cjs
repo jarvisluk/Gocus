@@ -1035,6 +1035,7 @@ async function testAutoUpdateModule() {
       normalizeUpdateRepository,
       updateChannelFromPackage,
       updateChannelsFromPackage,
+      releaseUrlForRepository,
       updateRepositoryFromPackage,
       updateRepositoryForChannel,
     } = require(path.join(projectRoot, "electron/lib/autoUpdate.cjs"));
@@ -1086,6 +1087,9 @@ async function testAutoUpdateModule() {
       }),
       "https://update.electronjs.org/jarvisluk/gocus/darwin-arm64/0.2.0",
     );
+    assert.equal(releaseUrlForRepository("jarvisluk/gocus"), "https://github.com/jarvisluk/gocus/releases");
+    assert.equal(releaseUrlForRepository("https://github.com/jarvisluk/gocus.git"), "https://github.com/jarvisluk/gocus/releases");
+    assert.equal(releaseUrlForRepository("https://example.com/jarvisluk/gocus"), "");
     assert.equal(
       autoUpdateSupportReason({
         platform: "darwin",
@@ -4490,12 +4494,15 @@ async function testSettingsPanelView(server) {
         updates: "Auto update",
         install: "Auto install",
         check: "Manual",
+        releases: "Release page",
       },
       autoUpdateChannelAriaLabel: "Update channel",
       autoUpdateChecksAriaLabel: "Automatically check for updates",
       autoUpdateInstallAriaLabel: "Automatically install updates",
       checkForUpdatesAriaLabel: "Check for updates",
       checkForUpdatesLabel: "Check now",
+      releaseLinkLabel: "GitHub Releases",
+      releaseLinkAriaLabel: "Open GitHub Releases",
     },
     appearance: {
       titleId: "settings-appearance-title",
@@ -4596,6 +4603,7 @@ async function testSettingsPanelView(server) {
       autoUpdateChannelControlClassName: "settings-update-channel-control",
       autoUpdateChannelDetailClassName: "ui-label settings-update-channel-detail",
       manualUpdateButtonClassName: "ui-button settings-check-updates",
+      releaseLinkButtonClassName: "ui-button settings-release-link",
       menuBarIconToggleClassName: "ui-toggle settings-menu-bar-icon-toggle",
       dockIconToggleClassName: "ui-toggle settings-dock-icon-toggle",
       mergeCommitToggleClassName: "ui-toggle settings-merge-commit-toggle",
@@ -4821,11 +4829,13 @@ async function testBridgeAvailability(server) {
 
 async function testDevWebBridge(server) {
   const { devWebBridgeUrl, isLocalDevBridgeHost } = await loadTsModule(server, "src/lib/devWebBridge.ts");
+  const { gitHubReleasesUrl } = await loadTsModule(server, "src/lib/releaseLinks.ts");
 
   assert.equal(isLocalDevBridgeHost("localhost"), true);
   assert.equal(isLocalDevBridgeHost("127.0.0.1"), true);
   assert.equal(isLocalDevBridgeHost("example.com"), false);
   assert.equal(devWebBridgeUrl("getSnapshot"), "/__git_peek_dev_bridge/getSnapshot");
+  assert.equal(gitHubReleasesUrl, "https://github.com/jarvisluk/gocus/releases");
 }
 
 async function testPathAndFileStatus(server) {

@@ -8,6 +8,7 @@ import type {
   WorkspaceOpenMenuPayload,
   WorkspaceOpenTarget,
 } from "../types";
+import { gitHubReleasesUrl } from "./releaseLinks";
 import { defaultWorkspaceOpenTarget } from "./workspaceOpenTargets";
 
 const bridgePrefix = "/__git_peek_dev_bridge";
@@ -80,6 +81,9 @@ export function installDevWebBridge() {
       return activeWorkspaceTarget;
     },
     openWorkspaceFileMenu: async (_payload: WorkspaceOpenMenuPayload) => {},
+    openGitHubReleases: async () => {
+      window.open(gitHubReleasesUrl, "_blank", "noopener,noreferrer");
+    },
     getPreferences: () => requestBridge("getPreferences"),
     savePreferences: (preferences: UiPreferences) => requestBridge("savePreferences", { preferences }),
     setCollapsed: async (_collapsed: boolean) => {},

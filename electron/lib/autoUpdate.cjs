@@ -124,6 +124,14 @@ function buildUpdateFeedUrl({
   ].join("/");
 }
 
+function releaseUrlForRepository(repository = defaultUpdateRepository) {
+  const normalizedRepository = normalizeUpdateRepository(repository);
+  if (!normalizedRepository) return "";
+
+  const [owner, repo] = normalizedRepository.split("/");
+  return `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/releases`;
+}
+
 function autoUpdateSupportReason({ platform = process.platform, isPackaged, isDevRuntime, repository } = {}) {
   if (platform !== "darwin") return "unsupported_platform";
   if (isDevRuntime) return "dev_runtime";
@@ -395,6 +403,7 @@ module.exports = {
   defaultUpdateServer,
   normalizeUpdateRepository,
   normalizeUpdateChannel,
+  releaseUrlForRepository,
   updateChannelFromPackage,
   updateChannelsFromPackage,
   updateRepositoryForChannel,

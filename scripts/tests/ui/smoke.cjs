@@ -2616,6 +2616,8 @@ async function testFocusedViewEscapeControls(browser, baseUrl) {
     assert.equal(await page.locator("#settings-panel-title").innerText(), "App");
     assert.equal(await page.getByRole("checkbox", { name: "Automatically check for updates" }).isChecked(), true);
     assert.equal(await page.getByRole("checkbox", { name: "Automatically install updates" }).isChecked(), false);
+    await page.getByRole("button", { name: "Check for updates" }).waitFor();
+    await page.getByRole("button", { name: "Open GitHub Releases" }).waitFor();
     const appToggleLabels = ["Automatically check for updates", "Automatically install updates"];
     const appToggleBounds = await Promise.all(
       appToggleLabels.map(async (name) => {
