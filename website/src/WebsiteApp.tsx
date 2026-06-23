@@ -1,69 +1,16 @@
 import {
   ArrowRight,
   Check,
-  ChevronDown,
   Download,
-  FileCode2,
   FolderOpen,
   GitBranch,
   Github,
   MousePointer2,
-  Pin,
-  RefreshCw,
-  Search,
-  Settings,
   Sparkles,
 } from "lucide-react";
 
 const latestReleaseUrl = "https://github.com/jarvisluk/gocus/releases/latest";
 const releasesUrl = "https://github.com/jarvisluk/gocus/releases";
-
-const commits = [
-  {
-    title: "feat: preview release updates",
-    hash: "4ebb965",
-    time: "13 minutes ago",
-    branch: "main",
-    branchClassName: "branch-main",
-    additions: "+4",
-    deletions: "-3",
-    files: "1",
-    rail: "rail-main",
-  },
-  {
-    title: "ci: add release candidate build",
-    hash: "604d086",
-    time: "2 hours ago",
-    branch: "v0.1.2",
-    branchClassName: "branch-tag",
-    additions: "+402",
-    deletions: "-106",
-    files: "6",
-    rail: "rail-main",
-  },
-  {
-    title: "fix: center selected commit after search",
-    hash: "2b11942",
-    time: "2 hours ago",
-    branch: "",
-    branchClassName: "",
-    additions: "+50",
-    deletions: "-37",
-    files: "1",
-    rail: "rail-main",
-  },
-  {
-    title: "fix: include merged worktree state",
-    hash: "cd4b3ce",
-    time: "40 minutes ago",
-    branch: "feature/settings",
-    branchClassName: "branch-feature",
-    additions: "+72",
-    deletions: "-5",
-    files: "2",
-    rail: "rail-feature",
-  },
-];
 
 const workflow = [
   {
@@ -92,90 +39,10 @@ const features = [
   "Release-channel update links",
 ];
 
-function ProductMockup() {
+function ProductPreview() {
   return (
     <div className="product-frame" aria-label="Gocus app preview">
-      <div className="mock-panel">
-        <header className="mock-header">
-          <img src="/app-icon.png" alt="" className="mock-logo" />
-          <div className="mock-title">
-            <strong>Gocus</strong>
-            <span>/Users/junrong/codesp...</span>
-          </div>
-          <button type="button" aria-label="Repository menu">
-            <ChevronDown />
-          </button>
-          <button type="button" aria-label="Pin panel">
-            <Pin />
-          </button>
-          <button type="button" aria-label="Refresh commits">
-            <RefreshCw />
-          </button>
-        </header>
-
-        <div className="mock-tabs" aria-hidden="true">
-          <span className="is-active">All</span>
-          <span>Current</span>
-          <span>
-            <GitBranch />
-            Branch
-          </span>
-        </div>
-
-        <div className="mock-worktree">
-          <GitBranch />
-          <div>
-            <span>Current worktree</span>
-            <strong>main</strong>
-          </div>
-          <button type="button">
-            3 worktrees
-            <ChevronDown />
-          </button>
-        </div>
-
-        <div className="mock-section-title">
-          <strong>Commits</strong>
-          <span>Showing 298</span>
-          <Search />
-        </div>
-
-        <div className="commit-list" aria-hidden="true">
-          {commits.map((commit) => (
-            <article className="commit-row" key={commit.hash}>
-              <div className={`commit-rail ${commit.rail}`} />
-              <div className="commit-content">
-                <div className="commit-title-line">
-                  <strong>{commit.title}</strong>
-                  {commit.branch ? <span className={`branch-pill ${commit.branchClassName}`}>{commit.branch}</span> : null}
-                </div>
-                <p>
-                  <code>{commit.hash}</code>
-                  <span>{commit.time}</span>
-                </p>
-                <div className="commit-stats">
-                  <span className="additions">{commit.additions}</span>
-                  <span className="deletions">{commit.deletions}</span>
-                  <span>
-                    <FileCode2 />
-                    {commit.files}
-                  </span>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-
-        <footer className="mock-footer">
-          <button type="button" aria-label="Settings">
-            <Settings />
-          </button>
-          <span>Git data updated from menu.</span>
-          <button type="button" className="editor-button" aria-label="Open in editor">
-            <span>VS</span>
-          </button>
-        </footer>
-      </div>
+      <img className="product-screenshot" src="/gocus-overview.png" alt="Gocus commit history panel screenshot" />
     </div>
   );
 }
@@ -223,7 +90,7 @@ export function WebsiteApp() {
             </a>
           </div>
         </div>
-        <ProductMockup />
+        <ProductPreview />
       </section>
 
       <section className="workflow-section" id="workflow" aria-labelledby="workflow-title">

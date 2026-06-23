@@ -232,348 +232,26 @@ svg {
 .product-frame {
   min-width: 0;
   justify-self: end;
-  width: min(430px, 100%);
+  width: min(420px, 100%);
   padding: 12px;
   border: 1px solid var(--border-soft);
   border-radius: var(--radius);
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.08), transparent 36%),
     rgba(255, 255, 255, 0.025);
+  box-shadow: var(--shadow);
+  overflow: hidden;
 }
 
-.mock-panel {
-  min-height: 650px;
-  overflow: hidden;
+.product-screenshot {
+  display: block;
+  width: 100%;
+  height: clamp(620px, 72svh, 740px);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--panel);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(24px) saturate(1.18);
-}
-
-.mock-header {
-  min-height: 72px;
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) repeat(3, 28px);
-  align-items: center;
-  gap: 8px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--border-soft);
-}
-
-.mock-logo {
-  width: 26px;
-  height: 26px;
-  border-radius: var(--radius-sm);
-}
-
-.mock-title {
-  min-width: 0;
-  display: grid;
-  gap: 4px;
-}
-
-.mock-title strong {
-  color: var(--text);
-  font-size: 18px;
-  line-height: 1;
-}
-
-.mock-title span {
-  overflow: hidden;
-  color: var(--text-faint);
-  font-size: 12px;
-  font-weight: 680;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mock-header button,
-.mock-footer button {
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-muted);
-}
-
-.mock-tabs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin: 16px 14px 0;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-
-.mock-tabs span {
-  min-height: 42px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  border-right: 1px solid var(--border-soft);
-  color: var(--text-muted);
-  font-size: 14px;
-  font-weight: 760;
-}
-
-.mock-tabs span:last-child {
-  border-right: 0;
-}
-
-.mock-tabs .is-active {
-  background: var(--surface);
-  color: var(--text);
-}
-
-.mock-worktree {
-  min-height: 74px;
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  margin: 18px 14px 0;
-  padding: 0 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
-
-.mock-worktree > svg {
-  color: var(--text-faint);
-}
-
-.mock-worktree div {
-  min-width: 0;
-  display: grid;
-}
-
-.mock-worktree span {
-  color: var(--text-faint);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.mock-worktree strong {
-  color: var(--text);
-  font-size: 17px;
-  line-height: 1.1;
-}
-
-.mock-worktree button {
-  min-height: 34px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 10px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 760;
-}
-
-.mock-section-title {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto 28px;
-  align-items: center;
-  gap: 10px;
-  padding: 24px 16px 12px;
-  color: var(--text-muted);
-}
-
-.mock-section-title strong {
-  color: var(--text-muted);
-  font-size: 14px;
-}
-
-.mock-section-title span {
-  font-size: 14px;
-}
-
-.mock-section-title svg {
-  color: var(--text-muted);
-}
-
-.commit-list {
-  position: relative;
-  display: grid;
-  gap: 4px;
-  padding: 0 14px 16px;
-}
-
-.commit-list::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 0 14px;
-  background-image: radial-gradient(var(--border-soft) 0.8px, transparent 0.8px);
-  background-position: 21px 0;
-  background-size: 12px 12px;
-  pointer-events: none;
-}
-
-.commit-row {
-  position: relative;
-  z-index: 1;
-  min-height: 86px;
-  display: grid;
-  grid-template-columns: 46px minmax(0, 1fr);
-}
-
-.commit-rail {
-  position: relative;
-}
-
-.commit-rail::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: -4px;
-  left: 21px;
-  width: 4px;
-  border-radius: 999px;
-  background: var(--main);
-}
-
-.commit-rail::after {
-  content: "";
-  position: absolute;
-  top: 29px;
-  left: 13px;
-  width: 20px;
-  height: 20px;
-  border: 4px solid var(--main);
-  border-radius: 999px;
-  background: var(--panel-solid);
-}
-
-.rail-feature::before {
-  background: var(--branch-green);
-}
-
-.rail-feature::after {
-  border-color: var(--branch-green);
-}
-
-.commit-content {
-  min-width: 0;
-  padding: 12px 12px 10px;
-  border-bottom: 1px solid var(--border-soft);
-  border-radius: var(--radius);
-  background: var(--panel-solid);
-}
-
-.commit-title-line {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-}
-
-.commit-title-line strong {
-  overflow: hidden;
-  color: var(--text);
-  font-size: 14px;
-  line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.branch-pill {
-  max-width: 126px;
-  overflow: hidden;
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 760;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.branch-main {
-  background: color-mix(in srgb, var(--main) 24%, transparent);
-  color: var(--main);
-}
-
-.branch-tag {
-  background: color-mix(in srgb, var(--branch-blue) 24%, transparent);
-  color: var(--branch-blue);
-}
-
-.branch-feature {
-  background: color-mix(in srgb, var(--branch-green) 24%, transparent);
-  color: var(--branch-green);
-}
-
-.commit-content p,
-.commit-stats {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 7px 0 0;
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.commit-content code {
-  font-family: var(--mono);
-  font-size: 11px;
-}
-
-.commit-stats {
-  gap: 16px;
-  font-weight: 760;
-}
-
-.commit-stats span {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.additions {
-  color: var(--success);
-}
-
-.deletions {
-  color: var(--danger);
-}
-
-.commit-stats svg {
-  width: 14px;
-  height: 14px;
-}
-
-.mock-footer {
-  min-height: 58px;
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) 40px;
-  align-items: center;
-  gap: 10px;
-  padding: 0 16px;
-  border-top: 1px solid var(--border-soft);
-  color: var(--text-faint);
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.editor-button {
-  border: 1px solid var(--border) !important;
-  background: var(--surface) !important;
-}
-
-.editor-button span {
-  color: var(--branch-blue);
-  font-size: 12px;
-  font-weight: 800;
+  object-fit: cover;
+  object-position: top center;
 }
 
 .workflow-section,
@@ -733,8 +411,8 @@ svg {
     width: 100%;
   }
 
-  .mock-panel {
-    min-height: 610px;
+  .product-screenshot {
+    height: clamp(560px, 74svh, 660px);
   }
 
   .workflow-grid,
@@ -788,54 +466,8 @@ svg {
     padding: 6px;
   }
 
-  .mock-panel {
-    min-height: 580px;
-  }
-
-  .mock-header {
-    grid-template-columns: 30px minmax(0, 1fr) repeat(2, 28px);
-  }
-
-  .mock-header button:first-of-type {
-    display: none;
-  }
-
-  .mock-worktree {
-    grid-template-columns: 24px minmax(0, 1fr);
-  }
-
-  .mock-worktree button {
-    display: none;
-  }
-
-  .mock-section-title {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .mock-section-title svg {
-    display: none;
-  }
-
-  .commit-row {
-    grid-template-columns: 34px minmax(0, 1fr);
-  }
-
-  .commit-rail::before {
-    left: 15px;
-  }
-
-  .commit-rail::after {
-    left: 7px;
-  }
-
-  .commit-title-line {
-    grid-template-columns: 1fr;
-    gap: 5px;
-  }
-
-  .branch-pill {
-    max-width: 100%;
-    justify-self: start;
+  .product-screenshot {
+    height: 560px;
   }
 
   .workflow-section,
