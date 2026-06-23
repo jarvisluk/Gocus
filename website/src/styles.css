@@ -118,15 +118,15 @@ svg {
 }
 
 .brand {
-  gap: 8px;
+  gap: 10px;
   color: var(--text);
   font-size: 14px;
   font-weight: 760;
 }
 
 .brand img {
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   border-radius: var(--radius-sm);
 }
 
@@ -166,17 +166,16 @@ svg {
 }
 
 .hero-section {
-  min-height: calc(100svh - 148px);
   display: grid;
   grid-template-columns: minmax(0, 0.92fr) minmax(320px, 0.58fr);
   align-items: start;
-  gap: 56px;
-  padding: 88px 0 74px;
+  gap: 48px;
+  padding: 72px 0 24px;
 }
 
 .hero-copy {
   min-width: 0;
-  padding-top: clamp(112px, 17svh, 188px);
+  padding-top: clamp(88px, 14svh, 132px);
 }
 
 .hero-copy h1 {
@@ -243,8 +242,8 @@ svg {
 
 .product-frame {
   min-width: 0;
-  justify-self: center;
-  width: min(320px, 100%);
+  justify-self: end;
+  width: min(300px, 100%);
 }
 
 .product-screenshot {
@@ -257,6 +256,11 @@ svg {
 .feature-section,
 .download-section {
   padding: 62px 0;
+}
+
+.workflow-section {
+  margin-top: -104px;
+  padding-top: 42px;
 }
 
 .section-heading {
@@ -419,6 +423,10 @@ svg {
   .feature-panel ul,
   .download-section {
     grid-template-columns: 1fr;
+  }
+
+  .workflow-section {
+    margin-top: 0;
   }
 
   .download-section .primary-cta {

@@ -51,7 +51,7 @@ function WebsiteHeader() {
   return (
     <header className="site-header">
       <a className="brand" href="#top" aria-label="Gocus home">
-        <img src="/app-icon.png" alt="" />
+        <img src="/site-icon.png" alt="" />
         <span>Gocus</span>
       </a>
       <nav aria-label="Website navigation">
