@@ -232,26 +232,13 @@ svg {
 .product-frame {
   min-width: 0;
   justify-self: end;
-  width: min(420px, 100%);
-  padding: 12px;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius);
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.08), transparent 36%),
-    rgba(255, 255, 255, 0.025);
-  box-shadow: var(--shadow);
-  overflow: hidden;
+  width: min(390px, 100%);
 }
 
 .product-screenshot {
   display: block;
   width: 100%;
-  height: clamp(620px, 72svh, 740px);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--panel);
-  object-fit: cover;
-  object-position: top center;
+  height: auto;
 }
 
 .workflow-section,
@@ -407,12 +394,8 @@ svg {
   }
 
   .product-frame {
-    justify-self: stretch;
-    width: 100%;
-  }
-
-  .product-screenshot {
-    height: clamp(560px, 74svh, 660px);
+    justify-self: center;
+    width: min(390px, 100%);
   }
 
   .workflow-grid,
@@ -460,14 +443,6 @@ svg {
   .secondary-cta {
     width: 100%;
     justify-content: center;
-  }
-
-  .product-frame {
-    padding: 6px;
-  }
-
-  .product-screenshot {
-    height: 560px;
   }
 
   .workflow-section,
