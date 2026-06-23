@@ -170,7 +170,7 @@ svg {
   grid-template-columns: minmax(0, 0.92fr) minmax(320px, 0.58fr);
   align-items: start;
   gap: 48px;
-  padding: 72px 0 24px;
+  padding: 72px 0 24px clamp(52px, 5vw, 68px);
 }
 
 .hero-copy {
