@@ -291,6 +291,49 @@ function testFileChecksUtility() {
   }
 }
 
+function testSecretScanScript() {
+  const {
+    collectSecretScanFiles,
+    findSecretFindingsInContent,
+    formatFinding,
+    lineNumberFromIndex,
+    runSecretScan,
+  } = require(path.join(projectRoot, "scripts/check-secrets.cjs"));
+
+  assert.equal(lineNumberFromIndex("one\ntwo\nthree\n", 4), 2);
+  assert.deepEqual(
+    findSecretFindingsInContent(
+      "fixture.txt",
+      [
+        "safe reference: secrets.DEVELOP_RELEASE_TOKEN",
+        `aws=${"AKIA"}${"ABCDEFGHIJKLMNOP"}`,
+        `openai=${"sk-"}${"abcdefghijklmnopqrstuvwxyz"}`,
+        `key=${"-----BEGIN OPENSSH"}${" PRIVATE KEY-----"}`,
+      ].join("\n"),
+    ),
+    [
+      { label: "AWS access key", lineNumber: 2, relativeFilePath: "fixture.txt" },
+      { label: "OpenAI-style API key", lineNumber: 3, relativeFilePath: "fixture.txt" },
+      { label: "private key", lineNumber: 4, relativeFilePath: "fixture.txt" },
+    ],
+  );
+  assert.deepEqual(findSecretFindingsInContent("workflow.yml", "token: ${{ secrets.DEVELOP_RELEASE_TOKEN }}\n"), []);
+  assert.equal(
+    formatFinding({ label: "GitHub token", lineNumber: 7, relativeFilePath: ".github/workflows/release.yml" }),
+    ".github/workflows/release.yml:7: possible GitHub token",
+  );
+
+  const secretFileLabels = collectSecretScanFiles().map((filePath) => path.relative(projectRoot, filePath));
+  assert.ok(secretFileLabels.includes(".github/workflows/release.yml"));
+  assert.ok(secretFileLabels.includes("package-lock.json"));
+  assert.ok(secretFileLabels.includes("scripts/check-secrets.cjs"));
+  assert.deepEqual(secretFileLabels, [...secretFileLabels].sort((left, right) => left.localeCompare(right)));
+
+  const currentResult = runSecretScan();
+  assert.ok(currentResult.checkedFiles.length >= secretFileLabels.length);
+  assert.deepEqual(currentResult.findings, []);
+}
+
 function testWorkspaceModule() {
   const { __private } = require(path.join(projectRoot, "electron/lib/workspace.cjs"));
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-workspace-"));
@@ -2946,32 +2989,37 @@ async function testCommitSearch(server) {
 }
 
 async function testCommitListView(server) {
+  const { useCommitSearch } = await loadTsModule(server, "src/lib/useCommitSearch.ts");
   const {
     commitListView,
     commitSearchClearButtonView,
     commitSearchInputKeyAction,
     commitSearchInputView,
-    commitScrollTopForSelection,
     commitSearchStateApplication,
     commitSearchStateAfterAvailability,
     commitSearchStateAfterClose,
     commitSearchStateAfterToggle,
     commitSearchToggleView,
     commitSelectionVisible,
-    commitVirtualRowOffset,
-    commitVirtualTotalHeight,
-    commitVirtualWindow,
-    commitVirtualizationThreshold,
     firstCommitId,
     recentCommitsTitleId,
     selectedCommitFromSnapshot,
     selectedCommitIdAfterToggle,
   } = await loadTsModule(server, "src/lib/commitListView.ts");
+  const {
+    commitScrollTopForMeasuredCenter,
+    commitScrollTopForSelection,
+    commitVirtualRowOffset,
+    commitVirtualTotalHeight,
+    commitVirtualWindow,
+    commitVirtualizationThreshold,
+  } = await loadTsModule(server, "src/lib/commitListGeometry.ts");
   const commits = [
     commit({ id: "search", title: "Add commit search polish", message: "Keyboard selection", author: "Codex" }),
     commit({ id: "footer", title: "Tighten footer menu", message: "Workspace app picker", author: "June", refs: ["feature/footer"] }),
   ];
 
+  assert.equal(typeof useCommitSearch, "function");
   assert.deepEqual(
     commitListView(commits, "").filteredCommits.map((item) => item.id),
     ["search", "footer"],
@@ -3330,6 +3378,50 @@ async function testCommitListView(server) {
       viewportHeight: 256,
     }),
     null,
+  );
+  assert.equal(
+    commitScrollTopForMeasuredCenter({
+      selectedTop: 250,
+      selectedHeight: 100,
+      viewportTop: 100,
+      viewportHeight: 300,
+      scrollTop: 400,
+      maxScrollTop: 1000,
+    }),
+    450,
+  );
+  assert.equal(
+    commitScrollTopForMeasuredCenter({
+      selectedTop: 199.5,
+      selectedHeight: 100,
+      viewportTop: 100,
+      viewportHeight: 300,
+      scrollTop: 400,
+      maxScrollTop: 1000,
+    }),
+    null,
+  );
+  assert.equal(
+    commitScrollTopForMeasuredCenter({
+      selectedTop: 0,
+      selectedHeight: 40,
+      viewportTop: 200,
+      viewportHeight: 300,
+      scrollTop: 20,
+      maxScrollTop: 1000,
+    }),
+    0,
+  );
+  assert.equal(
+    commitScrollTopForMeasuredCenter({
+      selectedTop: 700,
+      selectedHeight: 80,
+      viewportTop: 100,
+      viewportHeight: 300,
+      scrollTop: 980,
+      maxScrollTop: 1000,
+    }),
+    1000,
   );
   assert.deepEqual(
     commitVirtualWindow({
@@ -5544,6 +5636,25 @@ async function testCommitInfoPanelBridge(server) {
   assert.equal(runCommitInfoPanelBridgeSideEffect("clear", undefined), true);
 }
 
+async function testCommitInfoPreviewPanel(server) {
+  const { useCommitInfoPreviewPanel } = await loadTsModule(server, "src/lib/useCommitInfoPreviewPanel.ts");
+  const {
+    commitInfoPreviewCloseDelayMs,
+    commitInfoPreviewShouldCloseAfterBlur,
+    commitInfoPreviewShouldCloseForSelection,
+  } = await loadTsModule(server, "src/lib/commitInfoPreviewPanel.ts");
+
+  assert.equal(typeof useCommitInfoPreviewPanel, "function");
+  assert.equal(commitInfoPreviewCloseDelayMs, 80);
+  assert.equal(commitInfoPreviewShouldCloseForSelection("", "hover"), true);
+  assert.equal(commitInfoPreviewShouldCloseForSelection("selected", ""), false);
+  assert.equal(commitInfoPreviewShouldCloseForSelection("selected", "selected"), false);
+  assert.equal(commitInfoPreviewShouldCloseForSelection("selected", "other"), true);
+  assert.equal(commitInfoPreviewShouldCloseAfterBlur({ closeToken: 2, currentToken: 2, commitInfoPanelActive: false }), true);
+  assert.equal(commitInfoPreviewShouldCloseAfterBlur({ closeToken: 2, currentToken: 2, commitInfoPanelActive: true }), false);
+  assert.equal(commitInfoPreviewShouldCloseAfterBlur({ closeToken: 1, currentToken: 2, commitInfoPanelActive: false }), false);
+}
+
 async function testChangedNowWindowState(server) {
   const {
     changedNowToggleResult,
@@ -7272,6 +7383,7 @@ async function testClassNamesAndGraph(server) {
 async function main() {
   testDevelopReleaseVersionScript();
   testFileChecksUtility();
+  testSecretScanScript();
   testWorkspaceModule();
   testSourceHygieneScript();
   testSourceHelperUnitCoverage();
@@ -7332,6 +7444,7 @@ async function main() {
     await testChangedFilesTemporaryInfo(server);
     await testTemporaryInfoPanelBridge(server);
     await testCommitInfoPanelBridge(server);
+    await testCommitInfoPreviewPanel(server);
     await testChangedNowWindowState(server);
     await testTemporaryInfoSelection(server);
     await testRecentRepositories(server);

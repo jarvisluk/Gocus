@@ -99,6 +99,8 @@ Run the local quality gate before handing off changes:
 npm run verify
 ```
 
+This runs dependency audit, secret scan, lint, unit checks, UI smoke checks, and the production build.
+
 Build the web bundle:
 
 ```bash

@@ -14,6 +14,8 @@ npm ci
 npm run verify
 ```
 
+The verify gate runs dependency audit, secret scan, lint, unit checks, UI smoke checks, and the production build.
+
 To build the same release artifact locally without installing into `/Applications`:
 
 ```bash
