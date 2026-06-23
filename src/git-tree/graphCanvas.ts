@@ -2,7 +2,7 @@ import {
   commitVirtualRowOffset,
   commitVirtualTotalHeight,
   selectedCommitVirtualRowHeight,
-} from "../lib/commitListView";
+} from "../lib/commitListGeometry";
 import type { BranchColor, CommitItem, GraphLineVariant } from "../types";
 import { buildGitTreeRenderModel, getGitTreeRailWidth, gitTreeLaneX } from "./renderGraph";
 

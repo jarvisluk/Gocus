@@ -1,33 +1,25 @@
-import { FileCode2, GitBranch, GitFork, GitMerge, Search, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type PointerEvent } from "react";
+import { CommitRow } from "./CommitRow";
 import { CommitGraphLayer } from "./CommitGraphLayer";
 import {
   getGitTreeLaneCountForCommits,
   getGitTreeRailWidth,
-  getGitTreeRequiredLaneCount,
 } from "../git-tree/renderGraph";
 import {
-  commitListView,
-  commitScrollTopForSelection,
   commitSearchInputKeyAction,
-  commitSearchStateApplication,
-  commitSearchStateAfterAvailability,
-  commitSearchStateAfterClose,
-  commitSearchStateAfterToggle,
   commitSelectionVisible,
-  commitVirtualWindow,
   firstCommitId,
-  type CommitSearchStateTransition,
 } from "../lib/commitListView";
-import { runCommitInfoPanelBridgeSideEffect } from "../lib/commitInfoPanelBridge";
-import { commitRowView, type CommitRowAction, type CommitRowActionIcon } from "../lib/commitRowView";
-import type { CommitInfoAnchorBounds, CommitItem, UiPreferences } from "../types";
-
-function commitActionIcon(icon: CommitRowActionIcon) {
-  if (icon === "branch") return <GitFork aria-hidden="true" />;
-  if (icon === "merge") return <GitMerge aria-hidden="true" />;
-  return <GitBranch aria-hidden="true" />;
-}
+import {
+  commitScrollTopForMeasuredCenter,
+  commitScrollTopForSelection,
+  commitVirtualWindow,
+} from "../lib/commitListGeometry";
+import type { CommitRowAction } from "../lib/commitRowView";
+import { useCommitInfoPreviewPanel } from "../lib/useCommitInfoPreviewPanel";
+import { useCommitSearch } from "../lib/useCommitSearch";
+import type { CommitItem, UiPreferences } from "../types";
 
 function commitScrollContainer(listNode: HTMLElement) {
   return listNode.closest<HTMLElement>(".scroll-region") ?? listNode;
@@ -35,159 +27,6 @@ function commitScrollContainer(listNode: HTMLElement) {
 
 function commitListSpacerStyle(height: number) {
   return { height: `${height}px` } satisfies CSSProperties;
-}
-
-function CommitRow({
-  commit,
-  selected,
-  expandSelectedMessage,
-  onSelect,
-  onAction,
-  onPreview,
-  onDismissPreview,
-}: {
-  commit: CommitItem;
-  selected: boolean;
-  expandSelectedMessage?: boolean;
-  onSelect: () => void;
-  onAction: (action: CommitRowAction, commit: CommitItem) => void;
-  onPreview: (commit: CommitItem, anchorBounds: CommitInfoAnchorBounds) => void;
-  onDismissPreview: () => void;
-}) {
-  const rowRef = useRef<HTMLElement>(null);
-  const previewFrameRef = useRef<number | null>(null);
-  const view = commitRowView(commit, selected, expandSelectedMessage);
-  const rowStyle = {
-    "--git-tree-rail-width": `${getGitTreeRailWidth(getGitTreeRequiredLaneCount(commit.graph))}px`,
-  } as CSSProperties & { "--git-tree-rail-width": string };
-  const refStyle = {
-    "--branch-color": view.refColor,
-  } as CSSProperties;
-
-  function anchorBounds(): CommitInfoAnchorBounds {
-    const rect = rowRef.current?.getBoundingClientRect();
-    return {
-      top: rect?.top ?? 0,
-      height: rect?.height ?? 0,
-    };
-  }
-
-  function cancelScheduledPreview() {
-    if (previewFrameRef.current === null) return;
-    window.cancelAnimationFrame(previewFrameRef.current);
-    previewFrameRef.current = null;
-  }
-
-  function schedulePreviewAfterSelection() {
-    cancelScheduledPreview();
-    previewFrameRef.current = window.requestAnimationFrame(() => {
-      previewFrameRef.current = null;
-      onPreview(commit, anchorBounds());
-    });
-  }
-
-  function previewIfSelected() {
-    if (!selected) {
-      cancelScheduledPreview();
-      onDismissPreview();
-      return;
-    }
-
-    cancelScheduledPreview();
-    onPreview(commit, anchorBounds());
-  }
-
-  function selectCommit() {
-    onSelect();
-    if (selected) {
-      cancelScheduledPreview();
-      onDismissPreview();
-      return;
-    }
-
-    schedulePreviewAfterSelection();
-  }
-
-  useEffect(() => () => cancelScheduledPreview(), []);
-
-  return (
-    <article
-      ref={rowRef}
-      className={view.className}
-      data-commit-id={commit.id}
-      style={rowStyle}
-      onFocus={previewIfSelected}
-      onPointerEnter={previewIfSelected}
-    >
-      <span className="timeline-cell" aria-hidden="true" />
-      <div className={view.contentClassName}>
-        <button className={view.selectButton.className} type="button" aria-pressed={view.selectButton.ariaPressed} onClick={selectCommit}>
-          <span className={view.titleLineClassName}>
-            <span className={view.titleTextClassName}>{view.displayMessage}</span>
-            {view.showRef ? (
-              <span className={view.refPillClassName} style={refStyle}>
-                {view.ref}
-              </span>
-            ) : null}
-          </span>
-          <span className={view.metaClassName}>
-            <code>{commit.hash}</code>
-            <span>{commit.relativeTime}</span>
-            {view.showAuthor ? <span>{commit.author}</span> : null}
-            {view.isMerge ? (
-              <span className={view.mergeIndicator.className} title={view.mergeIndicator.title}>
-                <GitMerge aria-hidden="true" />
-                merge
-              </span>
-            ) : null}
-          </span>
-          <span className={view.stats.className}>
-            <span className={view.stats.additionsClassName}>+{commit.additions}</span>
-            <span className={view.stats.deletionsClassName}>-{commit.deletions}</span>
-            <span className={view.stats.filesClassName}>
-              <FileCode2 aria-hidden="true" />
-              {commit.filesChanged}
-            </span>
-          </span>
-        </button>
-        {view.showActions ? (
-          <div className={view.actionsClassName}>
-            <button
-              type="button"
-              onClick={() => onAction(view.branchAction.action, commit)}
-              disabled={view.branchAction.disabled}
-              title={view.branchAction.title}
-            >
-              {commitActionIcon(view.branchAction.icon)}
-              {view.branchAction.label}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!view.mergeAction.disabled) onAction(view.mergeAction.action, commit);
-              }}
-              disabled={view.mergeAction.disabled}
-              title={view.mergeAction.title}
-            >
-              {commitActionIcon(view.mergeAction.icon)}
-              {view.mergeAction.label}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!view.checkoutAction.disabled) onAction(view.checkoutAction.action, commit);
-              }}
-              disabled={view.checkoutAction.disabled}
-              title={view.checkoutAction.title}
-            >
-              {commitActionIcon(view.checkoutAction.icon)}
-              {view.checkoutAction.label}
-            </button>
-          </div>
-        ) : null}
-      </div>
-    </article>
-  );
 }
 
 export function RecentCommits({
@@ -207,20 +46,17 @@ export function RecentCommits({
   graphStyle?: UiPreferences["graphStyle"];
   graphNodeY?: number;
 }) {
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const commitPreviewOpenRef = useRef(false);
-  const commitPreviewCommitIdRef = useRef("");
-  const commitPreviewCloseTokenRef = useRef(0);
   const listRef = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const searchToggleRef = useRef<HTMLButtonElement>(null);
   const previousSearchTermCountRef = useRef(0);
   const pendingCenterSelectedIdRef = useRef("");
   const pendingCenterAttemptsRef = useRef(0);
   const [scrollFrame, setScrollFrame] = useState({ scrollTop: 0, viewportHeight: 0 });
   const {
-    canSearch,
+    closeCommitPreview,
+    previewCommit,
+    scheduleCommitPreviewCloseAfterBlur,
+  } = useCommitInfoPreviewPanel({ selectedId });
+  const {
     count,
     emptyState,
     filteredCommits,
@@ -236,9 +72,15 @@ export function RecentCommits({
     showCommits,
     showEmptyState,
     showSearchForm,
+    searchInputRef,
+    searchQuery,
+    searchToggleRef,
+    setSearchQuery,
+    closeSearch,
+    toggleSearch,
     title,
     titleId,
-  } = useMemo(() => commitListView(commits, searchQuery, searchOpen), [commits, searchOpen, searchQuery]);
+  } = useCommitSearch(commits);
   const selectedFilteredIndex = useMemo(
     () => filteredCommits.findIndex((commit) => commit.id === selectedId),
     [filteredCommits, selectedId],
@@ -316,18 +158,16 @@ export function RecentCommits({
     pendingCenterAttemptsRef.current += 1;
     const selectedRect = selectedRow.getBoundingClientRect();
     const scrollRect = scrollNode.getBoundingClientRect();
-    const selectedCenter = selectedRect.top + selectedRect.height / 2;
-    const viewportCenter = scrollRect.top + scrollRect.height / 2;
-    const centerDelta = selectedCenter - viewportCenter;
-    if (Math.abs(centerDelta) < 1) {
-      pendingCenterSelectedIdRef.current = "";
-      pendingCenterAttemptsRef.current = 0;
-      return;
-    }
-
     const maxScrollTop = Math.max(0, scrollNode.scrollHeight - scrollNode.clientHeight);
-    const centeredScrollTop = Math.min(maxScrollTop, Math.max(0, scrollNode.scrollTop + centerDelta));
-    if (centeredScrollTop === scrollNode.scrollTop || pendingCenterAttemptsRef.current >= 6) {
+    const centeredScrollTop = commitScrollTopForMeasuredCenter({
+      selectedTop: selectedRect.top,
+      selectedHeight: selectedRect.height,
+      viewportTop: scrollRect.top,
+      viewportHeight: scrollRect.height,
+      scrollTop: scrollNode.scrollTop,
+      maxScrollTop,
+    });
+    if (centeredScrollTop === null || pendingCenterAttemptsRef.current >= 6) {
       pendingCenterSelectedIdRef.current = "";
       pendingCenterAttemptsRef.current = 0;
       return;
@@ -342,12 +182,6 @@ export function RecentCommits({
     virtualWindow.endIndex,
     virtualWindow.startIndex,
   ]);
-
-  useEffect(() => {
-    if (!searchOpen) return;
-    searchInputRef.current?.focus();
-    searchInputRef.current?.select();
-  }, [searchOpen]);
 
   useEffect(() => {
     const listNode = listRef.current;
@@ -386,74 +220,8 @@ export function RecentCommits({
   }, [filteredCommits.length]);
 
   useEffect(() => {
-    applySearchState(commitSearchStateAfterAvailability({ searchOpen, searchQuery }, canSearch));
-  }, [canSearch, searchOpen, searchQuery]);
-
-  useEffect(() => {
     if (selectedId && !commitSelectionVisible(filteredCommits, selectedId)) onSelect("");
   }, [filteredCommits, onSelect, selectedId]);
-
-  useEffect(() => {
-    if (!selectedId || (commitPreviewCommitIdRef.current && commitPreviewCommitIdRef.current !== selectedId)) closeCommitPreview();
-  }, [selectedId]);
-
-  useEffect(
-    () => () => {
-      closeCommitPreview();
-    },
-    [],
-  );
-
-  function applySearchState(nextState: CommitSearchStateTransition) {
-    const application = commitSearchStateApplication(nextState);
-    if (application.updateState) {
-      setSearchQuery(application.searchQuery);
-      setSearchOpen(application.searchOpen);
-    }
-    if (application.restoreToggleFocus) searchToggleRef.current?.focus();
-  }
-
-  function closeSearch({ restoreFocus = false }: { restoreFocus?: boolean } = {}) {
-    applySearchState(commitSearchStateAfterClose({ searchOpen, searchQuery }, { restoreFocus }));
-  }
-
-  function toggleSearch() {
-    applySearchState(commitSearchStateAfterToggle({ searchOpen, searchQuery }, searchToggle));
-  }
-
-  function previewCommit(commit: CommitItem, anchorBounds: CommitInfoAnchorBounds) {
-    if (commitPreviewOpenRef.current && commitPreviewCommitIdRef.current === commit.id) return;
-
-    commitPreviewCloseTokenRef.current += 1;
-    const opened = runCommitInfoPanelBridgeSideEffect(
-      "open",
-      (payload) => window.gocus?.setCommitInfoPanel(payload),
-      { kind: "commit", commit, anchorBounds },
-    );
-    commitPreviewOpenRef.current = opened;
-    commitPreviewCommitIdRef.current = opened ? commit.id : "";
-  }
-
-  function closeCommitPreview() {
-    commitPreviewCloseTokenRef.current += 1;
-    if (!commitPreviewOpenRef.current) return;
-    commitPreviewOpenRef.current = false;
-    commitPreviewCommitIdRef.current = "";
-    runCommitInfoPanelBridgeSideEffect("close", (payload) => window.gocus?.setCommitInfoPanel(payload));
-  }
-
-  function scheduleCommitPreviewCloseAfterBlur() {
-    const closeToken = (commitPreviewCloseTokenRef.current += 1);
-    window.setTimeout(() => {
-      const isCommitInfoPanelActive = window.gocus?.isCommitInfoPanelActive;
-      void Promise.resolve(isCommitInfoPanelActive ? isCommitInfoPanelActive() : false)
-        .catch(() => false)
-        .then((commitInfoPanelActive) => {
-          if (closeToken !== commitPreviewCloseTokenRef.current || commitInfoPanelActive) return;
-          closeCommitPreview();
-        });
-    }, 80);
-  }
 
   function handleCommitListBlur(event: FocusEvent<HTMLDivElement>) {
     const relatedTarget = event.relatedTarget;
