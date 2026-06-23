@@ -44,13 +44,22 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
+  background: var(--stage-bg);
+  color: var(--text);
+  font-family: var(--font);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
   background:
     linear-gradient(90deg, rgba(18, 18, 18, 0.72), rgba(18, 18, 18, 0.28)),
     radial-gradient(var(--border-soft) 0.8px, transparent 0.8px),
     var(--stage-bg);
   background-size: auto, 12px 12px, auto;
-  color: var(--text);
-  font-family: var(--font);
 }
 
 a {
@@ -74,6 +83,8 @@ svg {
 }
 
 .site-shell {
+  position: relative;
+  z-index: 1;
   width: min(1120px, calc(100% - 48px));
   margin: 0 auto;
 }
