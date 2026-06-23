@@ -74,7 +74,7 @@ svg {
 }
 
 .site-shell {
-  width: min(1180px, calc(100% - 32px));
+  width: min(1120px, calc(100% - 48px));
   margin: 0 auto;
 }
 
@@ -157,14 +157,15 @@ svg {
 .hero-section {
   min-height: calc(100svh - 148px);
   display: grid;
-  grid-template-columns: minmax(0, 0.88fr) minmax(390px, 0.72fr);
-  align-items: center;
-  gap: 72px;
-  padding: 56px 0 78px;
+  grid-template-columns: minmax(0, 0.92fr) minmax(320px, 0.58fr);
+  align-items: start;
+  gap: 56px;
+  padding: 88px 0 74px;
 }
 
 .hero-copy {
   min-width: 0;
+  padding-top: clamp(112px, 17svh, 188px);
 }
 
 .hero-copy h1 {
@@ -231,8 +232,8 @@ svg {
 
 .product-frame {
   min-width: 0;
-  justify-self: end;
-  width: min(390px, 100%);
+  justify-self: center;
+  width: min(320px, 100%);
 }
 
 .product-screenshot {
@@ -383,6 +384,10 @@ svg {
     grid-template-columns: 1fr;
     gap: 34px;
     padding: 46px 0 48px;
+  }
+
+  .hero-copy {
+    padding-top: 0;
   }
 
   .hero-copy h1 {
