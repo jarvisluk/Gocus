@@ -39,6 +39,21 @@ const features = [
   "Release-channel update links",
 ];
 
+const heroContexts = [
+  {
+    label: "Scan",
+    body: "Recent commits, branch labels, and file counts stay visible beside your editor.",
+  },
+  {
+    label: "Orient",
+    body: "Current worktree and branch context stay close when you move between tasks.",
+  },
+  {
+    label: "Return",
+    body: "Open the repo or editor target from the same narrow panel when you are ready.",
+  },
+];
+
 function ProductPreview() {
   return (
     <div className="product-frame" aria-label="Gocus app preview">
@@ -89,6 +104,20 @@ export function WebsiteApp() {
               View GitHub Releases
             </a>
           </div>
+          <aside className="hero-context-panel" aria-label="Gocus daily use cases">
+            <div className="hero-context-heading">
+              <span>Daily loop</span>
+              <strong>Keep the small Git checks close while your editor stays in front.</strong>
+            </div>
+            <div className="hero-context-grid">
+              {heroContexts.map((item) => (
+                <div className="hero-context-item" key={item.label}>
+                  <span>{item.label}</span>
+                  <p>{item.body}</p>
+                </div>
+              ))}
+            </div>
+          </aside>
         </div>
         <ProductPreview />
       </section>

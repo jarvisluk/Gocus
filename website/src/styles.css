@@ -211,6 +211,56 @@ svg {
   margin-top: 30px;
 }
 
+.hero-context-panel {
+  max-width: 620px;
+  display: grid;
+  gap: 14px;
+  margin-top: 34px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.hero-context-heading {
+  display: grid;
+  gap: 6px;
+}
+
+.hero-context-heading span,
+.hero-context-item span {
+  color: var(--main);
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.hero-context-heading strong {
+  max-width: 520px;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.28;
+}
+
+.hero-context-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.hero-context-item {
+  min-height: 112px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(31, 31, 31, 0.58);
+}
+
+.hero-context-item p {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 560;
+  line-height: 1.45;
+}
+
 .primary-cta,
 .secondary-cta {
   gap: 8px;
@@ -403,6 +453,10 @@ svg {
 
   .hero-copy {
     padding-top: 0;
+  }
+
+  .hero-context-panel {
+    display: none;
   }
 
   .hero-copy h1 {
