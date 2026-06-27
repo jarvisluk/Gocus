@@ -23,6 +23,8 @@
     "build": "tsc --noEmit && vite build",
     "package:mac": "./scripts/package-macos.sh",
     "package:mac:release": "./scripts/package-macos.sh --no-install",
+    "package:win": "node scripts/package-windows.cjs",
+    "package:win:release": "node scripts/package-windows.cjs",
     "preview": "vite preview --host 127.0.0.1",
     "start": "npm run build && electron ."
   },
@@ -39,6 +41,7 @@
     "@types/react-dom": "^19.2.3",
     "concurrently": "^9.2.1",
     "playwright": "^1.60.0",
+    "rcedit": "^5.0.2",
     "stylelint": "^17.12.0",
     "typescript": "^5.9.3",
     "wait-on": "^9.0.3"

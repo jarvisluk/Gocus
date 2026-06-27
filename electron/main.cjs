@@ -54,6 +54,7 @@ const { getAvailableWorkspaceTargets, openWorkspace, openWorkspaceFile } = requi
 installOutputErrorGuard();
 
 const isDevRuntime = Boolean(process.env.GOCUS_DEV_SERVER_URL);
+const isWindowsRuntime = process.platform === "win32";
 
 let mainWindow;
 let tray;
@@ -102,13 +103,44 @@ function applyWindowShadow(targetWindow) {
   targetWindow.setHasShadow(true);
 }
 
+function windowBackgroundColor() {
+  if (!isWindowsRuntime) return "#00000000";
+  return nativeTheme.shouldUseDarkColors ? "#1f1f1f" : "#f7f7f7";
+}
+
+function framelessWindowOptions() {
+  return {
+    frame: false,
+    transparent: !isWindowsRuntime,
+    backgroundColor: windowBackgroundColor(),
+    hasShadow: true,
+    roundedCorners: true,
+    ...(isWindowsRuntime ? { thickFrame: true } : {}),
+  };
+}
+
+function loadAppWindowIcon() {
+  return assets.loadImageAsset(isWindowsRuntime ? "app-icon.ico" : "app-icon.png");
+}
+
+function syncWindowBackgroundColor(targetWindow) {
+  if (!isWindowsRuntime || !targetWindow || targetWindow.isDestroyed()) return;
+  targetWindow.setBackgroundColor(windowBackgroundColor());
+}
+
+function syncWindowBackgroundColors() {
+  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow]) {
+    syncWindowBackgroundColor(win);
+  }
+}
+
 const workspaceOpenMenuOptions = [
   { target: "vscode", label: "VS Code" },
   { target: "cursor", label: "Cursor" },
   { target: "codex", label: "Codex" },
   { target: "antigravity", label: "Antigravity IDE" },
   { target: "antigravityApp", label: "Antigravity" },
-  { target: "finder", label: "Finder" },
+  { target: "finder", label: process.platform === "win32" ? "Explorer" : "Finder" },
   { target: "terminal", label: "Terminal" },
   { target: "xcode", label: "Xcode" },
 ];
@@ -433,6 +465,7 @@ function nativeThemeSourceForPreferences(preferences = readPreferences()) {
 
 function syncNativeThemeSource(preferences = readPreferences()) {
   nativeTheme.themeSource = nativeThemeSourceForPreferences(preferences);
+  syncWindowBackgroundColors();
 }
 
 function sendToWindow(win, channel, ...args) {
@@ -459,6 +492,7 @@ function isCommitInfoPanelActive() {
 }
 
 function sendSystemTheme() {
+  syncWindowBackgroundColors();
   for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow]) {
     sendToWindow(win, "theme:changed", getSystemTheme());
   }
@@ -673,10 +707,7 @@ function ensureTemporaryInfoWindow() {
   temporaryInfoWindow = new BrowserWindow({
     ...bounds,
     show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: "#00000000",
-    hasShadow: true,
+    ...framelessWindowOptions(),
     resizable: false,
     movable: false,
     minimizable: false,
@@ -792,10 +823,7 @@ function ensureChangedFileInfoWindow() {
   changedFileInfoWindow = new BrowserWindow({
     ...bounds,
     show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: "#00000000",
-    hasShadow: true,
+    ...framelessWindowOptions(),
     resizable: false,
     movable: false,
     minimizable: false,
@@ -975,10 +1003,7 @@ function ensureCommitInfoWindow() {
   commitInfoWindow = new BrowserWindow({
     ...bounds,
     show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: "#00000000",
-    hasShadow: true,
+    ...framelessWindowOptions(),
     resizable: false,
     movable: false,
     minimizable: false,
@@ -1063,7 +1088,7 @@ function showMainWindow() {
 }
 
 function createWindow({ showOnReady = true } = {}) {
-  const appIcon = assets.loadImageAsset("app-icon.png");
+  const appIcon = loadAppWindowIcon();
   const initialExpandedSize = readExpandedSize(screen.getPrimaryDisplay().workArea);
 
   mainWindow = new BrowserWindow({
@@ -1071,10 +1096,7 @@ function createWindow({ showOnReady = true } = {}) {
     minWidth: expandedMinimumSize.width,
     minHeight: expandedMinimumSize.height,
     show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: "#00000000",
-    hasShadow: true,
+    ...framelessWindowOptions(),
     icon: appIcon,
     resizable: true,
     title: "Gocus",

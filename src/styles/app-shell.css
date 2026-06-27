@@ -73,6 +73,14 @@
   box-shadow: none;
 }
 
+:root[data-platform="win32"] .is-electron .peek-panel {
+  border-radius: var(--radius-lg);
+}
+
+:root[data-platform="win32"] .is-electron .collapsed-rail {
+  border-radius: 10px 0 0 10px;
+}
+
 .peek-header {
   height: 62px;
   flex: 0 0 auto;
