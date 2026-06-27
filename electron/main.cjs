@@ -132,7 +132,7 @@ function framelessWindowOptions() {
     backgroundColor: windowBackgroundColor(),
     hasShadow: true,
     roundedCorners: true,
-    ...(isWindowsRuntime ? { thickFrame: true } : {}),
+    ...(isWindowsRuntime ? { accentColor: false, thickFrame: true } : {}),
   };
 }
 
