@@ -76,6 +76,20 @@ async function extractArchive(zipPath) {
     return;
   }
 
+  if (process.platform === "win32") {
+    run("powershell.exe", [
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      "& { param($source, $destination) Expand-Archive -LiteralPath $source -DestinationPath $destination -Force }",
+      zipPath,
+      distPath,
+    ]);
+    return;
+  }
+
   await extract(zipPath, { dir: distPath });
 }
 
