@@ -416,7 +416,7 @@ jobs:
         shell: pwsh
         run: |
           Set-Location release/windows
-          Get-ChildItem "*-win-*.zip" | ForEach-Object {
+          Get-ChildItem -File | Where-Object { $_.Name -match '\.(zip|exe|blockmap|ya?ml)$' } | ForEach-Object {
             $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant()
             "${hash}  $($_.Name)" | Set-Content -Encoding utf8 "$($_.Name).sha256"
           }
@@ -440,4 +440,7 @@ jobs:
           name: gocus-develop-windows-${{ needs.macos.outputs.version }}
           path: |
             release/windows/*-win-*.zip
+            release/windows/*.exe
+            release/windows/*.blockmap
+            release/windows/latest*.yml
             release/windows/*.sha256

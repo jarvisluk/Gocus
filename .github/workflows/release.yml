@@ -404,7 +404,7 @@ jobs:
         shell: pwsh
         run: |
           Set-Location release/windows
-          Get-ChildItem "*-win-*.zip" | ForEach-Object {
+          Get-ChildItem -File | Where-Object { $_.Name -match '\.(zip|exe|blockmap|ya?ml)$' } | ForEach-Object {
             $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant()
             "${hash}  $($_.Name)" | Set-Content -Encoding utf8 "$($_.Name).sha256"
           }
@@ -428,6 +428,9 @@ jobs:
           name: gocus-windows-${{ needs.macos.outputs.version }}
           path: |
             release/windows/*-win-*.zip
+            release/windows/*.exe
+            release/windows/*.blockmap
+            release/windows/latest*.yml
             release/windows/*.sha256
 
   publish:
@@ -466,17 +469,24 @@ jobs:
             cat "$notes_file"
             echo
             echo "Release assets:"
-            for artifact in release-assets/*-mac-*.zip release-assets/*-win-*.zip; do
-              echo "- $(basename "$artifact")"
+            for artifact in release-assets/*-mac-*.zip release-assets/*-win-*.zip release-assets/*.exe release-assets/*.blockmap release-assets/latest*.yml; do
+              [[ -e "$artifact" ]] && echo "- $(basename "$artifact")"
             done
           } >"$combined_notes"
           notes_file="$combined_notes"
 
-          assets=(
-            release-assets/*-mac-*.zip
-            release-assets/*-win-*.zip
-            release-assets/*.sha256
-          )
+          assets=()
+          for pattern in \
+            release-assets/*-mac-*.zip \
+            release-assets/*-win-*.zip \
+            release-assets/*.exe \
+            release-assets/*.blockmap \
+            release-assets/latest*.yml \
+            release-assets/*.sha256; do
+            for artifact in $pattern; do
+              [[ -e "$artifact" ]] && assets+=("$artifact")
+            done
+          done
 
           release_args=(
             --title "Gocus ${RELEASE_VERSION}"

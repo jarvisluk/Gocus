@@ -26,7 +26,7 @@ The screenshot below shows Gocus at its normal floating-panel size.
 
 1. Download the macOS or Windows build from [GitHub Releases](https://github.com/jarvisluk/gocus/releases).
 2. On macOS, unzip the app and move **Gocus.app** into `/Applications`.
-3. On Windows, unzip the portable package and run **Gocus.exe**.
+3. On Windows, run **Gocus Setup ... .exe** to install it, or use the portable Windows build if you do not want an installer.
 4. Click **Open folder** and choose a local Git repository.
 5. Pin the floating panel if you want it to stay above your editor.
 
@@ -113,6 +113,12 @@ npm run package:mac
 ```
 
 Package a local Windows portable build from Windows:
+
+```bash
+npm run package:win
+```
+
+Package the full Windows release set from Windows, including the installer and portable assets:
 
 ```bash
 npm run package:win:release

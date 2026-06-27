@@ -24,26 +24,27 @@
     "package:mac": "./scripts/package-macos.sh",
     "package:mac:release": "./scripts/package-macos.sh --no-install",
     "package:win": "node scripts/package-windows.cjs",
-    "package:win:release": "node scripts/package-windows.cjs",
+    "package:win:portable": "node scripts/package-windows.cjs",
+    "package:win:installer": "node scripts/package-windows-release.cjs --installer-only",
+    "package:win:release": "node scripts/package-windows-release.cjs",
     "preview": "vite preview --host 127.0.0.1",
     "start": "npm run build && electron ."
-  },
-  "dependencies": {
-    "@vitejs/plugin-react": "^5.1.1",
-    "electron": "^39.2.7",
-    "lucide-react": "^0.561.0",
-    "react": "^19.2.1",
-    "react-dom": "^19.2.1",
-    "vite": "^7.2.7"
   },
   "devDependencies": {
     "@types/react": "^19.2.16",
     "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
     "concurrently": "^9.2.1",
+    "electron": "^39.2.7",
+    "electron-builder": "^26.15.3",
+    "lucide-react": "^0.561.0",
     "playwright": "^1.60.0",
     "rcedit": "^5.0.2",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
     "stylelint": "^17.12.0",
     "typescript": "^5.9.3",
+    "vite": "^7.2.7",
     "wait-on": "^9.0.3"
   }
 }
