@@ -159,10 +159,14 @@ function targetLabel(target) {
   if (target === "codex") return "Codex";
   if (target === "antigravity") return "Antigravity IDE";
   if (target === "antigravityApp") return "Antigravity";
-  if (target === "finder") return "Finder";
+  if (target === "finder") return fileManagerLabel();
   if (target === "terminal") return "Terminal";
   if (target === "xcode") return "Xcode";
   return "selected app";
+}
+
+function fileManagerLabel() {
+  return process.platform === "win32" ? "Explorer" : "Finder";
 }
 
 function resolveWorkspaceFilePath(repositoryPath, filePath) {
@@ -210,7 +214,7 @@ async function openWorkspace(repositoryPath, target) {
     if (target === "finder") {
       const error = await shell.openPath(repositoryPath);
       if (error) throw new Error(error);
-      return { ok: true, message: "Opened workspace in Finder." };
+      return { ok: true, message: `Opened workspace in ${fileManagerLabel()}.` };
     }
 
     if (target === "vscode") {
@@ -305,7 +309,7 @@ async function openWorkspaceFile(repositoryPath, target, filePath) {
   try {
     if (target === "finder") {
       shell.showItemInFolder(targetPath);
-      return { ok: true, message: "Revealed file in Finder." };
+      return { ok: true, message: `Revealed file in ${fileManagerLabel()}.` };
     }
 
     if (target === "vscode") {

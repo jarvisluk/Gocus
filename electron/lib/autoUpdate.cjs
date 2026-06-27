@@ -311,6 +311,7 @@ function createAutoUpdateController({
     if (reason === "missing_repository") {
       return `The ${updateChannel()} update channel has no GitHub Releases feed configured for this build.`;
     }
+    if (platform === "win32") return "Windows portable builds do not support automatic updates yet.";
     return "Gocus can check GitHub Releases only from a packaged macOS app.";
   }
 
