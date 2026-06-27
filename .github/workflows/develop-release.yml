@@ -426,10 +426,15 @@ jobs:
         run: |
           Set-Location release/windows
           Get-ChildItem "*.sha256" | ForEach-Object {
-            $parts = (Get-Content $_.FullName -Raw).Trim() -split "\s+"
-            $actual = (Get-FileHash -Algorithm SHA256 $parts[1]).Hash.ToLowerInvariant()
-            if ($actual -ne $parts[0]) {
-              throw "Checksum mismatch for $($parts[1])"
+            $line = (Get-Content $_.FullName -Raw).Trim()
+            if ($line -notmatch '^([0-9a-f]{64})\s+(.+)$') {
+              throw "Invalid checksum file: $($_.Name)"
+            }
+            $expected = $Matches[1]
+            $artifact = $Matches[2]
+            $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $artifact).Hash.ToLowerInvariant()
+            if ($actual -ne $expected) {
+              throw "Checksum mismatch for $artifact"
             }
           }
           Get-ChildItem | Format-Table -AutoSize
