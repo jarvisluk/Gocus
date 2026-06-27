@@ -449,3 +449,32 @@ jobs:
             release/windows/*.blockmap
             release/windows/latest*.yml
             release/windows/*.sha256
+
+      - name: Publish Windows develop update assets
+        if: env.INPUT_PUBLISH_UPDATE_RELEASE == 'true' && env.DEVELOP_RELEASE_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ secrets.DEVELOP_RELEASE_TOKEN }}
+          RELEASE_TAG: v${{ needs.macos.outputs.version }}
+          RELEASE_VERSION: ${{ needs.macos.outputs.version }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $assets = @()
+          $patterns = @(
+            "release/windows/*.exe",
+            "release/windows/*.blockmap",
+            "release/windows/latest*.yml",
+            "release/windows/*.sha256"
+          )
+          foreach ($pattern in $patterns) {
+            $assets += Get-ChildItem -Path $pattern -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
+          }
+
+          if ($assets.Count -eq 0) {
+            throw "No Windows develop update assets found."
+          }
+
+          gh release upload $env:RELEASE_TAG $assets `
+            --repo $env:DEVELOP_UPDATE_REPOSITORY `
+            --clobber

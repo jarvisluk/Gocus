@@ -5,6 +5,9 @@ const defaultChannelSwitchVersion = "0.0.0";
 const updateChannelValues = ["stable", "develop"];
 const defaultCheckIntervalMs = 4 * 60 * 60 * 1000;
 const defaultStartupDelayMs = 15 * 1000;
+const windowsPortableUnsupportedDetail =
+  "Windows portable builds do not support automatic updates. " +
+  "Install Gocus with the Windows Setup package to receive automatic updates.";
 
 function trimTrailingSlash(value) {
   return value.replace(/\/+$/, "");
@@ -124,6 +127,37 @@ function buildUpdateFeedUrl({
   ].join("/");
 }
 
+function buildWindowsUpdateFeedConfig({ repository = defaultUpdateRepository } = {}) {
+  const normalizedRepository = normalizeUpdateRepository(repository);
+  if (!normalizedRepository) return null;
+
+  const [owner, repo] = normalizedRepository.split("/");
+  return {
+    provider: "github",
+    owner,
+    repo,
+  };
+}
+
+function buildUpdateFeedConfig({
+  repository = defaultUpdateRepository,
+  platform = process.platform,
+  arch = process.arch,
+  version,
+  server = process.env.GOCUS_UPDATE_SERVER || defaultUpdateServer,
+} = {}) {
+  if (platform === "win32") return buildWindowsUpdateFeedConfig({ repository });
+
+  const url = buildUpdateFeedUrl({
+    repository,
+    platform,
+    arch,
+    version,
+    server,
+  });
+  return url ? { url } : null;
+}
+
 function releaseUrlForRepository(repository = defaultUpdateRepository) {
   const normalizedRepository = normalizeUpdateRepository(repository);
   if (!normalizedRepository) return "";
@@ -132,11 +166,20 @@ function releaseUrlForRepository(repository = defaultUpdateRepository) {
   return `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/releases`;
 }
 
-function autoUpdateSupportReason({ platform = process.platform, isPackaged, isDevRuntime, repository } = {}) {
-  if (platform !== "darwin") return "unsupported_platform";
+function autoUpdateSupportReason({
+  platform = process.platform,
+  isPackaged,
+  isDevRuntime,
+  isPortableRuntime,
+  repository,
+  hasAutoUpdater = true,
+} = {}) {
   if (isDevRuntime) return "dev_runtime";
   if (!isPackaged) return "unpackaged";
   if (!normalizeUpdateRepository(repository)) return "missing_repository";
+  if (platform !== "darwin" && platform !== "win32") return "unsupported_platform";
+  if (!hasAutoUpdater) return "missing_updater";
+  if (platform === "win32" && isPortableRuntime) return "portable";
   return "";
 }
 
@@ -147,6 +190,7 @@ function createAutoUpdateController({
   logger = console,
   packageMetadata = {},
   isDevRuntime = false,
+  isPortableRuntime = false,
   platform = process.platform,
   arch = process.arch,
   checkIntervalMs = defaultCheckIntervalMs,
@@ -161,6 +205,7 @@ function createAutoUpdateController({
   let manualCheckPending = false;
   let updateTimer = null;
   let feedUrl = "";
+  let feedConfigKey = "";
   let preferences = initialPreferences && typeof initialPreferences === "object" ? initialPreferences : {};
 
   function updateChannel() {
@@ -184,7 +229,9 @@ function createAutoUpdateController({
       platform,
       isPackaged: Boolean(app?.isPackaged),
       isDevRuntime,
+      isPortableRuntime,
       repository: updateRepository(),
+      hasAutoUpdater: Boolean(autoUpdater),
     });
   }
 
@@ -220,29 +267,66 @@ function createAutoUpdateController({
     autoUpdater.quitAndInstall();
   }
 
+  function syncUpdaterOptions() {
+    if (!autoUpdater) return;
+    if (platform === "win32" && "allowDowngrade" in autoUpdater) {
+      autoUpdater.allowDowngrade = isSwitchingChannels();
+    }
+  }
+
   function configureFeed() {
     if (!isSupported()) {
       feedUrl = "";
+      feedConfigKey = "";
       return false;
     }
 
-    const nextFeedUrl = buildUpdateFeedUrl({
+    const nextFeedConfig = buildUpdateFeedConfig({
       repository: updateRepository(),
       platform,
       arch,
       version: updateFeedVersion(),
     });
-    if (!nextFeedUrl) {
+    if (!nextFeedConfig) {
       feedUrl = "";
+      feedConfigKey = "";
       return false;
     }
 
-    if (feedUrl !== nextFeedUrl) {
-      autoUpdater.setFeedURL({ url: nextFeedUrl });
-      feedUrl = nextFeedUrl;
+    syncUpdaterOptions();
+    const nextFeedConfigKey = JSON.stringify(nextFeedConfig);
+    if (feedConfigKey !== nextFeedConfigKey) {
+      autoUpdater.setFeedURL(nextFeedConfig);
+      feedConfigKey = nextFeedConfigKey;
+      feedUrl = nextFeedConfig.url || releaseUrlForRepository(updateRepository());
     }
 
     return true;
+  }
+
+  function normalizeDownloadedUpdate(args) {
+    if (platform === "win32") {
+      const info = args.find((value) => value && typeof value === "object" && !("sender" in value)) || {};
+      return {
+        releaseName: info.releaseName || (info.version ? `Gocus ${info.version}` : ""),
+        releaseNotes: info.releaseNotes || "",
+      };
+    }
+
+    return {
+      releaseNotes: args[1],
+      releaseName: args[2],
+    };
+  }
+
+  function handleCheckError(error, manual = manualCheckPending) {
+    checking = false;
+    if (manual) {
+      showManualMessage("Unable to check for updates.", error?.message || "GitHub Release update feed is unavailable.");
+    } else {
+      logger.warn("[Gocus] Auto-update check failed.", error);
+    }
+    manualCheckPending = false;
   }
 
   function initialize() {
@@ -262,8 +346,9 @@ function createAutoUpdateController({
       }
       manualCheckPending = false;
     });
-    autoUpdater.on("update-downloaded", (_event, releaseNotes, releaseName) => {
+    autoUpdater.on("update-downloaded", (...args) => {
       checking = false;
+      const { releaseNotes, releaseName } = normalizeDownloadedUpdate(args);
       const versionLabel = releaseName || "the latest version";
       if (shouldInstallAutomatically()) {
         installUpdate();
@@ -293,13 +378,7 @@ function createAutoUpdateController({
       manualCheckPending = false;
     });
     autoUpdater.on("error", (error) => {
-      checking = false;
-      if (manualCheckPending) {
-        showManualMessage("Unable to check for updates.", error?.message || "GitHub Release update feed is unavailable.");
-      } else {
-        logger.warn("[Gocus] Auto-update check failed.", error);
-      }
-      manualCheckPending = false;
+      handleCheckError(error);
     });
 
     initialized = true;
@@ -311,8 +390,10 @@ function createAutoUpdateController({
     if (reason === "missing_repository") {
       return `The ${updateChannel()} update channel has no GitHub Releases feed configured for this build.`;
     }
-    if (platform === "win32") return "Windows portable builds do not support automatic updates yet.";
-    return "Gocus can check GitHub Releases only from a packaged macOS app.";
+    if (reason === "missing_updater") return "Windows automatic updates require the installer build.";
+    if (reason === "portable") return windowsPortableUnsupportedDetail;
+    if (platform === "win32") return "Windows automatic updates require the installer build.";
+    return "Gocus can check GitHub Releases only from a packaged macOS or Windows installer build.";
   }
 
   function checkForUpdates({ manual = false } = {}) {
@@ -334,16 +415,13 @@ function createAutoUpdateController({
     manualCheckPending = Boolean(manual);
     checking = true;
     try {
-      autoUpdater.checkForUpdates();
+      const result = autoUpdater.checkForUpdates();
+      if (result && typeof result.catch === "function") {
+        result.catch((error) => handleCheckError(error, Boolean(manual)));
+      }
       return true;
     } catch (error) {
-      checking = false;
-      if (manual) {
-        showManualMessage("Unable to check for updates.", error?.message || "GitHub Release update feed is unavailable.");
-      } else {
-        logger.warn("[Gocus] Auto-update check failed.", error);
-      }
-      manualCheckPending = false;
+      handleCheckError(error, Boolean(manual));
       return false;
     }
   }
@@ -394,7 +472,9 @@ function createAutoUpdateController({
 
 module.exports = {
   autoUpdateSupportReason,
+  buildUpdateFeedConfig,
   buildUpdateFeedUrl,
+  buildWindowsUpdateFeedConfig,
   createAutoUpdateController,
   defaultCheckIntervalMs,
   defaultChannelSwitchVersion,

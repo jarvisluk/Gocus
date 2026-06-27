@@ -1,6 +1,6 @@
 const {
   app,
-  autoUpdater,
+  autoUpdater: electronAutoUpdater,
   BrowserWindow,
   Menu,
   Tray,
@@ -91,12 +91,28 @@ const assets = createAssetLoader({
 });
 const autoUpdates = createAutoUpdateController({
   app,
-  autoUpdater,
+  autoUpdater: loadPlatformAutoUpdater(),
   dialog,
   isDevRuntime,
+  isPortableRuntime: isWindowsPortableRuntime(),
   packageMetadata,
   prepareForInstall: prepareForUpdateInstall,
 });
+
+function isWindowsPortableRuntime() {
+  return Boolean(process.env.PORTABLE_EXECUTABLE_DIR || process.env.PORTABLE_EXECUTABLE_FILE);
+}
+
+function loadPlatformAutoUpdater() {
+  if (!isWindowsRuntime) return electronAutoUpdater;
+
+  try {
+    return require("electron-updater").autoUpdater;
+  } catch (error) {
+    console.warn("[Gocus] Windows auto-update runtime is unavailable.", error);
+    return null;
+  }
+}
 
 function applyWindowShadow(targetWindow) {
   if (!targetWindow || targetWindow.isDestroyed() || typeof targetWindow.setHasShadow !== "function") return;

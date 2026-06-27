@@ -70,6 +70,40 @@ function updateChannels() {
   return channels;
 }
 
+function normalizeGitHubRepository(repository) {
+  if (repository && typeof repository === "object") return normalizeGitHubRepository(repository.url);
+  if (typeof repository !== "string") return "";
+
+  const trimmed = repository.trim();
+  if (!trimmed) return "";
+
+  const shorthandMatch = trimmed.match(/^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/);
+  if (shorthandMatch) return `${shorthandMatch[1]}/${shorthandMatch[2]}`;
+
+  const normalizedUrl = trimmed.replace(/^git\+/, "").replace(/\.git$/, "");
+  try {
+    const url = new URL(normalizedUrl);
+    if (url.hostname !== "github.com") return "";
+    const parts = url.pathname.split("/").filter(Boolean);
+    if (parts.length < 2) return "";
+    return `${parts[0]}/${parts[1]}`;
+  } catch {
+    return "";
+  }
+}
+
+function windowsPublishConfig() {
+  const repository = normalizeGitHubRepository(updateChannels()[updateChannel()] || defaultUpdateRepository);
+  if (!repository) throw new Error(`Invalid Windows update repository for ${updateChannel()} channel.`);
+
+  const [owner, repo] = repository.split("/");
+  return {
+    provider: "github",
+    owner,
+    repo,
+  };
+}
+
 function removeInstallerArtifacts() {
   fs.mkdirSync(outputRoot, { recursive: true });
   for (const entry of fs.readdirSync(outputRoot, { withFileTypes: true })) {
@@ -132,6 +166,7 @@ function buildConfig() {
     },
     win: {
       icon: "assets/app-icon.ico",
+      publish: [windowsPublishConfig()],
       target: [
         {
           target: "nsis",
@@ -144,7 +179,7 @@ function buildConfig() {
       ],
     },
     nsis: {
-      artifactName: `${safeProductName} Setup ${version}-win-${builderArchitecture}.\${ext}`,
+      artifactName: `${safeProductName}-Setup-${version}-win-${builderArchitecture}.\${ext}`,
       oneClick: false,
       allowToChangeInstallationDirectory: true,
       createDesktopShortcut: true,
@@ -186,7 +221,7 @@ Builds Windows release artifacts for Gocus.
 
 Outputs:
   release/windows/${safeProductName}-<version>-win-<arch>.zip
-  release/windows/${safeProductName} Setup <version>-win-<arch>.exe
+  release/windows/${safeProductName}-Setup-<version>-win-<arch>.exe
   release/windows/${safeProductName}-<version>-win-<arch>-portable.exe
   release/windows/*.blockmap
   release/windows/latest.yml
