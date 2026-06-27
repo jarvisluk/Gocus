@@ -11,11 +11,12 @@
   "scripts": {
     "dev": "node scripts/dev.cjs",
     "dev:web": "vite --host 127.0.0.1 --port 43871",
-    "lint": "npm run lint:design && npm run lint:hygiene && npm run lint:node && npm run lint:shell",
+    "lint": "npm run lint:design && npm run lint:hygiene && npm run lint:node && npm run lint:shell && npm run lint:commits",
     "lint:design": "stylelint \"src/**/*.css\"",
     "lint:hygiene": "node scripts/check-source-hygiene.cjs",
     "lint:node": "node scripts/check-node-syntax.cjs",
     "lint:shell": "node scripts/check-shell-syntax.cjs",
+    "lint:commits": "node scripts/check-commit-messages.cjs --range origin/main..HEAD",
     "test": "npm run test:unit && npm run test:ui",
     "test:unit": "node scripts/test-unit.cjs",
     "test:ui": "node scripts/smoke-ui.cjs",

@@ -801,6 +801,28 @@ function testShellSyntaxScript() {
   assert.equal(currentResult.skipped, !bashAvailable);
 }
 
+function testCommitMessageScript() {
+  const {
+    commitSubject,
+    isConventionalCommitSubject,
+    validateCommitMessage,
+  } = require(path.join(projectRoot, "scripts/check-commit-messages.cjs"));
+
+  assert.equal(commitSubject("fix: handle Windows tray labels\n\nBody"), "fix: handle Windows tray labels");
+  assert.equal(isConventionalCommitSubject("feat: add release validation"), true);
+  assert.equal(isConventionalCommitSubject("fix(windows): animate collapsed window"), true);
+  assert.equal(isConventionalCommitSubject("feat!: change update metadata"), true);
+  assert.equal(isConventionalCommitSubject("Add Windows installer auto updates"), false);
+  assert.deepEqual(validateCommitMessage("docs: update release notes\n\nDetails"), {
+    subject: "docs: update release notes",
+    valid: true,
+  });
+  assert.deepEqual(validateCommitMessage("Update release notes"), {
+    subject: "Update release notes",
+    valid: false,
+  });
+}
+
 function testWindowGeometryModule() {
   const {
     clampCommitInfoWindowHeight,
@@ -7554,6 +7576,7 @@ async function main() {
   testSourceHelperUnitCoverage();
   testNodeSyntaxScript();
   testShellSyntaxScript();
+  testCommitMessageScript();
   testWindowGeometryModule();
   testWindowAnimationModule();
   testConfigStoreModule();
