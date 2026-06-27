@@ -33,6 +33,11 @@
   backdrop-filter: var(--panel-backdrop-filter);
 }
 
+:root[data-platform="win32"] .temporary-info-panel,
+:root[data-platform="win32"] .temporary-info-empty {
+  border-radius: var(--radius-lg);
+}
+
 .notice-line {
   flex: 0 0 auto;
   min-height: 30px;
@@ -106,6 +111,10 @@
   overflow: auto;
   border-radius: var(--radius);
   pointer-events: auto;
+}
+
+:root[data-platform="win32"] .temporary-info-panel.is-changed-file .changed-side-panel {
+  border-radius: var(--radius-lg);
 }
 
 .temporary-info-panel.is-commit {

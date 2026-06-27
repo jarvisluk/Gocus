@@ -30,6 +30,7 @@ function registerIpcHandlers({
   openWorkspace,
   openWorkspaceFile,
   openWorkspaceFileMenu,
+  openGitHubReleases,
   openWorktree,
   readPreferences,
   readRecentRepositories,
@@ -217,6 +218,8 @@ function registerIpcHandlers({
     return checkForUpdates();
   });
 
+  ipcMain.handle("app:openGitHubReleases", () => openGitHubReleases());
+
   ipcMain.handle("preferences:get", () => {
     return readPreferences();
   });
@@ -304,7 +307,9 @@ function preferencesSaveSideEffects(previousEffectivePreferences, previousConfig
   return {
     syncLaunchAtLogin: Boolean(previousEffectivePreferences.launchAtLogin) !== Boolean(savedConfigPreferences.launchAtLogin),
     syncMenuBarIcon: Boolean(previousConfigPreferences.showMenuBarIcon) !== Boolean(savedConfigPreferences.showMenuBarIcon),
-    syncDockIcon: Boolean(previousConfigPreferences.showDockIcon) !== Boolean(savedConfigPreferences.showDockIcon),
+    syncDockIcon:
+      Boolean(previousConfigPreferences.showMenuBarIcon) !== Boolean(savedConfigPreferences.showMenuBarIcon) ||
+      Boolean(previousConfigPreferences.showDockIcon) !== Boolean(savedConfigPreferences.showDockIcon),
     syncAutoUpdates:
       autoUpdateChannelChanged ||
       Boolean(previousConfigPreferences.autoUpdateChecks) !== Boolean(savedConfigPreferences.autoUpdateChecks) ||

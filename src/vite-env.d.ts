@@ -41,6 +41,7 @@ declare global {
       getActiveWorkspaceTarget: () => Promise<WorkspaceOpenTarget>;
       setActiveWorkspaceTarget: (target: WorkspaceOpenTarget) => Promise<WorkspaceOpenTarget>;
       openWorkspaceFileMenu: (payload: WorkspaceOpenMenuPayload) => Promise<void>;
+      openGitHubReleases?: () => Promise<void>;
       getPreferences: () => Promise<UiPreferences>;
       savePreferences: (preferences: UiPreferences) => Promise<void>;
       setCollapsed: (collapsed: boolean) => Promise<void>;

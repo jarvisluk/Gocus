@@ -27,6 +27,7 @@
   .settings-launch-at-login-toggle,
   .settings-auto-update-checks-toggle,
   .settings-auto-update-install-toggle,
+  .settings-release-link,
   .settings-menu-bar-icon-toggle,
   .settings-dock-icon-toggle,
   .settings-merge-commit-toggle
@@ -34,7 +35,8 @@
   justify-content: flex-end;
 }
 
-.settings-check-updates {
+.settings-check-updates,
+.settings-release-link {
   justify-self: end;
   min-height: var(--form-row-min-height);
   padding: 0 var(--space-md);

@@ -1,6 +1,19 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Monitor, Moon, RefreshCw, RotateCcw, Sun } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Monitor,
+  Moon,
+  RefreshCw,
+  RotateCcw,
+  Sun,
+} from "lucide-react";
+import { runBridgeSideEffect } from "../lib/errorMessages";
 import { autoRefreshIntervalOptions, darkThemePresetOptions, lightThemePresetOptions } from "../lib/preferences";
+import { gitHubReleasesUrl } from "../lib/releaseLinks";
 import {
   settingsPageAfterBack,
   settingsPageAfterEscape,
@@ -180,6 +193,15 @@ export function SettingsPanel({
     });
   }
 
+  function openGitHubReleases() {
+    if (window.gocus?.openGitHubReleases) {
+      runBridgeSideEffect("Unable to open GitHub Releases.", () => window.gocus?.openGitHubReleases?.());
+      return;
+    }
+
+    window.open(gitHubReleasesUrl, "_blank", "noopener,noreferrer");
+  }
+
   return (
     <section className={view.page.className} aria-labelledby={view.page.ariaLabelledBy}>
       <header className={view.header.className}>
@@ -254,6 +276,18 @@ export function SettingsPanel({
               >
                 <RefreshCw aria-hidden="true" />
                 <span>{sections.app.checkForUpdatesLabel}</span>
+              </button>
+            </div>
+            <div className={view.mainPanel.rowClassName}>
+              <span className={view.mainPanel.labelClassName}>{sections.app.rows.releases}</span>
+              <button
+                className={view.mainPanel.releaseLinkButtonClassName}
+                type="button"
+                aria-label={sections.app.releaseLinkAriaLabel}
+                onClick={openGitHubReleases}
+              >
+                <ExternalLink aria-hidden="true" />
+                <span>{sections.app.releaseLinkLabel}</span>
               </button>
             </div>
           </div>

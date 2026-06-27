@@ -8,8 +8,16 @@ const os = require("node:os");
 const { spawnSync } = require("node:child_process");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
+const {
+  resolveDevelopReleaseVersion,
+  targetVersionFromPackageVersion,
+} = require("../../resolve-develop-version.cjs");
 
 const projectRoot = path.resolve(__dirname, "../../..");
+
+function projectRelative(filePath) {
+  return path.relative(projectRoot, filePath).replaceAll(path.sep, "/");
+}
 
 function gitAcceptsBranchName(branchName) {
   return spawnSync("git", ["check-ref-format", "--branch", branchName], { stdio: "ignore" }).status === 0;
@@ -28,6 +36,67 @@ function runGitFixture(cwd, args, options = {}) {
   }
 
   return result.stdout.trim();
+}
+
+function testDevelopReleaseVersionScript() {
+  assert.equal(targetVersionFromPackageVersion("0.1.1"), "0.1.2");
+  assert.equal(targetVersionFromPackageVersion("0.1.1-beta.4"), "0.1.2");
+
+  assert.deepEqual(
+    resolveDevelopReleaseVersion({
+      inputVersion: "0.3.0-dev.7",
+      developNextVersion: "0.2.0",
+      packageVersion: "0.1.1",
+      runNumber: "99",
+    }),
+    {
+      source: "manual",
+      targetVersion: "",
+      version: "0.3.0-dev.7",
+    },
+  );
+  assert.deepEqual(
+    resolveDevelopReleaseVersion({
+      developNextVersion: "0.2.0\n",
+      packageVersion: "0.1.1",
+      runNumber: "42",
+    }),
+    {
+      source: "develop-next-version",
+      targetVersion: "0.2.0",
+      version: "0.2.0-dev.42",
+    },
+  );
+  assert.deepEqual(
+    resolveDevelopReleaseVersion({
+      developNextVersion: "",
+      packageVersion: "0.1.1",
+      runNumber: "9",
+    }),
+    {
+      source: "package-json-patch",
+      targetVersion: "0.1.2",
+      version: "0.1.2-dev.9",
+    },
+  );
+  assert.throws(
+    () =>
+      resolveDevelopReleaseVersion({
+        developNextVersion: "0.2.0-dev.1",
+        packageVersion: "0.1.1",
+        runNumber: "9",
+      }),
+    /Develop target version must be stable semver/,
+  );
+  assert.throws(
+    () =>
+      resolveDevelopReleaseVersion({
+        developNextVersion: "0.2.0",
+        packageVersion: "0.1.1",
+        runNumber: "",
+      }),
+    /GITHUB_RUN_NUMBER is required/,
+  );
 }
 
 function commit(overrides = {}) {
@@ -599,7 +668,7 @@ function testSourceHygieneScript() {
     ],
   );
 
-  const checkedFileLabels = collectCheckedFiles().map((filePath) => path.relative(projectRoot, filePath));
+  const checkedFileLabels = collectCheckedFiles().map(projectRelative);
   assert.ok(checkedFileLabels.includes("electron/main.cjs"));
   assert.ok(checkedFileLabels.includes("scripts/check-source-hygiene.cjs"));
   assert.ok(checkedFileLabels.includes("DESIGN.md"));
@@ -637,7 +706,7 @@ function testNodeSyntaxScript() {
     runNodeSyntaxCheck,
   } = require(path.join(projectRoot, "scripts/check-node-syntax.cjs"));
 
-  const nodeFileLabels = collectNodeFiles().map((filePath) => path.relative(projectRoot, filePath));
+  const nodeFileLabels = collectNodeFiles().map(projectRelative);
   assert.ok(nodeFileLabels.includes("electron/main.cjs"));
   assert.ok(nodeFileLabels.includes("scripts/check-node-syntax.cjs"));
   assert.ok(nodeFileLabels.includes("tools/stylelint/gocus-design.cjs"));
@@ -667,10 +736,12 @@ function testShellSyntaxScript() {
   const {
     checkShellFileSyntax,
     collectShellFiles,
+    isBashAvailable,
     runShellSyntaxCheck,
   } = require(path.join(projectRoot, "scripts/check-shell-syntax.cjs"));
 
-  const shellFileLabels = collectShellFiles().map((filePath) => path.relative(projectRoot, filePath));
+  const shellFileLabels = collectShellFiles().map(projectRelative);
+  const bashAvailable = isBashAvailable();
   assert.ok(shellFileLabels.includes("scripts/package-macos.sh"));
   assert.deepEqual(shellFileLabels, [...shellFileLabels].sort((left, right) => left.localeCompare(right)));
   assert.equal(checkShellFileSyntax(path.join(projectRoot, "scripts/package-macos.sh")), null);
@@ -681,10 +752,14 @@ function testShellSyntaxScript() {
 
   try {
     const failure = checkShellFileSyntax(invalidFile);
-    assert.ok(failure);
-    assert.equal(failure.filePath, invalidFile);
-    assert.equal(failure.status, 2);
-    assert.match(failure.stderr, /syntax error|unexpected end of file/i);
+    if (bashAvailable) {
+      assert.ok(failure);
+      assert.equal(failure.filePath, invalidFile);
+      assert.equal(failure.status, 2);
+      assert.match(failure.stderr, /syntax error|unexpected end of file/i);
+    } else {
+      assert.equal(failure, null);
+    }
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -692,6 +767,7 @@ function testShellSyntaxScript() {
   const currentResult = runShellSyntaxCheck();
   assert.ok(currentResult.checkedFiles.length >= shellFileLabels.length);
   assert.deepEqual(currentResult.failures, []);
+  assert.equal(currentResult.skipped, !bashAvailable);
 }
 
 function testWindowGeometryModule() {
@@ -863,7 +939,7 @@ function testIpcHandlersModule() {
     {
       syncLaunchAtLogin: false,
       syncMenuBarIcon: true,
-      syncDockIcon: false,
+      syncDockIcon: true,
       syncAutoUpdates: false,
       checkAutoUpdatesNow: false,
     },
@@ -934,7 +1010,7 @@ function testConfigStoreModule() {
     assert.equal(config.readPreferences().autoUpdateChannel, "stable");
     assert.equal(config.readPreferences().autoUpdateChecks, true);
     assert.equal(config.readPreferences().autoUpdateInstall, false);
-    assert.equal(config.readPreferences().showDockIcon, true);
+    assert.equal(config.readPreferences().showDockIcon, false);
 
     config.saveActiveWorkspaceOpenTarget("finder");
     assert.equal(config.readActiveWorkspaceOpenTarget(), "finder");
@@ -970,6 +1046,7 @@ async function testAutoUpdateModule() {
       normalizeUpdateRepository,
       updateChannelFromPackage,
       updateChannelsFromPackage,
+      releaseUrlForRepository,
       updateRepositoryFromPackage,
       updateRepositoryForChannel,
     } = require(path.join(projectRoot, "electron/lib/autoUpdate.cjs"));
@@ -1021,6 +1098,9 @@ async function testAutoUpdateModule() {
       }),
       "https://update.electronjs.org/jarvisluk/gocus/darwin-arm64/0.2.0",
     );
+    assert.equal(releaseUrlForRepository("jarvisluk/gocus"), "https://github.com/jarvisluk/gocus/releases");
+    assert.equal(releaseUrlForRepository("https://github.com/jarvisluk/gocus.git"), "https://github.com/jarvisluk/gocus/releases");
+    assert.equal(releaseUrlForRepository("https://example.com/jarvisluk/gocus"), "");
     assert.equal(
       autoUpdateSupportReason({
         platform: "darwin",
@@ -1033,6 +1113,15 @@ async function testAutoUpdateModule() {
     assert.equal(
       autoUpdateSupportReason({
         platform: "linux",
+        isPackaged: true,
+        isDevRuntime: false,
+        repository: "jarvisluk/gocus",
+      }),
+      "unsupported_platform",
+    );
+    assert.equal(
+      autoUpdateSupportReason({
+        platform: "win32",
         isPackaged: true,
         isDevRuntime: false,
         repository: "jarvisluk/gocus",
@@ -1206,6 +1295,38 @@ async function testAutoUpdateModule() {
       missingChannelDialogs.at(-1).detail,
       "The develop update channel has no GitHub Releases feed configured for this build.",
     );
+
+    const windowsUnsupportedDialogs = [];
+    const windowsUnsupportedController = createAutoUpdateController({
+      app: {
+        isPackaged: true,
+        getVersion: () => "0.2.0",
+      },
+      autoUpdater: {
+        setFeedURL() {
+          throw new Error("Windows portable builds should not configure an update feed.");
+        },
+        on() {},
+        checkForUpdates() {},
+        quitAndInstall() {},
+      },
+      dialog: {
+        showMessageBox(options) {
+          windowsUnsupportedDialogs.push(options);
+          return Promise.resolve({ response: 0 });
+        },
+      },
+      packageMetadata: { updateRepository: "jarvisluk/gocus" },
+      platform: "win32",
+      arch: "x64",
+      isDevRuntime: false,
+    });
+    assert.equal(windowsUnsupportedController.isSupported(), false);
+    assert.equal(windowsUnsupportedController.checkForUpdates({ manual: true }), false);
+    assert.equal(
+      windowsUnsupportedDialogs.at(-1).detail,
+      "Windows portable builds do not support automatic updates yet.",
+    );
   } finally {
     for (const [name, value] of Object.entries(previousUpdateEnv)) {
       if (value === undefined) {
@@ -1245,6 +1366,8 @@ function testGitStatusModule() {
 
 async function testGitModule() {
   const {
+    checkout,
+    checkoutArgsForRef,
     cleanupWorktree,
     defaultCommitLogLimit,
     dirtyWorkspaceMergeNotice,
@@ -1286,6 +1409,44 @@ async function testGitModule() {
     "chore: merge feature/footer-toggle into main",
     "feature/footer-toggle",
   ]);
+
+  const checkoutRemoteDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-checkout-remote-"));
+  try {
+    runGitFixture(checkoutRemoteDir, ["init", "--bare", "origin.git"]);
+    const originPath = path.join(checkoutRemoteDir, "origin.git");
+    const repoPath = path.join(checkoutRemoteDir, "repo");
+    runGitFixture(checkoutRemoteDir, ["clone", originPath, repoPath]);
+    runGitFixture(repoPath, ["config", "user.name", "Gocus Test"]);
+    runGitFixture(repoPath, ["config", "user.email", "gocus@example.com"]);
+    runGitFixture(repoPath, ["checkout", "-b", "main"]);
+    fs.writeFileSync(path.join(repoPath, "base.txt"), "base\n", "utf8");
+    runGitFixture(repoPath, ["add", "base.txt"]);
+    runGitFixture(repoPath, ["commit", "-m", "base"]);
+    runGitFixture(repoPath, ["push", "-u", "origin", "main"]);
+    runGitFixture(repoPath, ["checkout", "-b", "develop"]);
+    fs.writeFileSync(path.join(repoPath, "develop.txt"), "develop\n", "utf8");
+    runGitFixture(repoPath, ["add", "develop.txt"]);
+    runGitFixture(repoPath, ["commit", "-m", "develop"]);
+    runGitFixture(repoPath, ["push", "-u", "origin", "develop"]);
+    runGitFixture(repoPath, ["checkout", "main"]);
+    runGitFixture(repoPath, ["branch", "-D", "develop"]);
+    runGitFixture(repoPath, ["fetch", "origin"]);
+
+    assert.deepEqual(await checkoutArgsForRef(repoPath, "origin/develop"), [
+      "checkout",
+      "--track",
+      "-b",
+      "develop",
+      "origin/develop",
+    ]);
+    const snapshot = await checkout(repoPath, "origin/develop", { mode: "current" });
+    assert.equal(snapshot.branch.name, "develop");
+    assert.equal(runGitFixture(repoPath, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]), "origin/develop");
+    assert.deepEqual(await checkoutArgsForRef(repoPath, "origin/main"), ["checkout", "main"]);
+    assert.equal(snapshot.branches.some((branch) => branch.name === "origin" && branch.fullName.endsWith("/HEAD")), false);
+  } finally {
+    fs.rmSync(checkoutRemoteDir, { force: true, recursive: true });
+  }
 
   const mergeMessageDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-merge-message-"));
   try {
@@ -4425,12 +4586,15 @@ async function testSettingsPanelView(server) {
         updates: "Auto update",
         install: "Auto install",
         check: "Manual",
+        releases: "Release page",
       },
       autoUpdateChannelAriaLabel: "Update channel",
       autoUpdateChecksAriaLabel: "Automatically check for updates",
       autoUpdateInstallAriaLabel: "Automatically install updates",
       checkForUpdatesAriaLabel: "Check for updates",
       checkForUpdatesLabel: "Check now",
+      releaseLinkLabel: "GitHub Releases",
+      releaseLinkAriaLabel: "Open GitHub Releases",
     },
     appearance: {
       titleId: "settings-appearance-title",
@@ -4531,6 +4695,7 @@ async function testSettingsPanelView(server) {
       autoUpdateChannelControlClassName: "settings-update-channel-control",
       autoUpdateChannelDetailClassName: "ui-label settings-update-channel-detail",
       manualUpdateButtonClassName: "ui-button settings-check-updates",
+      releaseLinkButtonClassName: "ui-button settings-release-link",
       menuBarIconToggleClassName: "ui-toggle settings-menu-bar-icon-toggle",
       dockIconToggleClassName: "ui-toggle settings-dock-icon-toggle",
       mergeCommitToggleClassName: "ui-toggle settings-merge-commit-toggle",
@@ -4756,11 +4921,13 @@ async function testBridgeAvailability(server) {
 
 async function testDevWebBridge(server) {
   const { devWebBridgeUrl, isLocalDevBridgeHost } = await loadTsModule(server, "src/lib/devWebBridge.ts");
+  const { gitHubReleasesUrl } = await loadTsModule(server, "src/lib/releaseLinks.ts");
 
   assert.equal(isLocalDevBridgeHost("localhost"), true);
   assert.equal(isLocalDevBridgeHost("127.0.0.1"), true);
   assert.equal(isLocalDevBridgeHost("example.com"), false);
   assert.equal(devWebBridgeUrl("getSnapshot"), "/__git_peek_dev_bridge/getSnapshot");
+  assert.equal(gitHubReleasesUrl, "https://github.com/jarvisluk/gocus/releases");
 }
 
 async function testPathAndFileStatus(server) {
@@ -6451,7 +6618,7 @@ async function testRepositoryControlsView(server) {
       upstream: "",
     }),
     {
-      rowClassName: "branch-ref-menu-row",
+      rowClassName: "branch-ref-menu-row has-switch",
       className: "ui-menu-item branch-ref-menu-item branch-ref-view-button",
       role: "menuitem",
       ariaCurrent: undefined,
@@ -6460,14 +6627,14 @@ async function testRepositoryControlsView(server) {
       title: "refs/remotes/origin/main",
       key: "remote-origin/main",
       switchAction: {
-        show: false,
+        show: true,
         disabled: false,
         branchName: "origin/main",
         tooltipClassName: "branch-switch-tooltip",
         className: "branch-switch-button",
         icon: "switch",
-        ariaLabel: "Switch to origin/main",
-        title: "Switch to origin/main",
+        ariaLabel: "Track and switch to main",
+        title: "Track and switch to main",
       },
     },
   );
@@ -7195,6 +7362,7 @@ async function testClassNamesAndGraph(server) {
 }
 
 async function main() {
+  testDevelopReleaseVersionScript();
   testFileChecksUtility();
   testWorkspaceModule();
   testSourceHygieneScript();

@@ -12,6 +12,7 @@ const changedFileInfoViewport = { width: 280, height: 252 };
 const commitInfoViewport = { width: 348, height: 240 };
 const testTimeZone = "Asia/Shanghai";
 const allWorkspaceTargets = ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"];
+const fileManagerLabel = process.platform === "win32" ? "Explorer" : "Finder";
 const footerCommitFullHash = "d4e5f6a000000000000000000000000000000000";
 
 function expectedCreateBranchAction(name) {
@@ -2501,15 +2502,15 @@ async function testDismissableMenus(browser, baseUrl) {
     assert.equal(await workspaceMenuButton.getAttribute("id"), "workspace-open-menu-toggle");
     assert.equal(await workspaceMenuButton.getAttribute("aria-expanded"), "true");
     assert.equal(await page.locator("#workspace-open-menu").getAttribute("aria-labelledby"), "workspace-open-menu-toggle");
-    assert.equal(await page.locator("#workspace-open-menu .workspace-open-menu-item.is-active").innerText(), "Finder");
+    assert.equal(await page.locator("#workspace-open-menu .workspace-open-menu-item.is-active").innerText(), fileManagerLabel);
     await page.keyboard.press("Escape");
     assert.equal(await page.locator("#workspace-open-menu").count(), 0);
     assert.equal(await workspaceMenuButton.getAttribute("aria-expanded"), "false");
 
     await workspaceMenuButton.click();
-    await page.getByRole("menuitem", { name: "Finder" }).click();
+    await page.getByRole("menuitem", { name: fileManagerLabel }).click();
     assert.deepEqual(await page.evaluate(() => window.__gocusOpenedWorkspaces), ["finder"]);
-    await page.getByRole("button", { name: "Open in Finder" }).click();
+    await page.getByRole("button", { name: `Open in ${fileManagerLabel}` }).click();
     assert.deepEqual(await page.evaluate(() => window.__gocusOpenedWorkspaces), ["finder", "finder"]);
     await page.getByRole("button", { name: "Open Changed now" }).click();
     await page.waitForFunction(() => window.__gocusTemporaryInfoPayload?.workspaceOpenTarget === "finder");
@@ -2616,6 +2617,8 @@ async function testFocusedViewEscapeControls(browser, baseUrl) {
     assert.equal(await page.locator("#settings-panel-title").innerText(), "App");
     assert.equal(await page.getByRole("checkbox", { name: "Automatically check for updates" }).isChecked(), true);
     assert.equal(await page.getByRole("checkbox", { name: "Automatically install updates" }).isChecked(), false);
+    await page.getByRole("button", { name: "Check for updates" }).waitFor();
+    await page.getByRole("button", { name: "Open GitHub Releases" }).waitFor();
     const appToggleLabels = ["Automatically check for updates", "Automatically install updates"];
     const appToggleBounds = await Promise.all(
       appToggleLabels.map(async (name) => {

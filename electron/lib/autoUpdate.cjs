@@ -124,6 +124,14 @@ function buildUpdateFeedUrl({
   ].join("/");
 }
 
+function releaseUrlForRepository(repository = defaultUpdateRepository) {
+  const normalizedRepository = normalizeUpdateRepository(repository);
+  if (!normalizedRepository) return "";
+
+  const [owner, repo] = normalizedRepository.split("/");
+  return `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/releases`;
+}
+
 function autoUpdateSupportReason({ platform = process.platform, isPackaged, isDevRuntime, repository } = {}) {
   if (platform !== "darwin") return "unsupported_platform";
   if (isDevRuntime) return "dev_runtime";
@@ -303,6 +311,7 @@ function createAutoUpdateController({
     if (reason === "missing_repository") {
       return `The ${updateChannel()} update channel has no GitHub Releases feed configured for this build.`;
     }
+    if (platform === "win32") return "Windows portable builds do not support automatic updates yet.";
     return "Gocus can check GitHub Releases only from a packaged macOS app.";
   }
 
@@ -395,6 +404,7 @@ module.exports = {
   defaultUpdateServer,
   normalizeUpdateRepository,
   normalizeUpdateChannel,
+  releaseUrlForRepository,
   updateChannelFromPackage,
   updateChannelsFromPackage,
   updateRepositoryForChannel,

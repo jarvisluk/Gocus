@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Candidate version. Leave blank to derive from package.json, for example 0.1.2-dev.123"
+        description: "Exact candidate version override, for example 0.2.0-dev.123"
         required: false
         default: ""
         type: string
@@ -40,6 +40,8 @@ jobs:
   macos:
     name: macOS Develop Candidate
     runs-on: macos-15
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
     env:
       INPUT_VERSION: ${{ github.event.inputs.version || '' }}
       INPUT_NOTARIZE: ${{ github.event.inputs.notarize || 'auto' }}
@@ -87,22 +89,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          version="$INPUT_VERSION"
-          if [[ -z "$version" ]]; then
-            package_version="$(node -p 'require("./package.json").version')"
-            IFS=. read -r major minor patch_extra <<<"$package_version"
-            patch="${patch_extra%%[-+]*}"
-            if [[ ! "$major" =~ ^[0-9]+$ || ! "$minor" =~ ^[0-9]+$ || ! "$patch" =~ ^[0-9]+$ ]]; then
-              echo "::error::Cannot derive a develop candidate version from package.json version: $package_version"
-              exit 2
-            fi
-            version="$major.$minor.$((patch + 1))-dev.$GITHUB_RUN_NUMBER"
-          fi
-
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo "::error::Candidate version must be semver-like: $version."
-            exit 2
-          fi
+          node scripts/resolve-develop-version.cjs
 
           case "$INPUT_NOTARIZE" in
             auto|true|false) ;;
@@ -112,7 +99,6 @@ jobs:
               ;;
           esac
 
-          echo "version=$version" >>"$GITHUB_OUTPUT"
           echo "notarize=$INPUT_NOTARIZE" >>"$GITHUB_OUTPUT"
 
       - name: Resolve signing mode
@@ -378,3 +364,83 @@ jobs:
       - name: Delete signing keychain
         if: always() && steps.release_mode.outputs.signing_enabled == 'true'
         run: /usr/bin/security delete-keychain "$RUNNER_TEMP/gocus-develop-signing.keychain-db" || true
+
+  windows:
+    name: Windows Develop Candidate
+    runs-on: windows-latest
+    needs: macos
+    env:
+      DEVELOP_UPDATE_REPOSITORY: jarvisluk/Gocus-Develop-Releases
+      GOCUS_PRODUCT_NAME: Gocus
+      GOCUS_UPDATE_CHANNEL: develop
+      GOCUS_UPDATE_REPO: jarvisluk/Gocus
+      GOCUS_UPDATE_DEVELOP_REPO: jarvisluk/Gocus-Develop-Releases
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          Remove-Item Env:ELECTRON_OVERRIDE_DIST_PATH -ErrorAction SilentlyContinue
+          Remove-Item Env:ELECTRON_SKIP_BINARY_DOWNLOAD -ErrorAction SilentlyContinue
+          Remove-Item Env:npm_config_electron_skip_binary_download -ErrorAction SilentlyContinue
+          npm ci --ignore-scripts
+          node scripts/ensure-electron-runtime.cjs
+          node -e "console.log('Electron runtime:', require('electron'))"
+
+      - name: Verify
+        shell: pwsh
+        run: |
+          npm run lint
+          npm run test:unit
+          npm run build
+
+      - name: Package Windows app
+        shell: pwsh
+        env:
+          GOCUS_BUILD: develop-${{ github.run_number }}-${{ github.sha }}
+          GOCUS_VERSION: ${{ needs.macos.outputs.version }}
+        run: npm run package:win:release
+
+      - name: Generate candidate metadata
+        shell: pwsh
+        run: |
+          Set-Location release/windows
+          Get-ChildItem -File | Where-Object { $_.Name -match '\.(zip|exe|blockmap|ya?ml)$' } | ForEach-Object {
+            $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant()
+            "${hash}  $($_.Name)" | Set-Content -Encoding utf8 "$($_.Name).sha256"
+          }
+
+      - name: Verify candidate artifacts
+        shell: pwsh
+        run: |
+          Set-Location release/windows
+          Get-ChildItem "*.sha256" | ForEach-Object {
+            $parts = (Get-Content $_.FullName -Raw).Trim() -split "\s+"
+            $actual = (Get-FileHash -Algorithm SHA256 $parts[1]).Hash.ToLowerInvariant()
+            if ($actual -ne $parts[0]) {
+              throw "Checksum mismatch for $($parts[1])"
+            }
+          }
+          Get-ChildItem | Format-Table -AutoSize
+
+      - name: Upload develop candidate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gocus-develop-windows-${{ needs.macos.outputs.version }}
+          path: |
+            release/windows/*-win-*.zip
+            release/windows/*.exe
+            release/windows/*.blockmap
+            release/windows/latest*.yml
+            release/windows/*.sha256

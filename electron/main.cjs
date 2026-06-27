@@ -14,7 +14,7 @@ const {
 } = require("electron");
 const path = require("node:path");
 const packageMetadata = require("../package.json");
-const { createAutoUpdateController } = require("./lib/autoUpdate.cjs");
+const { createAutoUpdateController, releaseUrlForRepository } = require("./lib/autoUpdate.cjs");
 const { createAssetLoader } = require("./lib/assets.cjs");
 const { createConfigStore, defaultActiveWorkspaceOpenTarget } = require("./lib/config.cjs");
 const { registerIpcHandlers } = require("./lib/ipcHandlers.cjs");
@@ -54,6 +54,7 @@ const { getAvailableWorkspaceTargets, openWorkspace, openWorkspaceFile } = requi
 installOutputErrorGuard();
 
 const isDevRuntime = Boolean(process.env.GOCUS_DEV_SERVER_URL);
+const isWindowsRuntime = process.platform === "win32";
 
 let mainWindow;
 let tray;
@@ -102,13 +103,44 @@ function applyWindowShadow(targetWindow) {
   targetWindow.setHasShadow(true);
 }
 
+function windowBackgroundColor() {
+  if (!isWindowsRuntime) return "#00000000";
+  return nativeTheme.shouldUseDarkColors ? "#1f1f1f" : "#f7f7f7";
+}
+
+function framelessWindowOptions() {
+  return {
+    frame: false,
+    transparent: !isWindowsRuntime,
+    backgroundColor: windowBackgroundColor(),
+    hasShadow: true,
+    roundedCorners: true,
+    ...(isWindowsRuntime ? { thickFrame: true } : {}),
+  };
+}
+
+function loadAppWindowIcon() {
+  return assets.loadImageAsset(isWindowsRuntime ? "app-icon.ico" : "app-icon.png");
+}
+
+function syncWindowBackgroundColor(targetWindow) {
+  if (!isWindowsRuntime || !targetWindow || targetWindow.isDestroyed()) return;
+  targetWindow.setBackgroundColor(windowBackgroundColor());
+}
+
+function syncWindowBackgroundColors() {
+  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow]) {
+    syncWindowBackgroundColor(win);
+  }
+}
+
 const workspaceOpenMenuOptions = [
   { target: "vscode", label: "VS Code" },
   { target: "cursor", label: "Cursor" },
   { target: "codex", label: "Codex" },
   { target: "antigravity", label: "Antigravity IDE" },
   { target: "antigravityApp", label: "Antigravity" },
-  { target: "finder", label: "Finder" },
+  { target: "finder", label: process.platform === "win32" ? "Explorer" : "Finder" },
   { target: "terminal", label: "Terminal" },
   { target: "xcode", label: "Xcode" },
 ];
@@ -134,6 +166,12 @@ function syncAutoUpdates(preferences = config.readPreferences()) {
   }
 }
 
+async function openGitHubReleases() {
+  const releaseUrl = releaseUrlForRepository(autoUpdates.updateRepository());
+  if (!releaseUrl) throw new Error("GitHub Releases URL is unavailable.");
+  await shell.openExternal(releaseUrl);
+}
+
 function shouldStartInMenuBar() {
   return launchAtLogin.shouldStartInMenuBar(config.readPreferences());
 }
@@ -143,7 +181,8 @@ function shouldShowMenuBarIcon(preferences = config.readPreferences()) {
 }
 
 function shouldShowDockIcon(preferences = config.readPreferences()) {
-  return preferences.showDockIcon !== false;
+  if (!isDevRuntime && !shouldUseMenuBarResidency(preferences)) return true;
+  return preferences.showDockIcon === true;
 }
 
 function shouldUseMenuBarResidency(preferences = config.readPreferences()) {
@@ -169,7 +208,8 @@ function showDockIcon() {
 }
 
 function softQuitToMenuBar() {
-  if (!shouldUseMenuBarResidency()) {
+  const preferences = config.readPreferences();
+  if (!shouldUseMenuBarResidency(preferences)) {
     requestRealQuit();
     return;
   }
@@ -181,7 +221,7 @@ function softQuitToMenuBar() {
     saveCurrentExpandedWindowSize(mainWindow);
     mainWindow.hide();
   }
-  hideDockIcon();
+  syncDockIcon(preferences);
 }
 
 function requestRealQuit() {
@@ -425,6 +465,7 @@ function nativeThemeSourceForPreferences(preferences = readPreferences()) {
 
 function syncNativeThemeSource(preferences = readPreferences()) {
   nativeTheme.themeSource = nativeThemeSourceForPreferences(preferences);
+  syncWindowBackgroundColors();
 }
 
 function sendToWindow(win, channel, ...args) {
@@ -451,6 +492,7 @@ function isCommitInfoPanelActive() {
 }
 
 function sendSystemTheme() {
+  syncWindowBackgroundColors();
   for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow]) {
     sendToWindow(win, "theme:changed", getSystemTheme());
   }
@@ -665,10 +707,7 @@ function ensureTemporaryInfoWindow() {
   temporaryInfoWindow = new BrowserWindow({
     ...bounds,
     show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: "#00000000",
-    hasShadow: true,
+    ...framelessWindowOptions(),
     resizable: false,
     movable: false,
     minimizable: false,
@@ -784,10 +823,7 @@ function ensureChangedFileInfoWindow() {
   changedFileInfoWindow = new BrowserWindow({
     ...bounds,
     show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: "#00000000",
-    hasShadow: true,
+    ...framelessWindowOptions(),
     resizable: false,
     movable: false,
     minimizable: false,
@@ -967,10 +1003,7 @@ function ensureCommitInfoWindow() {
   commitInfoWindow = new BrowserWindow({
     ...bounds,
     show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: "#00000000",
-    hasShadow: true,
+    ...framelessWindowOptions(),
     resizable: false,
     movable: false,
     minimizable: false,
@@ -1044,7 +1077,7 @@ function setPinnedWindow(pinned) {
 }
 
 function showMainWindow() {
-  if (shouldShowDockIcon()) showDockIcon();
+  syncDockIcon();
   if (!mainWindow || mainWindow.isDestroyed()) {
     createWindow({ showOnReady: true });
     return;
@@ -1055,7 +1088,7 @@ function showMainWindow() {
 }
 
 function createWindow({ showOnReady = true } = {}) {
-  const appIcon = assets.loadImageAsset("app-icon.png");
+  const appIcon = loadAppWindowIcon();
   const initialExpandedSize = readExpandedSize(screen.getPrimaryDisplay().workArea);
 
   mainWindow = new BrowserWindow({
@@ -1063,10 +1096,7 @@ function createWindow({ showOnReady = true } = {}) {
     minWidth: expandedMinimumSize.width,
     minHeight: expandedMinimumSize.height,
     show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: "#00000000",
-    hasShadow: true,
+    ...framelessWindowOptions(),
     icon: appIcon,
     resizable: true,
     title: "Gocus",
@@ -1442,6 +1472,7 @@ registerIpcHandlers({
   openWorkspace,
   openWorkspaceFile,
   openWorkspaceFileMenu,
+  openGitHubReleases,
   openWorktree,
   readPreferences,
   readRecentRepositories,

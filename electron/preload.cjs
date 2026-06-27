@@ -1,5 +1,9 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
+window.addEventListener("DOMContentLoaded", () => {
+  document.documentElement.dataset.platform = process.platform;
+});
+
 contextBridge.exposeInMainWorld("gocus", {
   openRepository: (view) => ipcRenderer.invoke("git:openRepository", view),
   switchRepository: (repositoryPath, view) => ipcRenderer.invoke("git:switchRepository", repositoryPath, view),
@@ -20,6 +24,7 @@ contextBridge.exposeInMainWorld("gocus", {
   getActiveWorkspaceTarget: () => ipcRenderer.invoke("workspace:getActiveTarget"),
   setActiveWorkspaceTarget: (target) => ipcRenderer.invoke("workspace:setActiveTarget", target),
   openWorkspaceFileMenu: (payload) => ipcRenderer.invoke("workspace:openFileMenu", payload),
+  openGitHubReleases: () => ipcRenderer.invoke("app:openGitHubReleases"),
   getPreferences: () => ipcRenderer.invoke("preferences:get"),
   savePreferences: (preferences) => ipcRenderer.invoke("preferences:save", preferences),
   setCollapsed: (collapsed) => ipcRenderer.invoke("window:setCollapsed", collapsed),

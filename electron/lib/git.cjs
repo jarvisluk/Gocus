@@ -161,7 +161,33 @@ function parseBranches(output, currentBranchName) {
         upstream,
       };
     })
-    .filter((branch) => branch.name && !branch.name.endsWith("/HEAD"));
+    .filter((branch) => branch.name && !branch.name.endsWith("/HEAD") && !branch.fullName.endsWith("/HEAD"));
+}
+
+function localBranchNameForRemoteRef(ref) {
+  const cleanRef = `${ref ?? ""}`.trim();
+  if (!cleanRef || cleanRef.endsWith("/HEAD")) return "";
+  const parts = cleanRef.split("/");
+  if (parts.length < 2) return "";
+  return parts.slice(1).join("/");
+}
+
+async function gitRefExists(root, refName) {
+  if (!refName) return false;
+  return runGit(root, ["show-ref", "--verify", "--quiet", refName]).then(() => true, () => false);
+}
+
+async function checkoutArgsForRef(root, ref) {
+  const cleanRef = `${ref ?? ""}`.trim();
+  const remoteRefName = `refs/remotes/${cleanRef}`;
+  const localBranchName = localBranchNameForRemoteRef(cleanRef);
+  const remoteBranchExists = await gitRefExists(root, remoteRefName);
+
+  if (!remoteBranchExists || !localBranchName) return ["checkout", cleanRef];
+
+  const localBranchExists = await gitRefExists(root, `refs/heads/${localBranchName}`);
+  if (localBranchExists) return ["checkout", localBranchName];
+  return ["checkout", "--track", "-b", localBranchName, cleanRef];
 }
 
 function parseContainedBranchTips(output) {
@@ -659,7 +685,7 @@ async function createBranch(repoPath, branchName, startPoint, view) {
 
 async function checkout(repoPath, ref, view) {
   const root = await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
-  await runGit(root, ["checkout", ref]);
+  await runGit(root, await checkoutArgsForRef(root, ref));
   return readGitSnapshot(root, view);
 }
 
@@ -787,6 +813,7 @@ async function initializeRepository(folderPath, view) {
 
 module.exports = {
   checkout,
+  checkoutArgsForRef,
   cleanupWorktree,
   createBranch,
   defaultCommitLogLimit,

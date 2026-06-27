@@ -23,7 +23,7 @@ const defaultPreferences = {
   graphStyle: "solid",
   workspaceOpenTargets: ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"],
   showMenuBarIcon: true,
-  showDockIcon: true,
+  showDockIcon: false,
   launchAtLogin: false,
   autoUpdateChannel: "stable",
   autoUpdateChecks: true,
