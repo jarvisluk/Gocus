@@ -1039,7 +1039,9 @@ async function testAutoUpdateModule() {
   try {
     const {
       autoUpdateSupportReason,
+      buildUpdateFeedConfig,
       buildUpdateFeedUrl,
+      buildWindowsUpdateFeedConfig,
       createAutoUpdateController,
       defaultChannelSwitchVersion,
       normalizeUpdateChannel,
@@ -1098,6 +1100,35 @@ async function testAutoUpdateModule() {
       }),
       "https://update.electronjs.org/jarvisluk/gocus/darwin-arm64/0.2.0",
     );
+    assert.deepEqual(
+      buildUpdateFeedConfig({
+        repository: "jarvisluk/gocus",
+        platform: "darwin",
+        arch: "arm64",
+        version: "0.2.0",
+      }),
+      {
+        url: "https://update.electronjs.org/jarvisluk/gocus/darwin-arm64/0.2.0",
+      },
+    );
+    assert.deepEqual(buildWindowsUpdateFeedConfig({ repository: "https://github.com/jarvisluk/gocus.git" }), {
+      provider: "github",
+      owner: "jarvisluk",
+      repo: "gocus",
+    });
+    assert.deepEqual(
+      buildUpdateFeedConfig({
+        repository: "jarvisluk/gocus",
+        platform: "win32",
+        arch: "x64",
+        version: "0.2.0",
+      }),
+      {
+        provider: "github",
+        owner: "jarvisluk",
+        repo: "gocus",
+      },
+    );
     assert.equal(releaseUrlForRepository("jarvisluk/gocus"), "https://github.com/jarvisluk/gocus/releases");
     assert.equal(releaseUrlForRepository("https://github.com/jarvisluk/gocus.git"), "https://github.com/jarvisluk/gocus/releases");
     assert.equal(releaseUrlForRepository("https://example.com/jarvisluk/gocus"), "");
@@ -1126,7 +1157,27 @@ async function testAutoUpdateModule() {
         isDevRuntime: false,
         repository: "jarvisluk/gocus",
       }),
-      "unsupported_platform",
+      "",
+    );
+    assert.equal(
+      autoUpdateSupportReason({
+        platform: "win32",
+        isPackaged: true,
+        isDevRuntime: false,
+        isPortableRuntime: true,
+        repository: "jarvisluk/gocus",
+      }),
+      "portable",
+    );
+    assert.equal(
+      autoUpdateSupportReason({
+        platform: "win32",
+        isPackaged: true,
+        isDevRuntime: false,
+        repository: "jarvisluk/gocus",
+        hasAutoUpdater: false,
+      }),
+      "missing_updater",
     );
     assert.equal(
       autoUpdateSupportReason({
@@ -1296,8 +1347,71 @@ async function testAutoUpdateModule() {
       "The develop update channel has no GitHub Releases feed configured for this build.",
     );
 
-    const windowsUnsupportedDialogs = [];
-    const windowsUnsupportedController = createAutoUpdateController({
+    const windowsEvents = new EventEmitter();
+    const windowsDialogs = [];
+    const windowsFeedOptions = [];
+    let windowsCheckedForUpdates = false;
+    let windowsInstalled = false;
+    const windowsAutoUpdater = {
+      allowDowngrade: false,
+      setFeedURL(options) {
+        windowsFeedOptions.push(options);
+      },
+      on(eventName, handler) {
+        windowsEvents.on(eventName, handler);
+      },
+      checkForUpdates() {
+        windowsCheckedForUpdates = true;
+        return Promise.resolve();
+      },
+      quitAndInstall() {
+        windowsInstalled = true;
+      },
+    };
+    const windowsController = createAutoUpdateController({
+      app: {
+        isPackaged: true,
+        getVersion: () => "0.2.0",
+      },
+      autoUpdater: windowsAutoUpdater,
+      dialog: {
+        showMessageBox(options) {
+          windowsDialogs.push(options);
+          return Promise.resolve({ response: 0 });
+        },
+      },
+      packageMetadata: {
+        updateRepository: "jarvisluk/gocus",
+        updateChannels: { develop: "jarvisluk/gocus-develop" },
+      },
+      platform: "win32",
+      arch: "x64",
+      isDevRuntime: false,
+    });
+    assert.equal(windowsController.isSupported(), true);
+    assert.equal(windowsController.checkForUpdates({ manual: true }), true);
+    assert.equal(windowsCheckedForUpdates, true);
+    assert.deepEqual(windowsFeedOptions.at(-1), {
+      provider: "github",
+      owner: "jarvisluk",
+      repo: "gocus",
+    });
+    windowsEvents.emit("update-not-available");
+    assert.equal(windowsDialogs.at(-1).message, "Gocus is up to date.");
+    windowsController.setPreferences({ autoUpdateChannel: "develop", autoUpdateChecks: true });
+    assert.equal(windowsController.checkForUpdates(), true);
+    assert.equal(windowsAutoUpdater.allowDowngrade, true);
+    assert.deepEqual(windowsFeedOptions.at(-1), {
+      provider: "github",
+      owner: "jarvisluk",
+      repo: "gocus-develop",
+    });
+    windowsController.setPreferences({ autoUpdateInstall: true, autoUpdateChannel: "develop" });
+    windowsEvents.emit("update-downloaded", { version: "0.2.1", releaseNotes: "Fixed Windows updater" });
+    assert.equal(windowsInstalled, true);
+
+    const windowsPortableDialogs = [];
+    const windowsPortableController = createAutoUpdateController({
       app: {
         isPackaged: true,
         getVersion: () => "0.2.0",
@@ -1312,7 +1426,7 @@ async function testAutoUpdateModule() {
       },
       dialog: {
         showMessageBox(options) {
-          windowsUnsupportedDialogs.push(options);
+          windowsPortableDialogs.push(options);
           return Promise.resolve({ response: 0 });
         },
       },
@@ -1320,12 +1434,14 @@ async function testAutoUpdateModule() {
       platform: "win32",
       arch: "x64",
       isDevRuntime: false,
+      isPortableRuntime: true,
     });
-    assert.equal(windowsUnsupportedController.isSupported(), false);
-    assert.equal(windowsUnsupportedController.checkForUpdates({ manual: true }), false);
+    assert.equal(windowsPortableController.isSupported(), false);
+    assert.equal(windowsPortableController.checkForUpdates({ manual: true }), false);
     assert.equal(
-      windowsUnsupportedDialogs.at(-1).detail,
-      "Windows portable builds do not support automatic updates yet.",
+      windowsPortableDialogs.at(-1).detail,
+      "Windows portable builds do not support automatic updates. " +
+        "Install Gocus with the Windows Setup package to receive automatic updates.",
     );
   } finally {
     for (const [name, value] of Object.entries(previousUpdateEnv)) {
