@@ -14,6 +14,7 @@ delete process.env.npm_config_electron_skip_binary_download;
 const electronPackagePath = require.resolve("electron/package.json");
 const electronRoot = path.dirname(electronPackagePath);
 const { version } = require(electronPackagePath);
+const electronInstallScript = path.join(electronRoot, "install.js");
 const platform = process.env.npm_config_platform || os.platform();
 const arch = process.env.npm_config_arch || os.arch();
 const platformPath = getPlatformPath(platform);
@@ -63,6 +64,12 @@ function run(command, args) {
   }
 }
 
+function runOfficialElectronInstaller() {
+  if (!fs.existsSync(electronInstallScript)) return false;
+  run(process.execPath, [electronInstallScript]);
+  return true;
+}
+
 async function extractArchive(zipPath) {
   if (process.platform === "darwin") {
     run("/usr/bin/ditto", ["-x", "-k", zipPath, distPath]);
@@ -76,6 +83,11 @@ async function installRuntime() {
   console.log(`Ensuring Electron ${version} runtime for ${platform}-${arch}.`);
 
   if (installedRuntimeMatches()) {
+    console.log(`Electron runtime ready: ${runtimePath}`);
+    return;
+  }
+
+  if (runOfficialElectronInstaller() && installedRuntimeMatches()) {
     console.log(`Electron runtime ready: ${runtimePath}`);
     return;
   }
