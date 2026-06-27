@@ -12,6 +12,7 @@ const {
   screen,
   shell,
 } = require("electron");
+const fs = require("node:fs");
 const path = require("node:path");
 const packageMetadata = require("../package.json");
 const { createAutoUpdateController, releaseUrlForRepository } = require("./lib/autoUpdate.cjs");
@@ -238,6 +239,10 @@ function softQuitToMenuBar() {
     mainWindow.hide();
   }
   syncDockIcon(preferences);
+}
+
+function shouldHideToMenuBarOnClose() {
+  return !realQuitRequested && shouldUseMenuBarResidency();
 }
 
 function requestRealQuit() {
@@ -1164,7 +1169,7 @@ function createWindow({ showOnReady = true } = {}) {
     closeChangedFileInfoWindow();
     closeCommitInfoWindow();
     saveCurrentExpandedWindowSize(mainWindow);
-    if (process.platform === "darwin" && !realQuitRequested && shouldUseMenuBarResidency()) {
+    if (shouldHideToMenuBarOnClose()) {
       event.preventDefault();
       mainWindow.hide();
     }
@@ -1188,10 +1193,17 @@ function createTray() {
     return;
   }
 
-  const trayIcon = assets.loadImageAsset("tray-iconTemplate.png", { template: process.platform === "darwin" });
+  const trayIconName =
+    process.platform === "win32" && fs.existsSync(assets.resolveAssetPath("tray-iconWindows.png"))
+      ? "tray-iconWindows.png"
+      : "tray-iconTemplate.png";
+  const trayIcon = assets.loadImageAsset(trayIconName, { template: process.platform === "darwin" });
 
   tray = new Tray(trayIcon);
   tray.setToolTip("Gocus");
+  if (process.platform === "win32") {
+    tray.on("click", showMainWindow);
+  }
   if (process.platform === "darwin" && process.env.GOCUS_SHOW_TRAY_TITLE === "1") {
     tray.setTitle("Gocus");
   }
@@ -1200,6 +1212,7 @@ function createTray() {
       console.info(
         "[tray]",
         JSON.stringify({
+          asset: trayIconName,
           empty: trayIcon.isEmpty(),
           template: process.platform === "darwin" ? trayIcon.isTemplateImage() : false,
           size1x: trayIcon.getSize(1),
@@ -1443,7 +1456,7 @@ app.whenReady().then(() => {
 });
 
 app.on("before-quit", (event) => {
-  if (process.platform !== "darwin" || realQuitRequested || !shouldUseMenuBarResidency()) {
+  if (!shouldHideToMenuBarOnClose()) {
     stopRepositoryWatcher();
     return;
   }
@@ -1453,7 +1466,7 @@ app.on("before-quit", (event) => {
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin" || !shouldUseMenuBarResidency()) app.quit();
+  if (!shouldUseMenuBarResidency()) app.quit();
 });
 
 registerIpcHandlers({

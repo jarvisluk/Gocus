@@ -22,7 +22,13 @@ const darwinAppPathsByTarget = {
 
 function execOpen(command, args) {
   return new Promise((resolve, reject) => {
-    execFile(command, args, (error) => {
+    const executable = process.platform === "win32" && isWindowsCommandScript(command) ? "cmd.exe" : command;
+    const executableArgs =
+      process.platform === "win32" && isWindowsCommandScript(command)
+        ? ["/d", "/s", "/c", [command, ...args].map(quoteWindowsCommandArg).join(" ")]
+        : args;
+
+    execFile(executable, executableArgs, (error) => {
       if (error) {
         reject(error);
         return;
@@ -30,6 +36,15 @@ function execOpen(command, args) {
       resolve();
     });
   });
+}
+
+function quoteWindowsCommandArg(value) {
+  const stringValue = String(value);
+  return `"${stringValue.replaceAll('"', '""')}"`;
+}
+
+function isWindowsCommandScript(command) {
+  return /\.(?:bat|cmd)$/i.test(command);
 }
 
 function execOutput(command, args, options = {}) {
@@ -44,13 +59,21 @@ function execOutput(command, args, options = {}) {
   });
 }
 
-function commandExists(command) {
-  return new Promise((resolve) => {
-    const lookupCommand = process.platform === "win32" ? "where" : "which";
-    execFile(lookupCommand, [command], (error) => {
-      resolve(!error);
-    });
-  });
+async function commandLookupPaths(command) {
+  const lookupCommand = process.platform === "win32" ? "where" : "which";
+  try {
+    const output = await execOutput(lookupCommand, [command]);
+    return output
+      .split(/\r?\n/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+async function commandExists(command) {
+  return (await commandLookupPaths(command)).length > 0;
 }
 
 function possibleDarwinAppPaths(appName) {
@@ -99,7 +122,49 @@ function nvmCodexCliCandidatePaths(homeDir = os.homedir()) {
     .reverse();
 }
 
-function codexCliCandidatePaths({ env = process.env, homeDir = os.homedir() } = {}) {
+function windowsCliCandidatePaths(command, { env = process.env, homeDir = os.homedir() } = {}) {
+  const appData = env.APPDATA || path.join(homeDir, "AppData", "Roaming");
+  const localAppData = env.LOCALAPPDATA || path.join(homeDir, "AppData", "Local");
+
+  if (command === "codex") {
+    return [
+      env.GOCUS_CODEX_CLI,
+      path.join(appData, "npm", "codex.exe"),
+      path.join(appData, "npm", "codex.cmd"),
+      path.join(appData, "npm", "codex"),
+    ].filter(Boolean);
+  }
+
+  if (command === "code") {
+    return [
+      env.GOCUS_VSCODE_CLI,
+      path.join(localAppData, "Programs", "Microsoft VS Code", "bin", "code.exe"),
+      path.join(localAppData, "Programs", "Microsoft VS Code", "bin", "code.cmd"),
+    ].filter(Boolean);
+  }
+
+  if (command === "cursor") {
+    return [
+      env.GOCUS_CURSOR_CLI,
+      path.join(localAppData, "Programs", "cursor", "resources", "app", "bin", "cursor.cmd"),
+      path.join(localAppData, "Programs", "cursor", "resources", "app", "bin", "cursor"),
+    ].filter(Boolean);
+  }
+
+  if (command === "antigravity") {
+    return [
+      env.GOCUS_ANTIGRAVITY_CLI,
+      path.join(localAppData, "Programs", "Antigravity", "bin", "antigravity.cmd"),
+      path.join(localAppData, "Programs", "Antigravity", "bin", "antigravity"),
+    ].filter(Boolean);
+  }
+
+  return [];
+}
+
+function codexCliCandidatePaths({ env = process.env, homeDir = os.homedir(), platform = process.platform } = {}) {
+  if (platform === "win32") return windowsCliCandidatePaths("codex", { env, homeDir });
+
   return [
     env.GOCUS_CODEX_CLI,
     "/opt/homebrew/bin/codex",
@@ -109,9 +174,18 @@ function codexCliCandidatePaths({ env = process.env, homeDir = os.homedir() } = 
   ].filter(Boolean);
 }
 
-function isExecutableFile(filePath) {
+function preferredWindowsCommandPath(commandPaths) {
+  return (
+    commandPaths.find((commandPath) => /\.exe$/i.test(commandPath)) ||
+    commandPaths.find((commandPath) => /\.(?:cmd|bat)$/i.test(commandPath)) ||
+    commandPaths[0] ||
+    null
+  );
+}
+
+function isExecutableFile(filePath, { platform = process.platform } = {}) {
   try {
-    fs.accessSync(filePath, fs.constants.X_OK);
+    fs.accessSync(filePath, platform === "win32" ? fs.constants.F_OK : fs.constants.X_OK);
     return true;
   } catch {
     return false;
@@ -126,7 +200,24 @@ async function resolveCommandFromLoginShell(command) {
   return commandPath;
 }
 
+async function resolveCliCommand(command) {
+  if (process.platform === "win32") {
+    const commandPath = preferredWindowsCommandPath(await commandLookupPaths(command));
+    if (commandPath) return commandPath;
+
+    for (const candidatePath of windowsCliCandidatePaths(command)) {
+      if (isExecutableFile(candidatePath)) return candidatePath;
+    }
+
+    return null;
+  }
+
+  if (await commandExists(command)) return command;
+  return null;
+}
+
 async function resolveCodexCliCommand() {
+  if (process.platform === "win32") return resolveCliCommand("codex");
   if (await commandExists("codex")) return "codex";
 
   try {
@@ -150,7 +241,20 @@ async function openCodexDesktop(targetPath) {
     return;
   }
 
+  if (process.platform !== "darwin") {
+    throw new Error("Codex CLI was not found. Install Codex or set GOCUS_CODEX_CLI to its command path.");
+  }
+
   await openDarwinApp(["Codex"], targetPath);
+}
+
+async function openAntigravity(targetPath, { file = false } = {}) {
+  const antigravityCommand = await resolveCliCommand("antigravity");
+  if (!antigravityCommand) {
+    throw new Error("Antigravity CLI was not found. Install Antigravity or set GOCUS_ANTIGRAVITY_CLI to its command path.");
+  }
+
+  await execOpen(antigravityCommand, file ? ["--goto", targetPath] : [targetPath]);
 }
 
 function targetLabel(target) {
@@ -189,8 +293,10 @@ async function isWorkspaceTargetAvailable(target) {
   if (process.platform === "darwin") return darwinAppExists(target);
   if (target === "finder") return true;
   if (target === "terminal") return process.platform === "win32" || commandExists("x-terminal-emulator");
-  if (target === "vscode") return commandExists("code");
-  if (target === "cursor") return commandExists("cursor");
+  if (target === "vscode") return Boolean(await resolveCliCommand("code"));
+  if (target === "cursor") return Boolean(await resolveCliCommand("cursor"));
+  if (target === "codex") return Boolean(await resolveCodexCliCommand());
+  if (target === "antigravity" || target === "antigravityApp") return Boolean(await resolveCliCommand("antigravity"));
   return false;
 }
 
@@ -221,7 +327,9 @@ async function openWorkspace(repositoryPath, target) {
       if (process.platform === "darwin") {
         await execOpen("open", ["-a", "Visual Studio Code", repositoryPath]);
       } else {
-        await execOpen("code", [repositoryPath]);
+        const command = await resolveCliCommand("code");
+        if (!command) throw new Error("VS Code CLI was not found.");
+        await execOpen(command, [repositoryPath]);
       }
       return { ok: true, message: "Opened workspace in VS Code." };
     }
@@ -230,35 +338,33 @@ async function openWorkspace(repositoryPath, target) {
       if (process.platform === "darwin") {
         await openDarwinApp(["Cursor"], repositoryPath);
       } else {
-        await execOpen("cursor", [repositoryPath]);
+        const command = await resolveCliCommand("cursor");
+        if (!command) throw new Error("Cursor CLI was not found.");
+        await execOpen(command, [repositoryPath]);
       }
       return { ok: true, message: "Opened workspace in Cursor." };
     }
 
     if (target === "codex") {
-      if (process.platform !== "darwin") {
-        return { ok: false, reason: "action_failed", error: "Codex is only available as a macOS app target here." };
-      }
-
       await openCodexDesktop(repositoryPath);
       return { ok: true, message: "Opened workspace in Codex." };
     }
 
     if (target === "antigravity") {
-      if (process.platform !== "darwin") {
-        return { ok: false, reason: "action_failed", error: "Antigravity IDE is only available as a macOS app target here." };
+      if (process.platform === "darwin") {
+        await openDarwinApp(["Antigravity IDE"], repositoryPath);
+      } else {
+        await openAntigravity(repositoryPath);
       }
-
-      await openDarwinApp(["Antigravity IDE"], repositoryPath);
       return { ok: true, message: "Opened workspace in Antigravity IDE." };
     }
 
     if (target === "antigravityApp") {
-      if (process.platform !== "darwin") {
-        return { ok: false, reason: "action_failed", error: "Antigravity is only available as a macOS app target here." };
+      if (process.platform === "darwin") {
+        await openDarwinApp(["Antigravity"], repositoryPath);
+      } else {
+        await openAntigravity(repositoryPath);
       }
-
-      await openDarwinApp(["Antigravity"], repositoryPath);
       return { ok: true, message: "Opened workspace in Antigravity." };
     }
 
@@ -316,7 +422,9 @@ async function openWorkspaceFile(repositoryPath, target, filePath) {
       if (process.platform === "darwin") {
         await execOpen("open", ["-a", "Visual Studio Code", targetPath]);
       } else {
-        await execOpen("code", ["-g", targetPath]);
+        const command = await resolveCliCommand("code");
+        if (!command) throw new Error("VS Code CLI was not found.");
+        await execOpen(command, ["-g", targetPath]);
       }
       return { ok: true, message: "Opened file in VS Code." };
     }
@@ -325,35 +433,33 @@ async function openWorkspaceFile(repositoryPath, target, filePath) {
       if (process.platform === "darwin") {
         await openDarwinApp(["Cursor"], targetPath);
       } else {
-        await execOpen("cursor", ["-g", targetPath]);
+        const command = await resolveCliCommand("cursor");
+        if (!command) throw new Error("Cursor CLI was not found.");
+        await execOpen(command, ["-g", targetPath]);
       }
       return { ok: true, message: "Opened file in Cursor." };
     }
 
     if (target === "codex") {
-      if (process.platform !== "darwin") {
-        return { ok: false, reason: "action_failed", error: "Codex is only available as a macOS app target here." };
-      }
-
       await openCodexDesktop(targetPath);
       return { ok: true, message: "Opened file in Codex." };
     }
 
     if (target === "antigravity") {
-      if (process.platform !== "darwin") {
-        return { ok: false, reason: "action_failed", error: "Antigravity IDE is only available as a macOS app target here." };
+      if (process.platform === "darwin") {
+        await openDarwinApp(["Antigravity IDE"], targetPath);
+      } else {
+        await openAntigravity(targetPath, { file: true });
       }
-
-      await openDarwinApp(["Antigravity IDE"], targetPath);
       return { ok: true, message: "Opened file in Antigravity IDE." };
     }
 
     if (target === "antigravityApp") {
-      if (process.platform !== "darwin") {
-        return { ok: false, reason: "action_failed", error: "Antigravity is only available as a macOS app target here." };
+      if (process.platform === "darwin") {
+        await openDarwinApp(["Antigravity"], targetPath);
+      } else {
+        await openAntigravity(targetPath, { file: true });
       }
-
-      await openDarwinApp(["Antigravity"], targetPath);
       return { ok: true, message: "Opened file in Antigravity." };
     }
 
@@ -395,5 +501,6 @@ module.exports = {
   __private: {
     codexCliCandidatePaths,
     nvmCodexCliCandidatePaths,
+    windowsCliCandidatePaths,
   },
 };

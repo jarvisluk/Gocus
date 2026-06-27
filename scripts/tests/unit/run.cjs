@@ -309,19 +309,50 @@ function testWorkspaceModule() {
       path.join(nodeVersionsDir, "v20.19.6", "bin", "codex"),
     ];
     assert.deepEqual(__private.nvmCodexCliCandidatePaths(tempDir), expectedNvmPaths);
-    assert.deepEqual(__private.codexCliCandidatePaths({ env: {}, homeDir: tempDir }), [
+    assert.deepEqual(__private.codexCliCandidatePaths({ env: {}, homeDir: tempDir, platform: "darwin" }), [
       "/opt/homebrew/bin/codex",
       "/usr/local/bin/codex",
       path.join(tempDir, ".local", "bin", "codex"),
       ...expectedNvmPaths,
     ]);
-    assert.deepEqual(__private.codexCliCandidatePaths({ env: { GOCUS_CODEX_CLI: "/tmp/codex" }, homeDir: tempDir }), [
+    assert.deepEqual(__private.codexCliCandidatePaths({ env: { GOCUS_CODEX_CLI: "/tmp/codex" }, homeDir: tempDir, platform: "darwin" }), [
       "/tmp/codex",
       "/opt/homebrew/bin/codex",
       "/usr/local/bin/codex",
       path.join(tempDir, ".local", "bin", "codex"),
       ...expectedNvmPaths,
     ]);
+    assert.deepEqual(
+      __private.codexCliCandidatePaths({
+        env: {
+          APPDATA: path.join(tempDir, "Roaming"),
+          LOCALAPPDATA: path.join(tempDir, "Local"),
+          GOCUS_CODEX_CLI: "C:\\Tools\\codex.exe",
+        },
+        homeDir: tempDir,
+        platform: "win32",
+      }),
+      [
+        "C:\\Tools\\codex.exe",
+        path.join(tempDir, "Roaming", "npm", "codex.exe"),
+        path.join(tempDir, "Roaming", "npm", "codex.cmd"),
+        path.join(tempDir, "Roaming", "npm", "codex"),
+      ],
+    );
+    assert.deepEqual(
+      __private.windowsCliCandidatePaths("antigravity", {
+        env: {
+          LOCALAPPDATA: path.join(tempDir, "Local"),
+          GOCUS_ANTIGRAVITY_CLI: "C:\\Tools\\antigravity.cmd",
+        },
+        homeDir: tempDir,
+      }),
+      [
+        "C:\\Tools\\antigravity.cmd",
+        path.join(tempDir, "Local", "Programs", "Antigravity", "bin", "antigravity.cmd"),
+        path.join(tempDir, "Local", "Programs", "Antigravity", "bin", "antigravity"),
+      ],
+    );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
