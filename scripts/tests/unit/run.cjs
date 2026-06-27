@@ -811,10 +811,12 @@ function testWindowGeometryModule() {
     expandedMinimumSize,
     clampExpandedSize,
     mainWindowBounds,
+    rightAlignedWindowBounds,
     commitInfoBounds,
     commitInfoWindowSize,
     temporaryInfoBounds,
     windowBoundsEqual,
+    expandedMaximumSize,
   } = require(path.join(projectRoot, "electron/lib/windowGeometry.cjs"));
   const display = { x: 0, y: 24, width: 1440, height: 876 };
 
@@ -822,6 +824,8 @@ function testWindowGeometryModule() {
   assert.deepEqual(changedFileInfoWindowSize, { width: 280, height: 252 });
   assert.deepEqual(commitInfoWindowSize, { width: 348, height: 132 });
   assert.deepEqual(expandedMinimumSize, { width: 320, height: 620 });
+  assert.deepEqual(expandedMaximumSize(display), { width: 1420, height: 860 });
+  assert.deepEqual(expandedMaximumSize({ x: 0, y: 0, width: 280, height: 500 }), { width: 320, height: 620 });
   assert.equal(clampCollapsedRailHeight(96, display), 136);
   assert.equal(clampCollapsedRailHeight(355, display), 355);
   assert.equal(clampCollapsedRailHeight(9999, display), 420);
@@ -858,6 +862,10 @@ function testWindowGeometryModule() {
       expandedSize: { width: 360, height: 700 },
     }),
     { x: 1402, y: 284, width: 38, height: 355 },
+  );
+  assert.deepEqual(
+    rightAlignedWindowBounds({ x: 1402, y: 394, width: 54, height: 136 }, display),
+    { x: 1386, y: 394, width: 54, height: 136 },
   );
   assert.deepEqual(
     temporaryInfoBounds({
@@ -932,6 +940,26 @@ function testWindowGeometryModule() {
   assert.equal(windowBoundsEqual({ x: 1, y: 2, width: 3, height: 4 }, { x: 1, y: 2, width: 3, height: 4 }), true);
   assert.equal(windowBoundsEqual({ x: 1, y: 2, width: 3, height: 4 }, { x: 1, y: 3, width: 3, height: 4 }), false);
   assert.equal(windowBoundsEqual(null, { x: 1, y: 2, width: 3, height: 4 }), false);
+}
+
+function testWindowAnimationModule() {
+  const {
+    easeOutCubic,
+    interpolatedWindowBounds,
+    windowBoundsAnimationFrameCount,
+  } = require(path.join(projectRoot, "electron/lib/windowAnimation.cjs"));
+  const fromBounds = { x: 1000, y: 80, width: 320, height: 780 };
+  const toBounds = { x: 1402, y: 394, width: 38, height: 136 };
+
+  assert.equal(easeOutCubic(-1), 0);
+  assert.equal(easeOutCubic(0), 0);
+  assert.equal(easeOutCubic(1), 1);
+  assert.equal(easeOutCubic(2), 1);
+  assert.deepEqual(interpolatedWindowBounds(fromBounds, toBounds, 0), fromBounds);
+  assert.deepEqual(interpolatedWindowBounds(fromBounds, toBounds, 1), toBounds);
+  assert.deepEqual(interpolatedWindowBounds(fromBounds, toBounds, 0.5), { x: 1352, y: 355, width: 73, height: 217 });
+  assert.equal(windowBoundsAnimationFrameCount(180, 16), 12);
+  assert.equal(windowBoundsAnimationFrameCount(1, 16), 1);
 }
 
 function testIpcHandlersModule() {
@@ -7517,6 +7545,7 @@ async function main() {
   testNodeSyntaxScript();
   testShellSyntaxScript();
   testWindowGeometryModule();
+  testWindowAnimationModule();
   testConfigStoreModule();
   testIpcHandlersModule();
   await testAutoUpdateModule();

@@ -22,17 +22,25 @@ const { registerIpcHandlers } = require("./lib/ipcHandlers.cjs");
 const { createLaunchAtLoginController } = require("./lib/launchAtLogin.cjs");
 const { installOutputErrorGuard } = require("./lib/outputGuard.cjs");
 const {
+  defaultWindowAnimationDurationMs,
+  defaultWindowAnimationFrameMs,
+  interpolatedWindowBounds,
+  windowBoundsAnimationFrameCount,
+} = require("./lib/windowAnimation.cjs");
+const {
   changedFileInfoBounds,
   changedFileInfoWindowSize,
   clampCommitInfoWindowHeight,
   collapsedSize,
   commitInfoBounds,
   commitInfoWindowSize,
+  expandedMaximumSize,
   expandedMinimumSize,
   expandedSizeFromConfig,
   clampCollapsedRailHeight,
   clampExpandedSize,
   mainWindowBounds,
+  rightAlignedWindowBounds,
   temporaryInfoBounds,
   temporaryInfoWindowSize,
   windowBoundsEqual,
@@ -66,6 +74,7 @@ let pinnedState = false;
 let currentView = { mode: "all" };
 let applyingWindowBounds = false;
 let applyingWindowBoundsTimer = null;
+let windowBoundsAnimationTimer = null;
 let expandedWindowSizeSaveTimer = null;
 let realQuitRequested = false;
 let dockIconHidden = false;
@@ -564,13 +573,52 @@ function readExpandedSize(display) {
   return expandedSizeFromConfig(config, display);
 }
 
-function setWindowBounds(win, bounds, animated = true) {
-  applyingWindowBounds = true;
+function finishApplyingWindowBounds(delayMs = 250) {
   clearTimeout(applyingWindowBoundsTimer);
-  win.setBounds(bounds, animated);
   applyingWindowBoundsTimer = setTimeout(() => {
     applyingWindowBounds = false;
-  }, 250);
+  }, delayMs);
+}
+
+function clearWindowBoundsAnimation() {
+  if (windowBoundsAnimationTimer === null) return;
+  clearInterval(windowBoundsAnimationTimer);
+  windowBoundsAnimationTimer = null;
+}
+
+function setWindowBounds(win, bounds, animated = true, onComplete = null) {
+  applyingWindowBounds = true;
+  clearWindowBoundsAnimation();
+  clearTimeout(applyingWindowBoundsTimer);
+
+  const startBounds = win.getBounds();
+  if (!isWindowsRuntime || !animated || windowBoundsEqual(startBounds, bounds)) {
+    win.setBounds(bounds, animated);
+    if (typeof onComplete === "function") onComplete();
+    finishApplyingWindowBounds();
+    return;
+  }
+
+  const frameCount = windowBoundsAnimationFrameCount();
+  let frame = 0;
+
+  windowBoundsAnimationTimer = setInterval(() => {
+    if (!win || win.isDestroyed()) {
+      clearWindowBoundsAnimation();
+      finishApplyingWindowBounds(0);
+      return;
+    }
+
+    frame += 1;
+    const nextBounds =
+      frame >= frameCount ? bounds : interpolatedWindowBounds(startBounds, bounds, frame / frameCount);
+    win.setBounds(nextBounds, false);
+
+    if (frame < frameCount) return;
+    clearWindowBoundsAnimation();
+    if (typeof onComplete === "function") onComplete();
+    finishApplyingWindowBounds(defaultWindowAnimationDurationMs + defaultWindowAnimationFrameMs);
+  }, defaultWindowAnimationFrameMs);
 }
 
 function saveCurrentExpandedWindowSize(win) {
@@ -592,10 +640,14 @@ function positionWindow(win, collapsed = false) {
   if (!win) return;
   const display = screen.getPrimaryDisplay().workArea;
   const nextCollapsedSize = collapsed ? collapsedWindowSize : collapsedSize;
-  win.setMinimumSize(
-    collapsed ? nextCollapsedSize.width : expandedMinimumSize.width,
-    collapsed ? nextCollapsedSize.height : expandedMinimumSize.height,
-  );
+  const maximumExpandedSize = expandedMaximumSize(display);
+  if (collapsed) {
+    win.setMinimumSize(nextCollapsedSize.width, nextCollapsedSize.height);
+    win.setMaximumSize(maximumExpandedSize.width, maximumExpandedSize.height);
+  } else {
+    win.setMaximumSize(maximumExpandedSize.width, maximumExpandedSize.height);
+    win.setMinimumSize(collapsedSize.width, collapsedSize.height);
+  }
   setWindowBounds(
     win,
     mainWindowBounds({
@@ -606,6 +658,18 @@ function positionWindow(win, collapsed = false) {
       expandedSize: readExpandedSize(display),
     }),
     true,
+    () => {
+      if (!win || win.isDestroyed()) return;
+      if (collapsed) {
+        win.setMaximumSize(nextCollapsedSize.width, nextCollapsedSize.height);
+        const currentBounds = win.getBounds();
+        const alignedBounds = rightAlignedWindowBounds(currentBounds, display);
+        if (!windowBoundsEqual(currentBounds, alignedBounds)) setWindowBounds(win, alignedBounds, false);
+        return;
+      }
+
+      win.setMinimumSize(expandedMinimumSize.width, expandedMinimumSize.height);
+    },
   );
 }
 
@@ -1178,6 +1242,7 @@ function createWindow({ showOnReady = true } = {}) {
     closeTemporaryInfoWindow();
     closeChangedFileInfoWindow();
     closeCommitInfoWindow();
+    clearWindowBoundsAnimation();
     clearTimeout(applyingWindowBoundsTimer);
     clearTimeout(expandedWindowSizeSaveTimer);
     mainWindow = null;
