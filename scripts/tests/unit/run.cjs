@@ -4795,6 +4795,7 @@ async function testSettingsPanelView(server) {
     behavior: {
       titleId: "settings-behavior-title",
       title: "Behavior",
+      dockIconAvailable: true,
       rows: {
         refresh: "Refresh",
         startup: "Startup",
@@ -4941,6 +4942,15 @@ async function testSettingsPanelView(server) {
         disclosureValue: "1 enabled",
       },
     },
+  });
+  assert.deepEqual(settingsPanelView("main", options, ["cursor"], "win32").sections.behavior, {
+    ...expectedSections.behavior,
+    dockIconAvailable: false,
+    rows: {
+      ...expectedSections.behavior.rows,
+      menuBar: "Tray",
+    },
+    showMenuBarIconAriaLabel: "Show tray icon",
   });
   assert.equal(settingsPanelView("main", [], ["cursor"]).workspaceTargetsSummary, "Unavailable");
   assert.equal(settingsPageAfterBack("app"), "main");

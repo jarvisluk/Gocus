@@ -5,6 +5,7 @@ import type { WorkspaceOpenOption } from "./workspaceOpenOptions";
 
 export type SettingsPage = "main" | "app" | "openIn";
 export type SettingsSegmentIcon = "monitor" | "sun" | "moon";
+export type SettingsPlatform = "darwin" | "win32" | "linux";
 
 export const settingsPanelTitleId = "settings-panel-title";
 export const settingsRefreshMenuId = "settings-refresh-menu";
@@ -25,6 +26,11 @@ interface SettingsSelectOption<T extends string> {
 
 function activeSegmentClass(active: boolean) {
   return active ? "is-active" : "";
+}
+
+function normalizedSettingsPlatform(platform: string | undefined): SettingsPlatform {
+  if (platform === "win32" || platform === "linux") return platform;
+  return "darwin";
 }
 
 function settingsSegmentOption<T extends string>(
@@ -97,11 +103,15 @@ export function settingsPanelView(
   page: SettingsPage,
   availableWorkspaceOptions: readonly WorkspaceOpenOption[],
   enabledWorkspaceTargets: readonly WorkspaceOpenTarget[],
+  platform?: string,
 ) {
   const appPageActive = page === "app";
   const openInPageActive = page === "openIn";
   const secondaryPageActive = appPageActive || openInPageActive;
   const workspaceTargetsSummary = workspaceOpenTargetsSummary(availableWorkspaceOptions, enabledWorkspaceTargets);
+  const settingsPlatform = normalizedSettingsPlatform(platform);
+  const usesMacMenuBar = settingsPlatform === "darwin";
+  const dockIconAvailable = usesMacMenuBar;
 
   return {
     appPageActive,
@@ -215,17 +225,18 @@ export function settingsPanelView(
       behavior: {
         titleId: "settings-behavior-title",
         title: "Behavior",
+        dockIconAvailable,
         rows: {
           refresh: "Refresh",
           startup: "Startup",
-          menuBar: "Menu bar",
+          menuBar: usesMacMenuBar ? "Menu bar" : "Tray",
           dock: "Dock",
           merge: "No-FF",
           prompt: "Prompt",
         },
         autoRefreshAriaLabel: "Auto refresh interval",
         launchAtLoginAriaLabel: "Launch at login",
-        showMenuBarIconAriaLabel: "Show menu bar icon",
+        showMenuBarIconAriaLabel: usesMacMenuBar ? "Show menu bar icon" : "Show tray icon",
         showDockIconAriaLabel: "Show Dock icon",
         createMergeCommitAriaLabel: "Disable fast-forward merges",
       },
