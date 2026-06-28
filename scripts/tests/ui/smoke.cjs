@@ -10,7 +10,7 @@ const desktopViewport = { width: 960, height: 720 };
 const temporaryInfoViewport = { width: 280, height: 252 };
 const changedFileInfoViewport = { width: 280, height: 252 };
 const commitInfoViewport = { width: 348, height: 240 };
-const functionMenuViewport = { width: 106, height: 384 };
+const functionMenuViewport = { width: 202, height: 336 };
 const testTimeZone = "Asia/Shanghai";
 const allWorkspaceTargets = ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"];
 const footerCommitFullHash = "d4e5f6a000000000000000000000000000000000";
@@ -1343,7 +1343,11 @@ async function testFunctionMenuPanel(browser, baseUrl) {
     );
     assert.equal(await page.locator(".function-menu-panel").evaluate((node) => getComputedStyle(node).overflowY), "visible");
     const compactPanelWidth = await page.locator(".function-menu-panel").evaluate((node) => Math.round(node.getBoundingClientRect().width));
-    assert.ok(compactPanelWidth <= 106, `function menu panel should stay narrow: ${compactPanelWidth}`);
+    assert.ok(compactPanelWidth <= 202, `function menu panel should stay narrow: ${compactPanelWidth}`);
+    const gitActionRows = await page.locator('section[aria-label="Git"] .function-menu-action').evaluateAll((nodes) =>
+      nodes.map((node) => Math.round(node.getBoundingClientRect().top)),
+    );
+    assert.equal(new Set(gitActionRows).size, 1, `git actions should fit in one row: ${JSON.stringify(gitActionRows)}`);
     await page.setViewportSize({ width: 576, height: functionMenuViewport.height });
     const wideViewportPanel = await page.locator(".function-menu-panel").evaluate((node) => {
       const rect = node.getBoundingClientRect();
@@ -1353,7 +1357,7 @@ async function testFunctionMenuPanel(browser, baseUrl) {
         width: Math.round(rect.width),
       };
     });
-    assert.ok(wideViewportPanel.width <= 106, `wide viewport should not stretch function menu: ${JSON.stringify(wideViewportPanel)}`);
+    assert.ok(wideViewportPanel.width <= 202, `wide viewport should not stretch function menu: ${JSON.stringify(wideViewportPanel)}`);
     assert.ok(
       Math.abs(wideViewportPanel.viewportWidth - wideViewportPanel.right) <= 1,
       `function menu should stay aligned to the main window edge: ${JSON.stringify(wideViewportPanel)}`,
@@ -1361,7 +1365,7 @@ async function testFunctionMenuPanel(browser, baseUrl) {
     await page.waitForFunction(() => window.__gocusFunctionMenuPanelHeights?.length > 0);
     const reportedFunctionMenuHeight = await page.evaluate(() => window.__gocusFunctionMenuPanelHeights.at(-1));
     assert.ok(
-      reportedFunctionMenuHeight >= 340 && reportedFunctionMenuHeight <= 420,
+      reportedFunctionMenuHeight >= 280 && reportedFunctionMenuHeight <= 360,
       `function menu should report a compact toolbox height: ${reportedFunctionMenuHeight}`,
     );
     assert.equal(await page.getByRole("button", { name: "Open or switch workspace" }).isEnabled(), true);
