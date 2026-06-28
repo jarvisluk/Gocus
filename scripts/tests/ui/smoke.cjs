@@ -1336,6 +1336,22 @@ async function testFunctionMenuPanel(browser, baseUrl) {
       "Workspace\nOpen\nGit\nPull\nPush\nFetch\nRefresh\nGitHub\nRelease\nApp\nUpdate",
     );
     assert.equal(await page.locator(".function-menu-panel").evaluate((node) => getComputedStyle(node).overflowY), "visible");
+    const compactPanelWidth = await page.locator(".function-menu-panel").evaluate((node) => Math.round(node.getBoundingClientRect().width));
+    assert.ok(compactPanelWidth <= 106, `function menu panel should stay narrow: ${compactPanelWidth}`);
+    await page.setViewportSize({ width: 576, height: functionMenuViewport.height });
+    const wideViewportPanel = await page.locator(".function-menu-panel").evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      return {
+        right: Math.round(rect.right),
+        viewportWidth: window.innerWidth,
+        width: Math.round(rect.width),
+      };
+    });
+    assert.ok(wideViewportPanel.width <= 106, `wide viewport should not stretch function menu: ${JSON.stringify(wideViewportPanel)}`);
+    assert.ok(
+      Math.abs(wideViewportPanel.viewportWidth - wideViewportPanel.right) <= 1,
+      `function menu should stay aligned to the main window edge: ${JSON.stringify(wideViewportPanel)}`,
+    );
     await page.waitForFunction(() => window.__gocusFunctionMenuPanelHeights?.length > 0);
     const reportedFunctionMenuHeight = await page.evaluate(() => window.__gocusFunctionMenuPanelHeights.at(-1));
     assert.ok(

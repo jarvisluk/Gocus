@@ -1,10 +1,13 @@
 .function-menu-viewport {
   display: grid;
+  align-items: start;
+  justify-items: end;
   padding: 0;
 }
 
 .function-menu-panel {
   width: 100%;
+  max-width: 106px;
   display: block;
   overflow: visible;
   padding: var(--space-sm);
