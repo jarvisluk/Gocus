@@ -368,7 +368,9 @@ jobs:
     runs-on: windows-latest
     needs: macos
     env:
+      INPUT_PUBLISH_UPDATE_RELEASE: ${{ github.event.inputs.publish_update_release || 'true' }}
       DEVELOP_UPDATE_REPOSITORY: jarvisluk/Gocus-Develop-Releases
+      DEVELOP_RELEASE_TOKEN: ${{ secrets.DEVELOP_RELEASE_TOKEN }}
       GOCUS_PRODUCT_NAME: Gocus
       GOCUS_UPDATE_CHANNEL: develop
       GOCUS_UPDATE_REPO: jarvisluk/Gocus
