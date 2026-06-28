@@ -60,14 +60,12 @@ declare global {
       setCommitInfoPanelHeight?: (height: number) => Promise<void>;
       copyText: (text: string) => Promise<void>;
       readText?: () => Promise<string>;
-      getSystemTheme: () => Promise<"light" | "dark">;
       onTemporaryInfoPayloadUpdated: (callback: (payload: TemporaryInfoPayload) => void) => () => void;
       onTemporaryInfoPanelClosed: (callback: () => void) => () => void;
       onChangedFileInfoPayloadUpdated: (callback: (payload: ChangedFileInfoPayload) => void) => () => void;
       onChangedFileInfoPanelClosed: (callback: () => void) => () => void;
       onCommitInfoPayloadUpdated: (callback: (payload: CommitInfoPayload) => void) => () => void;
       onCommitInfoPanelClosed: (callback: () => void) => () => void;
-      onThemeChanged: (callback: (theme: "light" | "dark") => void) => () => void;
       onPreferencesChanged: (callback: (preferences: UiPreferences) => void) => () => void;
       onActiveWorkspaceTargetChanged: (callback: (target: WorkspaceOpenTarget) => void) => () => void;
       onSnapshotUpdated: (callback: (response: SnapshotResponse) => void) => () => void;

@@ -32,13 +32,7 @@ import { commitViewChangeDecision, defaultCommitView } from "../lib/commitView";
 import { errorMessage, runBridgeSideEffect } from "../lib/errorMessages";
 import { dirtyWorkspaceMergeNotice, snapshotHasUncommittedChanges } from "../lib/mergeGuard";
 import { panelPinnedNotice, panelPinnedStateAfterToggle } from "../lib/panelHeaderView";
-import {
-  applyPreferences,
-  defaultPreferences,
-  mergePreferences,
-  preferencesDocumentThemeView,
-  systemThemeFallback,
-} from "../lib/preferences";
+import { applyPreferences, defaultPreferences, mergePreferences } from "../lib/preferences";
 import {
   recentRepositoryFromSnapshot,
   upsertRecentRepository,
@@ -57,7 +51,6 @@ import type {
   GitSnapshot,
   RecentRepository,
   SnapshotResponse,
-  Theme,
   UiPreferences,
   WorkspaceOpenTarget,
 } from "../types";
@@ -68,7 +61,6 @@ function isElectronRuntime() {
 
 export function useGocusController() {
   const [snapshot, setSnapshot] = useState<GitSnapshot | null>(null);
-  const [systemTheme, setSystemTheme] = useState<Theme>(systemThemeFallback);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
   const [pinned, setPinned] = useState(false);
@@ -89,7 +81,6 @@ export function useGocusController() {
   const currentRepositoryPathRef = useRef("");
   const autoRefreshInFlightRef = useRef(false);
   const electron = isElectronRuntime();
-  const { theme, themePreset } = preferencesDocumentThemeView(preferences, systemTheme);
 
   function selectedCommit() {
     return selectedCommitFromSnapshot(snapshot, selectedCommitId);
@@ -514,12 +505,11 @@ export function useGocusController() {
     setPreferences(defaultPreferences);
   }
 
-  usePreferenceDomEffects({ preferences, theme, themePreset });
+  usePreferenceDomEffects({ preferences });
   useRuntimePreferenceBridge({
     setAvailableWorkspaceTargets,
     setPinned,
     setPreferencesState,
-    setSystemTheme,
   });
   useInitialGitData({
     applySnapshotResponse,
@@ -552,7 +542,6 @@ export function useGocusController() {
   return {
     snapshot,
     selectedCommit: selectedCommit(),
-    theme,
     loading,
     collapsed,
     pinned,

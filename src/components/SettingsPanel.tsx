@@ -5,14 +5,11 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
-  Monitor,
-  Moon,
   RefreshCw,
   RotateCcw,
-  Sun,
 } from "lucide-react";
 import { runBridgeSideEffect } from "../lib/errorMessages";
-import { autoRefreshIntervalOptions, darkThemePresetOptions, lightThemePresetOptions } from "../lib/preferences";
+import { autoRefreshIntervalOptions } from "../lib/preferences";
 import { gitHubReleasesUrl } from "../lib/releaseLinks";
 import {
   settingsPageAfterBack,
@@ -21,21 +18,13 @@ import {
   settingsPreferencesView,
   settingsWorkspaceTargetItems,
   type SettingsPage,
-  type SettingsSegmentIcon,
 } from "../lib/settingsPanelView";
 import { useDismissableLayer } from "../lib/useDismissableLayer";
 import { availableWorkspaceOpenOptions, workspaceOpenTargetsAfterToggle } from "../lib/workspaceOpenChoices";
 import { workspaceOpenOptions } from "../lib/workspaceOpenOptions";
 import type { UiPreferences, WorkspaceOpenTarget } from "../types";
 
-function settingsSegmentIcon(icon: SettingsSegmentIcon | undefined) {
-  if (icon === "monitor") return <Monitor aria-hidden="true" />;
-  if (icon === "sun") return <Sun aria-hidden="true" />;
-  if (icon === "moon") return <Moon aria-hidden="true" />;
-  return null;
-}
-
-type SettingsDropdownName = "lightTheme" | "darkTheme" | "fontFamily" | "autoRefresh";
+type SettingsDropdownName = "autoRefresh";
 
 interface SettingsDropdownOption<T extends string> {
   value: T;
@@ -342,87 +331,6 @@ export function SettingsPanel({
                   <ChevronRight aria-hidden="true" />
                 </button>
               </div>
-            </div>
-          </div>
-
-          <div className={view.mainPanel.sectionClassName} aria-labelledby={sections.appearance.titleId}>
-            <h2 className={view.mainPanel.sectionTitleClassName} id={sections.appearance.titleId}>
-              {sections.appearance.title}
-            </h2>
-            <div className={view.mainPanel.rowClassName}>
-              <span className={view.mainPanel.labelClassName}>{sections.appearance.rows.mode}</span>
-              <div className={view.mainPanel.segmentedClassName}>
-                {preferenceView.themeModeOptions.map((option) => (
-                  <button
-                    className={option.className}
-                    type="button"
-                    aria-pressed={option.ariaPressed}
-                    key={option.value}
-                    onClick={() => onChange({ ...preferences, themeMode: option.value })}
-                  >
-                    {settingsSegmentIcon(option.icon)}
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className={view.mainPanel.rowClassName}>
-              <span className={view.mainPanel.labelClassName}>{sections.appearance.rows.light}</span>
-              <SettingsDropdown
-                value={preferences.lightThemePreset}
-                options={lightThemePresetOptions}
-                open={openDropdown === "lightTheme"}
-                view={view.mainPanel}
-                ariaLabel={sections.appearance.lightThemeAriaLabel}
-                triggerId="settings-light-theme-trigger"
-                menuId="settings-light-theme-menu"
-                onOpenChange={(open) => setDropdownOpen("lightTheme", open)}
-                onChange={(lightThemePreset) => onChange({ ...preferences, lightThemePreset })}
-              />
-            </div>
-            <div className={view.mainPanel.rowClassName}>
-              <span className={view.mainPanel.labelClassName}>{sections.appearance.rows.dark}</span>
-              <SettingsDropdown
-                value={preferences.darkThemePreset}
-                options={darkThemePresetOptions}
-                open={openDropdown === "darkTheme"}
-                view={view.mainPanel}
-                ariaLabel={sections.appearance.darkThemeAriaLabel}
-                triggerId="settings-dark-theme-trigger"
-                menuId="settings-dark-theme-menu"
-                onOpenChange={(open) => setDropdownOpen("darkTheme", open)}
-                onChange={(darkThemePreset) => onChange({ ...preferences, darkThemePreset })}
-              />
-            </div>
-            <div className={view.mainPanel.rowClassName}>
-              <span className={view.mainPanel.labelClassName}>{sections.appearance.rows.density}</span>
-              <div className={view.mainPanel.compactSegmentedClassName}>
-                {preferenceView.densityOptions.map((option) => (
-                  <button
-                    className={option.className}
-                    type="button"
-                    aria-pressed={option.ariaPressed}
-                    key={option.value}
-                    onClick={() => onChange({ ...preferences, density: option.value })}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className={view.mainPanel.rowClassName}>
-              <span className={view.mainPanel.labelClassName}>{sections.appearance.rows.font}</span>
-              <SettingsDropdown
-                value={preferences.fontFamily}
-                options={preferenceView.fontFamilyOptions}
-                open={openDropdown === "fontFamily"}
-                view={view.mainPanel}
-                ariaLabel={sections.appearance.fontFamilyAriaLabel}
-                triggerId="settings-font-family-trigger"
-                menuId="settings-font-family-menu"
-                onOpenChange={(open) => setDropdownOpen("fontFamily", open)}
-                onChange={(fontFamily) => onChange({ ...preferences, fontFamily })}
-              />
             </div>
           </div>
 

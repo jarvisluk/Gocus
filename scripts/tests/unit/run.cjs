@@ -4385,11 +4385,6 @@ async function testPreferences(server) {
   const {
     defaultPreferences,
     mergePreferences,
-    preferencesDocumentThemeView,
-    resolveTheme,
-    resolveThemePreset,
-    systemThemeFallback,
-    systemThemeFromMediaMatches,
   } = preferences;
 
   assert.equal(defaultWorkspaceOpenTarget, "vscode");
@@ -4432,9 +4427,6 @@ async function testPreferences(server) {
     }),
     {
       ...defaultPreferences,
-      lightThemePreset: "paper",
-      darkThemePreset: "matte",
-      fontFamily: "mono",
       workspaceOpenTargets: ["codex", "terminal"],
       showMenuBarIcon: false,
       showDockIcon: false,
@@ -4447,28 +4439,6 @@ async function testPreferences(server) {
   assert.equal(mergePreferences({ autoUpdateChannel: "nightly" }).autoUpdateChannel, "stable");
   assert.deepEqual(mergePreferences({ workspaceOpenTargets: [] }).workspaceOpenTargets, []);
   assert.deepEqual(mergePreferences({ workspaceOpenTargets: "cursor" }).workspaceOpenTargets, defaultWorkspaceOpenTargets);
-  assert.equal(resolveThemePreset({ ...defaultPreferences, lightThemePreset: "mist", darkThemePreset: "cursor" }, "light"), "mist");
-  assert.equal(resolveThemePreset({ ...defaultPreferences, lightThemePreset: "mist", darkThemePreset: "cursor" }, "dark"), "cursor");
-  assert.equal(resolveTheme({ ...defaultPreferences, themeMode: "light" }, "dark"), "light");
-  assert.equal(resolveTheme({ ...defaultPreferences, themeMode: "dark" }, "light"), "dark");
-  assert.equal(resolveTheme({ ...defaultPreferences, themeMode: "system" }, "dark"), "dark");
-  assert.equal(systemThemeFromMediaMatches(false), "light");
-  assert.equal(systemThemeFromMediaMatches(true), "dark");
-  assert.deepEqual(preferencesDocumentThemeView({ ...defaultPreferences, themeMode: "system", darkThemePreset: "cursor" }, "dark"), {
-    theme: "dark",
-    themePreset: "cursor",
-  });
-  assert.deepEqual(
-    preferencesDocumentThemeView(
-      { ...defaultPreferences, themeMode: "light", lightThemePreset: "mist", darkThemePreset: "matte" },
-      "dark",
-    ),
-    {
-      theme: "light",
-      themePreset: "mist",
-    },
-  );
-  assert.equal(systemThemeFallback(), "light");
 }
 
 async function testWorkspaceOpenOptions(server) {
@@ -4926,20 +4896,6 @@ async function testSettingsPanelView(server) {
       releaseLinkLabel: "GitHub Releases",
       releaseLinkAriaLabel: "Open GitHub Releases",
     },
-    appearance: {
-      titleId: "settings-appearance-title",
-      title: "Appearance",
-      rows: {
-        mode: "Mode",
-        light: "Light",
-        dark: "Dark",
-        density: "Density",
-        font: "Font",
-      },
-      lightThemeAriaLabel: "Light theme preset",
-      darkThemeAriaLabel: "Dark theme preset",
-      fontFamilyAriaLabel: "Font family",
-    },
     graph: {
       titleId: "settings-graph-title",
       title: "Graph",
@@ -5117,22 +5073,11 @@ async function testSettingsPanelView(server) {
   assert.deepEqual(
     settingsPreferencesView({
       ...defaultPreferences,
-      themeMode: "system",
-      density: "comfortable",
       graphStyle: "soft",
       autoUpdateChannel: "develop",
       promptLanguage: "zh",
     }),
     {
-      themeModeOptions: [
-        { value: "system", label: "System", className: "is-active", ariaPressed: true, icon: "monitor" },
-        { value: "light", label: "Light", className: "", ariaPressed: false, icon: "sun" },
-        { value: "dark", label: "Dark", className: "", ariaPressed: false, icon: "moon" },
-      ],
-      densityOptions: [
-        { value: "compact", label: "Compact", className: "", ariaPressed: false },
-        { value: "comfortable", label: "Comfort", className: "is-active", ariaPressed: true },
-      ],
       graphStyleOptions: [
         { value: "solid", label: "Solid", className: "", ariaPressed: false },
         { value: "soft", label: "Soft", className: "is-active", ariaPressed: true },
@@ -5146,11 +5091,6 @@ async function testSettingsPanelView(server) {
         { value: "develop", label: "Develop", className: "is-active", ariaPressed: true },
       ],
       autoUpdateChannelDetail: "Latest develop candidate",
-      fontFamilyOptions: [
-        { value: "system", label: "System" },
-        { value: "inter", label: "Inter" },
-        { value: "mono", label: "Mono" },
-      ],
     },
   );
   assert.deepEqual(settingsWorkspaceTargetItems(options, ["cursor", "terminal"]), [
