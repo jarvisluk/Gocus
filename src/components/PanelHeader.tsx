@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Check, ChevronDown, ChevronLeft, GitBranch, Pin, PinOff, RefreshCw, Route } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, GitBranch, Pin, PinOff, RefreshCw, SlidersHorizontal, X } from "lucide-react";
 import { DropdownMenuHost } from "./DropdownMenuHost";
 import { IconButton } from "./IconButton";
 import {
   panelHeaderActionsView,
-  panelHeaderOpenRepositoryButtonView,
+  panelHeaderFunctionMenuButtonView,
   panelHeaderView,
   panelRepositoryMenuOpenAfterToggle,
   panelRepositoryMenuItemView,
@@ -33,8 +33,10 @@ export function PanelHeader({
   recentRepositories,
   pinned,
   refreshing,
-  onOpen,
+  functionMenuOpen,
+  onOpenFunctionMenu,
   onSwitchRepository,
+  onRemoveRecentRepository,
   onRefresh,
   onTogglePinned,
   onCollapse,
@@ -43,8 +45,10 @@ export function PanelHeader({
   recentRepositories: RecentRepository[];
   pinned: boolean;
   refreshing: boolean;
-  onOpen: () => void;
+  functionMenuOpen: boolean;
+  onOpenFunctionMenu: () => void;
   onSwitchRepository: (repositoryPath: string) => void;
+  onRemoveRecentRepository: (repository: RecentRepository) => void;
   onRefresh: () => void;
   onTogglePinned: () => void;
   onCollapse: () => void;
@@ -59,7 +63,7 @@ export function PanelHeader({
     repositoryPathLabel,
     repositoryTitle,
   } = panelView;
-  const openRepositoryButton = panelHeaderOpenRepositoryButtonView();
+  const functionMenuButton = panelHeaderFunctionMenuButtonView(functionMenuOpen);
   const repositoryTrigger = panelRepositoryTriggerView({ canSwitchRepository, repoMenuOpen });
   const repositoryMenu = panelRepositoryMenuView();
   const actionsView = panelHeaderActionsView({ pinned, refreshing, hasRepository: Boolean(snapshot) });
@@ -70,10 +74,15 @@ export function PanelHeader({
     if (selection.switchRepositoryPath) onSwitchRepository(selection.switchRepositoryPath);
   }
 
+  function removeRecentRepository(repository: RecentRepository) {
+    onRemoveRecentRepository(repository);
+    setRepoMenuOpen(recentRepositoryOptions.length > 2);
+  }
+
   return (
     <header className={panelView.header.className}>
-      <IconButton label={openRepositoryButton.label} onClick={onOpen}>
-        <Route aria-hidden="true" />
+      <IconButton label={functionMenuButton.label} active={functionMenuButton.active} onClick={onOpenFunctionMenu}>
+        <SlidersHorizontal aria-hidden="true" />
       </IconButton>
       <DropdownMenuHost
         active={repoMenuOpen}
@@ -114,21 +123,33 @@ export function PanelHeader({
               const itemView = panelRepositoryMenuItemView(repository, currentRepository);
 
               return (
-                <button
-                  className={itemView.className}
-                  type="button"
-                  role={itemView.role}
-                  aria-current={itemView.ariaCurrent}
-                  title={itemView.title}
-                  key={itemView.key}
-                  onClick={() => switchRepository(itemView.path)}
-                >
-                  <span className={itemView.checkClassName}>{itemView.showCheck ? <Check aria-hidden="true" /> : null}</span>
-                  <span className={itemView.textClassName}>
-                    <strong>{itemView.label}</strong>
-                    <code>{itemView.path}</code>
-                  </span>
-                </button>
+                <div className={itemView.rowClassName} role="none" key={itemView.key}>
+                  <button
+                    className={itemView.className}
+                    type="button"
+                    role={itemView.role}
+                    aria-current={itemView.ariaCurrent}
+                    title={itemView.title}
+                    onClick={() => switchRepository(itemView.path)}
+                  >
+                    <span className={itemView.checkClassName}>{itemView.showCheck ? <Check aria-hidden="true" /> : null}</span>
+                    <span className={itemView.textClassName}>
+                      <strong>{itemView.label}</strong>
+                      <code>{itemView.path}</code>
+                    </span>
+                  </button>
+                  {itemView.showRemove ? (
+                    <button
+                      className={itemView.removeClassName}
+                      type="button"
+                      aria-label={itemView.removeAriaLabel}
+                      title={itemView.removeTitle}
+                      onClick={() => removeRecentRepository(itemView.repository)}
+                    >
+                      <X aria-hidden="true" />
+                    </button>
+                  ) : null}
+                </div>
               );
             })}
           </div>

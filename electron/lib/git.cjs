@@ -663,6 +663,48 @@ async function checkout(repoPath, ref, view) {
   return readGitSnapshot(root, view);
 }
 
+async function remoteNames(root) {
+  return (await runGit(root, ["remote"]))
+    .split("\n")
+    .map((remote) => remote.trim())
+    .filter(Boolean);
+}
+
+async function assertRemoteConfigured(root) {
+  const remotes = await remoteNames(root);
+  if (remotes.length === 0) throw new Error("No Git remotes configured.");
+  return remotes;
+}
+
+async function currentBranchName(root) {
+  const branchName = await runGit(root, ["branch", "--show-current"]);
+  if (!branchName) throw new Error("Cannot push from detached HEAD.");
+  return branchName;
+}
+
+async function pushCurrentBranch(repoPath, view) {
+  const root = await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
+  const branchName = await currentBranchName(root);
+  const upstream = await runGit(root, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]).catch(() => "");
+
+  if (upstream) {
+    await runGit(root, ["push"], { timeout: 30000 });
+  } else {
+    const remotes = await assertRemoteConfigured(root);
+    const publishRemote = remotes.includes("origin") ? "origin" : remotes[0];
+    await runGit(root, ["push", "-u", publishRemote, branchName], { timeout: 30000 });
+  }
+
+  return readGitSnapshot(root, view);
+}
+
+async function fetchRemotes(repoPath, view) {
+  const root = await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
+  await assertRemoteConfigured(root);
+  await runGit(root, ["fetch", "--all", "--prune"], { timeout: 30000 });
+  return readGitSnapshot(root, view);
+}
+
 function normalizeMergeOptions(options) {
   return {
     createMergeCommit: options?.createMergeCommit !== false,
@@ -791,6 +833,7 @@ module.exports = {
   createBranch,
   defaultCommitLogLimit,
   dirtyWorkspaceMergeNotice,
+  fetchRemotes,
   graphContextForWorktrees,
   initializeRepository,
   isNotGitRepositoryError,
@@ -801,6 +844,7 @@ module.exports = {
   normalizeCommitLogLimit,
   normalizeView,
   openWorktree,
+  pushCurrentBranch,
   readFolderWithoutGit,
   readGitSnapshot,
   repositoryStateForGit,

@@ -10,6 +10,7 @@ import {
 } from "../lib/preferences";
 import type { CommitInfoPayload, Theme, UiPreferences } from "../types";
 import { CommitInfoPanel } from "./CommitInfoPanel";
+import { SideWindowShell } from "./SideWindowShell";
 
 export function CommitInfoWindow() {
   const [payload, setPayload] = useState<CommitInfoPayload>(null);
@@ -47,21 +48,13 @@ export function CommitInfoWindow() {
   }, [preferences, theme, themePreset]);
 
   return (
-    <main className={view.viewport.className}>
-      {view.commitPayload ? (
-        <section className={view.panel.className} aria-label={view.panel.ariaLabel}>
-          <CommitInfoPanel commit={view.commitPayload.commit} />
-        </section>
-      ) : (
-        <section
-          className={view.emptyState.className}
-          aria-label={view.emptyState.ariaLabel}
-          role={view.emptyState.role}
-          aria-live={view.emptyState.ariaLive}
-        >
-          {view.emptyState.message}
-        </section>
-      )}
-    </main>
+    <SideWindowShell
+      viewportClassName={view.viewport.className}
+      panelClassName={view.panel.className}
+      panelAriaLabel={view.panel.ariaLabel}
+      emptyState={view.emptyState}
+    >
+      {view.commitPayload ? <CommitInfoPanel commit={view.commitPayload.commit} /> : null}
+    </SideWindowShell>
   );
 }

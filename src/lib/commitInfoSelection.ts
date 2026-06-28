@@ -4,10 +4,10 @@ import { politeStatusView } from "./statusView";
 export function commitInfoWindowView(payload: CommitInfoPayload) {
   return {
     viewport: {
-      className: "temporary-info-viewport is-electron",
+      className: "side-window-viewport temporary-info-viewport is-electron",
     },
     panel: {
-      className: "peek-panel temporary-info-panel is-commit",
+      className: "side-window-panel peek-panel temporary-info-panel is-commit",
       ariaLabel: "Commit details window",
     },
     emptyState: politeStatusView({

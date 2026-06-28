@@ -4,8 +4,10 @@ const collapsedSize = { width: 38, height: 136 };
 const temporaryInfoWindowSize = { width: 280, height: 252 };
 const changedFileInfoWindowSize = { width: 280, height: 252 };
 const commitInfoWindowSize = { width: 348, height: 132 };
+const functionMenuWindowSize = { width: 286, height: 360 };
 const commitInfoWindowMinimumHeight = 92;
 const commitInfoWindowMaximumHeight = 240;
+const functionMenuWindowMinimumHeight = 220;
 const temporaryInfoWindowGap = 10;
 const collapsedRailMaximumHeight = 420;
 
@@ -39,6 +41,15 @@ function clampCommitInfoWindowHeight(height, display) {
 
   if (!Number.isFinite(requestedHeight)) return commitInfoWindowSize.height;
   return Math.min(Math.max(requestedHeight, commitInfoWindowMinimumHeight), maximumHeight);
+}
+
+function clampFunctionMenuWindowHeight(height, display) {
+  const requestedHeight = Math.round(Number(height));
+  const availableHeight = Number(display?.height) ? display.height - 16 : functionMenuWindowSize.height;
+  const maximumHeight = Math.max(functionMenuWindowMinimumHeight, availableHeight);
+
+  if (!Number.isFinite(requestedHeight)) return functionMenuWindowSize.height;
+  return Math.min(Math.max(requestedHeight, functionMenuWindowMinimumHeight), maximumHeight);
 }
 
 function mainWindowBounds({ currentBounds, display, collapsed, expandedSize, collapsedWindowSize = collapsedSize }) {
@@ -77,6 +88,10 @@ function sideInfoBounds({ mainBounds, display, alignTop = false, size = temporar
 
 function temporaryInfoBounds({ mainBounds, display, alignTop = false }) {
   return sideInfoBounds({ mainBounds, display, alignTop, size: temporaryInfoWindowSize });
+}
+
+function functionMenuBounds({ mainBounds, display, size = functionMenuWindowSize }) {
+  return sideInfoBounds({ mainBounds, display, alignTop: true, size });
 }
 
 function changedFileInfoBounds({ temporaryInfoBounds, display }) {
@@ -140,6 +155,7 @@ function windowBoundsEqual(left, right) {
 module.exports = {
   clampCommitInfoWindowHeight,
   clampCollapsedRailHeight,
+  clampFunctionMenuWindowHeight,
   changedFileInfoBounds,
   changedFileInfoWindowSize,
   collapsedSize,
@@ -148,6 +164,8 @@ module.exports = {
   defaultExpandedSize,
   expandedMinimumSize,
   expandedSizeFromConfig,
+  functionMenuBounds,
+  functionMenuWindowSize,
   clampExpandedSize,
   mainWindowBounds,
   temporaryInfoBounds,

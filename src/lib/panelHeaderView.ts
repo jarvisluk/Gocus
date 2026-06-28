@@ -18,9 +18,10 @@ export function repositoryOptionActive(repository: RecentRepository, currentRepo
   return currentRepository ? isSameRecentRepository(repository, currentRepository) : false;
 }
 
-export function panelHeaderOpenRepositoryButtonView() {
+export function panelHeaderFunctionMenuButtonView(open: boolean) {
   return {
-    label: "Open repository",
+    label: open ? "Close function menu" : "Open function menu",
+    active: open,
   };
 }
 
@@ -38,12 +39,18 @@ export function panelRepositoryMenuItemView(repository: RecentRepository, curren
 
   return {
     active,
+    rowClassName: joinClass("repo-menu-row", !active && "has-remove"),
     className: joinClass("ui-menu-item", "repo-menu-item", active && "is-active"),
     role: "menuitem" as const,
     ariaCurrent: active ? ("true" as const) : undefined,
     showCheck: active,
     checkClassName: "repo-menu-check",
     textClassName: "repo-menu-text",
+    showRemove: !active,
+    removeClassName: "repo-menu-remove",
+    removeAriaLabel: `Remove ${recentRepositoryLabel(repository)} from recent workspaces`,
+    removeTitle: "Remove from recent workspaces",
+    repository,
     key: repository.path,
     path: repository.path,
     title: repository.path,

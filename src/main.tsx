@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { ChangedFileInfoWindow } from "./components/ChangedFileInfoWindow";
 import { CommitInfoWindow } from "./components/CommitInfoWindow";
+import { FunctionMenuWindow } from "./components/FunctionMenuWindow";
 import { TemporaryInfoWindow } from "./components/TemporaryInfoWindow";
 import { installDevWebBridge } from "./lib/devWebBridge";
 import { rootElementFromDocument, rootWindowModeFromUrl } from "./lib/rootMount";
@@ -18,7 +19,9 @@ const RootApp =
       ? ChangedFileInfoWindow
       : windowMode === "commit-info"
         ? CommitInfoWindow
-        : App;
+        : windowMode === "function-menu"
+          ? FunctionMenuWindow
+          : App;
 
 createRoot(rootElementFromDocument(document)).render(
   <StrictMode>

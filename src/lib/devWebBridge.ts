@@ -2,14 +2,17 @@ import type {
   ChangedFileInfoPayload,
   CommitInfoPayload,
   CommitViewSelection,
+  FunctionMenuPayload,
+  GitBranchState,
   MergeOptions,
+  RecentRepository,
   TemporaryInfoPayload,
   UiPreferences,
   WorkspaceOpenMenuPayload,
   WorkspaceOpenTarget,
 } from "../types";
 import { gitHubReleasesUrl } from "./releaseLinks";
-import { defaultWorkspaceOpenTarget } from "./workspaceOpenTargets";
+import { defaultWorkspaceOpenTarget, defaultWorkspaceOpenTargets } from "./workspaceOpenTargets";
 
 const bridgePrefix = "/__git_peek_dev_bridge";
 const localHostnames = new Set(["localhost", "127.0.0.1"]);
@@ -48,16 +51,19 @@ export function installDevWebBridge() {
   let temporaryInfoPayload: TemporaryInfoPayload = null;
   let changedFileInfoPayload: ChangedFileInfoPayload = null;
   let commitInfoPayload: CommitInfoPayload = null;
+  let functionMenuPayload: FunctionMenuPayload = null;
   let activeWorkspaceTarget: WorkspaceOpenTarget = defaultWorkspaceOpenTarget;
   const temporaryInfoCallbacks = new Set<(payload: TemporaryInfoPayload) => void>();
   const changedFileInfoCallbacks = new Set<(payload: ChangedFileInfoPayload) => void>();
   const commitInfoCallbacks = new Set<(payload: CommitInfoPayload) => void>();
+  const functionMenuCallbacks = new Set<(payload: FunctionMenuPayload) => void>();
 
   window.gocus = {
     openRepository: (view?: CommitViewSelection) => requestBridge("openRepository", { view }),
     switchRepository: (repositoryPath: string, view?: CommitViewSelection) =>
       requestBridge("switchRepository", { repositoryPath, view }),
     getRecentRepositories: () => requestBridge("getRecentRepositories"),
+    removeRecentRepository: (repository: RecentRepository) => requestBridge("removeRecentRepository", { repository }),
     refresh: (view?: CommitViewSelection) => requestBridge("refresh", { view }),
     getSnapshot: (view?: CommitViewSelection) => requestBridge("getSnapshot", { view }),
     clearRepository: () => requestBridge("clearRepository"),
@@ -68,6 +74,8 @@ export function installDevWebBridge() {
     merge: (ref: string, targetBranch: string, view?: CommitViewSelection, options?: MergeOptions) =>
       requestBridge("merge", { ref, targetBranch, view, options }),
     checkout: (ref: string, view?: CommitViewSelection) => requestBridge("checkout", { ref, view }),
+    pushCurrentBranch: (view?: CommitViewSelection) => requestBridge("pushCurrentBranch", { view }),
+    fetchRemotes: (view?: CommitViewSelection) => requestBridge("fetchRemotes", { view }),
     openWorktree: (worktreePath: string, view?: CommitViewSelection) => requestBridge("openWorktree", { worktreePath, view }),
     cleanupWorktree: (worktreePath: string, view?: CommitViewSelection) =>
       requestBridge("cleanupWorktree", { worktreePath, view }),
@@ -96,6 +104,40 @@ export function installDevWebBridge() {
       temporaryInfoPayload = payload;
       setPayload(payload, temporaryInfoCallbacks);
     },
+    getFunctionMenuPayload: async () => {
+      if (functionMenuPayload) return functionMenuPayload;
+
+      const response = await requestBridge<{
+        ok: boolean;
+        snapshot?: {
+          repoName: string;
+          repoPath: string;
+          branch: GitBranchState;
+          changedFiles: unknown[];
+          worktrees: unknown[];
+        };
+      }>("getSnapshot", { view: { mode: "all" } });
+      if (!response.ok || !response.snapshot) return null;
+
+      return {
+        kind: "function-menu",
+        repository: {
+          repoName: response.snapshot.repoName,
+          repoPath: response.snapshot.repoPath,
+          branch: response.snapshot.branch,
+          changedFileCount: response.snapshot.changedFiles.length,
+          worktreeCount: response.snapshot.worktrees.length,
+        },
+        activeWorkspaceTarget,
+        availableWorkspaceTargets: await requestBridge<WorkspaceOpenTarget[]>("getAvailableWorkspaceTargets"),
+        enabledWorkspaceTargets: defaultWorkspaceOpenTargets,
+      };
+    },
+    setFunctionMenuPanel: async (payload: FunctionMenuPayload) => {
+      functionMenuPayload = payload;
+      setPayload(payload, functionMenuCallbacks);
+    },
+    setFunctionMenuPanelHeight: async (_height: number) => {},
     getChangedFileInfoPayload: async () => changedFileInfoPayload,
     setChangedFileInfoPanel: async (payload: ChangedFileInfoPayload) => {
       changedFileInfoPayload = payload;
@@ -117,6 +159,11 @@ export function installDevWebBridge() {
       return () => temporaryInfoCallbacks.delete(callback);
     },
     onTemporaryInfoPanelClosed: () => noopUnsubscribe,
+    onFunctionMenuPayloadUpdated: (callback) => {
+      functionMenuCallbacks.add(callback);
+      return () => functionMenuCallbacks.delete(callback);
+    },
+    onFunctionMenuPanelClosed: () => noopUnsubscribe,
     onChangedFileInfoPayloadUpdated: (callback) => {
       changedFileInfoCallbacks.add(callback);
       return () => changedFileInfoCallbacks.delete(callback);
