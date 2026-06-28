@@ -47,6 +47,7 @@ function FunctionMenuActionButton({
       onClick={onClick}
     >
       <span className="function-menu-action-icon">{functionMenuIcon(action.icon, busy ? "is-spinning" : "")}</span>
+      <span className="function-menu-action-label">{action.label}</span>
     </button>
   );
 }

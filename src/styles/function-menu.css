@@ -36,17 +36,19 @@
 
 .function-menu-tools {
   display: grid;
-  grid-template-columns: repeat(2, var(--control-lg));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-xs);
   justify-content: center;
 }
 
 .function-menu-action {
-  width: var(--control-lg);
-  height: var(--control-lg);
+  width: 100%;
+  min-height: 44px;
   display: grid;
-  place-items: center;
-  padding: 0;
+  align-content: center;
+  justify-items: center;
+  gap: 2px;
+  padding: 3px 0 2px;
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
@@ -60,8 +62,8 @@
 }
 
 .function-menu-action-icon {
-  width: var(--control-lg);
-  height: var(--control-lg);
+  width: 20px;
+  height: 20px;
   display: grid;
   place-items: center;
 }
@@ -69,4 +71,15 @@
 .function-menu-action-icon svg {
   width: var(--icon-lg);
   height: var(--icon-lg);
+}
+
+.function-menu-action-label {
+  max-width: 100%;
+  overflow: hidden;
+  color: inherit;
+  font-size: var(--type-micro-size);
+  font-weight: var(--font-weight-body);
+  line-height: 1.05;
+  text-overflow: clip;
+  white-space: nowrap;
 }
