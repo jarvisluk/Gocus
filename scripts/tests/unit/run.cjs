@@ -4540,7 +4540,7 @@ async function testWorkspaceOpenOptions(server) {
 
   for (const option of workspaceOpenOptions) {
     assert.equal(typeof option.iconSrc, "string");
-    assert.match(option.iconSrc, /(?:\.png(?:$|\?)|^data:image\/svg\+xml,)/);
+    assert.match(option.iconSrc, /\.png(?:$|\?)/);
   }
 
   assert.notEqual(
@@ -4549,7 +4549,7 @@ async function testWorkspaceOpenOptions(server) {
   );
   assert.equal(fileManagerLabel("Win32"), "Explorer");
   assert.equal(fileManagerLabel("MacIntel"), "Finder");
-  assert.match(fileManagerIconSrc("Win32"), /^data:image\/svg\+xml,/);
+  assert.match(fileManagerIconSrc("Win32"), /\.png(?:$|\?)/);
   assert.match(fileManagerIconSrc("MacIntel"), /\.png(?:$|\?)/);
   assert.notEqual(fileManagerIconSrc("Win32"), fileManagerIconSrc("MacIntel"));
 }
