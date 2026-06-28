@@ -332,6 +332,7 @@ svg {
 .product-frame {
   min-width: 0;
   justify-self: center;
+  margin-top: 0;
   width: min(390px, 100%);
 }
 
@@ -654,6 +655,7 @@ svg {
 
   .product-frame {
     justify-self: end;
+    margin-top: clamp(38px, 3vw, 45px);
     width: min(300px, 100%);
   }
 
