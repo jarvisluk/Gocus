@@ -485,19 +485,6 @@ function waitForDialogBlockerFrame() {
   return new Promise((resolve) => setTimeout(resolve, 32));
 }
 
-function getSystemTheme() {
-  return nativeTheme.shouldUseDarkColors ? "dark" : "light";
-}
-
-function nativeThemeSourceForPreferences(preferences = readPreferences()) {
-  return preferences.themeMode === "light" || preferences.themeMode === "dark" ? preferences.themeMode : "system";
-}
-
-function syncNativeThemeSource(preferences = readPreferences()) {
-  nativeTheme.themeSource = nativeThemeSourceForPreferences(preferences);
-  syncWindowBackgroundColors();
-}
-
 function sendToWindow(win, channel, ...args) {
   if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return;
   try {
@@ -519,13 +506,6 @@ function holdCommitInfoPanelInteraction(durationMs = 500) {
 
 function isCommitInfoPanelActive() {
   return isWindowFocused(commitInfoWindow) || Date.now() < commitInfoInteractionHoldUntil;
-}
-
-function sendSystemTheme() {
-  syncWindowBackgroundColors();
-  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow]) {
-    sendToWindow(win, "theme:changed", getSystemTheme());
-  }
 }
 
 function sendPreferences(preferences = readPreferences()) {
@@ -1432,7 +1412,6 @@ function buildMenus() {
         { label: "Dock to Screen Edge", accelerator: "CmdOrCtrl+Shift+D", click: () => dockWindow(collapsedState) },
         { type: "separator" },
         { label: "Always on Top", type: "checkbox", checked: pinnedState, click: (item) => setPinnedWindow(item.checked) },
-        { label: "Follow System Appearance", type: "checkbox", checked: true, enabled: false },
         ...(app.isPackaged
           ? []
           : [
@@ -1488,10 +1467,10 @@ function buildMenus() {
 
 app.whenReady().then(() => {
   app.setName("Gocus");
-  nativeTheme.on("updated", sendSystemTheme);
+  nativeTheme.themeSource = "dark";
+  syncWindowBackgroundColors();
   currentRepository = readSavedRepositoryPath();
   const preferences = config.readPreferences();
-  syncNativeThemeSource(preferences);
   const menuBarModeEnabled = shouldUseMenuBarResidency(preferences);
   const startInMenuBar = menuBarModeEnabled && shouldStartInMenuBar();
   if (process.platform === "darwin" && app.dock) {
@@ -1554,7 +1533,6 @@ registerIpcHandlers({
   holdCommitInfoPanelInteraction,
   isCommitInfoPanelActive,
   getSnapshotResponse,
-  getSystemTheme,
   getTemporaryInfoPayload: () => temporaryInfoPayload,
   initializeRepository,
   ipcMain,
@@ -1589,5 +1567,4 @@ registerIpcHandlers({
   syncDockIcon,
   syncLaunchAtLogin,
   syncMenuBarIcon,
-  syncNativeThemeSource,
 });

@@ -4,7 +4,6 @@ import { workspaceOpenTargetsSummary } from "./workspaceOpenChoices";
 import type { WorkspaceOpenOption } from "./workspaceOpenOptions";
 
 export type SettingsPage = "main" | "app" | "openIn";
-export type SettingsSegmentIcon = "monitor" | "sun" | "moon";
 export type SettingsPlatform = "darwin" | "win32" | "linux";
 
 export const settingsPanelTitleId = "settings-panel-title";
@@ -16,12 +15,6 @@ interface SettingsSegmentOption<T extends string> {
   label: string;
   className: string;
   ariaPressed: boolean;
-  icon?: SettingsSegmentIcon;
-}
-
-interface SettingsSelectOption<T extends string> {
-  value: T;
-  label: string;
 }
 
 function activeSegmentClass(active: boolean) {
@@ -33,22 +26,14 @@ function normalizedSettingsPlatform(platform: string | undefined): SettingsPlatf
   return "darwin";
 }
 
-function settingsSegmentOption<T extends string>(
-  value: T,
-  currentValue: T,
-  label: string,
-  icon?: SettingsSegmentIcon,
-): SettingsSegmentOption<T> {
+function settingsSegmentOption<T extends string>(value: T, currentValue: T, label: string): SettingsSegmentOption<T> {
   const active = value === currentValue;
-  const option: SettingsSegmentOption<T> = {
+  return {
     value,
     label,
     className: activeSegmentClass(active),
     ariaPressed: active,
   };
-
-  if (icon) option.icon = icon;
-  return option;
 }
 
 export function settingsPreferencesView(preferences: UiPreferences) {
@@ -56,15 +41,6 @@ export function settingsPreferencesView(preferences: UiPreferences) {
     preferences.autoUpdateChannel === "develop" ? "Latest develop candidate" : "Latest stable release";
 
   return {
-    themeModeOptions: [
-      settingsSegmentOption("system", preferences.themeMode, "System", "monitor"),
-      settingsSegmentOption("light", preferences.themeMode, "Light", "sun"),
-      settingsSegmentOption("dark", preferences.themeMode, "Dark", "moon"),
-    ],
-    densityOptions: [
-      settingsSegmentOption("compact", preferences.density, "Compact"),
-      settingsSegmentOption("comfortable", preferences.density, "Comfort"),
-    ],
     graphStyleOptions: [
       settingsSegmentOption("solid", preferences.graphStyle, "Solid"),
       settingsSegmentOption("soft", preferences.graphStyle, "Soft"),
@@ -78,11 +54,6 @@ export function settingsPreferencesView(preferences: UiPreferences) {
       settingsSegmentOption("develop", preferences.autoUpdateChannel, "Develop"),
     ],
     autoUpdateChannelDetail,
-    fontFamilyOptions: [
-      { value: "system", label: "System" },
-      { value: "inter", label: "Inter" },
-      { value: "mono", label: "Mono" },
-    ] satisfies SettingsSelectOption<UiPreferences["fontFamily"]>[],
   };
 }
 
@@ -200,20 +171,6 @@ export function settingsPanelView(
         checkForUpdatesLabel: "Check now",
         releaseLinkLabel: "GitHub Releases",
         releaseLinkAriaLabel: "Open GitHub Releases",
-      },
-      appearance: {
-        titleId: "settings-appearance-title",
-        title: "Appearance",
-        rows: {
-          mode: "Mode",
-          light: "Light",
-          dark: "Dark",
-          density: "Density",
-          font: "Font",
-        },
-        lightThemeAriaLabel: "Light theme preset",
-        darkThemeAriaLabel: "Dark theme preset",
-        fontFamilyAriaLabel: "Font family",
       },
       graph: {
         titleId: "settings-graph-title",

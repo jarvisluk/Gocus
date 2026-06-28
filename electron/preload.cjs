@@ -43,7 +43,6 @@ contextBridge.exposeInMainWorld("gocus", {
   setCommitInfoPanelHeight: (height) => ipcRenderer.invoke("window:setCommitInfoPanelHeight", height),
   copyText: (text) => ipcRenderer.invoke("clipboard:writeText", text),
   readText: () => ipcRenderer.invoke("clipboard:readText"),
-  getSystemTheme: () => ipcRenderer.invoke("theme:getSystemTheme"),
   onTemporaryInfoPayloadUpdated: (callback) => {
     const handler = (_event, payload) => callback(payload);
     ipcRenderer.on("window:temporaryInfoPayload", handler);
@@ -73,11 +72,6 @@ contextBridge.exposeInMainWorld("gocus", {
     const handler = () => callback();
     ipcRenderer.on("window:commitInfoPanelClosed", handler);
     return () => ipcRenderer.removeListener("window:commitInfoPanelClosed", handler);
-  },
-  onThemeChanged: (callback) => {
-    const handler = (_event, theme) => callback(theme);
-    ipcRenderer.on("theme:changed", handler);
-    return () => ipcRenderer.removeListener("theme:changed", handler);
   },
   onPreferencesChanged: (callback) => {
     const handler = (_event, preferences) => callback(preferences);

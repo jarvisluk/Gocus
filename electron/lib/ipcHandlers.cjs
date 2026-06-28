@@ -18,7 +18,6 @@ function registerIpcHandlers({
   holdCommitInfoPanelInteraction,
   isCommitInfoPanelActive,
   getSnapshotResponse,
-  getSystemTheme,
   getTemporaryInfoPayload,
   initializeRepository,
   ipcMain,
@@ -51,7 +50,6 @@ function registerIpcHandlers({
   syncDockIcon,
   syncLaunchAtLogin,
   syncMenuBarIcon,
-  syncNativeThemeSource,
 }) {
   ipcMain.handle("git:openRepository", async (_event, view) => {
     return chooseRepository(normalizeView(view));
@@ -242,7 +240,6 @@ function registerIpcHandlers({
     if (sideEffects.checkAutoUpdatesNow) checkForUpdates();
 
     const savedPreferences = readPreferences();
-    syncNativeThemeSource(savedPreferences);
     sendPreferences(savedPreferences);
   });
 
@@ -297,8 +294,6 @@ function registerIpcHandlers({
   });
 
   ipcMain.handle("clipboard:readText", () => clipboard.readText());
-
-  ipcMain.handle("theme:getSystemTheme", () => getSystemTheme());
 }
 
 function preferencesSaveSideEffects(previousEffectivePreferences, previousConfigPreferences, savedConfigPreferences) {

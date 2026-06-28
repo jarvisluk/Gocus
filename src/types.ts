@@ -1,9 +1,5 @@
 export type BranchKind = "main" | "develop" | "feature" | "fix" | "release" | "stash" | "topic" | "remote";
 export type BranchColor = string;
-export type Theme = "light" | "dark";
-export type ThemeMode = "system" | Theme;
-export type LightThemePreset = "paper" | "mist" | "pearl";
-export type DarkThemePreset = "graphite" | "cursor" | "matte";
 export type FileFilter = "all" | "modified" | "staged" | "untracked";
 export type WorkspaceOpenTarget =
   | "vscode"
@@ -44,11 +40,6 @@ export interface MergeOptions {
 }
 
 export interface UiPreferences {
-  themeMode: ThemeMode;
-  lightThemePreset: LightThemePreset;
-  darkThemePreset: DarkThemePreset;
-  density: "compact" | "comfortable";
-  fontFamily: "system" | "inter" | "mono";
   graphStyle: "solid" | "soft";
   workspaceOpenTargets: WorkspaceOpenTarget[];
   showMenuBarIcon: boolean;

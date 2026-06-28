@@ -266,10 +266,6 @@ function installGocusMock(config) {
     });
   }
   window.gocus = {
-    getSystemTheme: async () => {
-      if (config.systemThemeError) throw new Error(config.systemThemeError);
-      return "light";
-    },
     getPreferences: async () => {
       if (config.preferencesError) throw new Error(config.preferencesError);
       return config.preferences ?? null;
@@ -311,7 +307,6 @@ function installGocusMock(config) {
       };
     },
     onRepositoryDialogOpenChanged: () => () => {},
-    onThemeChanged: () => () => {},
     onPreferencesChanged: (callback) => {
       window.__gocusPreferencesListeners.push(callback);
       return () => {
@@ -1814,7 +1809,6 @@ async function testLargeCommitListVirtualizes(browser, baseUrl) {
   const largeCommits = numberedCommits(160);
   const { page, errors } = await openMockedPage(browser, baseUrl, {
     ...mockedSnapshotScenario(largeCommits),
-    preferences: { density: "comfortable" },
   });
   try {
     await assertHealthyPage(page, errors);
@@ -2350,7 +2344,6 @@ async function testPreviewRefreshWithoutBridge(browser, baseUrl) {
 function optionalStartupFailureScenario() {
   return {
     ...mockedSnapshotScenario(mockCommits),
-    systemThemeError: "System theme unavailable.",
     preferencesError: "Preferences unavailable.",
     availableWorkspaceTargetsError: "Workspace target scan failed.",
     recentRepositoriesError: "Recent repositories unavailable.",
@@ -2363,7 +2356,6 @@ function temporaryInfoStartupFailureScenario() {
     ...mockedSnapshotScenario(mockCommits),
     temporaryInfoPayloadError: "Temporary payload unavailable.",
     preferencesError: "Preferences unavailable.",
-    systemThemeError: "System theme unavailable.",
   };
 }
 
@@ -2548,27 +2540,10 @@ async function testFocusedViewEscapeControls(browser, baseUrl) {
     await page.getByRole("heading", { name: "Settings" }).waitFor();
     assert.equal(await page.locator(".settings-page").getAttribute("aria-labelledby"), "settings-panel-title");
     assert.equal(await page.locator("#settings-panel-title").innerText(), "Settings");
-    assert.equal(await page.getByRole("button", { name: "Dark", exact: true }).getAttribute("aria-pressed"), "true");
-    assert.equal(await page.getByRole("button", { name: "Light", exact: true }).getAttribute("aria-pressed"), "false");
-    assert.equal(await page.getByRole("button", { name: "Compact" }).getAttribute("aria-pressed"), "true");
-    assert.equal(await page.getByRole("button", { name: "Comfort" }).getAttribute("aria-pressed"), "false");
     assert.equal(await page.getByRole("button", { name: "Solid" }).getAttribute("aria-pressed"), "true");
     assert.equal(await page.getByRole("button", { name: "Soft" }).getAttribute("aria-pressed"), "false");
     assert.equal(await page.getByRole("button", { name: "English" }).getAttribute("aria-pressed"), "true");
     assert.equal(await page.getByRole("button", { name: "中文" }).getAttribute("aria-pressed"), "false");
-    const lightThemeDropdown = page.getByRole("button", { name: "Light theme preset" });
-    await lightThemeDropdown.waitFor();
-    await page.getByRole("button", { name: "Dark theme preset" }).waitFor();
-    await page.getByRole("button", { name: "Font family" }).waitFor();
-    assert.equal(await lightThemeDropdown.innerText(), "Paper");
-    await lightThemeDropdown.click();
-    const lightThemeMenu = page.locator("#settings-light-theme-menu");
-    await lightThemeMenu.waitFor();
-    assert.equal(await lightThemeMenu.getAttribute("role"), "menu");
-    assert.equal(await page.getByRole("menuitemradio", { name: "Paper" }).getAttribute("aria-checked"), "true");
-    assert.equal(await page.getByRole("menuitemradio", { name: "Mist" }).getAttribute("aria-checked"), "false");
-    await page.keyboard.press("Escape");
-    await lightThemeMenu.waitFor({ state: "detached" });
     const refreshDropdown = page.getByRole("button", { name: "Auto refresh interval" });
     await refreshDropdown.waitFor();
     assert.equal(await refreshDropdown.innerText(), "Off");
@@ -2585,9 +2560,9 @@ async function testFocusedViewEscapeControls(browser, baseUrl) {
     const appSettingsButton = page.getByRole("button", { name: "Open app settings" });
     await appSettingsButton.waitFor();
     const appSettingsBox = await appSettingsButton.boundingBox();
-    const appearanceHeadingBox = await page.getByRole("heading", { name: "Appearance" }).boundingBox();
-    assert.ok(appSettingsBox && appearanceHeadingBox, "App settings should render above Appearance");
-    assert.ok(appSettingsBox.y < appearanceHeadingBox.y, "App settings should be the first settings section");
+    const graphHeadingBox = await page.getByRole("heading", { name: "Graph" }).boundingBox();
+    assert.ok(appSettingsBox && graphHeadingBox, "App settings should render above Graph");
+    assert.ok(appSettingsBox.y < graphHeadingBox.y, "App settings should be the first settings section");
 
     const behaviorToggleLabels = [
       "Launch at login",

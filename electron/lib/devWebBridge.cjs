@@ -15,11 +15,6 @@ const { getAvailableWorkspaceTargets, openWorkspace, openWorkspaceFile } = requi
 const bridgePrefix = "/__git_peek_dev_bridge";
 const defaultActiveWorkspaceOpenTarget = "vscode";
 const defaultPreferences = {
-  themeMode: "dark",
-  lightThemePreset: "paper",
-  darkThemePreset: "graphite",
-  density: "compact",
-  fontFamily: "system",
   graphStyle: "solid",
   workspaceOpenTargets: ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"],
   showMenuBarIcon: true,
@@ -32,6 +27,19 @@ const defaultPreferences = {
   autoRefreshInterval: "off",
   promptLanguage: "en",
 };
+
+function sanitizePreferences(preferences) {
+  const source = preferences && typeof preferences === "object" ? preferences : {};
+  const nextPreferences = { ...defaultPreferences };
+
+  for (const key of Object.keys(defaultPreferences)) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      nextPreferences[key] = source[key];
+    }
+  }
+
+  return nextPreferences;
+}
 
 function jsonResponse(response, statusCode, body) {
   response.statusCode = statusCode;
@@ -131,10 +139,9 @@ function createDevWebBridgeMiddleware(projectRoot) {
     "/checkForUpdates": async () => ({ ok: true }),
     "/getPreferences": async () => preferences,
     "/savePreferences": async (payload) => {
-      preferences = { ...defaultPreferences, ...(payload.preferences ?? {}) };
+      preferences = sanitizePreferences(payload.preferences);
       return { ok: true };
     },
-    "/getSystemTheme": async () => "dark",
     "/clearRepository": async () => {
       repositoryPath = path.resolve(projectRoot);
       return snapshotResponse({ mode: "all" });

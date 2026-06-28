@@ -6,11 +6,6 @@ const workspaceOpenTargetValues = ["vscode", "cursor", "codex", "antigravity", "
 const defaultActiveWorkspaceOpenTarget = "vscode";
 
 const defaultPreferences = {
-  themeMode: "dark",
-  lightThemePreset: "paper",
-  darkThemePreset: "graphite",
-  density: "compact",
-  fontFamily: "system",
   graphStyle: "solid",
   workspaceOpenTargets: [...workspaceOpenTargetValues],
   showMenuBarIcon: true,
