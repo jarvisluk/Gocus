@@ -47,6 +47,7 @@
   --type-site-hero-title-size: var(--text-hero-title);
   --type-site-brand-size: 0.875rem;
   --type-site-download-title-size: 1.0625rem;
+  --site-section-inline-inset: 0px;
   --space-section-y: clamp(2.625rem, 2rem + 3vw, 3.875rem);
   --space-hero-y: 2.875rem;
   --space-card: 1rem;
@@ -346,6 +347,11 @@ svg {
   padding: var(--space-section-y) 0;
 }
 
+.workflow-section,
+.feature-section {
+  padding-inline: var(--site-section-inline-inset);
+}
+
 .workflow-section {
   container: workflow / inline-size;
 }
@@ -467,7 +473,7 @@ svg {
   grid-template-columns: 1fr;
   align-items: start;
   gap: 18px;
-  margin-bottom: 56px;
+  margin: 0 var(--site-section-inline-inset) 56px;
   padding: 20px;
   border: 1px solid rgba(240, 180, 58, 0.24);
   border-radius: var(--radius);
@@ -616,6 +622,7 @@ svg {
   :root {
     --text-hero-lede: 2.125rem;
     --text-hero-title: 3.75rem;
+    --site-section-inline-inset: clamp(52px, 5vw, 68px);
     --space-hero-y: 4.5rem;
   }
 
@@ -632,11 +639,9 @@ svg {
   }
 
   .hero-section {
-    --hero-inline-inset: clamp(52px, 5vw, 68px);
-
     grid-template-columns: minmax(0, 1fr) 300px;
     gap: 48px;
-    padding: 72px var(--hero-inline-inset) 24px;
+    padding: 72px var(--site-section-inline-inset) 24px;
   }
 
   .hero-copy {
