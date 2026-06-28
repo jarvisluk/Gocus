@@ -1,4 +1,5 @@
 import type {
+  ActionResponse,
   ChangedFileInfoPayload,
   CommitInfoPayload,
   CommitViewSelection,
@@ -77,6 +78,11 @@ export function installDevWebBridge() {
     pushCurrentBranch: (view?: CommitViewSelection) => requestBridge("pushCurrentBranch", { view }),
     pullCurrentBranch: (view?: CommitViewSelection) => requestBridge("pullCurrentBranch", { view }),
     fetchRemotes: (view?: CommitViewSelection) => requestBridge("fetchRemotes", { view }),
+    openRepositoryRemote: async () => {
+      const response = await requestBridge<ActionResponse & { url?: string }>("openRepositoryRemote");
+      if (response.ok && response.url) window.open(response.url, "_blank", "noopener,noreferrer");
+      return response;
+    },
     openWorktree: (worktreePath: string, view?: CommitViewSelection) => requestBridge("openWorktree", { worktreePath, view }),
     cleanupWorktree: (worktreePath: string, view?: CommitViewSelection) =>
       requestBridge("cleanupWorktree", { worktreePath, view }),

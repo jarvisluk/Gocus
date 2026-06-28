@@ -126,14 +126,14 @@ export function functionMenuWindowView(payload: FunctionMenuPayload) {
   const pushAction = functionMenuPushActionView(resolvedPayload);
   const fetchAction = functionMenuFetchActionView(resolvedPayload);
   const refreshAction = functionMenuRefreshActionView(resolvedPayload);
-  const githubAction: FunctionMenuActionView = {
-    key: "github-releases",
+  const remoteAction: FunctionMenuActionView = {
+    key: "repository-remote",
     className: "function-menu-action",
     icon: "github" as FunctionMenuActionIcon,
-    label: "Release",
-    detail: "Open the release page in browser.",
-    disabled: false,
-    title: "Open GitHub Releases",
+    label: "Remote",
+    detail: resolvedPayload.repository ? "Open the workspace remote repository." : "Choose a workspace first.",
+    disabled: !resolvedPayload.repository,
+    title: resolvedPayload.repository ? "Open repository remote" : "Choose a workspace first",
   };
   const updatesAction: FunctionMenuActionView = {
     key: "check-updates",
@@ -159,7 +159,7 @@ export function functionMenuWindowView(payload: FunctionMenuPayload) {
     sections: [
       { key: "workspace", label: "Workspace", actions: [openRepositoryAction] },
       { key: "git", label: "Git", actions: [pullAction, pushAction, fetchAction, refreshAction] },
-      { key: "github", label: "GitHub", actions: [githubAction] },
+      { key: "github", label: "GitHub", actions: [remoteAction] },
       { key: "app", label: "App", actions: [updatesAction] },
     ] satisfies FunctionMenuSectionView[],
     openRepositoryAction,
@@ -167,7 +167,7 @@ export function functionMenuWindowView(payload: FunctionMenuPayload) {
     pushAction,
     fetchAction,
     refreshAction,
-    githubAction,
+    remoteAction,
     updatesAction,
   };
 }

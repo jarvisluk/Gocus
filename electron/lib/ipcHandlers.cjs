@@ -29,6 +29,7 @@ function registerIpcHandlers({
   normalizeRepositorySwitchView,
   normalizeView,
   openRepositoryPath,
+  openRepositoryRemote,
   openWorkspace,
   openWorkspaceFile,
   openWorkspaceFileMenu,
@@ -203,6 +204,17 @@ function registerIpcHandlers({
       return { ok: true, message: "Fetched remotes.", snapshot };
     } catch (error) {
       return errorResponse(error, "Unable to fetch remotes.");
+    }
+  });
+
+  ipcMain.handle("git:openRepositoryRemote", async () => {
+    const repositoryPath = repositoryPathForAction();
+    if (!repositoryPath) return noRepositoryResponse();
+
+    try {
+      return await openRepositoryRemote(repositoryPath);
+    } catch (error) {
+      return errorResponse(error, "Unable to open repository remote.");
     }
   });
 

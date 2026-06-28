@@ -12,6 +12,7 @@ const {
   pullCurrentBranch,
   pushCurrentBranch,
   readGitSnapshot,
+  repositoryRemoteWebUrl,
 } = require("./git.cjs");
 const { getAvailableWorkspaceTargets, openWorkspace, openWorkspaceFile } = require("./workspace.cjs");
 
@@ -206,6 +207,11 @@ function createDevWebBridgeMiddleware(projectRoot) {
         "Fetched remotes.",
         "Unable to fetch remotes.",
       ),
+    "/openRepositoryRemote": async () => ({
+      ok: true,
+      message: "Opened repository remote.",
+      url: await repositoryRemoteWebUrl(repositoryPath),
+    }),
     "/openWorktree": async (payload) =>
       actionWithSnapshot(
         (root, view) => openWorktree(root, payload.worktreePath, view),

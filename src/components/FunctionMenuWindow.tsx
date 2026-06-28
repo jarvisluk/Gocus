@@ -162,10 +162,10 @@ export function FunctionMenuWindow() {
     );
   }
 
-  function openGitHubReleases() {
+  function openRepositoryRemote() {
     void runAction(
-      view.githubAction.key,
-      () => window.gocus?.openGitHubReleases?.() ?? Promise.resolve({ ok: false, error: "GitHub Releases are unavailable." }),
+      view.remoteAction.key,
+      () => window.gocus?.openRepositoryRemote?.() ?? Promise.resolve({ ok: false, error: "Repository remote is unavailable." }),
     );
   }
 
@@ -178,7 +178,7 @@ export function FunctionMenuWindow() {
     push: pushCurrentBranch,
     fetch: fetchRemotes,
     refresh: refreshGitData,
-    "github-releases": openGitHubReleases,
+    "repository-remote": openRepositoryRemote,
     "check-updates": checkForUpdates,
   };
 

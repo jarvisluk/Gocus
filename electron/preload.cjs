@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld("gocus", {
   pushCurrentBranch: (view) => ipcRenderer.invoke("git:pushCurrentBranch", view),
   pullCurrentBranch: (view) => ipcRenderer.invoke("git:pullCurrentBranch", view),
   fetchRemotes: (view) => ipcRenderer.invoke("git:fetchRemotes", view),
+  openRepositoryRemote: () => ipcRenderer.invoke("git:openRepositoryRemote"),
   openWorktree: (worktreePath, view) => ipcRenderer.invoke("git:openWorktree", worktreePath, view),
   cleanupWorktree: (worktreePath, view) => ipcRenderer.invoke("git:cleanupWorktree", worktreePath, view),
   openWorkspace: (target) => ipcRenderer.invoke("workspace:open", target),

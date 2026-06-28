@@ -53,6 +53,7 @@ const {
   pushCurrentBranch,
   readFolderWithoutGit,
   readGitSnapshot,
+  repositoryRemoteWebUrl,
 } = require("./lib/git.cjs");
 const { createRepositoryWatcher } = require("./lib/gitWatcher.cjs");
 const { getAvailableWorkspaceTargets, openWorkspace, openWorkspaceFile } = require("./lib/workspace.cjs");
@@ -147,6 +148,12 @@ async function openGitHubReleases() {
   const releaseUrl = releaseUrlForRepository(autoUpdates.updateRepository());
   if (!releaseUrl) throw new Error("GitHub Releases URL is unavailable.");
   await shell.openExternal(releaseUrl);
+}
+
+async function openRepositoryRemote(repositoryPath) {
+  const remoteUrl = await repositoryRemoteWebUrl(repositoryPath);
+  await shell.openExternal(remoteUrl);
+  return { ok: true, message: "Opened repository remote." };
 }
 
 function shouldStartInMenuBar() {
@@ -1609,6 +1616,7 @@ registerIpcHandlers({
   normalizeRepositorySwitchView,
   normalizeView,
   openRepositoryPath,
+  openRepositoryRemote,
   openWorkspace,
   openWorkspaceFile,
   openWorkspaceFileMenu,

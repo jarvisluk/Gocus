@@ -260,6 +260,7 @@ function installGocusMock(config) {
   window.__gocusFetchCount = 0;
   window.__gocusUpdateCheckCount = 0;
   window.__gocusOpenedGitHubReleases = 0;
+  window.__gocusOpenedRepositoryRemote = 0;
   window.__gocusCollapsedRailHeights = [];
   window.__gocusCommitInfoPanelHeights = [];
   window.__gocusFunctionMenuPanelHeights = [];
@@ -483,6 +484,10 @@ function installGocusMock(config) {
     },
     openGitHubReleases: async () => {
       window.__gocusOpenedGitHubReleases += 1;
+    },
+    openRepositoryRemote: async () => {
+      window.__gocusOpenedRepositoryRemote += 1;
+      return { ok: true, message: "Opened repository remote." };
     },
     checkout: async (ref, view) => {
       window.__gocusActions.push({ type: "checkout", ref, view });
@@ -1329,12 +1334,12 @@ async function testFunctionMenuPanel(browser, baseUrl) {
       "Push",
       "Fetch",
       "Refresh",
-      "Release",
+      "Remote",
       "Update",
     ]);
     assert.equal(
       (await page.locator(".function-menu-panel").innerText()).trim(),
-      "Tools\nWorkspace\nOpen\nGit\nPull\nPush\nFetch\nRefresh\nGitHub\nRelease\nApp\nUpdate",
+      "Tools\nWorkspace\nOpen\nGit\nPull\nPush\nFetch\nRefresh\nGitHub\nRemote\nApp\nUpdate",
     );
     assert.equal(await page.locator(".function-menu-panel").evaluate((node) => getComputedStyle(node).overflowY), "visible");
     const compactPanelWidth = await page.locator(".function-menu-panel").evaluate((node) => Math.round(node.getBoundingClientRect().width));
@@ -1372,8 +1377,8 @@ async function testFunctionMenuPanel(browser, baseUrl) {
     await page.getByRole("button", { name: "Fetch remotes" }).click();
     await page.waitForFunction(() => window.__gocusFetchCount === 1);
 
-    await page.getByRole("button", { name: "Open GitHub Releases" }).click();
-    await page.waitForFunction(() => window.__gocusOpenedGitHubReleases === 1);
+    await page.getByRole("button", { name: "Open repository remote" }).click();
+    await page.waitForFunction(() => window.__gocusOpenedRepositoryRemote === 1);
     await page.getByRole("button", { name: "Refresh Git data" }).click();
     await page.waitForFunction(() => window.__gocusRefreshCount === 1);
     await page.getByRole("button", { name: "Check for updates" }).click();

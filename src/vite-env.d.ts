@@ -37,6 +37,7 @@ declare global {
       pushCurrentBranch?: (view?: CommitViewSelection) => Promise<ActionResponse>;
       pullCurrentBranch?: (view?: CommitViewSelection) => Promise<ActionResponse>;
       fetchRemotes?: (view?: CommitViewSelection) => Promise<ActionResponse>;
+      openRepositoryRemote?: () => Promise<ActionResponse>;
       openWorktree: (worktreePath: string, view?: CommitViewSelection) => Promise<ActionResponse>;
       cleanupWorktree: (worktreePath: string, view?: CommitViewSelection) => Promise<ActionResponse>;
       openWorkspace: (target: WorkspaceOpenTarget) => Promise<ActionResponse>;

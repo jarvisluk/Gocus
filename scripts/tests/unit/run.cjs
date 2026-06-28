@@ -1384,6 +1384,8 @@ async function testGitModule() {
     normalizeCommitLogLimit,
     pullCurrentBranch,
     readGitSnapshot,
+    remoteWebUrlFromGitUrl,
+    repositoryRemoteWebUrl,
     repositoryStateForGit,
   } = require(path.join(projectRoot, "electron/lib/git.cjs"));
   const { parseStatus } = require(path.join(projectRoot, "electron/lib/gitStatus.cjs"));
@@ -1416,6 +1418,10 @@ async function testGitModule() {
     "chore: merge feature/footer-toggle into main",
     "feature/footer-toggle",
   ]);
+  assert.equal(remoteWebUrlFromGitUrl("git@github.com:jarvisluk/gocus.git"), "https://github.com/jarvisluk/gocus");
+  assert.equal(remoteWebUrlFromGitUrl("https://github.com/jarvisluk/gocus.git"), "https://github.com/jarvisluk/gocus");
+  assert.equal(remoteWebUrlFromGitUrl("ssh://git@github.com/jarvisluk/gocus.git"), "https://github.com/jarvisluk/gocus");
+  assert.equal(remoteWebUrlFromGitUrl(""), "");
 
   const mergeMessageDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-merge-message-"));
   try {
@@ -1465,6 +1471,15 @@ async function testGitModule() {
     assert.match(runGitFixture(dirtyMergeDir, ["status", "--porcelain=v1"]), /\?\? local-notes\.txt/);
   } finally {
     fs.rmSync(dirtyMergeDir, { force: true, recursive: true });
+  }
+
+  const remoteUrlDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-remote-url-"));
+  try {
+    runGitFixture(remoteUrlDir, ["init"]);
+    runGitFixture(remoteUrlDir, ["remote", "add", "origin", "git@github.com:jarvisluk/gocus.git"]);
+    assert.equal(await repositoryRemoteWebUrl(remoteUrlDir), "https://github.com/jarvisluk/gocus");
+  } finally {
+    fs.rmSync(remoteUrlDir, { force: true, recursive: true });
   }
 
   const pullDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-pull-current-"));
@@ -6463,6 +6478,15 @@ async function testFunctionMenuView(server) {
   assert.equal(functionMenuPullActionView(emptyPayload).disabled, true);
   assert.equal(functionMenuWindowView(payload).panel.ariaLabelledBy, "function-menu-title");
   assert.equal(functionMenuWindowView(payload).title, "Tools");
+  assert.deepEqual(functionMenuWindowView(payload).remoteAction, {
+    key: "repository-remote",
+    className: "function-menu-action",
+    icon: "github",
+    label: "Remote",
+    detail: "Open the workspace remote repository.",
+    disabled: false,
+    title: "Open repository remote",
+  });
   assert.equal("repositorySummary" in functionMenuWindowView(payload), false);
   assert.equal("closeButton" in functionMenuWindowView(payload), false);
   assert.deepEqual(
@@ -6474,7 +6498,7 @@ async function testFunctionMenuView(server) {
     [
       { label: "Workspace", actions: ["open-repository"], actionLabels: ["Open"] },
       { label: "Git", actions: ["pull", "push", "fetch", "refresh"], actionLabels: ["Pull", "Push", "Fetch", "Refresh"] },
-      { label: "GitHub", actions: ["github-releases"], actionLabels: ["Release"] },
+      { label: "GitHub", actions: ["repository-remote"], actionLabels: ["Remote"] },
       { label: "App", actions: ["check-updates"], actionLabels: ["Update"] },
     ],
   );
