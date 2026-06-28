@@ -313,19 +313,14 @@ jobs:
           {
             echo "# Gocus ${RELEASE_VERSION}"
             echo
-            echo "macOS release artifact:"
-            echo
-            for artifact in *-mac-*.zip; do
-              echo "- $artifact"
-            done
-            echo
             if [[ "${{ steps.release_mode.outputs.notarize_enabled }}" == "true" ]]; then
-              echo "This app bundle was Developer ID signed, notarized, stapled, and validated with Gatekeeper before packaging."
+              echo "- macOS: Developer ID signed, notarized, stapled, and validated with Gatekeeper before packaging."
             elif [[ "${{ steps.release_mode.outputs.signing_enabled }}" == "true" ]]; then
-              echo "This app bundle was Developer ID signed, but notarization was not enabled for this build."
+              echo "- macOS: Developer ID signed, but notarization was not enabled for this build."
             else
-              echo "This build uses ad hoc signing. Configure Developer ID signing and notarization secrets before treating it as a public macOS distribution build."
+              echo "- macOS: ad hoc signed. Configure Developer ID signing and notarization secrets before treating it as a public macOS distribution build."
             fi
+            echo "- Windows: published as a portable zip download. Installer and auto-update assets are withheld until Windows code signing is configured."
             echo
             echo "Changes:"
             git log --pretty="- %s (%h)" "$range"
@@ -398,13 +393,13 @@ jobs:
         env:
           GOCUS_BUILD: ${{ github.run_number }}
           GOCUS_VERSION: ${{ needs.macos.outputs.version }}
-        run: npm run package:win:release
+        run: npm run package:win
 
       - name: Generate release metadata
         shell: pwsh
         run: |
           Set-Location release/windows
-          Get-ChildItem -File | Where-Object { $_.Name -match '\.(zip|exe|blockmap|ya?ml)$' } | ForEach-Object {
+          Get-ChildItem -File | Where-Object { $_.Name -match '-win-.+\.zip$' } | ForEach-Object {
             $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant()
             "${hash}  $($_.Name)" | Set-Content -Encoding utf8 "$($_.Name).sha256"
           }
@@ -433,10 +428,7 @@ jobs:
           name: gocus-windows-${{ needs.macos.outputs.version }}
           path: |
             release/windows/*-win-*.zip
-            release/windows/*.exe
-            release/windows/*.blockmap
-            release/windows/latest*.yml
-            release/windows/*.sha256
+            release/windows/*-win-*.zip.sha256
 
   publish:
     name: Publish GitHub Release
@@ -474,7 +466,7 @@ jobs:
             cat "$notes_file"
             echo
             echo "Release assets:"
-            for artifact in release-assets/*-mac-*.zip release-assets/*-win-*.zip release-assets/*.exe release-assets/*.blockmap release-assets/latest*.yml; do
+            for artifact in release-assets/*-mac-*.zip release-assets/*-win-*.zip; do
               [[ -e "$artifact" ]] && echo "- $(basename "$artifact")"
             done
           } >"$combined_notes"
@@ -484,9 +476,6 @@ jobs:
           for pattern in \
             release-assets/*-mac-*.zip \
             release-assets/*-win-*.zip \
-            release-assets/*.exe \
-            release-assets/*.blockmap \
-            release-assets/latest*.yml \
             release-assets/*.sha256; do
             for artifact in $pattern; do
               [[ -e "$artifact" ]] && assets+=("$artifact")
