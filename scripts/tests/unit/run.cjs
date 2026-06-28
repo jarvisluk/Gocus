@@ -1605,6 +1605,19 @@ function testGitStatusModule() {
   assert.equal(status.files[2].deletions, 0);
 }
 
+function testGitCoreModule() {
+  const { gitUnavailableNotice } = require(path.join(projectRoot, "electron/lib/gitCore.cjs"));
+
+  assert.equal(
+    gitUnavailableNotice("win32"),
+    "Git is not installed or is not available on PATH. Install Git for Windows, then restart Gocus.",
+  );
+  assert.equal(
+    gitUnavailableNotice("darwin"),
+    "Git is not installed or is not available on PATH. Install Git, then restart Gocus.",
+  );
+}
+
 async function testGitModule() {
   const {
     checkout,
@@ -7676,6 +7689,7 @@ async function main() {
   testIpcHandlersModule();
   await testAutoUpdateModule();
   testGitStatusModule();
+  testGitCoreModule();
   await testGitModule();
   testGitGraphModule();
 
