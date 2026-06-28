@@ -7,11 +7,11 @@
 
 .function-menu-panel {
   width: 100%;
-  max-width: 202px;
+  max-width: 218px;
   display: grid;
-  gap: var(--space-sm);
+  gap: var(--space-lg);
   overflow: visible;
-  padding: var(--space-md) var(--space-sm);
+  padding: var(--space-xl);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--panel);
@@ -22,20 +22,24 @@
 .function-menu-title {
   margin: 0;
   color: var(--text);
-  font-size: var(--type-body-strong-size);
+  font-size: var(--type-heading-1-size);
   font-weight: var(--font-weight-title);
-  line-height: 1.05;
+  line-height: 1.1;
+  text-wrap: balance;
 }
 
 .function-menu-sections {
   display: grid;
-  gap: var(--space-md);
+  gap: var(--space-sm);
 }
 
 .function-menu-section {
   display: grid;
   gap: var(--space-xs);
-  padding-top: var(--space-sm);
+}
+
+.function-menu-section + .function-menu-section {
+  padding-top: var(--space-lg);
   border-top: 1px solid var(--border-soft);
 }
 

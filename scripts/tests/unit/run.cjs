@@ -826,7 +826,7 @@ function testWindowGeometryModule() {
   assert.deepEqual(collapsedSize, { width: 38, height: 136 });
   assert.deepEqual(changedFileInfoWindowSize, { width: 280, height: 252 });
   assert.deepEqual(commitInfoWindowSize, { width: 348, height: 132 });
-  assert.deepEqual(functionMenuWindowSize, { width: 202, height: 336 });
+  assert.deepEqual(functionMenuWindowSize, { width: 218, height: 344 });
   assert.deepEqual(expandedMinimumSize, { width: 320, height: 620 });
   assert.equal(clampCollapsedRailHeight(96, display), 136);
   assert.equal(clampCollapsedRailHeight(355, display), 355);
@@ -839,7 +839,7 @@ function testWindowGeometryModule() {
   assert.equal(clampFunctionMenuWindowHeight(48, display), 72);
   assert.equal(clampFunctionMenuWindowHeight(132, display), 132);
   assert.equal(clampFunctionMenuWindowHeight(9999, display), 860);
-  assert.equal(clampFunctionMenuWindowHeight("bad", display), 336);
+  assert.equal(clampFunctionMenuWindowHeight("bad", display), 344);
   assert.deepEqual(clampExpandedSize({ width: 1, height: 9999 }, display), { width: 320, height: 860 });
   assert.deepEqual(
     mainWindowBounds({
@@ -895,9 +895,9 @@ function testWindowGeometryModule() {
     functionMenuBounds({
       mainBounds: { x: 1070, y: 200, width: 360, height: 700 },
       display,
-      size: { width: 202, height: 330 },
+      size: { width: 218, height: 338 },
     }),
-    { x: 858, y: 200, width: 202, height: 330 },
+    { x: 842, y: 200, width: 218, height: 338 },
   );
   assert.deepEqual(
     commitInfoBounds({

@@ -10,7 +10,7 @@ const desktopViewport = { width: 960, height: 720 };
 const temporaryInfoViewport = { width: 280, height: 252 };
 const changedFileInfoViewport = { width: 280, height: 252 };
 const commitInfoViewport = { width: 348, height: 240 };
-const functionMenuViewport = { width: 202, height: 336 };
+const functionMenuViewport = { width: 218, height: 344 };
 const testTimeZone = "Asia/Shanghai";
 const allWorkspaceTargets = ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"];
 const footerCommitFullHash = "d4e5f6a000000000000000000000000000000000";
@@ -1326,6 +1326,10 @@ async function testFunctionMenuPanel(browser, baseUrl) {
     assert.equal(await page.getByRole("heading", { level: 1, name: "Tools" }).isVisible(), true);
     assert.equal(await page.locator(".function-menu-repository").count(), 0);
     assert.equal(await page.locator(".function-menu-section").count(), 4);
+    assert.deepEqual(
+      await page.locator(".function-menu-section").evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).borderTopStyle)),
+      ["none", "solid", "solid", "solid"],
+    );
     assert.equal(await page.locator(".function-menu-action-copy").count(), 0);
     assert.equal(await page.locator(".function-menu-action-label").count(), 7);
     assert.deepEqual(await page.locator(".function-menu-action-label").allInnerTexts(), [
@@ -1343,7 +1347,7 @@ async function testFunctionMenuPanel(browser, baseUrl) {
     );
     assert.equal(await page.locator(".function-menu-panel").evaluate((node) => getComputedStyle(node).overflowY), "visible");
     const compactPanelWidth = await page.locator(".function-menu-panel").evaluate((node) => Math.round(node.getBoundingClientRect().width));
-    assert.ok(compactPanelWidth <= 202, `function menu panel should stay narrow: ${compactPanelWidth}`);
+    assert.ok(compactPanelWidth <= 218, `function menu panel should stay narrow: ${compactPanelWidth}`);
     const gitActionRows = await page.locator('section[aria-label="Git"] .function-menu-action').evaluateAll((nodes) =>
       nodes.map((node) => Math.round(node.getBoundingClientRect().top)),
     );
@@ -1357,7 +1361,7 @@ async function testFunctionMenuPanel(browser, baseUrl) {
         width: Math.round(rect.width),
       };
     });
-    assert.ok(wideViewportPanel.width <= 202, `wide viewport should not stretch function menu: ${JSON.stringify(wideViewportPanel)}`);
+    assert.ok(wideViewportPanel.width <= 218, `wide viewport should not stretch function menu: ${JSON.stringify(wideViewportPanel)}`);
     assert.ok(
       Math.abs(wideViewportPanel.viewportWidth - wideViewportPanel.right) <= 1,
       `function menu should stay aligned to the main window edge: ${JSON.stringify(wideViewportPanel)}`,
@@ -1365,7 +1369,7 @@ async function testFunctionMenuPanel(browser, baseUrl) {
     await page.waitForFunction(() => window.__gocusFunctionMenuPanelHeights?.length > 0);
     const reportedFunctionMenuHeight = await page.evaluate(() => window.__gocusFunctionMenuPanelHeights.at(-1));
     assert.ok(
-      reportedFunctionMenuHeight >= 280 && reportedFunctionMenuHeight <= 360,
+      reportedFunctionMenuHeight >= 300 && reportedFunctionMenuHeight <= 370,
       `function menu should report a compact toolbox height: ${reportedFunctionMenuHeight}`,
     );
     assert.equal(await page.getByRole("button", { name: "Open or switch workspace" }).isEnabled(), true);
