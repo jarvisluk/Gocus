@@ -105,8 +105,7 @@ function splitMergedLocalRefs(refs, context) {
 
   for (const ref of refs) {
     const branchKey = normalizeBranchColorKey(ref);
-    const isCurrentBranch = branchKey && branchKey === context.currentBranch;
-    if (!isCurrentBranch && context.mergedLocalBranches.has(branchKey)) {
+    if (context.mergedLocalBranches.has(branchKey)) {
       mergedRefs.push(ref);
     } else {
       visibleRefs.push(ref);

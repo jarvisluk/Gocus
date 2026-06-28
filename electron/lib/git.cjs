@@ -48,6 +48,7 @@ const defaultCommitLogLimit = 300;
 const maxCommitLogLimit = 2000;
 const dirtyWorkspaceMergeNotice = "Workspace has uncommitted changes. Commit them before merging.";
 const cleanupFallbackBaseBranchCandidates = ["main", "master", "develop", "trunk"];
+const branchLabelBaseBranchCandidates = ["develop", "dev", "main", "master", "trunk"];
 
 function normalizeCommitLogLimit(value = process.env.GOCUS_COMMIT_LOG_LIMIT) {
   const parsed = Number.parseInt(`${value ?? ""}`, 10);
@@ -207,6 +208,44 @@ function parseMergedBranches(output) {
     .map((line) => line.trim())
     .filter(Boolean)
     .filter((name) => !name.endsWith("/HEAD"));
+}
+
+function branchLabelBaseRefs(branches) {
+  const branchNames = new Set(branches.map((branch) => branch.name).filter(Boolean));
+  const baseRefs = [];
+  const appendBaseRef = (ref) => {
+    if (branchNames.has(ref) && !baseRefs.includes(ref)) baseRefs.push(ref);
+  };
+
+  branchLabelBaseBranchCandidates.forEach(appendBaseRef);
+  branchLabelBaseBranchCandidates.forEach((branchName) => appendBaseRef(`origin/${branchName}`));
+  return baseRefs;
+}
+
+function localBranchNameForBaseRef(ref) {
+  return localBranchNameForRemoteRef(ref) || ref;
+}
+
+async function mergedLocalBranchesForBaseRefs(root, branches) {
+  const baseRefs = branchLabelBaseRefs(branches);
+  if (!baseRefs.length) return [];
+
+  const localBranchNames = new Set(branches.filter((branch) => branch.type === "local").map((branch) => branch.name));
+  const baseLocalBranchNames = new Set(baseRefs.map(localBranchNameForBaseRef));
+  const mergedBranchOutputs = await Promise.all(
+    baseRefs.map((baseRef) => runGit(root, ["branch", "--merged", baseRef, "--format=%(refname:short)"]).catch(() => "")),
+  );
+  const mergedLocalBranches = new Set();
+
+  for (const output of mergedBranchOutputs) {
+    for (const branchName of parseMergedBranches(output)) {
+      if (!localBranchNames.has(branchName)) continue;
+      if (baseLocalBranchNames.has(branchName)) continue;
+      mergedLocalBranches.add(branchName);
+    }
+  }
+
+  return [...mergedLocalBranches];
 }
 
 function defaultWorktreeCleanup(overrides = {}) {
@@ -629,10 +668,7 @@ async function readGitSnapshot(repoPath, view = { mode: "all" }) {
   const status = parseStatus(shortStatus);
   const repositoryState = await repositoryStateForGit(root, status);
 
-  const mergedBranchesPromise = status.branch.detached
-    ? Promise.resolve("")
-    : runGit(root, ["branch", "--merged", status.branch.name, "--format=%(refname:short)"]).catch(() => "");
-  const [repositoryKey, unstagedStats, stagedStats, branchesRaw, worktreesRaw, mergedBranchesRaw] = await Promise.all([
+  const [repositoryKey, unstagedStats, stagedStats, branchesRaw, worktreesRaw] = await Promise.all([
     gitCommonDirKey(root),
     runGit(root, ["diff", "--numstat"]).catch(() => ""),
     runGit(root, ["diff", "--cached", "--numstat"]).catch(() => ""),
@@ -644,13 +680,12 @@ async function readGitSnapshot(repoPath, view = { mode: "all" }) {
       "refs/tags",
     ]).catch(() => ""),
     runGit(root, ["worktree", "list", "--porcelain"]).catch(() => ""),
-    mergedBranchesPromise,
   ]);
   const parsedWorktrees = await markCurrentWorktrees(parseWorktrees(worktreesRaw), root);
   const enrichedWorktrees = await Promise.all(parsedWorktrees.map((worktree) => enrichWorktree(root, worktree)));
   const worktrees = await Promise.all(enrichedWorktrees.map((worktree) => auditWorktreeCleanup(root, worktree)));
   const branches = parseBranches(branchesRaw, status.branch.name);
-  const mergedLocalBranches = parseMergedBranches(mergedBranchesRaw);
+  const mergedLocalBranches = await mergedLocalBranchesForBaseRefs(root, branches);
   const graphContext = {
     ...graphContextForWorktrees(worktrees, status, branches, mergedLocalBranches),
     containedBranchTips: parseContainedBranchTips(branchesRaw),

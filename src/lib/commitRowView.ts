@@ -166,14 +166,6 @@ export function commitHoverPanelView(commit: CommitItem) {
           },
         ]
       : [];
-  const mergedRefPills = (commit.mergedRefs ?? []).map((ref, index) => ({
-    key: `${ref}-merged-${index}`,
-    label: ref,
-    color: commit.graph.currentColor || commit.branchColor,
-    title: `${ref} is a merged local branch pointer already reachable from the current branch.`,
-    icon: "branch" as const,
-    modifierClassName: "is-merged-ref",
-  }));
   const detachedWorktreePills = detachedWorktrees.length
     ? [
         {
@@ -186,7 +178,7 @@ export function commitHoverPanelView(commit: CommitItem) {
         },
       ]
     : [];
-  const refPills = [...branchPills, ...mergedRefPills, ...detachedWorktreePills];
+  const refPills = [...branchPills, ...detachedWorktreePills];
 
   return {
     panel: {

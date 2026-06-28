@@ -2008,7 +2008,7 @@ function testGitGraphModule() {
   const commitsWithMergedLocalRefs = parseLog(rawLog, {
     currentHead: firstHash,
     currentBranch: "main",
-    mergedLocalBranches: ["main", "feature/base"],
+    mergedLocalBranches: ["feature/base"],
     containedBranchTips: [
       { name: "main", hash: firstHash },
       { name: "feature/base", hash: secondHash },
@@ -2018,6 +2018,14 @@ function testGitGraphModule() {
   assert.deepEqual(commitsWithMergedLocalRefs[0].mergedRefs, []);
   assert.deepEqual(commitsWithMergedLocalRefs[1].refs, []);
   assert.deepEqual(commitsWithMergedLocalRefs[1].mergedRefs, ["feature/base"]);
+
+  const commitsWithCurrentEmptyBranch = parseLog(rawLog, {
+    currentHead: secondHash,
+    currentBranch: "feature/base",
+    mergedLocalBranches: ["feature/base"],
+  });
+  assert.deepEqual(commitsWithCurrentEmptyBranch[1].refs, []);
+  assert.deepEqual(commitsWithCurrentEmptyBranch[1].mergedRefs, ["feature/base"]);
 
   const propagatedGraph = buildCommitGraph([
     {
@@ -3908,17 +3916,8 @@ async function testCommitRowView(server) {
       },
     }),
   );
-  assert.deepEqual(mergedRefHoverPanel.refs, [
-    {
-      key: "feat/function-menu-merged-0",
-      label: "feat/function-menu",
-      color: "#abcdef",
-      title: "feat/function-menu is a merged local branch pointer already reachable from the current branch.",
-      icon: "branch",
-      modifierClassName: "is-merged-ref",
-    },
-  ]);
-  assert.equal(mergedRefHoverPanel.showRefs, true);
+  assert.deepEqual(mergedRefHoverPanel.refs, []);
+  assert.equal(mergedRefHoverPanel.showRefs, false);
 
   const inheritedLaneHoverPanel = commitHoverPanelView(
     commit({
