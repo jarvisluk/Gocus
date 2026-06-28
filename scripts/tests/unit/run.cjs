@@ -4523,7 +4523,10 @@ async function testPreferences(server) {
 }
 
 async function testWorkspaceOpenOptions(server) {
-  const { workspaceOpenOptions } = await loadTsModule(server, "src/lib/workspaceOpenOptions.ts");
+  const { fileManagerIconSrc, fileManagerLabel, workspaceOpenOptions } = await loadTsModule(
+    server,
+    "src/lib/workspaceOpenOptions.ts",
+  );
   const { workspaceOpenTargetValues } = await loadTsModule(server, "src/lib/workspaceOpenTargets.ts");
 
   assert.deepEqual(
@@ -4537,13 +4540,18 @@ async function testWorkspaceOpenOptions(server) {
 
   for (const option of workspaceOpenOptions) {
     assert.equal(typeof option.iconSrc, "string");
-    assert.match(option.iconSrc, /\.png(?:$|\?)/);
+    assert.match(option.iconSrc, /(?:\.png(?:$|\?)|^data:image\/svg\+xml,)/);
   }
 
   assert.notEqual(
     workspaceOpenOptions.find((option) => option.target === "antigravity")?.iconSrc,
     workspaceOpenOptions.find((option) => option.target === "antigravityApp")?.iconSrc,
   );
+  assert.equal(fileManagerLabel("Win32"), "Explorer");
+  assert.equal(fileManagerLabel("MacIntel"), "Finder");
+  assert.match(fileManagerIconSrc("Win32"), /^data:image\/svg\+xml,/);
+  assert.match(fileManagerIconSrc("MacIntel"), /\.png(?:$|\?)/);
+  assert.notEqual(fileManagerIconSrc("Win32"), fileManagerIconSrc("MacIntel"));
 }
 
 async function testCollapsedRailView(server) {
