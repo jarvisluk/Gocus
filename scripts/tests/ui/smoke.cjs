@@ -1441,7 +1441,13 @@ async function testFunctionMenuTriggerAndRecentRemoval(browser, baseUrl) {
     assert.equal(await page.getByRole("button", { name: "Open function menu" }).getAttribute("aria-pressed"), "false");
 
     await page.getByRole("button", { name: "Switch recent repository" }).click();
-    await page.getByRole("button", { name: "Remove another-repo - codespace from recent workspaces" }).click();
+    const removeRecentButton = page.getByRole("button", { name: "Remove another-repo - codespace from recent workspaces" });
+    await removeRecentButton.click();
+    assert.deepEqual(await page.evaluate(() => window.__gocusRemovedRecentRepositories), []);
+    const confirmRemoveRecentButton = page.getByRole("button", { name: "Confirm remove another-repo - codespace from recent workspaces" });
+    await confirmRemoveRecentButton.waitFor();
+    assert.equal(await confirmRemoveRecentButton.getAttribute("title"), "Click again to remove");
+    await confirmRemoveRecentButton.click();
     assert.deepEqual(
       await page.evaluate(() => window.__gocusRemovedRecentRepositories.map((repository) => repository.path)),
       ["/Users/junrong/codespace/another-repo"],

@@ -105,6 +105,16 @@
   color: var(--danger);
 }
 
+.repo-menu-remove.is-confirming {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
+
+.repo-menu-remove.is-confirming:hover,
+.repo-menu-remove.is-confirming:focus-visible {
+  background: color-mix(in srgb, var(--danger) 22%, transparent);
+}
+
 .repo-menu-remove svg {
   width: var(--icon-md);
   height: var(--icon-md);

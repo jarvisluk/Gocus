@@ -54,6 +54,7 @@ export function PanelHeader({
   onCollapse: () => void;
 }) {
   const [repoMenuOpen, setRepoMenuOpen] = useState(false);
+  const [pendingRemoveRepositoryKey, setPendingRemoveRepositoryKey] = useState("");
   const panelView = panelHeaderView(snapshot, recentRepositories);
   const {
     branchPill,
@@ -71,12 +72,25 @@ export function PanelHeader({
   function switchRepository(repositoryPath: string) {
     const selection = panelRepositorySelection(snapshot, repositoryPath);
     setRepoMenuOpen(selection.menuOpen);
+    setPendingRemoveRepositoryKey("");
     if (selection.switchRepositoryPath) onSwitchRepository(selection.switchRepositoryPath);
   }
 
   function removeRecentRepository(repository: RecentRepository) {
+    const repositoryKey = repository.repositoryKey || repository.path;
+    if (pendingRemoveRepositoryKey !== repositoryKey) {
+      setPendingRemoveRepositoryKey(repositoryKey);
+      return;
+    }
+
     onRemoveRecentRepository(repository);
+    setPendingRemoveRepositoryKey("");
     setRepoMenuOpen(recentRepositoryOptions.length > 2);
+  }
+
+  function dismissRepositoryMenu() {
+    setRepoMenuOpen(false);
+    setPendingRemoveRepositoryKey("");
   }
 
   return (
@@ -87,7 +101,7 @@ export function PanelHeader({
       <DropdownMenuHost
         active={repoMenuOpen}
         className={panelView.repoSwitcher.className}
-        onDismiss={() => setRepoMenuOpen(false)}
+        onDismiss={dismissRepositoryMenu}
       >
         {canSwitchRepository ? (
           <button
@@ -98,7 +112,10 @@ export function PanelHeader({
             aria-haspopup={repositoryTrigger.ariaHasPopup}
             aria-expanded={repositoryTrigger.ariaExpanded}
             aria-controls={repositoryTrigger.ariaControls}
-            onClick={() => setRepoMenuOpen((current) => panelRepositoryMenuOpenAfterToggle(current, canSwitchRepository))}
+            onClick={() => {
+              setPendingRemoveRepositoryKey("");
+              setRepoMenuOpen((current) => panelRepositoryMenuOpenAfterToggle(current, canSwitchRepository));
+            }}
           >
             <span className={panelView.repositoryTitleCopy.className}>
               <strong>{repositoryTitle}</strong>
@@ -120,7 +137,8 @@ export function PanelHeader({
             aria-labelledby={repositoryMenu.ariaLabelledBy}
           >
             {recentRepositoryOptions.map((repository) => {
-              const itemView = panelRepositoryMenuItemView(repository, currentRepository);
+              const repositoryKey = repository.repositoryKey || repository.path;
+              const itemView = panelRepositoryMenuItemView(repository, currentRepository, pendingRemoveRepositoryKey === repositoryKey);
 
               return (
                 <div className={itemView.rowClassName} role="none" key={itemView.key}>
@@ -146,7 +164,7 @@ export function PanelHeader({
                       title={itemView.removeTitle}
                       onClick={() => removeRecentRepository(itemView.repository)}
                     >
-                      <X aria-hidden="true" />
+                      {itemView.confirmRemove ? <Check aria-hidden="true" /> : <X aria-hidden="true" />}
                     </button>
                   ) : null}
                 </div>

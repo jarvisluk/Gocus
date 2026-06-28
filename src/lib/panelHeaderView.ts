@@ -34,8 +34,13 @@ export function panelRepositoryMenuView() {
   };
 }
 
-export function panelRepositoryMenuItemView(repository: RecentRepository, currentRepository: RecentRepository | null) {
+export function panelRepositoryMenuItemView(
+  repository: RecentRepository,
+  currentRepository: RecentRepository | null,
+  confirmRemove = false,
+) {
   const active = repositoryOptionActive(repository, currentRepository);
+  const label = recentRepositoryLabel(repository);
 
   return {
     active,
@@ -47,14 +52,15 @@ export function panelRepositoryMenuItemView(repository: RecentRepository, curren
     checkClassName: "repo-menu-check",
     textClassName: "repo-menu-text",
     showRemove: !active,
-    removeClassName: "repo-menu-remove",
-    removeAriaLabel: `Remove ${recentRepositoryLabel(repository)} from recent workspaces`,
-    removeTitle: "Remove from recent workspaces",
+    removeClassName: joinClass("repo-menu-remove", confirmRemove && "is-confirming"),
+    removeAriaLabel: confirmRemove ? `Confirm remove ${label} from recent workspaces` : `Remove ${label} from recent workspaces`,
+    removeTitle: confirmRemove ? "Click again to remove" : "Remove from recent workspaces",
+    confirmRemove,
     repository,
     key: repository.path,
     path: repository.path,
     title: repository.path,
-    label: recentRepositoryLabel(repository),
+    label,
   };
 }
 
