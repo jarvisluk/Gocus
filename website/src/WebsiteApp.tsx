@@ -237,7 +237,16 @@ function useDownloadTarget() {
 function ProductPreview() {
   return (
     <div className="product-frame" aria-label="Gocus app preview">
-      <img className="product-screenshot" src="/gocus-overview.png" alt="Gocus commit history panel screenshot" />
+      <img
+        className="product-screenshot"
+        src="/gocus-overview.png"
+        srcSet="/gocus-overview-320.png 320w, /gocus-overview-480.png 480w, /gocus-overview.png 640w"
+        sizes="(max-width: 560px) calc(100vw - 32px), (max-width: 920px) 390px, 300px"
+        width={640}
+        height={1560}
+        decoding="async"
+        alt="Gocus commit history panel screenshot"
+      />
     </div>
   );
 }

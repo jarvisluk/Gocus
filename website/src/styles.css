@@ -29,6 +29,27 @@
     0 14px 34px rgba(0, 0, 0, 0.4),
     0 2px 8px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-body: 0.875rem;
+  --text-card-title: 1rem;
+  --text-context-title: 1.125rem;
+  --text-section-title: 1.75rem;
+  --text-hero-lede: 1.5rem;
+  --text-hero-title: 2.5rem;
+  --type-site-caption-size: var(--text-xs);
+  --type-site-small-size: var(--text-sm);
+  --type-site-body-size: var(--text-body);
+  --type-site-card-title-size: var(--text-card-title);
+  --type-site-context-title-size: var(--text-context-title);
+  --type-site-section-title-size: var(--text-section-title);
+  --type-site-hero-lede-size: var(--text-hero-lede);
+  --type-site-hero-title-size: var(--text-hero-title);
+  --type-site-brand-size: 0.875rem;
+  --type-site-download-title-size: 1.0625rem;
+  --space-section-y: clamp(2.625rem, 2rem + 3vw, 3.875rem);
+  --space-hero-y: 2.875rem;
+  --space-card: 1rem;
 }
 
 * {
@@ -85,21 +106,21 @@ svg {
 .site-shell {
   position: relative;
   z-index: 1;
-  width: min(1120px, calc(100% - 48px));
+  width: min(26.25rem, calc(100% - 32px));
   margin: 0 auto;
 }
 
 .site-header {
   position: sticky;
   z-index: 10;
-  top: 12px;
+  top: 7px;
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: 1fr auto;
   align-items: center;
   gap: 18px;
-  min-height: 56px;
-  margin: 12px 0 8px;
-  padding: 8px 10px;
+  min-height: 64px;
+  margin: 7px 0 8px;
+  padding: 9px 11px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: rgba(31, 31, 31, 0.72);
@@ -120,8 +141,9 @@ svg {
 
 .brand {
   gap: 10px;
+  min-height: 44px;
   color: var(--text);
-  font-size: 14px;
+  font-size: var(--type-site-brand-size);
   font-weight: 760;
 }
 
@@ -132,6 +154,7 @@ svg {
 }
 
 .site-header nav {
+  display: none;
   justify-content: center;
   gap: 4px;
   padding: 3px;
@@ -141,10 +164,13 @@ svg {
 }
 
 .site-header nav a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
   padding: 8px 11px;
   border-radius: var(--radius-sm);
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--type-site-caption-size);
   font-weight: 650;
 }
 
@@ -155,36 +181,43 @@ svg {
 
 .nav-download {
   justify-self: end;
+  justify-content: center;
   gap: 7px;
-  min-height: 34px;
-  padding: 0 12px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
   border: 1px solid rgba(240, 180, 58, 0.38);
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--main) 18%, transparent);
   color: var(--main);
-  font-size: 12px;
+  font-size: 0;
   font-weight: 720;
 }
 
-.hero-section {
-  --hero-inline-inset: clamp(52px, 5vw, 68px);
+.nav-download svg {
+  width: 20px;
+  height: 20px;
+}
 
+.hero-section {
   display: grid;
-  grid-template-columns: minmax(0, 0.92fr) minmax(320px, 0.58fr);
+  grid-template-columns: 1fr;
   align-items: start;
-  gap: 48px;
-  padding: 72px var(--hero-inline-inset) 24px;
+  gap: 34px;
+  padding: var(--space-hero-y) 0 48px;
 }
 
 .hero-copy {
   min-width: 0;
-  padding-top: clamp(88px, 14svh, 132px);
+  padding-top: 0;
 }
 
 .hero-copy h1 {
   margin: 0;
   color: var(--text);
-  font-size: 60px;
+  font-size: var(--type-site-hero-title-size);
   line-height: 0.95;
   letter-spacing: 0;
 }
@@ -193,7 +226,7 @@ svg {
   max-width: 620px;
   margin: 20px 0 0;
   color: var(--text);
-  font-size: 34px;
+  font-size: var(--type-site-hero-lede-size);
   font-weight: 760;
   line-height: 1.08;
   letter-spacing: 0;
@@ -203,7 +236,7 @@ svg {
   max-width: 560px;
   margin: 18px 0 0;
   color: var(--text-muted);
-  font-size: 16px;
+  font-size: var(--type-site-body-size);
   font-weight: 560;
   line-height: 1.65;
 }
@@ -216,7 +249,7 @@ svg {
 
 .hero-context-panel {
   max-width: 620px;
-  display: grid;
+  display: none;
   gap: 14px;
   margin-top: 34px;
   padding-top: 18px;
@@ -231,14 +264,14 @@ svg {
 .hero-context-heading span,
 .hero-context-item span {
   color: var(--main);
-  font-size: 12px;
+  font-size: var(--type-site-caption-size);
   font-weight: 820;
 }
 
 .hero-context-heading strong {
   max-width: 520px;
   color: var(--text);
-  font-size: 18px;
+  font-size: var(--type-site-context-title-size);
   line-height: 1.28;
 }
 
@@ -259,7 +292,7 @@ svg {
 .hero-context-item p {
   margin: 10px 0 0;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--type-site-caption-size);
   font-weight: 560;
   line-height: 1.45;
 }
@@ -267,10 +300,12 @@ svg {
 .primary-cta,
 .secondary-cta {
   gap: 8px;
-  min-height: 42px;
+  width: 100%;
+  min-height: 44px;
+  justify-content: center;
   padding: 0 15px;
   border-radius: var(--radius);
-  font-size: 13px;
+  font-size: var(--type-site-small-size);
   font-weight: 760;
 }
 
@@ -295,8 +330,8 @@ svg {
 
 .product-frame {
   min-width: 0;
-  justify-self: end;
-  width: min(300px, 100%);
+  justify-self: center;
+  width: min(390px, 100%);
 }
 
 .product-screenshot {
@@ -308,12 +343,23 @@ svg {
 .workflow-section,
 .feature-section,
 .download-section {
-  padding: 62px 0;
+  padding: var(--space-section-y) 0;
 }
 
 .workflow-section {
-  margin-top: 72px;
-  padding-top: 64px;
+  container: workflow / inline-size;
+}
+
+.feature-section {
+  container: feature / inline-size;
+}
+
+.download-section {
+  container: download / inline-size;
+}
+
+.workflow-section {
+  margin-top: 24px;
 }
 
 .section-heading {
@@ -327,7 +373,7 @@ svg {
 .download-option h3 {
   margin: 0;
   color: var(--text);
-  font-size: 28px;
+  font-size: var(--type-site-section-title-size);
   line-height: 1.12;
   letter-spacing: 0;
 }
@@ -338,20 +384,20 @@ svg {
 .download-option p {
   margin: 10px 0 0;
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: var(--type-site-body-size);
   font-weight: 560;
   line-height: 1.6;
 }
 
 .workflow-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 10px;
 }
 
 .workflow-card {
   min-height: 172px;
-  padding: 18px;
+  padding: var(--space-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--panel);
@@ -364,23 +410,23 @@ svg {
 .workflow-card h3 {
   margin: 18px 0 0;
   color: var(--text);
-  font-size: 16px;
+  font-size: var(--type-site-card-title-size);
   line-height: 1.2;
 }
 
 .workflow-card p {
   margin: 8px 0 0;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--type-site-small-size);
   font-weight: 560;
   line-height: 1.55;
 }
 
 .feature-panel {
   display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(340px, 1fr);
-  gap: 40px;
-  padding: 32px;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  padding: 20px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background:
@@ -390,7 +436,7 @@ svg {
 
 .feature-panel ul {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 10px;
   padding: 0;
   margin: 0;
@@ -407,7 +453,7 @@ svg {
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.035);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--type-site-small-size);
   font-weight: 650;
 }
 
@@ -418,11 +464,11 @@ svg {
 
 .download-section {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-columns: 1fr;
   align-items: start;
   gap: 18px;
   margin-bottom: 56px;
-  padding: 24px;
+  padding: 20px;
   border: 1px solid rgba(240, 180, 58, 0.24);
   border-radius: var(--radius);
   background:
@@ -448,10 +494,10 @@ svg {
 
 .download-option {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 1fr;
   align-items: center;
   gap: 18px;
-  padding: 18px;
+  padding: 16px;
   background: rgba(31, 31, 31, 0.74);
 }
 
@@ -463,29 +509,31 @@ svg {
 }
 
 .download-option h3 {
-  font-size: 17px;
+  font-size: var(--type-site-download-title-size);
 }
 
 .download-option-heading span {
   color: var(--main);
-  font-size: 12px;
+  font-size: var(--type-site-caption-size);
   font-weight: 760;
 }
 
 .download-option p {
   max-width: 680px;
-  font-size: 13px;
+  font-size: var(--type-site-small-size);
 }
 
 .download-option-cta {
   gap: 8px;
-  min-height: 40px;
+  width: 100%;
+  min-height: 44px;
+  justify-content: center;
   padding: 0 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--type-site-small-size);
   font-weight: 760;
 }
 
@@ -496,125 +544,122 @@ svg {
   box-shadow: 0 12px 28px rgba(240, 180, 58, 0.16);
 }
 
-@media (max-width: 920px) {
-  .site-shell {
-    width: min(100% - 20px, 640px);
-  }
-
-  .site-header {
-    grid-template-columns: 1fr auto;
-  }
-
-  .site-header nav {
-    display: none;
-  }
-
-  .hero-section {
-    min-height: auto;
-    grid-template-columns: 1fr;
-    gap: 34px;
-    padding: 46px 0 48px;
-  }
-
-  .hero-copy {
-    padding-top: 0;
-  }
-
-  .hero-context-panel {
-    display: none;
-  }
-
-  .hero-copy h1 {
-    font-size: 48px;
-  }
-
-  .hero-lede {
-    font-size: 28px;
-  }
-
-  .product-frame {
-    justify-self: center;
-    width: min(390px, 100%);
-  }
-
-  .workflow-grid,
-  .feature-panel,
-  .feature-panel ul,
-  .download-section,
-  .download-option {
-    grid-template-columns: 1fr;
-  }
-
-  .workflow-section {
-    margin-top: 24px;
-  }
-
-  .download-section .primary-cta,
-  .download-option-cta {
-    justify-content: center;
+@container workflow (min-width: 52rem) {
+  .workflow-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 560px) {
+@container feature (min-width: 48rem) {
+  .feature-panel {
+    grid-template-columns: minmax(0, 0.8fr) minmax(21.25rem, 1fr);
+    gap: 40px;
+    padding: 32px;
+  }
+
+  .feature-panel ul {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container download (min-width: 44rem) {
+  .download-option {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 18px;
+  }
+
+  .download-option-cta {
+    width: auto;
+  }
+}
+
+@media (min-width: 561px) {
+  :root {
+    --text-body: 1rem;
+    --text-hero-lede: 1.75rem;
+    --text-hero-title: 3rem;
+    --space-hero-y: 3.5rem;
+    --space-card: 1.125rem;
+  }
+
   .site-shell {
-    width: min(100% - 32px, 420px);
+    width: min(40rem, calc(100% - 20px));
   }
 
   .site-header {
-    top: 7px;
-    margin-top: 7px;
-    min-height: 64px;
-    padding: 9px 11px;
+    top: 12px;
+    min-height: 56px;
+    margin: 12px 0 8px;
+    padding: 8px 10px;
   }
 
   .nav-download {
-    width: 44px;
-    height: 44px;
-    min-height: 44px;
-    align-self: center;
-    justify-content: center;
-    gap: 0;
-    padding: 0;
-    font-size: 0;
+    width: auto;
+    gap: 7px;
+    padding: 0 14px;
+    font-size: var(--type-site-caption-size);
   }
 
   .nav-download svg {
-    width: 20px;
-    height: 20px;
-  }
-
-  .hero-copy h1 {
-    font-size: 40px;
-  }
-
-  .hero-lede {
-    font-size: 24px;
-  }
-
-  .hero-body {
-    font-size: 14px;
+    width: 16px;
+    height: 16px;
   }
 
   .primary-cta,
   .secondary-cta,
   .download-option-cta {
-    width: 100%;
-    justify-content: center;
+    width: auto;
+  }
+}
+
+@media (min-width: 921px) {
+  :root {
+    --text-hero-lede: 2.125rem;
+    --text-hero-title: 3.75rem;
+    --space-hero-y: 4.5rem;
   }
 
-  .workflow-section,
-  .feature-section,
+  .site-shell {
+    width: min(70rem, calc(100% - 48px));
+  }
+
+  .site-header {
+    grid-template-columns: 1fr auto 1fr;
+  }
+
+  .site-header nav {
+    display: inline-flex;
+  }
+
+  .hero-section {
+    --hero-inline-inset: clamp(52px, 5vw, 68px);
+
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 48px;
+    padding: 72px var(--hero-inline-inset) 24px;
+  }
+
+  .hero-copy {
+    padding-top: clamp(88px, 14svh, 132px);
+  }
+
+  .hero-context-panel {
+    display: grid;
+  }
+
+  .product-frame {
+    justify-self: end;
+    width: min(300px, 100%);
+  }
+
+  .workflow-section {
+    margin-top: 72px;
+    padding-top: 64px;
+  }
+
   .download-section {
-    padding: 42px 0;
-  }
-
-  .feature-panel,
-  .download-section {
-    padding: 20px;
-  }
-
-  .download-option {
-    padding: 16px;
+    grid-template-columns: 42px minmax(0, 1fr);
+    padding: 24px;
   }
 }
 
