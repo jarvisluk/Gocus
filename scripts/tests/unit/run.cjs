@@ -826,7 +826,7 @@ function testWindowGeometryModule() {
   assert.deepEqual(collapsedSize, { width: 38, height: 136 });
   assert.deepEqual(changedFileInfoWindowSize, { width: 280, height: 252 });
   assert.deepEqual(commitInfoWindowSize, { width: 348, height: 132 });
-  assert.deepEqual(functionMenuWindowSize, { width: 286, height: 360 });
+  assert.deepEqual(functionMenuWindowSize, { width: 86, height: 158 });
   assert.deepEqual(expandedMinimumSize, { width: 320, height: 620 });
   assert.equal(clampCollapsedRailHeight(96, display), 136);
   assert.equal(clampCollapsedRailHeight(355, display), 355);
@@ -836,10 +836,10 @@ function testWindowGeometryModule() {
   assert.equal(clampCommitInfoWindowHeight(104, display), 104);
   assert.equal(clampCommitInfoWindowHeight(9999, display), 240);
   assert.equal(clampCommitInfoWindowHeight("bad", display), 132);
-  assert.equal(clampFunctionMenuWindowHeight(180, display), 220);
-  assert.equal(clampFunctionMenuWindowHeight(392, display), 392);
+  assert.equal(clampFunctionMenuWindowHeight(48, display), 72);
+  assert.equal(clampFunctionMenuWindowHeight(132, display), 132);
   assert.equal(clampFunctionMenuWindowHeight(9999, display), 860);
-  assert.equal(clampFunctionMenuWindowHeight("bad", display), 360);
+  assert.equal(clampFunctionMenuWindowHeight("bad", display), 158);
   assert.deepEqual(clampExpandedSize({ width: 1, height: 9999 }, display), { width: 320, height: 860 });
   assert.deepEqual(
     mainWindowBounds({
@@ -895,9 +895,9 @@ function testWindowGeometryModule() {
     functionMenuBounds({
       mainBounds: { x: 1070, y: 200, width: 360, height: 700 },
       display,
-      size: { width: 286, height: 392 },
+      size: { width: 86, height: 154 },
     }),
-    { x: 774, y: 200, width: 286, height: 392 },
+    { x: 974, y: 200, width: 86, height: 154 },
   );
   assert.deepEqual(
     commitInfoBounds({
@@ -6375,10 +6375,10 @@ async function testFunctionMenuView(server) {
     key: "push",
     className: "function-menu-action",
     icon: "upload",
-    label: "Push 2 commits",
-    detail: "feat/menu -> origin/feat/menu",
+    label: "Push",
+    detail: "Push to remote.",
     disabled: false,
-    title: "Push 2 commits to origin/feat/menu",
+    title: "Push to remote",
   });
 
   const publishPayload = functionMenuPayloadFromSnapshot({
@@ -6387,7 +6387,7 @@ async function testFunctionMenuView(server) {
     availableWorkspaceTargets: ["vscode"],
     enabledWorkspaceTargets: ["vscode"],
   });
-  assert.equal(functionMenuPushActionView(publishPayload).label, "Publish branch");
+  assert.equal(functionMenuPushActionView(publishPayload).label, "Push");
   assert.equal(functionMenuPushActionView(publishPayload).disabled, false);
 
   const upToDatePayload = functionMenuPayloadFromSnapshot({
@@ -6396,8 +6396,8 @@ async function testFunctionMenuView(server) {
     availableWorkspaceTargets: ["vscode"],
     enabledWorkspaceTargets: ["vscode"],
   });
-  assert.equal(functionMenuPushActionView(upToDatePayload).label, "Nothing to push");
-  assert.equal(functionMenuPushActionView(upToDatePayload).disabled, true);
+  assert.equal(functionMenuPushActionView(upToDatePayload).label, "Push");
+  assert.equal(functionMenuPushActionView(upToDatePayload).disabled, false);
 
   const detachedPayload = functionMenuPayloadFromSnapshot({
     snapshot: gitSnapshot({ branch: { name: "HEAD", upstream: "", ahead: 0, behind: 0, detached: true } }),
@@ -6405,10 +6405,19 @@ async function testFunctionMenuView(server) {
     availableWorkspaceTargets: ["vscode"],
     enabledWorkspaceTargets: ["vscode"],
   });
-  assert.equal(functionMenuPushActionView(detachedPayload).label, "Cannot push detached HEAD");
-  assert.equal(functionMenuPushActionView(detachedPayload).disabled, true);
+  assert.equal(functionMenuPushActionView(detachedPayload).label, "Push");
+  assert.equal(functionMenuPushActionView(detachedPayload).disabled, false);
 
-  assert.equal(functionMenuWindowView(payload).repositorySummary.meta, "1 changed / 2 worktrees");
+  const emptyPayload = functionMenuPayloadFromSnapshot({
+    snapshot: null,
+    activeWorkspaceTarget: "vscode",
+    availableWorkspaceTargets: ["vscode"],
+    enabledWorkspaceTargets: ["vscode"],
+  });
+  assert.equal(functionMenuPushActionView(emptyPayload).disabled, true);
+  assert.equal(functionMenuPushActionView(emptyPayload).title, "Choose a workspace first");
+  assert.equal(functionMenuWindowView(payload).panel.ariaLabel, "Function menu");
+  assert.equal("repositorySummary" in functionMenuWindowView(payload), false);
 }
 
 async function testRepositoryControlLabels(server) {

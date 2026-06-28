@@ -10,7 +10,7 @@ const desktopViewport = { width: 960, height: 720 };
 const temporaryInfoViewport = { width: 280, height: 252 };
 const changedFileInfoViewport = { width: 280, height: 252 };
 const commitInfoViewport = { width: 348, height: 240 };
-const functionMenuViewport = { width: 286, height: 360 };
+const functionMenuViewport = { width: 86, height: 158 };
 const testTimeZone = "Asia/Shanghai";
 const allWorkspaceTargets = ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"];
 const footerCommitFullHash = "d4e5f6a000000000000000000000000000000000";
@@ -1312,34 +1312,34 @@ async function testFunctionMenuPanel(browser, baseUrl) {
 
   try {
     assert.match(await page.title(), /Gocus/);
-    await page.getByRole("heading", { name: "Menu" }).waitFor();
-    assert.equal(await page.locator(".function-menu-repository strong").innerText(), "main");
-    assert.equal(await page.locator(".function-menu-repository span").innerText(), "2 changed / 1 worktrees");
+    await page.locator(".function-menu-panel").waitFor();
+    assert.equal(await page.locator(".function-menu-repository").count(), 0);
+    assert.equal(await page.locator(".function-menu-section").count(), 0);
+    assert.equal(await page.locator(".function-menu-action-copy").count(), 0);
+    assert.equal((await page.locator(".function-menu-panel").innerText()).trim(), "");
+    assert.equal(await page.locator(".function-menu-panel").evaluate((node) => getComputedStyle(node).overflowY), "visible");
     await page.waitForFunction(() => window.__gocusFunctionMenuPanelHeights?.length > 0);
     const reportedFunctionMenuHeight = await page.evaluate(() => window.__gocusFunctionMenuPanelHeights.at(-1));
     assert.ok(
-      reportedFunctionMenuHeight >= 220 && reportedFunctionMenuHeight <= 480 && reportedFunctionMenuHeight !== functionMenuViewport.height,
-      `function menu should report an adaptive content height: ${reportedFunctionMenuHeight}`,
+      reportedFunctionMenuHeight >= 72 && reportedFunctionMenuHeight <= 180,
+      `function menu should report a compact toolbox height: ${reportedFunctionMenuHeight}`,
     );
-    assert.equal(await page.getByRole("button", { name: /Open \/ switch workspace/ }).isEnabled(), true);
-    assert.equal(await page.getByRole("button", { name: /Push 1 commit/ }).isEnabled(), true);
+    assert.equal(await page.getByRole("button", { name: "Open or switch workspace" }).isEnabled(), true);
+    assert.equal(await page.getByRole("button", { name: "Push to remote" }).isEnabled(), true);
     assert.equal(await page.getByRole("button", { name: /Cursor/ }).count(), 0);
 
-    await page.getByRole("button", { name: /Push 1 commit/ }).click();
+    await page.getByRole("button", { name: "Push to remote" }).click();
     await page.waitForFunction(() => window.__gocusPushCount === 1);
-    await page.getByRole("button", { name: /Fetch remotes/ }).click();
+    await page.getByRole("button", { name: "Fetch remotes" }).click();
     await page.waitForFunction(() => window.__gocusFetchCount === 1);
 
-    await page.getByRole("button", { name: /GitHub Releases/ }).click();
+    await page.getByRole("button", { name: "Open GitHub Releases" }).click();
     await page.waitForFunction(() => window.__gocusOpenedGitHubReleases === 1);
-    await page.getByRole("button", { name: /Refresh Git data/ }).click();
+    await page.getByRole("button", { name: "Refresh Git data" }).click();
     await page.waitForFunction(() => window.__gocusRefreshCount === 1);
-    await page.getByRole("button", { name: /Check for updates/ }).click();
+    await page.getByRole("button", { name: "Check for updates" }).click();
     await page.waitForFunction(() => window.__gocusUpdateCheckCount === 1);
-    await page.waitForFunction(
-      (previousHeight) => window.__gocusFunctionMenuPanelHeights.some((height) => height > previousHeight),
-      reportedFunctionMenuHeight,
-    );
+    assert.equal(await page.locator(".function-menu-feedback").count(), 0);
     await assertNoHorizontalOverflow(page, "function menu");
     assert.deepEqual(errors, []);
   } finally {

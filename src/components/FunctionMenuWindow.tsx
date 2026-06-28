@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Download, ExternalLink, FolderOpen, Github, RefreshCw, Upload, X } from "lucide-react";
-import { actionResponseNotice, actionResponseSnapshot } from "../lib/actionResponseView";
-import { errorMessage, logBridgeWarning } from "../lib/errorMessages";
+import { actionResponseSnapshot } from "../lib/actionResponseView";
+import { logBridgeWarning } from "../lib/errorMessages";
 import {
   applyPreferences,
   defaultPreferences,
@@ -42,21 +42,18 @@ function FunctionMenuActionButton({
       className={action.className}
       type="button"
       title={action.title}
+      aria-label={action.title}
+      aria-busy={busy || undefined}
       disabled={action.disabled || busy}
       onClick={onClick}
     >
       <span className="function-menu-action-icon">{functionMenuIcon(action.icon, busy ? "is-spinning" : "")}</span>
-      <span className="function-menu-action-copy">
-        <strong>{action.label}</strong>
-        <span>{action.detail}</span>
-      </span>
     </button>
   );
 }
 
 export function FunctionMenuWindow() {
   const [payload, setPayload] = useState<FunctionMenuPayload>(null);
-  const [feedback, setFeedback] = useState("");
   const [busyAction, setBusyAction] = useState("");
   const [preferences, setPreferences] = useState<UiPreferences>(defaultPreferences);
   const [systemTheme, setSystemTheme] = useState<Theme>(systemThemeFallback);
@@ -105,19 +102,19 @@ export function FunctionMenuWindow() {
     );
   }
 
-  async function runAction(actionKey: string, action: () => Promise<ActionResponse | unknown>, fallbackNotice: string) {
+  async function runAction(actionKey: string, action: () => Promise<ActionResponse | unknown>) {
     setBusyAction(actionKey);
-    setFeedback("");
     try {
       const response = await action();
       if (response && typeof response === "object" && "ok" in response) {
-        updatePayloadFromResponse(response as ActionResponse);
-        setFeedback(actionResponseNotice(response as ActionResponse, fallbackNotice) ?? "");
+        const actionResponse = response as ActionResponse;
+        updatePayloadFromResponse(actionResponse);
+        if (!actionResponse.ok) logBridgeWarning("Function menu action failed.", actionResponse.error ?? actionResponse);
       } else {
-        setFeedback(fallbackNotice);
+        logBridgeWarning("Function menu action returned no response.", response);
       }
     } catch (error) {
-      setFeedback(errorMessage(error, "Action failed."));
+      logBridgeWarning("Function menu action failed.", error);
     } finally {
       setBusyAction("");
     }
@@ -131,7 +128,6 @@ export function FunctionMenuWindow() {
     void runAction(
       view.openRepositoryAction.key,
       () => window.gocus?.openRepository({ mode: "all" }) ?? Promise.resolve({ ok: false, error: "Electron bridge unavailable." }),
-      "Opened workspace.",
     );
   }
 
@@ -139,7 +135,6 @@ export function FunctionMenuWindow() {
     void runAction(
       view.pushAction.key,
       () => window.gocus?.pushCurrentBranch?.({ mode: "current" }) ?? Promise.resolve({ ok: false, error: "Push is unavailable." }),
-      "Pushed current branch.",
     );
   }
 
@@ -147,7 +142,6 @@ export function FunctionMenuWindow() {
     void runAction(
       view.fetchAction.key,
       () => window.gocus?.fetchRemotes?.({ mode: "current" }) ?? Promise.resolve({ ok: false, error: "Fetch is unavailable." }),
-      "Fetched remotes.",
     );
   }
 
@@ -155,7 +149,6 @@ export function FunctionMenuWindow() {
     void runAction(
       view.refreshAction.key,
       () => window.gocus?.refresh({ mode: "current" }) ?? Promise.resolve({ ok: false, error: "Refresh is unavailable." }),
-      "Git data refreshed.",
     );
   }
 
@@ -163,7 +156,6 @@ export function FunctionMenuWindow() {
     void runAction(
       view.updatesAction.key,
       () => window.gocus?.checkForUpdates() ?? Promise.resolve({ ok: false, error: "Updates are unavailable." }),
-      "Checking for updates.",
     );
   }
 
@@ -171,7 +163,6 @@ export function FunctionMenuWindow() {
     void runAction(
       view.githubAction.key,
       () => window.gocus?.openGitHubReleases?.() ?? Promise.resolve({ ok: false, error: "GitHub Releases are unavailable." }),
-      "Opened GitHub Releases.",
     );
   }
 
@@ -183,36 +174,16 @@ export function FunctionMenuWindow() {
     <SideWindowShell
       viewportClassName={view.viewport.className}
       panelClassName={view.panel.className}
-      panelAriaLabelledBy={view.panel.ariaLabelledBy}
+      panelAriaLabel={view.panel.ariaLabel}
       onPanelHeightChange={resizeFunctionMenu}
       resizeWarning="Unable to resize function menu."
     >
-      <header className="function-menu-header">
-        <div>
-          <h2 id={view.titleId}>{view.title}</h2>
-          <span>{view.repositorySummary.name}</span>
-        </div>
-        <button className={view.closeButton.className} type="button" aria-label={view.closeButton.label} onClick={closeMenu}>
-          {functionMenuIcon(view.closeButton.icon)}
-        </button>
-      </header>
-
-      <div className={view.repositorySummary.className} title={view.repositorySummary.title}>
-        <strong>{view.repositorySummary.detail}</strong>
-        {view.repositorySummary.meta ? <span>{view.repositorySummary.meta}</span> : null}
-      </div>
-
-      <div className="function-menu-section">
-        <strong>{view.sections.workspace}</strong>
+      <div className="function-menu-tools" role="toolbar" aria-label="Function menu tools">
         <FunctionMenuActionButton
           action={view.openRepositoryAction}
           busy={busyAction === view.openRepositoryAction.key}
           onClick={openRepository}
         />
-      </div>
-
-      <div className="function-menu-section">
-        <strong>{view.sections.remote}</strong>
         <FunctionMenuActionButton action={view.pushAction} busy={busyAction === view.pushAction.key} onClick={pushCurrentBranch} />
         <FunctionMenuActionButton action={view.fetchAction} busy={busyAction === view.fetchAction.key} onClick={fetchRemotes} />
         <FunctionMenuActionButton
@@ -220,19 +191,10 @@ export function FunctionMenuWindow() {
           busy={busyAction === view.githubAction.key}
           onClick={openGitHubReleases}
         />
-      </div>
-
-      <div className="function-menu-section">
-        <strong>{view.sections.maintenance}</strong>
         <FunctionMenuActionButton action={view.refreshAction} busy={busyAction === view.refreshAction.key} onClick={refreshGitData} />
         <FunctionMenuActionButton action={view.updatesAction} busy={busyAction === view.updatesAction.key} onClick={checkForUpdates} />
+        <FunctionMenuActionButton action={view.closeButton} busy={false} onClick={closeMenu} />
       </div>
-
-      {feedback ? (
-        <div className="function-menu-feedback" role="status" aria-live="polite">
-          {feedback}
-        </div>
-      ) : null}
     </SideWindowShell>
   );
 }

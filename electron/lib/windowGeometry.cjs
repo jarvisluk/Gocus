@@ -4,10 +4,10 @@ const collapsedSize = { width: 38, height: 136 };
 const temporaryInfoWindowSize = { width: 280, height: 252 };
 const changedFileInfoWindowSize = { width: 280, height: 252 };
 const commitInfoWindowSize = { width: 348, height: 132 };
-const functionMenuWindowSize = { width: 286, height: 360 };
+const functionMenuWindowSize = { width: 86, height: 158 };
 const commitInfoWindowMinimumHeight = 92;
 const commitInfoWindowMaximumHeight = 240;
-const functionMenuWindowMinimumHeight = 220;
+const functionMenuWindowMinimumHeight = 72;
 const temporaryInfoWindowGap = 10;
 const collapsedRailMaximumHeight = 420;
 
