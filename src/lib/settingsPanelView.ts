@@ -82,7 +82,8 @@ export function settingsPanelView(
   const workspaceTargetsSummary = workspaceOpenTargetsSummary(availableWorkspaceOptions, enabledWorkspaceTargets);
   const settingsPlatform = normalizedSettingsPlatform(platform);
   const usesMacMenuBar = settingsPlatform === "darwin";
-  const dockIconAvailable = usesMacMenuBar;
+  const usesWindowsTray = settingsPlatform === "win32";
+  const dockIconAvailable = usesMacMenuBar || usesWindowsTray;
 
   return {
     appPageActive,
@@ -187,14 +188,14 @@ export function settingsPanelView(
           refresh: "Refresh",
           startup: "Startup",
           menuBar: usesMacMenuBar ? "Menu bar" : "Tray",
-          dock: "Dock",
+          dock: usesWindowsTray ? "Taskbar" : "Dock",
           merge: "No-FF",
           prompt: "Prompt",
         },
         autoRefreshAriaLabel: "Auto refresh interval",
         launchAtLoginAriaLabel: "Launch at login",
         showMenuBarIconAriaLabel: usesMacMenuBar ? "Show menu bar icon" : "Show tray icon",
-        showDockIconAriaLabel: "Show Dock icon",
+        showDockIconAriaLabel: usesWindowsTray ? "Show taskbar icon" : "Show Dock icon",
         createMergeCommitAriaLabel: "Disable fast-forward merges",
       },
       workspace: {

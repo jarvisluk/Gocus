@@ -63,6 +63,7 @@ installOutputErrorGuard();
 
 const isDevRuntime = Boolean(process.env.GOCUS_DEV_SERVER_URL);
 const isWindowsRuntime = process.platform === "win32";
+const enableTrayInDev = process.env.GOCUS_ENABLE_TRAY_IN_DEV === "1";
 
 let mainWindow;
 let tray;
@@ -206,21 +207,29 @@ function shouldShowMenuBarIcon(preferences = config.readPreferences()) {
 }
 
 function shouldShowDockIcon(preferences = config.readPreferences()) {
-  if (!isDevRuntime && !shouldUseMenuBarResidency(preferences)) return true;
+  if (!shouldUseMenuBarResidency(preferences)) return true;
   return preferences.showDockIcon === true;
 }
 
 function shouldUseMenuBarResidency(preferences = config.readPreferences()) {
-  return !isDevRuntime && shouldShowMenuBarIcon(preferences);
+  return (!isDevRuntime || enableTrayInDev) && shouldShowMenuBarIcon(preferences);
 }
 
 function hideDockIcon() {
+  if (isWindowsRuntime) {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setSkipTaskbar(true);
+    return;
+  }
   if (process.platform !== "darwin" || !app.dock) return;
   app.dock.hide();
   dockIconHidden = true;
 }
 
 function showDockIcon() {
+  if (isWindowsRuntime) {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setSkipTaskbar(false);
+    return;
+  }
   if (process.platform !== "darwin" || !app.dock) return;
   if (!dockIconHidden) {
     app.dock.setIcon(assets.loadImageAsset("app-icon.png"));
@@ -1164,6 +1173,7 @@ function createWindow({ showOnReady = true, collapsed = false } = {}) {
     ...framelessWindowOptions(),
     icon: appIcon,
     resizable: true,
+    skipTaskbar: isWindowsRuntime ? !shouldShowDockIcon() : false,
     title: "Gocus",
     trafficLightPosition: { x: 14, y: 14 },
     webPreferences: {

@@ -5145,12 +5145,14 @@ async function testSettingsPanelView(server) {
   });
   assert.deepEqual(settingsPanelView("main", options, ["cursor"], "win32").sections.behavior, {
     ...expectedSections.behavior,
-    dockIconAvailable: false,
+    dockIconAvailable: true,
     rows: {
       ...expectedSections.behavior.rows,
       menuBar: "Tray",
+      dock: "Taskbar",
     },
     showMenuBarIconAriaLabel: "Show tray icon",
+    showDockIconAriaLabel: "Show taskbar icon",
   });
   assert.equal(settingsPanelView("main", [], ["cursor"]).workspaceTargetsSummary, "Unavailable");
   assert.equal(settingsPageAfterBack("app"), "main");
