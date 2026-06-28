@@ -14,13 +14,18 @@ export interface WorkspaceOpenOption {
   iconSrc: string;
 }
 
+function fileManagerLabel() {
+  if (typeof window === "undefined") return "Finder";
+  return window.navigator.platform.toLowerCase().includes("win") ? "Explorer" : "Finder";
+}
+
 export const workspaceOpenOptions: WorkspaceOpenOption[] = [
   { target: "vscode", label: "VS Code", iconSrc: vscodeIcon },
   { target: "cursor", label: "Cursor", iconSrc: cursorIcon },
   { target: "codex", label: "Codex", iconSrc: codexIcon },
   { target: "antigravity", label: "Antigravity IDE", iconSrc: antigravityIcon },
   { target: "antigravityApp", label: "Antigravity", iconSrc: antigravityAppIcon },
-  { target: "finder", label: "Finder", iconSrc: finderIcon },
+  { target: "finder", label: fileManagerLabel(), iconSrc: finderIcon },
   { target: "terminal", label: "Terminal", iconSrc: terminalIcon },
   { target: "xcode", label: "Xcode", iconSrc: xcodeIcon },
 ];

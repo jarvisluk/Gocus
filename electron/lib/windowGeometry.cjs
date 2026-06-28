@@ -10,12 +10,17 @@ const temporaryInfoWindowGap = 10;
 const collapsedRailMaximumHeight = 420;
 
 function clampExpandedSize(size, display) {
+  const maximumSize = expandedMaximumSize(display);
   return {
-    width: Math.min(Math.max(Math.round(size.width), expandedMinimumSize.width), Math.max(expandedMinimumSize.width, display.width - 20)),
-    height: Math.min(
-      Math.max(Math.round(size.height), expandedMinimumSize.height),
-      Math.max(expandedMinimumSize.height, display.height - 16),
-    ),
+    width: Math.min(Math.max(Math.round(size.width), expandedMinimumSize.width), maximumSize.width),
+    height: Math.min(Math.max(Math.round(size.height), expandedMinimumSize.height), maximumSize.height),
+  };
+}
+
+function expandedMaximumSize(display) {
+  return {
+    width: Math.max(expandedMinimumSize.width, display.width - 20),
+    height: Math.max(expandedMinimumSize.height, display.height - 16),
   };
 }
 
@@ -52,6 +57,13 @@ function mainWindowBounds({ currentBounds, display, collapsed, expandedSize, col
   const y = Math.min(Math.max(requestedY, minY), Math.max(minY, maxY));
 
   return { x, y, width: size.width, height: size.height };
+}
+
+function rightAlignedWindowBounds(bounds, display) {
+  return {
+    ...bounds,
+    x: display.x + display.width - bounds.width,
+  };
 }
 
 function anchorTop(anchorBounds) {
@@ -146,10 +158,12 @@ module.exports = {
   commitInfoBounds,
   commitInfoWindowSize,
   defaultExpandedSize,
+  expandedMaximumSize,
   expandedMinimumSize,
   expandedSizeFromConfig,
   clampExpandedSize,
   mainWindowBounds,
+  rightAlignedWindowBounds,
   temporaryInfoBounds,
   temporaryInfoWindowSize,
   windowBoundsEqual,

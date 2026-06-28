@@ -119,6 +119,12 @@ export function selectedBranchAvailable(selectedBranch: string, branches: readon
   return selectedBranch ? branches.some((branch) => branch.name === selectedBranch) : true;
 }
 
+function localBranchNameForRemoteBranch(branch: Pick<GitBranchRef, "name" | "type">) {
+  if (branch.type !== "remote") return "";
+  const parts = branch.name.split("/");
+  return parts.length > 1 ? parts.slice(1).join("/") : "";
+}
+
 export function repositoryViewChipView(view: CommitViewSelection, mode: Exclude<CommitViewSelection["mode"], "branch">) {
   const active = view.mode === mode;
 
@@ -186,16 +192,25 @@ export function repositoryBranchSwitchActionView(
   currentBranchName: string,
   worktrees: readonly GitWorktree[] = [],
 ): RepositoryBranchSwitchActionView {
+  const localBranchName = localBranchNameForRemoteBranch(branch);
   const externalWorktree = worktrees.find(
-    (worktree) => !worktree.current && !worktree.bare && !worktree.detached && worktree.branch === branch.name,
+    (worktree) =>
+      !worktree.current &&
+      !worktree.bare &&
+      !worktree.detached &&
+      (worktree.branch === branch.name || Boolean(localBranchName && worktree.branch === localBranchName)),
   );
-  const current = branch.current || branch.name === currentBranchName;
-  const show = branch.type === "local" && Boolean(branch.name) && !current;
+  const current = branch.current || branch.name === currentBranchName || Boolean(localBranchName && localBranchName === currentBranchName);
+  const show = (branch.type === "local" || branch.type === "remote") && Boolean(branch.name) && !current;
   const disabled = Boolean(externalWorktree);
   const disabledReason = externalWorktree
     ? `This branch is already checked out in another worktree: ${externalWorktree.path}. Open that worktree to work on it.`
     : "";
-  const title = disabled ? "Checked out in another worktree" : `Switch to ${branch.name}`;
+  const title = disabled
+    ? "Checked out in another worktree"
+    : branch.type === "remote" && localBranchName
+      ? `Track and switch to ${localBranchName}`
+      : `Switch to ${branch.name}`;
 
   return {
     show,
@@ -204,7 +219,11 @@ export function repositoryBranchSwitchActionView(
     tooltipClassName: "branch-switch-tooltip",
     className: "branch-switch-button",
     icon: "switch",
-    ariaLabel: disabled ? `Cannot switch to ${branch.name}: ${disabledReason}` : `Switch to ${branch.name}`,
+    ariaLabel: disabled
+      ? `Cannot switch to ${branch.name}: ${disabledReason}`
+      : branch.type === "remote" && localBranchName
+        ? `Track and switch to ${localBranchName}`
+        : `Switch to ${branch.name}`,
     title,
   };
 }

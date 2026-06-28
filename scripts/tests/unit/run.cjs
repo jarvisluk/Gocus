@@ -15,6 +15,10 @@ const {
 
 const projectRoot = path.resolve(__dirname, "../../..");
 
+function projectRelative(filePath) {
+  return path.relative(projectRoot, filePath).replaceAll(path.sep, "/");
+}
+
 function gitAcceptsBranchName(branchName) {
   return spawnSync("git", ["check-ref-format", "--branch", branchName], { stdio: "ignore" }).status === 0;
 }
@@ -348,19 +352,50 @@ function testWorkspaceModule() {
       path.join(nodeVersionsDir, "v20.19.6", "bin", "codex"),
     ];
     assert.deepEqual(__private.nvmCodexCliCandidatePaths(tempDir), expectedNvmPaths);
-    assert.deepEqual(__private.codexCliCandidatePaths({ env: {}, homeDir: tempDir }), [
+    assert.deepEqual(__private.codexCliCandidatePaths({ env: {}, homeDir: tempDir, platform: "darwin" }), [
       "/opt/homebrew/bin/codex",
       "/usr/local/bin/codex",
       path.join(tempDir, ".local", "bin", "codex"),
       ...expectedNvmPaths,
     ]);
-    assert.deepEqual(__private.codexCliCandidatePaths({ env: { GOCUS_CODEX_CLI: "/tmp/codex" }, homeDir: tempDir }), [
+    assert.deepEqual(__private.codexCliCandidatePaths({ env: { GOCUS_CODEX_CLI: "/tmp/codex" }, homeDir: tempDir, platform: "darwin" }), [
       "/tmp/codex",
       "/opt/homebrew/bin/codex",
       "/usr/local/bin/codex",
       path.join(tempDir, ".local", "bin", "codex"),
       ...expectedNvmPaths,
     ]);
+    assert.deepEqual(
+      __private.codexCliCandidatePaths({
+        env: {
+          APPDATA: path.join(tempDir, "Roaming"),
+          LOCALAPPDATA: path.join(tempDir, "Local"),
+          GOCUS_CODEX_CLI: "C:\\Tools\\codex.exe",
+        },
+        homeDir: tempDir,
+        platform: "win32",
+      }),
+      [
+        "C:\\Tools\\codex.exe",
+        path.join(tempDir, "Roaming", "npm", "codex.exe"),
+        path.join(tempDir, "Roaming", "npm", "codex.cmd"),
+        path.join(tempDir, "Roaming", "npm", "codex"),
+      ],
+    );
+    assert.deepEqual(
+      __private.windowsCliCandidatePaths("antigravity", {
+        env: {
+          LOCALAPPDATA: path.join(tempDir, "Local"),
+          GOCUS_ANTIGRAVITY_CLI: "C:\\Tools\\antigravity.cmd",
+        },
+        homeDir: tempDir,
+      }),
+      [
+        "C:\\Tools\\antigravity.cmd",
+        path.join(tempDir, "Local", "Programs", "Antigravity", "bin", "antigravity.cmd"),
+        path.join(tempDir, "Local", "Programs", "Antigravity", "bin", "antigravity"),
+      ],
+    );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -707,7 +742,7 @@ function testSourceHygieneScript() {
     ],
   );
 
-  const checkedFileLabels = collectCheckedFiles().map((filePath) => path.relative(projectRoot, filePath));
+  const checkedFileLabels = collectCheckedFiles().map(projectRelative);
   assert.ok(checkedFileLabels.includes("electron/main.cjs"));
   assert.ok(checkedFileLabels.includes("scripts/check-source-hygiene.cjs"));
   assert.ok(checkedFileLabels.includes("DESIGN.md"));
@@ -745,7 +780,7 @@ function testNodeSyntaxScript() {
     runNodeSyntaxCheck,
   } = require(path.join(projectRoot, "scripts/check-node-syntax.cjs"));
 
-  const nodeFileLabels = collectNodeFiles().map((filePath) => path.relative(projectRoot, filePath));
+  const nodeFileLabels = collectNodeFiles().map(projectRelative);
   assert.ok(nodeFileLabels.includes("electron/main.cjs"));
   assert.ok(nodeFileLabels.includes("scripts/check-node-syntax.cjs"));
   assert.ok(nodeFileLabels.includes("tools/stylelint/gocus-design.cjs"));
@@ -775,10 +810,12 @@ function testShellSyntaxScript() {
   const {
     checkShellFileSyntax,
     collectShellFiles,
+    isBashAvailable,
     runShellSyntaxCheck,
   } = require(path.join(projectRoot, "scripts/check-shell-syntax.cjs"));
 
-  const shellFileLabels = collectShellFiles().map((filePath) => path.relative(projectRoot, filePath));
+  const shellFileLabels = collectShellFiles().map(projectRelative);
+  const bashAvailable = isBashAvailable();
   assert.ok(shellFileLabels.includes("scripts/package-macos.sh"));
   assert.deepEqual(shellFileLabels, [...shellFileLabels].sort((left, right) => left.localeCompare(right)));
   assert.equal(checkShellFileSyntax(path.join(projectRoot, "scripts/package-macos.sh")), null);
@@ -789,10 +826,14 @@ function testShellSyntaxScript() {
 
   try {
     const failure = checkShellFileSyntax(invalidFile);
-    assert.ok(failure);
-    assert.equal(failure.filePath, invalidFile);
-    assert.equal(failure.status, 2);
-    assert.match(failure.stderr, /syntax error|unexpected end of file/i);
+    if (bashAvailable) {
+      assert.ok(failure);
+      assert.equal(failure.filePath, invalidFile);
+      assert.equal(failure.status, 2);
+      assert.match(failure.stderr, /syntax error|unexpected end of file/i);
+    } else {
+      assert.equal(failure, null);
+    }
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -800,6 +841,29 @@ function testShellSyntaxScript() {
   const currentResult = runShellSyntaxCheck();
   assert.ok(currentResult.checkedFiles.length >= shellFileLabels.length);
   assert.deepEqual(currentResult.failures, []);
+  assert.equal(currentResult.skipped, !bashAvailable);
+}
+
+function testCommitMessageScript() {
+  const {
+    commitSubject,
+    isConventionalCommitSubject,
+    validateCommitMessage,
+  } = require(path.join(projectRoot, "scripts/check-commit-messages.cjs"));
+
+  assert.equal(commitSubject("fix: handle Windows tray labels\n\nBody"), "fix: handle Windows tray labels");
+  assert.equal(isConventionalCommitSubject("feat: add release validation"), true);
+  assert.equal(isConventionalCommitSubject("fix(windows): animate collapsed window"), true);
+  assert.equal(isConventionalCommitSubject("feat!: change update metadata"), true);
+  assert.equal(isConventionalCommitSubject("Add Windows installer auto updates"), false);
+  assert.deepEqual(validateCommitMessage("docs: update release notes\n\nDetails"), {
+    subject: "docs: update release notes",
+    valid: true,
+  });
+  assert.deepEqual(validateCommitMessage("Update release notes"), {
+    subject: "Update release notes",
+    valid: false,
+  });
 }
 
 function testWindowGeometryModule() {
@@ -812,10 +876,12 @@ function testWindowGeometryModule() {
     expandedMinimumSize,
     clampExpandedSize,
     mainWindowBounds,
+    rightAlignedWindowBounds,
     commitInfoBounds,
     commitInfoWindowSize,
     temporaryInfoBounds,
     windowBoundsEqual,
+    expandedMaximumSize,
   } = require(path.join(projectRoot, "electron/lib/windowGeometry.cjs"));
   const display = { x: 0, y: 24, width: 1440, height: 876 };
 
@@ -823,6 +889,8 @@ function testWindowGeometryModule() {
   assert.deepEqual(changedFileInfoWindowSize, { width: 280, height: 252 });
   assert.deepEqual(commitInfoWindowSize, { width: 348, height: 132 });
   assert.deepEqual(expandedMinimumSize, { width: 320, height: 620 });
+  assert.deepEqual(expandedMaximumSize(display), { width: 1420, height: 860 });
+  assert.deepEqual(expandedMaximumSize({ x: 0, y: 0, width: 280, height: 500 }), { width: 320, height: 620 });
   assert.equal(clampCollapsedRailHeight(96, display), 136);
   assert.equal(clampCollapsedRailHeight(355, display), 355);
   assert.equal(clampCollapsedRailHeight(9999, display), 420);
@@ -859,6 +927,10 @@ function testWindowGeometryModule() {
       expandedSize: { width: 360, height: 700 },
     }),
     { x: 1402, y: 284, width: 38, height: 355 },
+  );
+  assert.deepEqual(
+    rightAlignedWindowBounds({ x: 1402, y: 394, width: 54, height: 136 }, display),
+    { x: 1386, y: 394, width: 54, height: 136 },
   );
   assert.deepEqual(
     temporaryInfoBounds({
@@ -933,6 +1005,26 @@ function testWindowGeometryModule() {
   assert.equal(windowBoundsEqual({ x: 1, y: 2, width: 3, height: 4 }, { x: 1, y: 2, width: 3, height: 4 }), true);
   assert.equal(windowBoundsEqual({ x: 1, y: 2, width: 3, height: 4 }, { x: 1, y: 3, width: 3, height: 4 }), false);
   assert.equal(windowBoundsEqual(null, { x: 1, y: 2, width: 3, height: 4 }), false);
+}
+
+function testWindowAnimationModule() {
+  const {
+    easeOutCubic,
+    interpolatedWindowBounds,
+    windowBoundsAnimationFrameCount,
+  } = require(path.join(projectRoot, "electron/lib/windowAnimation.cjs"));
+  const fromBounds = { x: 1000, y: 80, width: 320, height: 780 };
+  const toBounds = { x: 1402, y: 394, width: 38, height: 136 };
+
+  assert.equal(easeOutCubic(-1), 0);
+  assert.equal(easeOutCubic(0), 0);
+  assert.equal(easeOutCubic(1), 1);
+  assert.equal(easeOutCubic(2), 1);
+  assert.deepEqual(interpolatedWindowBounds(fromBounds, toBounds, 0), fromBounds);
+  assert.deepEqual(interpolatedWindowBounds(fromBounds, toBounds, 1), toBounds);
+  assert.deepEqual(interpolatedWindowBounds(fromBounds, toBounds, 0.5), { x: 1352, y: 355, width: 73, height: 217 });
+  assert.equal(windowBoundsAnimationFrameCount(180, 16), 12);
+  assert.equal(windowBoundsAnimationFrameCount(1, 16), 1);
 }
 
 function testIpcHandlersModule() {
@@ -1071,7 +1163,9 @@ async function testAutoUpdateModule() {
   try {
     const {
       autoUpdateSupportReason,
+      buildUpdateFeedConfig,
       buildUpdateFeedUrl,
+      buildWindowsUpdateFeedConfig,
       createAutoUpdateController,
       defaultChannelSwitchVersion,
       normalizeUpdateChannel,
@@ -1130,6 +1224,35 @@ async function testAutoUpdateModule() {
       }),
       "https://update.electronjs.org/jarvisluk/gocus/darwin-arm64/0.2.0",
     );
+    assert.deepEqual(
+      buildUpdateFeedConfig({
+        repository: "jarvisluk/gocus",
+        platform: "darwin",
+        arch: "arm64",
+        version: "0.2.0",
+      }),
+      {
+        url: "https://update.electronjs.org/jarvisluk/gocus/darwin-arm64/0.2.0",
+      },
+    );
+    assert.deepEqual(buildWindowsUpdateFeedConfig({ repository: "https://github.com/jarvisluk/gocus.git" }), {
+      provider: "github",
+      owner: "jarvisluk",
+      repo: "gocus",
+    });
+    assert.deepEqual(
+      buildUpdateFeedConfig({
+        repository: "jarvisluk/gocus",
+        platform: "win32",
+        arch: "x64",
+        version: "0.2.0",
+      }),
+      {
+        provider: "github",
+        owner: "jarvisluk",
+        repo: "gocus",
+      },
+    );
     assert.equal(releaseUrlForRepository("jarvisluk/gocus"), "https://github.com/jarvisluk/gocus/releases");
     assert.equal(releaseUrlForRepository("https://github.com/jarvisluk/gocus.git"), "https://github.com/jarvisluk/gocus/releases");
     assert.equal(releaseUrlForRepository("https://example.com/jarvisluk/gocus"), "");
@@ -1150,6 +1273,35 @@ async function testAutoUpdateModule() {
         repository: "jarvisluk/gocus",
       }),
       "unsupported_platform",
+    );
+    assert.equal(
+      autoUpdateSupportReason({
+        platform: "win32",
+        isPackaged: true,
+        isDevRuntime: false,
+        repository: "jarvisluk/gocus",
+      }),
+      "",
+    );
+    assert.equal(
+      autoUpdateSupportReason({
+        platform: "win32",
+        isPackaged: true,
+        isDevRuntime: false,
+        isPortableRuntime: true,
+        repository: "jarvisluk/gocus",
+      }),
+      "portable",
+    );
+    assert.equal(
+      autoUpdateSupportReason({
+        platform: "win32",
+        isPackaged: true,
+        isDevRuntime: false,
+        repository: "jarvisluk/gocus",
+        hasAutoUpdater: false,
+      }),
+      "missing_updater",
     );
     assert.equal(
       autoUpdateSupportReason({
@@ -1318,6 +1470,103 @@ async function testAutoUpdateModule() {
       missingChannelDialogs.at(-1).detail,
       "The develop update channel has no GitHub Releases feed configured for this build.",
     );
+
+    const windowsEvents = new EventEmitter();
+    const windowsDialogs = [];
+    const windowsFeedOptions = [];
+    let windowsCheckedForUpdates = false;
+    let windowsInstalled = false;
+    const windowsAutoUpdater = {
+      allowDowngrade: false,
+      setFeedURL(options) {
+        windowsFeedOptions.push(options);
+      },
+      on(eventName, handler) {
+        windowsEvents.on(eventName, handler);
+      },
+      checkForUpdates() {
+        windowsCheckedForUpdates = true;
+        return Promise.resolve();
+      },
+      quitAndInstall() {
+        windowsInstalled = true;
+      },
+    };
+    const windowsController = createAutoUpdateController({
+      app: {
+        isPackaged: true,
+        getVersion: () => "0.2.0",
+      },
+      autoUpdater: windowsAutoUpdater,
+      dialog: {
+        showMessageBox(options) {
+          windowsDialogs.push(options);
+          return Promise.resolve({ response: 0 });
+        },
+      },
+      packageMetadata: {
+        updateRepository: "jarvisluk/gocus",
+        updateChannels: { develop: "jarvisluk/gocus-develop" },
+      },
+      platform: "win32",
+      arch: "x64",
+      isDevRuntime: false,
+    });
+    assert.equal(windowsController.isSupported(), true);
+    assert.equal(windowsController.checkForUpdates({ manual: true }), true);
+    assert.equal(windowsCheckedForUpdates, true);
+    assert.deepEqual(windowsFeedOptions.at(-1), {
+      provider: "github",
+      owner: "jarvisluk",
+      repo: "gocus",
+    });
+    windowsEvents.emit("update-not-available");
+    assert.equal(windowsDialogs.at(-1).message, "Gocus is up to date.");
+    windowsController.setPreferences({ autoUpdateChannel: "develop", autoUpdateChecks: true });
+    assert.equal(windowsController.checkForUpdates(), true);
+    assert.equal(windowsAutoUpdater.allowDowngrade, true);
+    assert.deepEqual(windowsFeedOptions.at(-1), {
+      provider: "github",
+      owner: "jarvisluk",
+      repo: "gocus-develop",
+    });
+    windowsController.setPreferences({ autoUpdateInstall: true, autoUpdateChannel: "develop" });
+    windowsEvents.emit("update-downloaded", { version: "0.2.1", releaseNotes: "Fixed Windows updater" });
+    assert.equal(windowsInstalled, true);
+
+    const windowsPortableDialogs = [];
+    const windowsPortableController = createAutoUpdateController({
+      app: {
+        isPackaged: true,
+        getVersion: () => "0.2.0",
+      },
+      autoUpdater: {
+        setFeedURL() {
+          throw new Error("Windows portable builds should not configure an update feed.");
+        },
+        on() {},
+        checkForUpdates() {},
+        quitAndInstall() {},
+      },
+      dialog: {
+        showMessageBox(options) {
+          windowsPortableDialogs.push(options);
+          return Promise.resolve({ response: 0 });
+        },
+      },
+      packageMetadata: { updateRepository: "jarvisluk/gocus" },
+      platform: "win32",
+      arch: "x64",
+      isDevRuntime: false,
+      isPortableRuntime: true,
+    });
+    assert.equal(windowsPortableController.isSupported(), false);
+    assert.equal(windowsPortableController.checkForUpdates({ manual: true }), false);
+    assert.equal(
+      windowsPortableDialogs.at(-1).detail,
+      "Windows portable builds do not support automatic updates. " +
+        "Install Gocus with the Windows Setup package to receive automatic updates.",
+    );
   } finally {
     for (const [name, value] of Object.entries(previousUpdateEnv)) {
       if (value === undefined) {
@@ -1357,6 +1606,8 @@ function testGitStatusModule() {
 
 async function testGitModule() {
   const {
+    checkout,
+    checkoutArgsForRef,
     cleanupWorktree,
     defaultCommitLogLimit,
     dirtyWorkspaceMergeNotice,
@@ -1398,6 +1649,44 @@ async function testGitModule() {
     "chore: merge feature/footer-toggle into main",
     "feature/footer-toggle",
   ]);
+
+  const checkoutRemoteDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-checkout-remote-"));
+  try {
+    runGitFixture(checkoutRemoteDir, ["init", "--bare", "origin.git"]);
+    const originPath = path.join(checkoutRemoteDir, "origin.git");
+    const repoPath = path.join(checkoutRemoteDir, "repo");
+    runGitFixture(checkoutRemoteDir, ["clone", originPath, repoPath]);
+    runGitFixture(repoPath, ["config", "user.name", "Gocus Test"]);
+    runGitFixture(repoPath, ["config", "user.email", "gocus@example.com"]);
+    runGitFixture(repoPath, ["checkout", "-b", "main"]);
+    fs.writeFileSync(path.join(repoPath, "base.txt"), "base\n", "utf8");
+    runGitFixture(repoPath, ["add", "base.txt"]);
+    runGitFixture(repoPath, ["commit", "-m", "base"]);
+    runGitFixture(repoPath, ["push", "-u", "origin", "main"]);
+    runGitFixture(repoPath, ["checkout", "-b", "develop"]);
+    fs.writeFileSync(path.join(repoPath, "develop.txt"), "develop\n", "utf8");
+    runGitFixture(repoPath, ["add", "develop.txt"]);
+    runGitFixture(repoPath, ["commit", "-m", "develop"]);
+    runGitFixture(repoPath, ["push", "-u", "origin", "develop"]);
+    runGitFixture(repoPath, ["checkout", "main"]);
+    runGitFixture(repoPath, ["branch", "-D", "develop"]);
+    runGitFixture(repoPath, ["fetch", "origin"]);
+
+    assert.deepEqual(await checkoutArgsForRef(repoPath, "origin/develop"), [
+      "checkout",
+      "--track",
+      "-b",
+      "develop",
+      "origin/develop",
+    ]);
+    const snapshot = await checkout(repoPath, "origin/develop", { mode: "current" });
+    assert.equal(snapshot.branch.name, "develop");
+    assert.equal(runGitFixture(repoPath, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]), "origin/develop");
+    assert.deepEqual(await checkoutArgsForRef(repoPath, "origin/main"), ["checkout", "main"]);
+    assert.equal(snapshot.branches.some((branch) => branch.name === "origin" && branch.fullName.endsWith("/HEAD")), false);
+  } finally {
+    fs.rmSync(checkoutRemoteDir, { force: true, recursive: true });
+  }
 
   const mergeMessageDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-merge-message-"));
   try {
@@ -4620,6 +4909,7 @@ async function testSettingsPanelView(server) {
     behavior: {
       titleId: "settings-behavior-title",
       title: "Behavior",
+      dockIconAvailable: true,
       rows: {
         refresh: "Refresh",
         startup: "Startup",
@@ -4766,6 +5056,15 @@ async function testSettingsPanelView(server) {
         disclosureValue: "1 enabled",
       },
     },
+  });
+  assert.deepEqual(settingsPanelView("main", options, ["cursor"], "win32").sections.behavior, {
+    ...expectedSections.behavior,
+    dockIconAvailable: false,
+    rows: {
+      ...expectedSections.behavior.rows,
+      menuBar: "Tray",
+    },
+    showMenuBarIconAriaLabel: "Show tray icon",
   });
   assert.equal(settingsPanelView("main", [], ["cursor"]).workspaceTargetsSummary, "Unavailable");
   assert.equal(settingsPageAfterBack("app"), "main");
@@ -6637,7 +6936,7 @@ async function testRepositoryControlsView(server) {
       upstream: "",
     }),
     {
-      rowClassName: "branch-ref-menu-row",
+      rowClassName: "branch-ref-menu-row has-switch",
       className: "ui-menu-item branch-ref-menu-item branch-ref-view-button",
       role: "menuitem",
       ariaCurrent: undefined,
@@ -6646,14 +6945,14 @@ async function testRepositoryControlsView(server) {
       title: "refs/remotes/origin/main",
       key: "remote-origin/main",
       switchAction: {
-        show: false,
+        show: true,
         disabled: false,
         branchName: "origin/main",
         tooltipClassName: "branch-switch-tooltip",
         className: "branch-switch-button",
         icon: "switch",
-        ariaLabel: "Switch to origin/main",
-        title: "Switch to origin/main",
+        ariaLabel: "Track and switch to main",
+        title: "Track and switch to main",
       },
     },
   );
@@ -7389,7 +7688,9 @@ async function main() {
   testSourceHelperUnitCoverage();
   testNodeSyntaxScript();
   testShellSyntaxScript();
+  testCommitMessageScript();
   testWindowGeometryModule();
+  testWindowAnimationModule();
   testConfigStoreModule();
   testIpcHandlersModule();
   await testAutoUpdateModule();

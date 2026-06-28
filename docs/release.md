@@ -1,9 +1,11 @@
 # Release
 
-Gocus releases are macOS zip assets published through GitHub Releases.
-The packaged app uses Electron's `autoUpdater` with the `update.electronjs.org`
-feed, so Release assets must stay public and must include the macOS platform
-and architecture in the zip name.
+Gocus releases publish macOS zip assets plus Windows installer and portable
+assets through GitHub Releases. The packaged macOS app uses Electron's `autoUpdater` with the
+`update.electronjs.org` feed, so macOS Release assets must stay public and must
+include the macOS platform and architecture in the zip name. Windows installer
+builds use `electron-updater` with GitHub Releases metadata. Windows portable
+assets are downloadable release assets and must be updated manually.
 
 ## Local Gate
 
@@ -22,10 +24,27 @@ To build the same release artifact locally without installing into `/Application
 GOCUS_VERSION=0.2.0 GOCUS_BUILD=1 npm run package:mac:release
 ```
 
-The release zip is written to:
+From Windows, build the installer and portable release artifacts with PowerShell:
+
+```powershell
+$env:GOCUS_VERSION = "0.2.0"
+$env:GOCUS_BUILD = "1"
+npm run package:win:release
+```
+
+If the Electron runtime download stalls on a regional network, set
+`ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/` before running the
+package command.
+
+The release artifacts are written to:
 
 ```text
 release/macos/Gocus-<version>-mac-<arch>.zip
+release/windows/Gocus-<version>-win-<arch>.zip
+release/windows/Gocus-Setup-<version>-win-<arch>.exe
+release/windows/Gocus-<version>-win-<arch>-portable.exe
+release/windows/*.blockmap
+release/windows/latest.yml
 ```
 
 ## Release Candidate
@@ -37,6 +56,8 @@ moving a public tag.
 - `create_release`: leave off for a candidate build.
 - `prerelease`: only applies when `create_release` is enabled.
 - `notarize`: `auto` uses notarization only when all Apple secrets exist.
+- Artifacts are uploaded as `gocus-macos-<version>` and
+  `gocus-windows-<version>`.
 
 ## Develop Candidate Flow
 
@@ -64,7 +85,7 @@ Actions.
 - `publish_update_release`: `true` publishes the develop update release when
   `DEVELOP_RELEASE_TOKEN` is configured.
 - Artifacts are uploaded to the workflow run as
-  `gocus-develop-macos-<version>`.
+  `gocus-develop-macos-<version>` and `gocus-develop-windows-<version>`.
 - The develop update release is a normal GitHub Release in
   `jarvisluk/Gocus-Develop-Releases`, tagged `v<version>`. Do not mark these
   releases as GitHub prereleases; the public Electron update service ignores
@@ -73,7 +94,9 @@ Actions.
 Use this workflow for internal validation before merging `develop` into `main`.
 Develop candidate packages are marked with the `develop` update channel and
 point their develop update feed at `jarvisluk/Gocus-Develop-Releases`. Stable
-packages continue to use `jarvisluk/Gocus`.
+packages continue to use `jarvisluk/Gocus`. The develop update release is used
+by macOS and Windows installer auto-update; Windows portable candidates remain
+workflow artifacts and manual downloads.
 
 For manual runs to appear in the Actions UI, the workflow file must exist on
 the repository's default branch. Push-triggered candidate builds run once the
@@ -90,9 +113,9 @@ workflow file exists on `develop`.
    `v0.2.0`.
 7. The release workflow rejects any commit that is not contained in
    `origin/main`.
-8. The `Release` GitHub Actions workflow builds, signs, notarizes when secrets
-   exist, uploads the zip and checksum, and creates or updates the GitHub
-   Release.
+8. The `Release` GitHub Actions workflow builds macOS and Windows artifacts,
+   signs and notarizes macOS when secrets exist, uploads release assets and checksums, and
+   creates or updates the GitHub Release.
 
 The workflow can also be run manually from GitHub Actions with a version input.
 Manual artifact-only runs can be used as release candidates. Manual GitHub
@@ -115,9 +138,11 @@ APPLE_APP_SPECIFIC_PASSWORD
 DEVELOP_RELEASE_TOKEN
 ```
 
-If the certificate secrets are missing, CI falls back to ad-hoc signing.
+If the certificate secrets are missing, CI falls back to ad-hoc macOS signing.
 If notarization secrets are missing while a Developer ID identity is used,
 Gatekeeper verification will fail before publishing.
+Windows release assets are currently unsigned installer and portable builds.
+Unsigned Windows installer updates may still trigger SmartScreen warnings.
 
 `DEVELOP_RELEASE_TOKEN` needs permission to create and edit releases in
 `jarvisluk/Gocus-Develop-Releases`. A fine-grained token limited to that
@@ -159,16 +184,17 @@ spctl --assess --type execute --verbose=4 /Applications/Gocus.app
 
 ## Auto Update
 
-Packaged macOS builds check for updates shortly after launch and then
-periodically. Users can also run **Check for Updates...** from the app menu,
-Help menu, or menu bar icon menu.
+Packaged macOS builds and Windows installer builds check for updates shortly
+after launch and then periodically. Users can also run **Check for Updates...**
+from the app menu, Help menu, or menu bar icon menu. Windows portable builds
+report that automatic updates are unavailable.
 
 The Settings panel's **App** page includes **Automatically check for updates**
 and **Automatically install updates** toggles plus a **Channel** selector.
 Automatic checks are on by default. Automatic install is off by default, so
 downloaded updates ask before relaunching.
 
-The update feed is:
+The macOS update feed is:
 
 ```text
 https://update.electronjs.org/jarvisluk/gocus/darwin-<arch>/<current-version>
@@ -197,12 +223,30 @@ currently installed package. This allows switching from a develop candidate
 back to the latest stable release, and from stable to the latest develop
 candidate, without coordinating the two version sequences.
 
-The feed is backed by GitHub Releases, so each release needs a non-draft zip asset named like:
+The macOS feed is backed by GitHub Releases, so each release needs a non-draft
+zip asset named like:
 
 ```text
 Gocus-0.2.0-mac-arm64.zip
 Gocus-0.2.0-mac-x64.zip
 ```
 
-The app intentionally skips update checks in development, unpackaged builds,
-and non-macOS runtimes.
+The Windows installer feed is backed by the `latest.yml` and blockmap files
+generated by `electron-builder`, so each release needs non-draft assets named
+like:
+
+```text
+Gocus-Setup-0.2.0-win-x64.exe
+Gocus-Setup-0.2.0-win-x64.exe.blockmap
+latest.yml
+```
+
+The app intentionally skips update checks in development and unpackaged builds.
+Windows portable release assets are still published to GitHub Releases for
+direct download:
+
+```text
+Gocus-0.2.0-win-x64.zip
+Gocus-Setup-0.2.0-win-x64.exe
+Gocus-0.2.0-win-x64-portable.exe
+```

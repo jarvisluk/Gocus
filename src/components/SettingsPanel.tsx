@@ -150,7 +150,8 @@ export function SettingsPanel({
   const [settingsPage, setSettingsPage] = useState<SettingsPage>("main");
   const [openDropdown, setOpenDropdown] = useState<SettingsDropdownName | null>(null);
   const availableWorkspaceOptions = availableWorkspaceOpenOptions(workspaceOpenOptions, availableWorkspaceTargets);
-  const view = settingsPanelView(settingsPage, availableWorkspaceOptions, preferences.workspaceOpenTargets);
+  const platform = document.documentElement.dataset.platform;
+  const view = settingsPanelView(settingsPage, availableWorkspaceOptions, preferences.workspaceOpenTargets, platform);
   const preferenceView = settingsPreferencesView(preferences);
   const sections = view.sections;
   const workspaceTargetItems = settingsWorkspaceTargetItems(availableWorkspaceOptions, preferences.workspaceOpenTargets);
@@ -487,17 +488,19 @@ export function SettingsPanel({
                 />
               </label>
             </div>
-            <div className={view.mainPanel.rowClassName}>
-              <span className={view.mainPanel.labelClassName}>{sections.behavior.rows.dock}</span>
-              <label className={view.mainPanel.dockIconToggleClassName}>
-                <input
-                  type="checkbox"
-                  aria-label={sections.behavior.showDockIconAriaLabel}
-                  checked={preferences.showDockIcon}
-                  onChange={(event) => onChange({ ...preferences, showDockIcon: event.target.checked })}
-                />
-              </label>
-            </div>
+            {sections.behavior.dockIconAvailable ? (
+              <div className={view.mainPanel.rowClassName}>
+                <span className={view.mainPanel.labelClassName}>{sections.behavior.rows.dock}</span>
+                <label className={view.mainPanel.dockIconToggleClassName}>
+                  <input
+                    type="checkbox"
+                    aria-label={sections.behavior.showDockIconAriaLabel}
+                    checked={preferences.showDockIcon}
+                    onChange={(event) => onChange({ ...preferences, showDockIcon: event.target.checked })}
+                  />
+                </label>
+              </div>
+            ) : null}
             <div className={view.mainPanel.rowClassName}>
               <span className={view.mainPanel.labelClassName}>{sections.behavior.rows.merge}</span>
               <label className={view.mainPanel.mergeCommitToggleClassName}>

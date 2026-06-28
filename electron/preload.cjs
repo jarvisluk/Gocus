@@ -1,5 +1,9 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
+window.addEventListener("DOMContentLoaded", () => {
+  document.documentElement.dataset.platform = process.platform;
+});
+
 contextBridge.exposeInMainWorld("gocus", {
   openRepository: (view) => ipcRenderer.invoke("git:openRepository", view),
   switchRepository: (repositoryPath, view) => ipcRenderer.invoke("git:switchRepository", repositoryPath, view),

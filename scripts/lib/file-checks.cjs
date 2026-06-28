@@ -4,7 +4,7 @@ const path = require("node:path");
 const defaultIgnoredDirectories = new Set([".git", "dist", "node_modules"]);
 
 function relativePath(projectRoot, filePath) {
-  return path.relative(projectRoot, filePath);
+  return path.relative(projectRoot, filePath).replaceAll(path.sep, "/");
 }
 
 function hasAllowedExtension(filePath, extensions) {
@@ -61,8 +61,8 @@ function processFailure(projectRoot, filePath, result) {
     relativeFilePath: relativePath(projectRoot, filePath),
     status: result.status,
     signal: result.signal,
-    stdout: result.stdout.trim(),
-    stderr: result.stderr.trim(),
+    stdout: String(result.stdout ?? "").trim(),
+    stderr: String(result.stderr ?? result.error?.message ?? "").trim(),
   };
 }
 

@@ -1,6 +1,6 @@
 const {
   app,
-  autoUpdater,
+  autoUpdater: electronAutoUpdater,
   BrowserWindow,
   Menu,
   Tray,
@@ -12,6 +12,7 @@ const {
   screen,
   shell,
 } = require("electron");
+const fs = require("node:fs");
 const path = require("node:path");
 const packageMetadata = require("../package.json");
 const { createAutoUpdateController, releaseUrlForRepository } = require("./lib/autoUpdate.cjs");
@@ -21,17 +22,25 @@ const { registerIpcHandlers } = require("./lib/ipcHandlers.cjs");
 const { createLaunchAtLoginController } = require("./lib/launchAtLogin.cjs");
 const { installOutputErrorGuard } = require("./lib/outputGuard.cjs");
 const {
+  defaultWindowAnimationDurationMs,
+  defaultWindowAnimationFrameMs,
+  interpolatedWindowBounds,
+  windowBoundsAnimationFrameCount,
+} = require("./lib/windowAnimation.cjs");
+const {
   changedFileInfoBounds,
   changedFileInfoWindowSize,
   clampCommitInfoWindowHeight,
   collapsedSize,
   commitInfoBounds,
   commitInfoWindowSize,
+  expandedMaximumSize,
   expandedMinimumSize,
   expandedSizeFromConfig,
   clampCollapsedRailHeight,
   clampExpandedSize,
   mainWindowBounds,
+  rightAlignedWindowBounds,
   temporaryInfoBounds,
   temporaryInfoWindowSize,
   windowBoundsEqual,
@@ -54,6 +63,7 @@ const { getAvailableWorkspaceTargets, openWorkspace, openWorkspaceFile } = requi
 installOutputErrorGuard();
 
 const isDevRuntime = Boolean(process.env.GOCUS_DEV_SERVER_URL);
+const isWindowsRuntime = process.platform === "win32";
 
 let mainWindow;
 let tray;
@@ -64,6 +74,7 @@ let pinnedState = false;
 let currentView = { mode: "all" };
 let applyingWindowBounds = false;
 let applyingWindowBoundsTimer = null;
+let windowBoundsAnimationTimer = null;
 let expandedWindowSizeSaveTimer = null;
 let realQuitRequested = false;
 let dockIconHidden = false;
@@ -90,16 +101,63 @@ const assets = createAssetLoader({
 });
 const autoUpdates = createAutoUpdateController({
   app,
-  autoUpdater,
+  autoUpdater: loadPlatformAutoUpdater(),
   dialog,
   isDevRuntime,
+  isPortableRuntime: isWindowsPortableRuntime(),
   packageMetadata,
   prepareForInstall: prepareForUpdateInstall,
 });
 
+function isWindowsPortableRuntime() {
+  return Boolean(process.env.PORTABLE_EXECUTABLE_DIR || process.env.PORTABLE_EXECUTABLE_FILE);
+}
+
+function loadPlatformAutoUpdater() {
+  if (!isWindowsRuntime) return electronAutoUpdater;
+
+  try {
+    return require("electron-updater").autoUpdater;
+  } catch (error) {
+    console.warn("[Gocus] Windows auto-update runtime is unavailable.", error);
+    return null;
+  }
+}
+
 function applyWindowShadow(targetWindow) {
   if (!targetWindow || targetWindow.isDestroyed() || typeof targetWindow.setHasShadow !== "function") return;
   targetWindow.setHasShadow(true);
+}
+
+function windowBackgroundColor() {
+  if (!isWindowsRuntime) return "#00000000";
+  return nativeTheme.shouldUseDarkColors ? "#1f1f1f" : "#f7f7f7";
+}
+
+function framelessWindowOptions() {
+  return {
+    frame: false,
+    transparent: !isWindowsRuntime,
+    backgroundColor: windowBackgroundColor(),
+    hasShadow: true,
+    roundedCorners: true,
+    ...(isWindowsRuntime ? { accentColor: false, thickFrame: true } : {}),
+  };
+}
+
+function loadAppWindowIcon() {
+  return assets.loadImageAsset(isWindowsRuntime ? "app-icon.ico" : "app-icon.png");
+}
+
+function syncWindowBackgroundColor(targetWindow) {
+  if (!isWindowsRuntime || !targetWindow || targetWindow.isDestroyed()) return;
+  targetWindow.setBackgroundColor(windowBackgroundColor());
+}
+
+function syncWindowBackgroundColors() {
+  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow]) {
+    syncWindowBackgroundColor(win);
+  }
 }
 
 const workspaceOpenMenuOptions = [
@@ -108,7 +166,7 @@ const workspaceOpenMenuOptions = [
   { target: "codex", label: "Codex" },
   { target: "antigravity", label: "Antigravity IDE" },
   { target: "antigravityApp", label: "Antigravity" },
-  { target: "finder", label: "Finder" },
+  { target: "finder", label: process.platform === "win32" ? "Explorer" : "Finder" },
   { target: "terminal", label: "Terminal" },
   { target: "xcode", label: "Xcode" },
 ];
@@ -190,6 +248,10 @@ function softQuitToMenuBar() {
     mainWindow.hide();
   }
   syncDockIcon(preferences);
+}
+
+function shouldHideToMenuBarOnClose() {
+  return !realQuitRequested && shouldUseMenuBarResidency();
 }
 
 function requestRealQuit() {
@@ -433,6 +495,7 @@ function nativeThemeSourceForPreferences(preferences = readPreferences()) {
 
 function syncNativeThemeSource(preferences = readPreferences()) {
   nativeTheme.themeSource = nativeThemeSourceForPreferences(preferences);
+  syncWindowBackgroundColors();
 }
 
 function sendToWindow(win, channel, ...args) {
@@ -459,6 +522,7 @@ function isCommitInfoPanelActive() {
 }
 
 function sendSystemTheme() {
+  syncWindowBackgroundColors();
   for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow]) {
     sendToWindow(win, "theme:changed", getSystemTheme());
   }
@@ -509,13 +573,52 @@ function readExpandedSize(display) {
   return expandedSizeFromConfig(config, display);
 }
 
-function setWindowBounds(win, bounds, animated = true) {
-  applyingWindowBounds = true;
+function finishApplyingWindowBounds(delayMs = 250) {
   clearTimeout(applyingWindowBoundsTimer);
-  win.setBounds(bounds, animated);
   applyingWindowBoundsTimer = setTimeout(() => {
     applyingWindowBounds = false;
-  }, 250);
+  }, delayMs);
+}
+
+function clearWindowBoundsAnimation() {
+  if (windowBoundsAnimationTimer === null) return;
+  clearInterval(windowBoundsAnimationTimer);
+  windowBoundsAnimationTimer = null;
+}
+
+function setWindowBounds(win, bounds, animated = true, onComplete = null) {
+  applyingWindowBounds = true;
+  clearWindowBoundsAnimation();
+  clearTimeout(applyingWindowBoundsTimer);
+
+  const startBounds = win.getBounds();
+  if (!isWindowsRuntime || !animated || windowBoundsEqual(startBounds, bounds)) {
+    win.setBounds(bounds, animated);
+    if (typeof onComplete === "function") onComplete();
+    finishApplyingWindowBounds();
+    return;
+  }
+
+  const frameCount = windowBoundsAnimationFrameCount();
+  let frame = 0;
+
+  windowBoundsAnimationTimer = setInterval(() => {
+    if (!win || win.isDestroyed()) {
+      clearWindowBoundsAnimation();
+      finishApplyingWindowBounds(0);
+      return;
+    }
+
+    frame += 1;
+    const nextBounds =
+      frame >= frameCount ? bounds : interpolatedWindowBounds(startBounds, bounds, frame / frameCount);
+    win.setBounds(nextBounds, false);
+
+    if (frame < frameCount) return;
+    clearWindowBoundsAnimation();
+    if (typeof onComplete === "function") onComplete();
+    finishApplyingWindowBounds(defaultWindowAnimationDurationMs + defaultWindowAnimationFrameMs);
+  }, defaultWindowAnimationFrameMs);
 }
 
 function saveCurrentExpandedWindowSize(win) {
@@ -537,10 +640,14 @@ function positionWindow(win, collapsed = false) {
   if (!win) return;
   const display = screen.getPrimaryDisplay().workArea;
   const nextCollapsedSize = collapsed ? collapsedWindowSize : collapsedSize;
-  win.setMinimumSize(
-    collapsed ? nextCollapsedSize.width : expandedMinimumSize.width,
-    collapsed ? nextCollapsedSize.height : expandedMinimumSize.height,
-  );
+  const maximumExpandedSize = expandedMaximumSize(display);
+  if (collapsed) {
+    win.setMinimumSize(nextCollapsedSize.width, nextCollapsedSize.height);
+    win.setMaximumSize(maximumExpandedSize.width, maximumExpandedSize.height);
+  } else {
+    win.setMaximumSize(maximumExpandedSize.width, maximumExpandedSize.height);
+    win.setMinimumSize(collapsedSize.width, collapsedSize.height);
+  }
   setWindowBounds(
     win,
     mainWindowBounds({
@@ -551,6 +658,18 @@ function positionWindow(win, collapsed = false) {
       expandedSize: readExpandedSize(display),
     }),
     true,
+    () => {
+      if (!win || win.isDestroyed()) return;
+      if (collapsed) {
+        win.setMaximumSize(nextCollapsedSize.width, nextCollapsedSize.height);
+        const currentBounds = win.getBounds();
+        const alignedBounds = rightAlignedWindowBounds(currentBounds, display);
+        if (!windowBoundsEqual(currentBounds, alignedBounds)) setWindowBounds(win, alignedBounds, false);
+        return;
+      }
+
+      win.setMinimumSize(expandedMinimumSize.width, expandedMinimumSize.height);
+    },
   );
 }
 
@@ -673,10 +792,7 @@ function ensureTemporaryInfoWindow() {
   temporaryInfoWindow = new BrowserWindow({
     ...bounds,
     show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: "#00000000",
-    hasShadow: true,
+    ...framelessWindowOptions(),
     resizable: false,
     movable: false,
     minimizable: false,
@@ -792,10 +908,7 @@ function ensureChangedFileInfoWindow() {
   changedFileInfoWindow = new BrowserWindow({
     ...bounds,
     show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: "#00000000",
-    hasShadow: true,
+    ...framelessWindowOptions(),
     resizable: false,
     movable: false,
     minimizable: false,
@@ -975,10 +1088,7 @@ function ensureCommitInfoWindow() {
   commitInfoWindow = new BrowserWindow({
     ...bounds,
     show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: "#00000000",
-    hasShadow: true,
+    ...framelessWindowOptions(),
     resizable: false,
     movable: false,
     minimizable: false,
@@ -1063,7 +1173,7 @@ function showMainWindow() {
 }
 
 function createWindow({ showOnReady = true } = {}) {
-  const appIcon = assets.loadImageAsset("app-icon.png");
+  const appIcon = loadAppWindowIcon();
   const initialExpandedSize = readExpandedSize(screen.getPrimaryDisplay().workArea);
 
   mainWindow = new BrowserWindow({
@@ -1071,10 +1181,7 @@ function createWindow({ showOnReady = true } = {}) {
     minWidth: expandedMinimumSize.width,
     minHeight: expandedMinimumSize.height,
     show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: "#00000000",
-    hasShadow: true,
+    ...framelessWindowOptions(),
     icon: appIcon,
     resizable: true,
     title: "Gocus",
@@ -1126,7 +1233,7 @@ function createWindow({ showOnReady = true } = {}) {
     closeChangedFileInfoWindow();
     closeCommitInfoWindow();
     saveCurrentExpandedWindowSize(mainWindow);
-    if (process.platform === "darwin" && !realQuitRequested && shouldUseMenuBarResidency()) {
+    if (shouldHideToMenuBarOnClose()) {
       event.preventDefault();
       mainWindow.hide();
     }
@@ -1135,6 +1242,7 @@ function createWindow({ showOnReady = true } = {}) {
     closeTemporaryInfoWindow();
     closeChangedFileInfoWindow();
     closeCommitInfoWindow();
+    clearWindowBoundsAnimation();
     clearTimeout(applyingWindowBoundsTimer);
     clearTimeout(expandedWindowSizeSaveTimer);
     mainWindow = null;
@@ -1150,10 +1258,17 @@ function createTray() {
     return;
   }
 
-  const trayIcon = assets.loadImageAsset("tray-iconTemplate.png", { template: process.platform === "darwin" });
+  const trayIconName =
+    process.platform === "win32" && fs.existsSync(assets.resolveAssetPath("tray-iconWindows.png"))
+      ? "tray-iconWindows.png"
+      : "tray-iconTemplate.png";
+  const trayIcon = assets.loadImageAsset(trayIconName, { template: process.platform === "darwin" });
 
   tray = new Tray(trayIcon);
   tray.setToolTip("Gocus");
+  if (process.platform === "win32") {
+    tray.on("click", showMainWindow);
+  }
   if (process.platform === "darwin" && process.env.GOCUS_SHOW_TRAY_TITLE === "1") {
     tray.setTitle("Gocus");
   }
@@ -1162,6 +1277,7 @@ function createTray() {
       console.info(
         "[tray]",
         JSON.stringify({
+          asset: trayIconName,
           empty: trayIcon.isEmpty(),
           template: process.platform === "darwin" ? trayIcon.isTemplateImage() : false,
           size1x: trayIcon.getSize(1),
@@ -1405,7 +1521,7 @@ app.whenReady().then(() => {
 });
 
 app.on("before-quit", (event) => {
-  if (process.platform !== "darwin" || realQuitRequested || !shouldUseMenuBarResidency()) {
+  if (!shouldHideToMenuBarOnClose()) {
     stopRepositoryWatcher();
     return;
   }
@@ -1415,7 +1531,7 @@ app.on("before-quit", (event) => {
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin" || !shouldUseMenuBarResidency()) app.quit();
+  if (!shouldUseMenuBarResidency()) app.quit();
 });
 
 registerIpcHandlers({
