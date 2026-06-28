@@ -18,6 +18,23 @@ const releaseDownloads = {
     "https://github.com/jarvisluk/Gocus/releases/download/v0.1.3/Gocus-Setup-0.1.3-win-x64.exe",
 };
 
+const downloadOptions = [
+  {
+    title: "macOS build",
+    meta: "Apple Silicon zip",
+    body: "For running Gocus beside Codex, Claude Code, Antigravity, and other AI-native coding sessions on macOS.",
+    label: "Download macOS build",
+    url: releaseDownloads.macArm64,
+  },
+  {
+    title: "Windows Installer",
+    meta: "Windows x64 installer",
+    body: "Use the Installer build when your AI-native workflow runs on Windows. Portable assets stay on the release page.",
+    label: "Download Windows Installer",
+    url: releaseDownloads.windowsInstaller,
+  },
+];
+
 type DownloadPlatform = "mac" | "windows" | "other";
 type MacArchitecture = "arm64" | "x64";
 
@@ -36,36 +53,34 @@ type NavigatorWithUserAgentData = Navigator & {
 
 type DownloadTarget = {
   ariaLabel: string;
-  body: string;
   label: string;
   navLabel: string;
-  title: string;
   url: string;
 };
 
 const workflow = [
   {
     icon: FolderOpen,
-    title: "Open repo",
-    body: "Point Gocus at a repository or jump between recent workspaces from the footer.",
+    title: "Open the agent workspace",
+    body: "Point Gocus at the repository your AI-native editor is changing, then keep it beside the session.",
   },
   {
     icon: GitBranch,
-    title: "Track commits",
-    body: "Scan branch rails, selected commits, worktrees, and release tags in one narrow surface.",
+    title: "Track agent commits",
+    body: "Scan branch rails, selected commits, worktrees, and release tags without switching into a full IDE.",
   },
   {
     icon: MousePointer2,
-    title: "Act on changes",
-    body: "Open files, inspect changed-now state, refresh history, and keep your editor in front.",
+    title: "Return to the editor",
+    body: "Open files, inspect changed-now state, refresh history, and keep Codex, Claude Code, or Antigravity in front.",
   },
 ];
 
 const features = [
-  "Side-floating desktop panel",
-  "Commit graph rails and branch tags",
+  "AI-native editor companion",
+  "Agent commit rails and branch tags",
   "Recent repositories and worktrees",
-  "Changed-now context beside your editor",
+  "Changed-now context beside Codex, Claude Code, or Antigravity",
   "Stable compact and comfortable density modes",
   "Release-channel update links",
 ];
@@ -73,15 +88,15 @@ const features = [
 const heroContexts = [
   {
     label: "Scan",
-    body: "Recent commits, branch labels, and file counts stay visible beside your editor.",
+    body: "Recent agent commits, branch labels, and file counts stay visible beside the AI session.",
   },
   {
     label: "Orient",
-    body: "Current worktree and branch context stay close when you move between tasks.",
+    body: "Current worktree and branch context stay close while the agent moves across tasks.",
   },
   {
     label: "Return",
-    body: "Open the repo or editor target from the same narrow panel when you are ready.",
+    body: "Open the repo or target file from the same narrow panel when you need to step in.",
   },
 ];
 
@@ -164,10 +179,8 @@ function downloadTargetForPlatform(
   if (platform === "windows") {
     return {
       ariaLabel: "Download Gocus Windows Installer",
-      body: "Use the latest Windows Installer from GitHub Releases. Portable and zip assets stay available on the release page.",
       label: "Download for Windows",
       navLabel: "Windows",
-      title: "Download the Windows Installer",
       url,
     };
   }
@@ -175,20 +188,16 @@ function downloadTargetForPlatform(
   if (platform === "mac") {
     return {
       ariaLabel: "Download Gocus for macOS",
-      body: "Use the latest macOS release build now, then switch channels from inside the app when develop builds are available.",
       label: "Download for macOS",
       navLabel: "macOS",
-      title: "Download the macOS build",
       url,
     };
   }
 
   return {
     ariaLabel: "Open Gocus downloads",
-    body: "Pick the Windows Installer or macOS build from the latest GitHub Release.",
     label: "Choose download",
     navLabel: "Download",
-    title: "Choose your Gocus build",
     url,
   };
 }
@@ -253,6 +262,29 @@ function WebsiteHeader({ downloadTarget }: { downloadTarget: DownloadTarget }) {
   );
 }
 
+function DownloadOptions() {
+  return (
+    <div className="download-list">
+      {downloadOptions.map((option) => (
+        <article className="download-option" key={option.title}>
+          <div>
+            <div className="download-option-heading">
+              <h3>{option.title}</h3>
+              <span>{option.meta}</span>
+            </div>
+            <p>{option.body}</p>
+          </div>
+          <a className="download-option-cta" href={option.url}>
+            <Download />
+            {option.label}
+            <ArrowRight />
+          </a>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 export function WebsiteApp() {
   const downloadTarget = useDownloadTarget();
 
@@ -263,9 +295,9 @@ export function WebsiteApp() {
       <section className="hero-section" aria-labelledby="hero-title">
         <div className="hero-copy">
           <h1 id="hero-title">Gocus</h1>
-          <p className="hero-lede">See your Git history without leaving your flow.</p>
+          <p className="hero-lede">See AI-agent Git history without leaving your flow.</p>
           <p className="hero-body">
-            A compact side-floating desktop utility for commits, worktrees, branch context, and quick repository actions.
+            A compact side-floating Git surface for Codex, Claude Code, Antigravity, and other AI-native editors.
           </p>
           <div className="hero-actions">
             <a className="primary-cta" href={downloadTarget.url} aria-label={downloadTarget.ariaLabel}>
@@ -279,8 +311,8 @@ export function WebsiteApp() {
           </div>
           <aside className="hero-context-panel" aria-label="Gocus daily use cases">
             <div className="hero-context-heading">
-              <span>Daily loop</span>
-              <strong>Keep the small Git checks close while your editor stays in front.</strong>
+              <span>AI-native loop</span>
+              <strong>Keep small Git checks close while the agent editor stays in front.</strong>
             </div>
             <div className="hero-context-grid">
               {heroContexts.map((item) => (
@@ -298,7 +330,7 @@ export function WebsiteApp() {
       <section className="workflow-section" id="workflow" aria-labelledby="workflow-title">
         <div className="section-heading">
           <h2 id="workflow-title">How it works</h2>
-          <p>Keep the Git surface beside your editor and move from context to action in a few clicks.</p>
+          <p>Use Gocus as the Git layer beside agent-first editors, where commits and worktrees move faster than a traditional IDE sidebar.</p>
         </div>
         <div className="workflow-grid">
           {workflow.map((item) => (
@@ -314,9 +346,9 @@ export function WebsiteApp() {
       <section className="feature-section" id="features" aria-labelledby="feature-title">
         <div className="feature-panel">
           <div>
-            <h2 id="feature-title">Made for repeated Git checks</h2>
+            <h2 id="feature-title">Made for AI-native coding sessions</h2>
             <p>
-              Gocus keeps the high-frequency parts of repository state visible without turning your desktop into another dashboard.
+              Gocus keeps the high-frequency parts of repository state visible when the coding surface is Codex, Claude Code, or Antigravity instead of an IDE-centered workflow.
             </p>
           </div>
           <ul>
@@ -333,14 +365,10 @@ export function WebsiteApp() {
       <section className="download-section" id="download" aria-labelledby="download-title">
         <Sparkles aria-hidden="true" />
         <div>
-          <h2 id="download-title">{downloadTarget.title}</h2>
-          <p>{downloadTarget.body}</p>
+          <h2 id="download-title">Download Gocus</h2>
+          <p>Choose the build for the machine running your AI-native coding sessions. The header and hero CTA still adapt to your current OS.</p>
         </div>
-        <a className="primary-cta" href={downloadTarget.url} aria-label={downloadTarget.ariaLabel}>
-          <Download />
-          {downloadTarget.label}
-          <ArrowRight />
-        </a>
+        <DownloadOptions />
       </section>
     </main>
   );
