@@ -3,12 +3,16 @@ const {
   checkout,
   cleanupWorktree,
   createBranch,
+  fetchRemotes,
   initializeRepository,
   isNotGitRepositoryError,
   merge,
   normalizeView,
   openWorktree,
+  pullCurrentBranch,
+  pushCurrentBranch,
   readGitSnapshot,
+  repositoryRemoteWebUrl,
 } = require("./git.cjs");
 const { getAvailableWorkspaceTargets, openWorkspace, openWorkspaceFile } = require("./workspace.cjs");
 
@@ -92,6 +96,7 @@ function errorResponse(error, fallbackMessage) {
 
 function createDevWebBridgeMiddleware(projectRoot) {
   let repositoryPath = path.resolve(projectRoot);
+  let recentRepositories = [repositoryEntry(repositoryPath)];
   let activeWorkspaceTarget = defaultActiveWorkspaceOpenTarget;
   let preferences = { ...defaultPreferences };
 
@@ -99,6 +104,13 @@ function createDevWebBridgeMiddleware(projectRoot) {
     try {
       const snapshot = await readGitSnapshot(repositoryPath, normalizeView(view));
       repositoryPath = snapshot.repoPath;
+      const snapshotRepository = repositoryEntry(snapshot.repoPath, snapshot.repositoryKey);
+      recentRepositories = [snapshotRepository, ...recentRepositories].filter(
+        (repository, index, repositories) =>
+          repositories.findIndex(
+            (entry) => (entry.repositoryKey || entry.path) === (repository.repositoryKey || repository.path),
+          ) === index,
+      );
       return { ok: true, snapshot };
     } catch (error) {
       return errorResponse(error, "Unable to read the dev working folder.");
@@ -127,7 +139,14 @@ function createDevWebBridgeMiddleware(projectRoot) {
       }
       return snapshotResponse(payload.view);
     },
-    "/getRecentRepositories": async () => [repositoryEntry(repositoryPath)],
+    "/getRecentRepositories": async () => recentRepositories,
+    "/removeRecentRepository": async (payload) => {
+      const repository = payload.repository ?? {};
+      recentRepositories = recentRepositories.filter(
+        (entry) => entry.path !== repository.path && (entry.repositoryKey || entry.path) !== (repository.repositoryKey || repository.path),
+      );
+      return recentRepositories;
+    },
     "/getAvailableWorkspaceTargets": async () => getAvailableWorkspaceTargets(),
     "/getActiveWorkspaceTarget": async () => activeWorkspaceTarget,
     "/setActiveWorkspaceTarget": async (payload) => {
@@ -174,6 +193,32 @@ function createDevWebBridgeMiddleware(projectRoot) {
         `Checked out ${payload.ref}.`,
         "Unable to checkout ref.",
       ),
+    "/pushCurrentBranch": async (payload) =>
+      actionWithSnapshot(
+        (root, view) => pushCurrentBranch(root, view),
+        payload.view,
+        "Pushed current branch.",
+        "Unable to push current branch.",
+      ),
+    "/pullCurrentBranch": async (payload) =>
+      actionWithSnapshot(
+        (root, view) => pullCurrentBranch(root, view),
+        payload.view,
+        "Pulled current branch.",
+        "Unable to pull current branch.",
+      ),
+    "/fetchRemotes": async (payload) =>
+      actionWithSnapshot(
+        (root, view) => fetchRemotes(root, view),
+        payload.view,
+        "Fetched remotes.",
+        "Unable to fetch remotes.",
+      ),
+    "/openRepositoryRemote": async () => ({
+      ok: true,
+      message: "Opened repository remote.",
+      url: await repositoryRemoteWebUrl(repositoryPath),
+    }),
     "/openWorktree": async (payload) =>
       actionWithSnapshot(
         (root, view) => openWorktree(root, payload.worktreePath, view),

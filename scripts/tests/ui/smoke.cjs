@@ -10,6 +10,7 @@ const desktopViewport = { width: 960, height: 720 };
 const temporaryInfoViewport = { width: 280, height: 252 };
 const changedFileInfoViewport = { width: 280, height: 252 };
 const commitInfoViewport = { width: 348, height: 240 };
+const functionMenuViewport = { width: 218, height: 344 };
 const testTimeZone = "Asia/Shanghai";
 const allWorkspaceTargets = ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"];
 const fileManagerLabel = process.platform === "win32" ? "Explorer" : "Finder";
@@ -228,11 +229,14 @@ function installGocusMock(config) {
   window.__gocusCopiedText = "";
   window.__gocusClipboardText = config.clipboardText ?? "";
   window.__gocusTemporaryInfoPayload = config.temporaryInfoPayload ?? null;
+  window.__gocusFunctionMenuPayload = config.functionMenuPayload ?? null;
   window.__gocusChangedFileInfoPayload = config.changedFileInfoPayload ?? null;
   window.__gocusCommitInfoPayload = config.commitInfoPayload ?? null;
   window.__gocusCommitInfoSetCalls = [];
   window.__gocusWorkspaceOpenMenuPayload = null;
   window.__gocusTemporaryInfoListeners = [];
+  window.__gocusFunctionMenuListeners = [];
+  window.__gocusFunctionMenuClosedListeners = [];
   window.__gocusChangedFileInfoListeners = [];
   window.__gocusChangedFileInfoPanelClosedListeners = [];
   window.__gocusCommitInfoListeners = [];
@@ -251,8 +255,17 @@ function installGocusMock(config) {
   window.__gocusSnapshotRequests = [];
   window.__gocusOpenedWorkspaces = [];
   window.__gocusOpenedWorkspaceFiles = [];
+  window.__gocusRemovedRecentRepositories = [];
+  window.__gocusSwitchedRepositories = [];
+  window.__gocusPushCount = 0;
+  window.__gocusPullCount = 0;
+  window.__gocusFetchCount = 0;
+  window.__gocusUpdateCheckCount = 0;
+  window.__gocusOpenedGitHubReleases = 0;
+  window.__gocusOpenedRepositoryRemote = 0;
   window.__gocusCollapsedRailHeights = [];
   window.__gocusCommitInfoPanelHeights = [];
+  window.__gocusFunctionMenuPanelHeights = [];
   window.__gocusRefreshCount = 0;
   if (config.clipboardAvailable) {
     Object.defineProperty(navigator, "clipboard", {
@@ -299,6 +312,12 @@ function installGocusMock(config) {
       if (config.recentRepositoriesError) throw new Error(config.recentRepositoriesError);
       return config.recentRepositories ?? [];
     },
+    removeRecentRepository: async (repository) => {
+      window.__gocusRemovedRecentRepositories.push(repository);
+      return (config.recentRepositories ?? []).filter(
+        (entry) => entry.path !== repository.path && (entry.repositoryKey || entry.path) !== (repository.repositoryKey || repository.path),
+      );
+    },
     onSnapshotUpdated: () => () => {},
     onCollapsedChanged: () => () => {},
     onPinnedChanged: (callback) => {
@@ -326,6 +345,10 @@ function installGocusMock(config) {
       if (config.temporaryInfoPayloadError) throw new Error(config.temporaryInfoPayloadError);
       return window.__gocusTemporaryInfoPayload;
     },
+    getFunctionMenuPayload: async () => {
+      if (config.functionMenuPayloadError) throw new Error(config.functionMenuPayloadError);
+      return window.__gocusFunctionMenuPayload;
+    },
     getChangedFileInfoPayload: async () => {
       if (config.changedFileInfoPayloadError) throw new Error(config.changedFileInfoPayloadError);
       return window.__gocusChangedFileInfoPayload;
@@ -338,6 +361,18 @@ function installGocusMock(config) {
       window.__gocusTemporaryInfoListeners.push(callback);
       return () => {
         window.__gocusTemporaryInfoListeners = window.__gocusTemporaryInfoListeners.filter((listener) => listener !== callback);
+      };
+    },
+    onFunctionMenuPayloadUpdated: (callback) => {
+      window.__gocusFunctionMenuListeners.push(callback);
+      return () => {
+        window.__gocusFunctionMenuListeners = window.__gocusFunctionMenuListeners.filter((listener) => listener !== callback);
+      };
+    },
+    onFunctionMenuPanelClosed: (callback) => {
+      window.__gocusFunctionMenuClosedListeners.push(callback);
+      return () => {
+        window.__gocusFunctionMenuClosedListeners = window.__gocusFunctionMenuClosedListeners.filter((listener) => listener !== callback);
       };
     },
     onChangedFileInfoPayloadUpdated: (callback) => {
@@ -367,6 +402,12 @@ function installGocusMock(config) {
       window.__gocusTemporaryInfoPayload = payload;
       window.__gocusTemporaryInfoListeners.forEach((callback) => callback(payload));
     },
+    setFunctionMenuPanel: async (payload) => {
+      if (config.setFunctionMenuPanelError) throw new Error(config.setFunctionMenuPanelError);
+      window.__gocusFunctionMenuPayload = payload;
+      window.__gocusFunctionMenuListeners.forEach((callback) => callback(payload));
+      if (!payload) window.__gocusFunctionMenuClosedListeners.forEach((callback) => callback());
+    },
     setChangedFileInfoPanel: async (payload) => {
       if (config.setChangedFileInfoPanelError) throw new Error(config.setChangedFileInfoPanelError);
       window.__gocusChangedFileInfoPayload = payload;
@@ -386,6 +427,9 @@ function installGocusMock(config) {
     isCommitInfoPanelActive: async () => window.__gocusCommitInfoPanelActive,
     setCommitInfoPanelHeight: async (height) => {
       window.__gocusCommitInfoPanelHeights.push(height);
+    },
+    setFunctionMenuPanelHeight: async (height) => {
+      window.__gocusFunctionMenuPanelHeights.push(height);
     },
     savePreferences: async (preferences) => {
       window.__gocusSavedPreferences.push(preferences);
@@ -420,6 +464,29 @@ function installGocusMock(config) {
       if (config.refreshError) throw new Error(config.refreshError);
       return actionSnapshot ? { ok: true, snapshot: actionSnapshot } : initialResponse;
     },
+    pushCurrentBranch: async () => {
+      window.__gocusPushCount += 1;
+      return { ok: true, message: "Pushed current branch.", snapshot: actionSnapshot };
+    },
+    pullCurrentBranch: async () => {
+      window.__gocusPullCount += 1;
+      return { ok: true, message: "Pulled current branch.", snapshot: actionSnapshot };
+    },
+    fetchRemotes: async () => {
+      window.__gocusFetchCount += 1;
+      return { ok: true, message: "Fetched remotes.", snapshot: actionSnapshot };
+    },
+    checkForUpdates: async () => {
+      window.__gocusUpdateCheckCount += 1;
+      return { ok: true };
+    },
+    openGitHubReleases: async () => {
+      window.__gocusOpenedGitHubReleases += 1;
+    },
+    openRepositoryRemote: async () => {
+      window.__gocusOpenedRepositoryRemote += 1;
+      return { ok: true, message: "Opened repository remote." };
+    },
     checkout: async (ref, view) => {
       window.__gocusActions.push({ type: "checkout", ref, view });
       return { ok: true, snapshot: actionSnapshot };
@@ -442,7 +509,10 @@ function installGocusMock(config) {
       return initializedResponse;
     },
     openRepository: async () => initializedResponse,
-    switchRepository: async () => initializedResponse,
+    switchRepository: async (repositoryPath) => {
+      window.__gocusSwitchedRepositories.push(repositoryPath);
+      return initializedResponse;
+    },
   };
 }
 
@@ -1199,6 +1269,188 @@ async function testCommitInfoPanel(browser, baseUrl) {
     assert.ok(compactReportedHeight < 132, `commit info panel height should shrink below the old fixed height: ${compactReportedHeight}`);
     await assertVisibleWithinViewport(page, hoverPanel, "commit info panel");
     await assertNoHorizontalOverflow(page, "commit info panel");
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
+async function testFunctionMenuPanel(browser, baseUrl) {
+  const snapshot = snapshotForCommits(mockCommits, {
+    branch: { name: "main", upstream: "origin/main", ahead: 1, behind: 0, detached: false },
+    worktrees: [
+      {
+        path: "/Users/junrong/codespace/git-tree-vis",
+        branch: "main",
+        head: "a1b2c3d000000000000000000000000000000000",
+        headShortHash: "a1b2c3d",
+        headTitle: "Add commit search polish",
+        headRelativeTime: "2 minutes ago",
+        detached: false,
+        bare: false,
+        current: true,
+        counts: { modified: 1, staged: 0, untracked: 1 },
+      },
+    ],
+  });
+  const functionMenuPayload = {
+    kind: "function-menu",
+    repository: {
+      repoName: snapshot.repoName,
+      repoPath: snapshot.repoPath,
+      branch: snapshot.branch,
+      changedFileCount: snapshot.changedFiles.length,
+      worktreeCount: snapshot.worktrees.length,
+    },
+    activeWorkspaceTarget: "finder",
+    availableWorkspaceTargets: ["finder", "terminal", "cursor"],
+    enabledWorkspaceTargets: ["finder", "terminal"],
+  };
+  const { page, errors } = await openMockedPage(
+    browser,
+    `${baseUrl}?window=function-menu`,
+    mockedSnapshotScenario(mockCommits, { branch: snapshot.branch }),
+    {
+      viewport: functionMenuViewport,
+      functionMenuPayload,
+      availableWorkspaceTargets: ["finder", "terminal", "cursor"],
+      activeWorkspaceTarget: "finder",
+    },
+  );
+
+  try {
+    assert.match(await page.title(), /Gocus/);
+    await page.locator(".function-menu-panel").waitFor();
+    assert.equal(await page.getByRole("heading", { level: 1, name: "Tools" }).isVisible(), true);
+    assert.equal(await page.locator(".function-menu-repository").count(), 0);
+    assert.equal(await page.locator(".function-menu-section").count(), 4);
+    assert.deepEqual(
+      await page.locator(".function-menu-section").evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).borderTopStyle)),
+      ["none", "solid", "solid", "solid"],
+    );
+    assert.equal(await page.locator(".function-menu-action-copy").count(), 0);
+    assert.equal(await page.locator(".function-menu-action-label").count(), 7);
+    assert.deepEqual(await page.locator(".function-menu-action-label").allInnerTexts(), [
+      "Open",
+      "Pull",
+      "Push",
+      "Fetch",
+      "Refresh",
+      "Remote",
+      "Update",
+    ]);
+    assert.equal(
+      (await page.locator(".function-menu-panel").innerText()).trim(),
+      "Tools\nWorkspace\nOpen\nGit\nPull\nPush\nFetch\nRefresh\nGitHub\nRemote\nApp\nUpdate",
+    );
+    assert.equal(await page.locator(".function-menu-panel").evaluate((node) => getComputedStyle(node).overflowY), "visible");
+    const compactPanelWidth = await page.locator(".function-menu-panel").evaluate((node) => Math.round(node.getBoundingClientRect().width));
+    assert.ok(compactPanelWidth <= 218, `function menu panel should stay narrow: ${compactPanelWidth}`);
+    const gitActionRows = await page.locator('section[aria-label="Git"] .function-menu-action').evaluateAll((nodes) =>
+      nodes.map((node) => Math.round(node.getBoundingClientRect().top)),
+    );
+    assert.equal(new Set(gitActionRows).size, 1, `git actions should fit in one row: ${JSON.stringify(gitActionRows)}`);
+    const gitActionRightGutter = await page.locator('section[aria-label="Git"] .function-menu-action').last().evaluate((node) => {
+      const panelRect = document.querySelector(".function-menu-panel").getBoundingClientRect();
+      const actionRect = node.getBoundingClientRect();
+      return Math.round(panelRect.right - actionRect.right);
+    });
+    assert.ok(gitActionRightGutter >= 18, `git actions should leave right breathing room: ${gitActionRightGutter}`);
+    await page.setViewportSize({ width: 576, height: functionMenuViewport.height });
+    const wideViewportPanel = await page.locator(".function-menu-panel").evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      return {
+        right: Math.round(rect.right),
+        viewportWidth: window.innerWidth,
+        width: Math.round(rect.width),
+      };
+    });
+    assert.ok(wideViewportPanel.width <= 218, `wide viewport should not stretch function menu: ${JSON.stringify(wideViewportPanel)}`);
+    assert.ok(
+      Math.abs(wideViewportPanel.viewportWidth - wideViewportPanel.right) <= 1,
+      `function menu should stay aligned to the main window edge: ${JSON.stringify(wideViewportPanel)}`,
+    );
+    await page.waitForFunction(() => window.__gocusFunctionMenuPanelHeights?.length > 0);
+    const reportedFunctionMenuHeight = await page.evaluate(() => window.__gocusFunctionMenuPanelHeights.at(-1));
+    assert.ok(
+      reportedFunctionMenuHeight >= 300 && reportedFunctionMenuHeight <= 370,
+      `function menu should report a compact toolbox height: ${reportedFunctionMenuHeight}`,
+    );
+    assert.equal(await page.getByRole("button", { name: "Open or switch workspace" }).isEnabled(), true);
+    assert.equal(await page.getByRole("button", { name: "Pull current branch (fast-forward only)" }).isEnabled(), true);
+    assert.equal(await page.getByRole("button", { name: "Push or publish current branch" }).isEnabled(), true);
+    assert.equal(await page.getByRole("button", { name: "Close menu" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: /Cursor/ }).count(), 0);
+
+    await page.getByRole("button", { name: "Pull current branch (fast-forward only)" }).click();
+    await page.waitForFunction(() => window.__gocusPullCount === 1);
+    await page.getByRole("button", { name: "Push or publish current branch" }).click();
+    await page.waitForFunction(() => window.__gocusPushCount === 1);
+
+    await page.evaluate(() => {
+      window.__gocusResolvePendingFetch = null;
+      window.gocus.fetchRemotes = async () => {
+        window.__gocusFetchCount += 1;
+        return await new Promise((resolve) => {
+          window.__gocusResolvePendingFetch = () => {
+            window.__gocusResolvePendingFetch = null;
+            resolve({ ok: true, message: "Fetched remotes." });
+          };
+        });
+      };
+    });
+    await page.getByRole("button", { name: "Fetch remotes" }).click();
+    await page.waitForFunction(() => window.__gocusFetchCount === 1 && window.__gocusResolvePendingFetch);
+    const fetchButton = page.getByRole("button", { name: "Fetch remotes" });
+    assert.equal(await fetchButton.getAttribute("aria-busy"), "true");
+    assert.equal(await fetchButton.locator(".is-spinning").count(), 0);
+    assert.equal(await page.locator(".function-menu-panel .is-spinning").count(), 0);
+    await page.evaluate(() => window.__gocusResolvePendingFetch());
+    await page.waitForFunction(() => window.__gocusResolvePendingFetch === null);
+
+    await page.getByRole("button", { name: "Open repository remote" }).click();
+    await page.waitForFunction(() => window.__gocusOpenedRepositoryRemote === 1);
+    await page.getByRole("button", { name: "Refresh Git data" }).click();
+    await page.waitForFunction(() => window.__gocusRefreshCount === 1);
+    await page.getByRole("button", { name: "Check for updates" }).click();
+    await page.waitForFunction(() => window.__gocusUpdateCheckCount === 1);
+    assert.equal(await page.locator(".function-menu-feedback").count(), 0);
+    await assertNoHorizontalOverflow(page, "function menu");
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.close();
+  }
+}
+
+async function testFunctionMenuTriggerAndRecentRemoval(browser, baseUrl) {
+  const { page, errors } = await openMockedPage(browser, baseUrl, dismissableMenuScenario());
+
+  try {
+    await assertHealthyPage(page, errors);
+
+    const functionMenuButton = page.getByRole("button", { name: "Open function menu" });
+    await functionMenuButton.click();
+    await page.waitForFunction(() => window.__gocusFunctionMenuPayload?.kind === "function-menu");
+    assert.equal(await page.getByRole("button", { name: "Close function menu" }).getAttribute("aria-pressed"), "true");
+    assert.equal(await page.evaluate(() => window.__gocusFunctionMenuPayload.repository.repoName), "git-tree-vis");
+
+    await page.getByRole("button", { name: "Close function menu" }).click();
+    await page.waitForFunction(() => window.__gocusFunctionMenuPayload === null);
+    assert.equal(await page.getByRole("button", { name: "Open function menu" }).getAttribute("aria-pressed"), "false");
+
+    await page.getByRole("button", { name: "Switch recent repository" }).click();
+    const removeRecentButton = page.getByRole("button", { name: "Remove another-repo - codespace from recent workspaces" });
+    await removeRecentButton.click();
+    assert.deepEqual(await page.evaluate(() => window.__gocusRemovedRecentRepositories), []);
+    const confirmRemoveRecentButton = page.getByRole("button", { name: "Confirm remove another-repo - codespace from recent workspaces" });
+    await confirmRemoveRecentButton.waitFor();
+    assert.equal(await confirmRemoveRecentButton.getAttribute("title"), "Click again to remove");
+    await confirmRemoveRecentButton.click();
+    assert.deepEqual(
+      await page.evaluate(() => window.__gocusRemovedRecentRepositories.map((repository) => repository.path)),
+      ["/Users/junrong/codespace/another-repo"],
+    );
+    assert.deepEqual(await page.evaluate(() => window.__gocusSwitchedRepositories), []);
     assert.deepEqual(errors, []);
   } finally {
     await page.close();
@@ -2667,6 +2919,8 @@ async function main() {
     await testCommitHoverPanel(browser, baseUrl);
     await testCommitPreviewBlurKeepsActiveInfoPanel(browser, baseUrl);
     await testCommitInfoPanel(browser, baseUrl);
+    await testFunctionMenuPanel(browser, baseUrl);
+    await testFunctionMenuTriggerAndRecentRemoval(browser, baseUrl);
     await testCommitSearch(browser, baseUrl);
     await testLargeCommitListVirtualizes(browser, baseUrl);
     await testMergeConfirmBlocksDirtyWorkspace(browser, baseUrl);

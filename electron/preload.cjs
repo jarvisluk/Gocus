@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("gocus", {
   openRepository: (view) => ipcRenderer.invoke("git:openRepository", view),
   switchRepository: (repositoryPath, view) => ipcRenderer.invoke("git:switchRepository", repositoryPath, view),
   getRecentRepositories: () => ipcRenderer.invoke("git:getRecentRepositories"),
+  removeRecentRepository: (repository) => ipcRenderer.invoke("git:removeRecentRepository", repository),
   refresh: (view) => ipcRenderer.invoke("git:refresh", view),
   getSnapshot: (view) => ipcRenderer.invoke("git:getSnapshot", view),
   clearRepository: () => ipcRenderer.invoke("git:clearRepository"),
@@ -15,6 +16,10 @@ contextBridge.exposeInMainWorld("gocus", {
   createBranch: (branchName, startPoint, view) => ipcRenderer.invoke("git:createBranch", branchName, startPoint, view),
   merge: (ref, targetBranch, view, options) => ipcRenderer.invoke("git:merge", ref, targetBranch, view, options),
   checkout: (ref, view) => ipcRenderer.invoke("git:checkout", ref, view),
+  pushCurrentBranch: (view) => ipcRenderer.invoke("git:pushCurrentBranch", view),
+  pullCurrentBranch: (view) => ipcRenderer.invoke("git:pullCurrentBranch", view),
+  fetchRemotes: (view) => ipcRenderer.invoke("git:fetchRemotes", view),
+  openRepositoryRemote: () => ipcRenderer.invoke("git:openRepositoryRemote"),
   openWorktree: (worktreePath, view) => ipcRenderer.invoke("git:openWorktree", worktreePath, view),
   cleanupWorktree: (worktreePath, view) => ipcRenderer.invoke("git:cleanupWorktree", worktreePath, view),
   openWorkspace: (target) => ipcRenderer.invoke("workspace:open", target),
@@ -35,6 +40,9 @@ contextBridge.exposeInMainWorld("gocus", {
   dockToEdge: (collapsed) => ipcRenderer.invoke("window:dockToEdge", collapsed),
   getTemporaryInfoPayload: () => ipcRenderer.invoke("window:getTemporaryInfoPayload"),
   setTemporaryInfoPanel: (payload) => ipcRenderer.invoke("window:setTemporaryInfoPanel", payload),
+  getFunctionMenuPayload: () => ipcRenderer.invoke("window:getFunctionMenuPayload"),
+  setFunctionMenuPanel: (payload) => ipcRenderer.invoke("window:setFunctionMenuPanel", payload),
+  setFunctionMenuPanelHeight: (height) => ipcRenderer.invoke("window:setFunctionMenuPanelHeight", height),
   getChangedFileInfoPayload: () => ipcRenderer.invoke("window:getChangedFileInfoPayload"),
   setChangedFileInfoPanel: (payload) => ipcRenderer.invoke("window:setChangedFileInfoPanel", payload),
   getCommitInfoPayload: () => ipcRenderer.invoke("window:getCommitInfoPayload"),
@@ -53,6 +61,16 @@ contextBridge.exposeInMainWorld("gocus", {
     const handler = () => callback();
     ipcRenderer.on("window:temporaryInfoPanelClosed", handler);
     return () => ipcRenderer.removeListener("window:temporaryInfoPanelClosed", handler);
+  },
+  onFunctionMenuPayloadUpdated: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on("window:functionMenuPayload", handler);
+    return () => ipcRenderer.removeListener("window:functionMenuPayload", handler);
+  },
+  onFunctionMenuPanelClosed: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on("window:functionMenuPanelClosed", handler);
+    return () => ipcRenderer.removeListener("window:functionMenuPanelClosed", handler);
   },
   onChangedFileInfoPayloadUpdated: (callback) => {
     const handler = (_event, payload) => callback(payload);

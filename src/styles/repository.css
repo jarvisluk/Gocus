@@ -49,7 +49,20 @@
   overflow-y: auto;
 }
 
+.repo-menu-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.repo-menu-row.has-remove {
+  grid-template-columns: minmax(0, 1fr) var(--control-md);
+  gap: var(--space-xs);
+}
+
 .repo-menu-item {
+  width: 100%;
   grid-template-columns: 18px minmax(0, 1fr);
   min-height: 42px;
 }
@@ -72,6 +85,39 @@
   overflow-wrap: anywhere;
   text-overflow: clip;
   white-space: normal;
+}
+
+.repo-menu-remove {
+  width: var(--control-md);
+  min-height: 42px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.repo-menu-remove:hover,
+.repo-menu-remove:focus-visible {
+  background: var(--surface-hover);
+  color: var(--danger);
+}
+
+.repo-menu-remove.is-confirming {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
+
+.repo-menu-remove.is-confirming:hover,
+.repo-menu-remove.is-confirming:focus-visible {
+  background: color-mix(in srgb, var(--danger) 22%, transparent);
+}
+
+.repo-menu-remove svg {
+  width: var(--icon-md);
+  height: var(--icon-md);
 }
 
 @media (max-width: 460px) {

@@ -1,8 +1,5 @@
 .temporary-info-viewport {
-  width: 100vw;
   height: 100vh;
-  overflow: hidden;
-  background: transparent;
 }
 
 .temporary-info-panel {
@@ -15,7 +12,6 @@
   border: 0;
   border-radius: 0;
   box-shadow: none;
-  -webkit-app-region: no-drag;
 }
 
 .temporary-info-empty {

@@ -1,0 +1,104 @@
+.function-menu-viewport {
+  display: grid;
+  align-items: start;
+  justify-items: end;
+  padding: 0;
+}
+
+.function-menu-panel {
+  width: 100%;
+  max-width: 218px;
+  display: grid;
+  gap: var(--space-lg);
+  overflow: visible;
+  padding: var(--space-xl);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  backdrop-filter: var(--panel-backdrop-filter);
+}
+
+.function-menu-title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--type-heading-1-size);
+  font-weight: var(--font-weight-title);
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+.function-menu-sections {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.function-menu-section {
+  display: grid;
+  gap: var(--space-xs);
+  margin-right: var(--space-xs);
+}
+
+.function-menu-section + .function-menu-section {
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--border-soft);
+}
+
+.function-menu-section-title {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--type-micro-size);
+  font-weight: var(--font-weight-strong);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.function-menu-tools {
+  display: grid;
+  grid-template-columns: repeat(4, 40px);
+  gap: var(--space-xs) var(--space-md);
+  justify-content: start;
+}
+
+.function-menu-action {
+  width: 40px;
+  min-height: 44px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 2px;
+  padding: 3px 0 2px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.function-menu-action:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.function-menu-action-icon {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+}
+
+.function-menu-action-icon svg {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+}
+
+.function-menu-action-label {
+  max-width: 100%;
+  overflow: hidden;
+  color: inherit;
+  font-size: var(--type-micro-size);
+  font-weight: var(--font-weight-body);
+  line-height: 1.05;
+  text-overflow: clip;
+  white-space: nowrap;
+}

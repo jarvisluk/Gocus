@@ -15,8 +15,9 @@ button:disabled {
   opacity: 0.42;
 }
 
-:is(.icon-button, .repo-title-button, .repo-menu-item, .ui-disclosure-button,
-    .workspace-open-trigger, .workspace-open-menu-toggle, .workspace-open-menu-item),
+:is(.icon-button, .repo-title-button, .repo-menu-item, .repo-menu-remove, .ui-disclosure-button,
+    .workspace-open-trigger, .workspace-open-menu-toggle, .workspace-open-menu-item,
+    .function-menu-action),
 .heading-tools button {
   border: 0;
   color: inherit;

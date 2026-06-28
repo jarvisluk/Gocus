@@ -1,5 +1,7 @@
 @import "./changed.css";
+@import "./side-window.css";
 @import "./temporary.css";
+@import "./function-menu.css";
 @import "./footer.css";
 @import "./workspace-open.css";
 @import "./collapsed-rail.css";

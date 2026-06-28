@@ -5,6 +5,7 @@ import { runTemporaryInfoPanelBridgeSideEffect } from "../lib/temporaryInfoPanel
 import { changedFilesSelectedFileKey, temporaryInfoWindowView } from "../lib/temporaryInfoSelection";
 import type { TemporaryInfoPayload, UiPreferences } from "../types";
 import { ChangedNow } from "./ChangedNow";
+import { SideWindowShell } from "./SideWindowShell";
 
 export function TemporaryInfoWindow() {
   const [payload, setPayload] = useState<TemporaryInfoPayload>(null);
@@ -60,28 +61,22 @@ export function TemporaryInfoWindow() {
   }
 
   return (
-    <main className={view.viewport.className}>
+    <SideWindowShell
+      viewportClassName={view.viewport.className}
+      panelClassName={view.panel.className}
+      panelAriaLabel={view.panel.ariaLabel}
+      emptyState={view.emptyState}
+    >
       {view.changedFilesPayload ? (
-        <section className={view.panel.className} aria-label={view.panel.ariaLabel}>
-          <ChangedNow
-            files={view.changedFilesPayload.files}
-            filter={view.changedFilesPayload.filter}
-            promptLanguage={preferences.promptLanguage}
-            selectedFileKey={selectedFileKey}
-            onClose={closeTemporaryInfoPanel}
-            onSelectFile={setSelectedFileKey}
-          />
-        </section>
-      ) : (
-        <section
-          className={view.emptyState.className}
-          aria-label={view.emptyState.ariaLabel}
-          role={view.emptyState.role}
-          aria-live={view.emptyState.ariaLive}
-        >
-          {view.emptyState.message}
-        </section>
-      )}
-    </main>
+        <ChangedNow
+          files={view.changedFilesPayload.files}
+          filter={view.changedFilesPayload.filter}
+          promptLanguage={preferences.promptLanguage}
+          selectedFileKey={selectedFileKey}
+          onClose={closeTemporaryInfoPanel}
+          onSelectFile={setSelectedFileKey}
+        />
+      ) : null}
+    </SideWindowShell>
   );
 }

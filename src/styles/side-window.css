@@ -1,0 +1,12 @@
+.side-window-viewport {
+  width: 100vw;
+  min-width: 0;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.side-window-panel {
+  min-width: 0;
+  box-sizing: border-box;
+  -webkit-app-region: no-drag;
+}

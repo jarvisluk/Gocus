@@ -18,9 +18,10 @@ export function repositoryOptionActive(repository: RecentRepository, currentRepo
   return currentRepository ? isSameRecentRepository(repository, currentRepository) : false;
 }
 
-export function panelHeaderOpenRepositoryButtonView() {
+export function panelHeaderFunctionMenuButtonView(open: boolean) {
   return {
-    label: "Open repository",
+    label: open ? "Close function menu" : "Open function menu",
+    active: open,
   };
 }
 
@@ -33,21 +34,33 @@ export function panelRepositoryMenuView() {
   };
 }
 
-export function panelRepositoryMenuItemView(repository: RecentRepository, currentRepository: RecentRepository | null) {
+export function panelRepositoryMenuItemView(
+  repository: RecentRepository,
+  currentRepository: RecentRepository | null,
+  confirmRemove = false,
+) {
   const active = repositoryOptionActive(repository, currentRepository);
+  const label = recentRepositoryLabel(repository);
 
   return {
     active,
+    rowClassName: joinClass("repo-menu-row", !active && "has-remove"),
     className: joinClass("ui-menu-item", "repo-menu-item", active && "is-active"),
     role: "menuitem" as const,
     ariaCurrent: active ? ("true" as const) : undefined,
     showCheck: active,
     checkClassName: "repo-menu-check",
     textClassName: "repo-menu-text",
+    showRemove: !active,
+    removeClassName: joinClass("repo-menu-remove", confirmRemove && "is-confirming"),
+    removeAriaLabel: confirmRemove ? `Confirm remove ${label} from recent workspaces` : `Remove ${label} from recent workspaces`,
+    removeTitle: confirmRemove ? "Click again to remove" : "Remove from recent workspaces",
+    confirmRemove,
+    repository,
     key: repository.path,
     path: repository.path,
     title: repository.path,
-    label: recentRepositoryLabel(repository),
+    label,
   };
 }
 

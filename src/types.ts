@@ -193,6 +193,20 @@ export type ChangedFilesTemporaryInfoPayload = {
   workspaceOpenTarget: WorkspaceOpenTarget | "";
 };
 
+export type FunctionMenuPayload = {
+  kind: "function-menu";
+  repository: {
+    repoName: string;
+    repoPath: string;
+    branch: GitBranchState;
+    changedFileCount: number;
+    worktreeCount: number;
+  } | null;
+  activeWorkspaceTarget: WorkspaceOpenTarget;
+  availableWorkspaceTargets: WorkspaceOpenTarget[];
+  enabledWorkspaceTargets: WorkspaceOpenTarget[];
+} | null;
+
 export interface CommitInfoAnchorBounds {
   top: number;
   height: number;

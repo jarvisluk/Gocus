@@ -4,10 +4,10 @@ import { politeStatusView } from "./statusView";
 export function changedFileInfoWindowView(payload: ChangedFileInfoPayload) {
   return {
     viewport: {
-      className: "temporary-info-viewport is-electron",
+      className: "side-window-viewport temporary-info-viewport is-electron",
     },
     panel: {
-      className: "peek-panel temporary-info-panel is-changed-file",
+      className: "side-window-panel peek-panel temporary-info-panel is-changed-file",
       ariaLabel: "Changed file details window",
     },
     emptyState: politeStatusView({

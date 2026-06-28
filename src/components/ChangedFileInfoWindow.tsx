@@ -5,6 +5,7 @@ import { applyPreferences, defaultPreferences, mergePreferences } from "../lib/p
 import { defaultWorkspaceOpenTarget, defaultWorkspaceOpenTargets, sanitizeWorkspaceOpenTargets } from "../lib/workspaceOpenTargets";
 import type { ChangedFileInfoPayload, UiPreferences, WorkspaceOpenMenuAnchorBounds, WorkspaceOpenTarget } from "../types";
 import { ChangedFileInfoPanel } from "./ChangedNow";
+import { SideWindowShell } from "./SideWindowShell";
 import { WorkspaceOpenControl } from "./WorkspaceOpenControl";
 
 export function ChangedFileInfoWindow() {
@@ -98,34 +99,28 @@ export function ChangedFileInfoWindow() {
   }
 
   return (
-    <main className={view.viewport.className}>
+    <SideWindowShell
+      viewportClassName={view.viewport.className}
+      panelClassName={view.panel.className}
+      panelAriaLabel={view.panel.ariaLabel}
+      emptyState={view.emptyState}
+    >
       {view.changedFilePayload ? (
-        <section className={view.panel.className} aria-label={view.panel.ariaLabel}>
-          <ChangedFileInfoPanel
-            file={view.changedFilePayload.file}
-            actions={
-              <WorkspaceOpenControl
-                activeWorkspaceTarget={activeWorkspaceTarget}
-                availableWorkspaceTargets={availableWorkspaceTargets}
-                enabledWorkspaceTargets={preferences.workspaceOpenTargets}
-                onActiveWorkspaceTargetChange={updateActiveWorkspaceTarget}
-                onOpenExternalMenu={openChangedFileWorkspaceMenu}
-                onOpenTarget={openChangedFile}
-              />
-            }
-            onClose={closeChangedFileInfoPanel}
-          />
-        </section>
-      ) : (
-        <section
-          className={view.emptyState.className}
-          aria-label={view.emptyState.ariaLabel}
-          role={view.emptyState.role}
-          aria-live={view.emptyState.ariaLive}
-        >
-          {view.emptyState.message}
-        </section>
-      )}
-    </main>
+        <ChangedFileInfoPanel
+          file={view.changedFilePayload.file}
+          actions={
+            <WorkspaceOpenControl
+              activeWorkspaceTarget={activeWorkspaceTarget}
+              availableWorkspaceTargets={availableWorkspaceTargets}
+              enabledWorkspaceTargets={preferences.workspaceOpenTargets}
+              onActiveWorkspaceTargetChange={updateActiveWorkspaceTarget}
+              onOpenExternalMenu={openChangedFileWorkspaceMenu}
+              onOpenTarget={openChangedFile}
+            />
+          }
+          onClose={closeChangedFileInfoPanel}
+        />
+      ) : null}
+    </SideWindowShell>
   );
 }

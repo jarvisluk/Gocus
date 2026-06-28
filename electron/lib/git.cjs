@@ -738,6 +738,101 @@ async function checkout(repoPath, ref, view) {
   return readGitSnapshot(root, view);
 }
 
+async function remoteNames(root) {
+  return (await runGit(root, ["remote"]))
+    .split("\n")
+    .map((remote) => remote.trim())
+    .filter(Boolean);
+}
+
+async function assertRemoteConfigured(root) {
+  const remotes = await remoteNames(root);
+  if (remotes.length === 0) throw new Error("No Git remotes configured.");
+  return remotes;
+}
+
+function cleanRemotePathname(pathname) {
+  return `${pathname ?? ""}`
+    .replace(/^\/+/, "")
+    .replace(/\/+$/, "")
+    .replace(/\.git$/i, "");
+}
+
+function remoteWebUrlFromGitUrl(remoteUrl) {
+  const value = `${remoteUrl ?? ""}`.trim();
+  if (!value) return "";
+
+  const scpLikeMatch = value.includes("://") ? null : value.match(/^([^@\s]+@)?([^:\s]+):(.+)$/);
+  if (scpLikeMatch) {
+    const host = scpLikeMatch[2];
+    const pathname = cleanRemotePathname(scpLikeMatch[3]);
+    return host && pathname ? `https://${host}/${pathname}` : "";
+  }
+
+  try {
+    const url = new URL(value);
+    const pathname = cleanRemotePathname(url.pathname);
+    if (!url.hostname || !pathname) return "";
+    if (url.protocol === "http:" || url.protocol === "https:") return `${url.protocol}//${url.host}/${pathname}`;
+    if (url.protocol === "ssh:" || url.protocol === "git:") return `https://${url.host}/${pathname}`;
+  } catch {
+    return "";
+  }
+
+  return "";
+}
+
+async function repositoryRemoteWebUrl(repoPath) {
+  const root = await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
+  const remotes = await assertRemoteConfigured(root);
+  const orderedRemotes = ["origin", ...remotes.filter((remote) => remote !== "origin")].filter((remote) => remotes.includes(remote));
+
+  for (const remote of orderedRemotes) {
+    const remoteUrl = await runGit(root, ["remote", "get-url", remote]).catch(() => "");
+    const webUrl = remoteWebUrlFromGitUrl(remoteUrl);
+    if (webUrl) return webUrl;
+  }
+
+  throw new Error("No openable Git remote URL configured.");
+}
+
+async function currentBranchName(root) {
+  const branchName = await runGit(root, ["branch", "--show-current"]);
+  if (!branchName) throw new Error("Cannot push from detached HEAD.");
+  return branchName;
+}
+
+async function pushCurrentBranch(repoPath, view) {
+  const root = await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
+  const branchName = await currentBranchName(root);
+  const upstream = await runGit(root, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]).catch(() => "");
+
+  if (upstream) {
+    await runGit(root, ["push"], { timeout: 30000 });
+  } else {
+    const remotes = await assertRemoteConfigured(root);
+    const publishRemote = remotes.includes("origin") ? "origin" : remotes[0];
+    await runGit(root, ["push", "-u", publishRemote, branchName], { timeout: 30000 });
+  }
+
+  return readGitSnapshot(root, view);
+}
+
+async function pullCurrentBranch(repoPath, view) {
+  const root = await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
+  await currentBranchName(root);
+  await assertRemoteConfigured(root);
+  await runGit(root, ["pull", "--ff-only"], { timeout: 30000 });
+  return readGitSnapshot(root, view);
+}
+
+async function fetchRemotes(repoPath, view) {
+  const root = await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
+  await assertRemoteConfigured(root);
+  await runGit(root, ["fetch", "--all", "--prune"], { timeout: 30000 });
+  return readGitSnapshot(root, view);
+}
+
 function normalizeMergeOptions(options) {
   return {
     createMergeCommit: options?.createMergeCommit !== false,
@@ -867,6 +962,7 @@ module.exports = {
   createBranch,
   defaultCommitLogLimit,
   dirtyWorkspaceMergeNotice,
+  fetchRemotes,
   graphContextForWorktrees,
   initializeRepository,
   isNotGitRepositoryError,
@@ -877,8 +973,12 @@ module.exports = {
   normalizeCommitLogLimit,
   normalizeView,
   openWorktree,
+  pullCurrentBranch,
+  pushCurrentBranch,
   readFolderWithoutGit,
   readGitSnapshot,
+  remoteWebUrlFromGitUrl,
+  repositoryRemoteWebUrl,
   repositoryStateForGit,
   runGit,
 };

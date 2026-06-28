@@ -30,12 +30,15 @@ const {
   changedFileInfoBounds,
   changedFileInfoWindowSize,
   clampCommitInfoWindowHeight,
+  clampFunctionMenuWindowHeight,
   collapsedSize,
   commitInfoBounds,
   commitInfoWindowSize,
   expandedMaximumSize,
   expandedMinimumSize,
   expandedSizeFromConfig,
+  functionMenuBounds,
+  functionMenuWindowSize,
   clampCollapsedRailHeight,
   clampExpandedSize,
   mainWindowBounds,
@@ -48,13 +51,17 @@ const {
   checkout,
   cleanupWorktree,
   createBranch,
+  fetchRemotes,
   initializeRepository,
   isNotGitRepositoryError,
   merge,
   normalizeView,
   openWorktree,
+  pullCurrentBranch,
+  pushCurrentBranch,
   readFolderWithoutGit,
   readGitSnapshot,
+  repositoryRemoteWebUrl,
 } = require("./lib/git.cjs");
 const { createRepositoryWatcher } = require("./lib/gitWatcher.cjs");
 const { getAvailableWorkspaceTargets, openWorkspace, openWorkspaceFile } = require("./lib/workspace.cjs");
@@ -84,6 +91,9 @@ let changedFileInfoWindow = null;
 let changedFileInfoPayload = null;
 let commitInfoWindow = null;
 let commitInfoPayload = null;
+let functionMenuWindow = null;
+let functionMenuPayload = null;
+let functionMenuWindowHeight = functionMenuWindowSize.height;
 let commitInfoWindowHeight = commitInfoWindowSize.height;
 let commitInfoInteractionHoldUntil = 0;
 let activeWorkspaceOpenTarget = defaultActiveWorkspaceOpenTarget;
@@ -155,7 +165,7 @@ function syncWindowBackgroundColor(targetWindow) {
 }
 
 function syncWindowBackgroundColors() {
-  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow]) {
+  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow, functionMenuWindow]) {
     syncWindowBackgroundColor(win);
   }
 }
@@ -196,6 +206,12 @@ async function openGitHubReleases() {
   const releaseUrl = releaseUrlForRepository(autoUpdates.updateRepository());
   if (!releaseUrl) throw new Error("GitHub Releases URL is unavailable.");
   await shell.openExternal(releaseUrl);
+}
+
+async function openRepositoryRemote(repositoryPath) {
+  const remoteUrl = await repositoryRemoteWebUrl(repositoryPath);
+  await shell.openExternal(remoteUrl);
+  return { ok: true, message: "Opened repository remote." };
 }
 
 function shouldStartCollapsedAtLogin() {
@@ -251,6 +267,7 @@ function softQuitToMenuBar() {
   closeTemporaryInfoWindow();
   closeChangedFileInfoWindow();
   closeCommitInfoWindow();
+  closeFunctionMenuWindow();
   if (mainWindow && !mainWindow.isDestroyed()) {
     saveCurrentExpandedWindowSize(mainWindow);
     mainWindow.hide();
@@ -328,6 +345,10 @@ function clearRepositoryPath() {
 
 function readRecentRepositories() {
   return config.readRecentRepositories();
+}
+
+function removeRecentRepository(repositoryPath, repositoryKey) {
+  return config.removeRecentRepository(repositoryPath, repositoryKey);
 }
 
 function noRepositoryResponse() {
@@ -517,13 +538,13 @@ function isCommitInfoPanelActive() {
 }
 
 function sendPreferences(preferences = readPreferences()) {
-  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow]) {
+  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow, functionMenuWindow]) {
     sendToWindow(win, "preferences:changed", preferences);
   }
 }
 
 function sendActiveWorkspaceOpenTarget() {
-  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow]) {
+  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow, functionMenuWindow]) {
     sendToWindow(win, "workspace:activeTargetChanged", activeWorkspaceOpenTarget);
   }
 }
@@ -678,6 +699,7 @@ function setCollapsedWindow(collapsed) {
     closeTemporaryInfoWindow();
     closeChangedFileInfoWindow();
     closeCommitInfoWindow();
+    closeFunctionMenuWindow();
   }
   collapsedState = nextCollapsedState;
   positionWindow(mainWindow, collapsedState);
@@ -692,6 +714,7 @@ function dockWindow(collapsed = collapsedState) {
   positionTemporaryInfoWindow({ animated: true });
   positionChangedFileInfoWindow({ animated: true });
   positionCommitInfoWindow({ animated: true });
+  positionFunctionMenuWindow({ animated: true });
 }
 
 function rendererWindowUrl(mode = "") {
@@ -749,6 +772,7 @@ function closeTemporaryInfoWindowIfAppInactive() {
   setTimeout(() => {
     const appFocused =
       isWindowFocused(mainWindow) ||
+      isWindowFocused(functionMenuWindow) ||
       isWindowFocused(temporaryInfoWindow) ||
       isWindowFocused(changedFileInfoWindow) ||
       isCommitInfoPanelActive() ||
@@ -832,6 +856,138 @@ function setTemporaryInfoPanel(payload) {
   positionCommitInfoWindow();
 }
 
+function functionMenuWindowBounds() {
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
+
+  const mainBounds = mainWindow.getBounds();
+  const display = screen.getDisplayMatching(mainBounds).workArea;
+  const height = clampFunctionMenuWindowHeight(functionMenuWindowHeight, display);
+  return functionMenuBounds({ mainBounds, display, size: { ...functionMenuWindowSize, height } });
+}
+
+function sendFunctionMenuPayload() {
+  if (!functionMenuWindow || functionMenuWindow.isDestroyed()) return;
+  sendToWindow(functionMenuWindow, "window:functionMenuPayload", functionMenuPayload);
+}
+
+function sendFunctionMenuPanelClosed() {
+  sendToWindow(mainWindow, "window:functionMenuPanelClosed");
+}
+
+function setFunctionMenuWindowBounds(bounds, animated = false) {
+  if (!functionMenuWindow || functionMenuWindow.isDestroyed()) return;
+  if (windowBoundsEqual(functionMenuWindow.getBounds(), bounds)) return;
+  functionMenuWindow.setBounds(bounds, animated);
+}
+
+function positionFunctionMenuWindow({ animated = false } = {}) {
+  if (!functionMenuWindow || functionMenuWindow.isDestroyed()) return;
+  const bounds = functionMenuWindowBounds();
+  if (bounds) setFunctionMenuWindowBounds(bounds, animated);
+}
+
+function syncFunctionMenuWindowLevel() {
+  if (!functionMenuWindow || functionMenuWindow.isDestroyed()) return;
+  const mainFocused = Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused());
+  functionMenuWindow.setAlwaysOnTop(pinnedState || mainFocused, "floating");
+}
+
+function closeFunctionMenuWindowIfAppInactive() {
+  setTimeout(() => {
+    const appFocused =
+      isWindowFocused(mainWindow) ||
+      isWindowFocused(functionMenuWindow) ||
+      isWindowFocused(temporaryInfoWindow) ||
+      isWindowFocused(changedFileInfoWindow) ||
+      isCommitInfoPanelActive() ||
+      workspaceOpenMenuActive;
+    if (!appFocused) closeFunctionMenuWindow();
+  }, 80);
+}
+
+function closeFunctionMenuWindow() {
+  functionMenuPayload = null;
+  functionMenuWindowHeight = functionMenuWindowSize.height;
+  if (!functionMenuWindow || functionMenuWindow.isDestroyed()) return;
+  const windowToClose = functionMenuWindow;
+  functionMenuWindow = null;
+  sendFunctionMenuPanelClosed();
+  windowToClose.close();
+}
+
+function ensureFunctionMenuWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
+  if (functionMenuWindow && !functionMenuWindow.isDestroyed()) return functionMenuWindow;
+
+  const bounds = functionMenuWindowBounds() ?? { ...functionMenuWindowSize };
+  functionMenuWindow = new BrowserWindow({
+    ...bounds,
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: "#00000000",
+    hasShadow: true,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    skipTaskbar: true,
+    acceptFirstMouse: true,
+    title: "Gocus Function Menu",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  applyWindowShadow(functionMenuWindow);
+  syncFunctionMenuWindowLevel();
+  functionMenuWindow.once("ready-to-show", () => {
+    applyWindowShadow(functionMenuWindow);
+    positionFunctionMenuWindow();
+    syncFunctionMenuWindowLevel();
+    functionMenuWindow?.showInactive();
+    sendFunctionMenuPayload();
+  });
+  functionMenuWindow.webContents.on("did-finish-load", sendFunctionMenuPayload);
+  functionMenuWindow.on("blur", closeFunctionMenuWindowIfAppInactive);
+  functionMenuWindow.on("closed", () => {
+    functionMenuWindow = null;
+    functionMenuPayload = null;
+    functionMenuWindowHeight = functionMenuWindowSize.height;
+    sendFunctionMenuPanelClosed();
+  });
+  loadRendererWindow(functionMenuWindow, "function-menu");
+
+  return functionMenuWindow;
+}
+
+function setFunctionMenuPanel(payload) {
+  if (!payload) {
+    closeFunctionMenuWindow();
+    return;
+  }
+
+  functionMenuPayload = payload;
+  const menuWindow = ensureFunctionMenuWindow();
+  if (!menuWindow) return;
+  positionFunctionMenuWindow();
+  sendFunctionMenuPayload();
+}
+
+function setFunctionMenuPanelHeight(height) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  const mainBounds = mainWindow.getBounds();
+  const display = screen.getDisplayMatching(mainBounds).workArea;
+  const nextHeight = clampFunctionMenuWindowHeight(height, display);
+  if (nextHeight === functionMenuWindowHeight) return;
+
+  functionMenuWindowHeight = nextHeight;
+  positionFunctionMenuWindow({ animated: true });
+}
+
 function changedFileInfoWindowBounds() {
   if (!temporaryInfoWindow || temporaryInfoWindow.isDestroyed()) return null;
 
@@ -866,6 +1022,7 @@ function closeChangedFileInfoWindowIfAppInactive() {
   setTimeout(() => {
     const appFocused =
       isWindowFocused(mainWindow) ||
+      isWindowFocused(functionMenuWindow) ||
       isWindowFocused(temporaryInfoWindow) ||
       isWindowFocused(changedFileInfoWindow) ||
       isCommitInfoPanelActive() ||
@@ -1046,6 +1203,7 @@ function closeCommitInfoWindowIfAppInactive() {
   setTimeout(() => {
     const appFocused =
       isWindowFocused(mainWindow) ||
+      isWindowFocused(functionMenuWindow) ||
       isWindowFocused(temporaryInfoWindow) ||
       isWindowFocused(changedFileInfoWindow) ||
       isCommitInfoPanelActive() ||
@@ -1145,6 +1303,7 @@ function setPinnedWindow(pinned) {
   syncTemporaryInfoWindowLevel();
   syncChangedFileInfoWindowLevel();
   syncCommitInfoWindowLevel();
+  syncFunctionMenuWindowLevel();
   sendPinnedChanged();
   buildMenus();
 }
@@ -1193,35 +1352,42 @@ function createWindow({ showOnReady = true, collapsed = false } = {}) {
     positionTemporaryInfoWindow();
     positionChangedFileInfoWindow();
     positionCommitInfoWindow();
+    positionFunctionMenuWindow();
   });
   mainWindow.on("resize", () => {
     scheduleExpandedWindowSizeSave(mainWindow);
     positionTemporaryInfoWindow();
     positionChangedFileInfoWindow();
     positionCommitInfoWindow();
+    positionFunctionMenuWindow();
   });
   mainWindow.on("focus", () => {
     syncTemporaryInfoWindowLevel();
     syncChangedFileInfoWindowLevel();
     syncCommitInfoWindowLevel();
+    syncFunctionMenuWindowLevel();
   });
   mainWindow.on("blur", () => {
     syncTemporaryInfoWindowLevel();
     syncChangedFileInfoWindowLevel();
     syncCommitInfoWindowLevel();
+    syncFunctionMenuWindowLevel();
     closeTemporaryInfoWindowIfAppInactive();
     closeChangedFileInfoWindowIfAppInactive();
     closeCommitInfoWindowIfAppInactive();
+    closeFunctionMenuWindowIfAppInactive();
   });
   mainWindow.on("hide", () => {
     closeTemporaryInfoWindow();
     closeChangedFileInfoWindow();
     closeCommitInfoWindow();
+    closeFunctionMenuWindow();
   });
   mainWindow.on("close", (event) => {
     closeTemporaryInfoWindow();
     closeChangedFileInfoWindow();
     closeCommitInfoWindow();
+    closeFunctionMenuWindow();
     saveCurrentExpandedWindowSize(mainWindow);
     if (shouldHideToMenuBarOnClose()) {
       event.preventDefault();
@@ -1232,6 +1398,7 @@ function createWindow({ showOnReady = true, collapsed = false } = {}) {
     closeTemporaryInfoWindow();
     closeChangedFileInfoWindow();
     closeCommitInfoWindow();
+    closeFunctionMenuWindow();
     clearWindowBoundsAnimation();
     clearTimeout(applyingWindowBoundsTimer);
     clearTimeout(expandedWindowSizeSaveTimer);
@@ -1532,11 +1699,13 @@ registerIpcHandlers({
   createBranch,
   dockWindow,
   errorResponse,
+  fetchRemotes,
   getActiveWorkspaceOpenTarget: () => activeWorkspaceOpenTarget,
   getAvailableWorkspaceTargets,
   getChangedFileInfoPayload: () => changedFileInfoPayload,
   getCollapsedState: () => collapsedState,
   getCommitInfoPayload: () => commitInfoPayload,
+  getFunctionMenuPayload: () => functionMenuPayload,
   getPinnedState: () => pinnedState,
   holdCommitInfoPanelInteraction,
   isCommitInfoPanelActive,
@@ -1549,13 +1718,17 @@ registerIpcHandlers({
   normalizeRepositorySwitchView,
   normalizeView,
   openRepositoryPath,
+  openRepositoryRemote,
   openWorkspace,
   openWorkspaceFile,
   openWorkspaceFileMenu,
   openGitHubReleases,
   openWorktree,
+  pullCurrentBranch,
+  pushCurrentBranch,
   readPreferences,
   readRecentRepositories,
+  removeRecentRepository,
   repositoryPathForAction,
   saveRepositoryPath,
   sendPreferences,
@@ -1569,6 +1742,8 @@ registerIpcHandlers({
   setCurrentView: (view) => {
     currentView = view;
   },
+  setFunctionMenuPanel,
+  setFunctionMenuPanelHeight,
   setPinnedWindow,
   setTemporaryInfoPanel,
   syncAutoUpdates,

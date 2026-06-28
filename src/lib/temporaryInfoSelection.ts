@@ -19,10 +19,10 @@ export function temporaryInfoWindowView(payload: TemporaryInfoPayload, selectedF
   const selectedFile = payload ? selectedChangedFile(payload.files, selectedFileKey, payload.filter) : null;
   const chrome = {
     viewport: {
-      className: "temporary-info-viewport is-electron",
+      className: "side-window-viewport temporary-info-viewport is-electron",
     },
     panel: {
-      className: "peek-panel temporary-info-panel",
+      className: "side-window-panel peek-panel temporary-info-panel",
       ariaLabel: "Changed files window",
     },
     emptyState: politeStatusView({
