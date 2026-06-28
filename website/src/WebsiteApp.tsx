@@ -8,9 +8,40 @@ import {
   MousePointer2,
   Sparkles,
 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 const latestReleaseUrl = "https://github.com/jarvisluk/gocus/releases/latest";
 const releasesUrl = "https://github.com/jarvisluk/gocus/releases";
+const releaseDownloads = {
+  macArm64: "https://github.com/jarvisluk/Gocus/releases/download/v0.1.3/Gocus-0.1.3-mac-arm64.zip",
+  windowsInstaller:
+    "https://github.com/jarvisluk/Gocus/releases/download/v0.1.3/Gocus-Setup-0.1.3-win-x64.exe",
+};
+
+type DownloadPlatform = "mac" | "windows" | "other";
+type MacArchitecture = "arm64" | "x64";
+
+type ReleaseDownloads = {
+  macArm64?: string;
+  macX64?: string;
+  windowsInstaller?: string;
+};
+
+type NavigatorWithUserAgentData = Navigator & {
+  userAgentData?: {
+    platform?: string;
+    getHighEntropyValues?: (hints: string[]) => Promise<{ architecture?: string }>;
+  };
+};
+
+type DownloadTarget = {
+  ariaLabel: string;
+  body: string;
+  label: string;
+  navLabel: string;
+  title: string;
+  url: string;
+};
 
 const workflow = [
   {
@@ -31,7 +62,7 @@ const workflow = [
 ];
 
 const features = [
-  "Side-floating macOS panel",
+  "Side-floating desktop panel",
   "Commit graph rails and branch tags",
   "Recent repositories and worktrees",
   "Changed-now context beside your editor",
@@ -54,6 +85,146 @@ const heroContexts = [
   },
 ];
 
+function detectDownloadPlatform(): DownloadPlatform {
+  if (typeof navigator === "undefined") {
+    return "mac";
+  }
+
+  const nav = navigator as NavigatorWithUserAgentData;
+  const platformSource = `${nav.userAgentData?.platform ?? ""} ${nav.platform} ${nav.userAgent}`;
+
+  if (/windows|win32|win64/i.test(platformSource)) {
+    return "windows";
+  }
+
+  if (/mac|iphone|ipad|ipod/i.test(platformSource)) {
+    return "mac";
+  }
+
+  return "other";
+}
+
+function macArchitectureFromValue(value?: string): MacArchitecture | null {
+  if (!value) {
+    return null;
+  }
+
+  if (/arm|aarch64/i.test(value)) {
+    return "arm64";
+  }
+
+  if (/x64|x86|amd64|intel/i.test(value)) {
+    return "x64";
+  }
+
+  return null;
+}
+
+async function detectMacArchitecture(): Promise<MacArchitecture | null> {
+  if (typeof navigator === "undefined") {
+    return null;
+  }
+
+  const nav = navigator as NavigatorWithUserAgentData;
+  const highEntropyValues = await nav.userAgentData?.getHighEntropyValues?.(["architecture"]);
+  return macArchitectureFromValue(highEntropyValues?.architecture) ?? macArchitectureFromValue(nav.platform);
+}
+
+function downloadUrlForPlatform(
+  platform: DownloadPlatform,
+  downloads: ReleaseDownloads,
+  macArchitecture: MacArchitecture | null,
+) {
+  if (platform === "windows") {
+    return downloads.windowsInstaller ?? latestReleaseUrl;
+  }
+
+  if (platform === "mac") {
+    if (macArchitecture === "x64" && downloads.macX64) {
+      return downloads.macX64;
+    }
+
+    if (macArchitecture === "x64") {
+      return latestReleaseUrl;
+    }
+
+    return downloads.macArm64 ?? downloads.macX64 ?? latestReleaseUrl;
+  }
+
+  return latestReleaseUrl;
+}
+
+function downloadTargetForPlatform(
+  platform: DownloadPlatform,
+  downloads: ReleaseDownloads,
+  macArchitecture: MacArchitecture | null,
+): DownloadTarget {
+  const url = downloadUrlForPlatform(platform, downloads, macArchitecture);
+
+  if (platform === "windows") {
+    return {
+      ariaLabel: "Download Gocus Windows Installer",
+      body: "Use the latest Windows Installer from GitHub Releases. Portable and zip assets stay available on the release page.",
+      label: "Download for Windows",
+      navLabel: "Windows",
+      title: "Download the Windows Installer",
+      url,
+    };
+  }
+
+  if (platform === "mac") {
+    return {
+      ariaLabel: "Download Gocus for macOS",
+      body: "Use the latest macOS release build now, then switch channels from inside the app when develop builds are available.",
+      label: "Download for macOS",
+      navLabel: "macOS",
+      title: "Download the macOS build",
+      url,
+    };
+  }
+
+  return {
+    ariaLabel: "Open Gocus downloads",
+    body: "Pick the Windows Installer or macOS build from the latest GitHub Release.",
+    label: "Choose download",
+    navLabel: "Download",
+    title: "Choose your Gocus build",
+    url,
+  };
+}
+
+function useDownloadTarget() {
+  const [platform, setPlatform] = useState<DownloadPlatform>(() => detectDownloadPlatform());
+  const [macArchitecture, setMacArchitecture] = useState<MacArchitecture | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+
+    setPlatform(detectDownloadPlatform());
+
+    detectMacArchitecture()
+      .then((architecture) => {
+        if (isActive) {
+          setMacArchitecture(architecture);
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setMacArchitecture(null);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  return useMemo(
+    () => downloadTargetForPlatform(platform, releaseDownloads, macArchitecture),
+    [platform, macArchitecture],
+  );
+}
+
 function ProductPreview() {
   return (
     <div className="product-frame" aria-label="Gocus app preview">
@@ -62,7 +233,7 @@ function ProductPreview() {
   );
 }
 
-function WebsiteHeader() {
+function WebsiteHeader({ downloadTarget }: { downloadTarget: DownloadTarget }) {
   return (
     <header className="site-header">
       <a className="brand" href="#top" aria-label="Gocus home">
@@ -74,30 +245,32 @@ function WebsiteHeader() {
         <a href="#features">Use cases</a>
         <a href={releasesUrl}>Releases</a>
       </nav>
-      <a className="nav-download" href={latestReleaseUrl}>
+      <a className="nav-download" href={downloadTarget.url} aria-label={downloadTarget.ariaLabel}>
         <Download />
-        Download
+        {downloadTarget.navLabel}
       </a>
     </header>
   );
 }
 
 export function WebsiteApp() {
+  const downloadTarget = useDownloadTarget();
+
   return (
     <main className="site-shell" id="top">
-      <WebsiteHeader />
+      <WebsiteHeader downloadTarget={downloadTarget} />
 
       <section className="hero-section" aria-labelledby="hero-title">
         <div className="hero-copy">
           <h1 id="hero-title">Gocus</h1>
           <p className="hero-lede">See your Git history without leaving your flow.</p>
           <p className="hero-body">
-            A compact side-floating macOS utility for commits, worktrees, branch context, and quick repository actions.
+            A compact side-floating desktop utility for commits, worktrees, branch context, and quick repository actions.
           </p>
           <div className="hero-actions">
-            <a className="primary-cta" href={latestReleaseUrl}>
+            <a className="primary-cta" href={downloadTarget.url} aria-label={downloadTarget.ariaLabel}>
               <Download />
-              Download for macOS
+              {downloadTarget.label}
             </a>
             <a className="secondary-cta" href={releasesUrl}>
               <Github />
@@ -160,12 +333,12 @@ export function WebsiteApp() {
       <section className="download-section" id="download" aria-labelledby="download-title">
         <Sparkles aria-hidden="true" />
         <div>
-          <h2 id="download-title">Download the macOS build</h2>
-          <p>Use the latest release asset now, then switch channels from inside the app when develop builds are available.</p>
+          <h2 id="download-title">{downloadTarget.title}</h2>
+          <p>{downloadTarget.body}</p>
         </div>
-        <a className="primary-cta" href={latestReleaseUrl}>
+        <a className="primary-cta" href={downloadTarget.url} aria-label={downloadTarget.ariaLabel}>
           <Download />
-          Download for macOS
+          {downloadTarget.label}
           <ArrowRight />
         </a>
       </section>
