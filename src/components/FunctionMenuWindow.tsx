@@ -186,10 +186,13 @@ export function FunctionMenuWindow() {
     <SideWindowShell
       viewportClassName={view.viewport.className}
       panelClassName={view.panel.className}
-      panelAriaLabel={view.panel.ariaLabel}
+      panelAriaLabelledBy={view.panel.ariaLabelledBy}
       onPanelHeightChange={resizeFunctionMenu}
       resizeWarning="Unable to resize function menu."
     >
+      <h1 className="function-menu-title" id={view.titleId}>
+        {view.title}
+      </h1>
       <div className="function-menu-sections">
         {view.sections.map((section) => (
           <section className="function-menu-section" key={section.key} aria-label={section.label}>

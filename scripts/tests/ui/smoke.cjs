@@ -10,7 +10,7 @@ const desktopViewport = { width: 960, height: 720 };
 const temporaryInfoViewport = { width: 280, height: 252 };
 const changedFileInfoViewport = { width: 280, height: 252 };
 const commitInfoViewport = { width: 348, height: 240 };
-const functionMenuViewport = { width: 106, height: 320 };
+const functionMenuViewport = { width: 106, height: 384 };
 const testTimeZone = "Asia/Shanghai";
 const allWorkspaceTargets = ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"];
 const footerCommitFullHash = "d4e5f6a000000000000000000000000000000000";
@@ -1318,6 +1318,7 @@ async function testFunctionMenuPanel(browser, baseUrl) {
   try {
     assert.match(await page.title(), /Gocus/);
     await page.locator(".function-menu-panel").waitFor();
+    assert.equal(await page.getByRole("heading", { level: 1, name: "Tools" }).isVisible(), true);
     assert.equal(await page.locator(".function-menu-repository").count(), 0);
     assert.equal(await page.locator(".function-menu-section").count(), 4);
     assert.equal(await page.locator(".function-menu-action-copy").count(), 0);
@@ -1333,7 +1334,7 @@ async function testFunctionMenuPanel(browser, baseUrl) {
     ]);
     assert.equal(
       (await page.locator(".function-menu-panel").innerText()).trim(),
-      "Workspace\nOpen\nGit\nPull\nPush\nFetch\nRefresh\nGitHub\nRelease\nApp\nUpdate",
+      "Tools\nWorkspace\nOpen\nGit\nPull\nPush\nFetch\nRefresh\nGitHub\nRelease\nApp\nUpdate",
     );
     assert.equal(await page.locator(".function-menu-panel").evaluate((node) => getComputedStyle(node).overflowY), "visible");
     const compactPanelWidth = await page.locator(".function-menu-panel").evaluate((node) => Math.round(node.getBoundingClientRect().width));
@@ -1355,7 +1356,7 @@ async function testFunctionMenuPanel(browser, baseUrl) {
     await page.waitForFunction(() => window.__gocusFunctionMenuPanelHeights?.length > 0);
     const reportedFunctionMenuHeight = await page.evaluate(() => window.__gocusFunctionMenuPanelHeights.at(-1));
     assert.ok(
-      reportedFunctionMenuHeight >= 260 && reportedFunctionMenuHeight <= 340,
+      reportedFunctionMenuHeight >= 340 && reportedFunctionMenuHeight <= 420,
       `function menu should report a compact toolbox height: ${reportedFunctionMenuHeight}`,
     );
     assert.equal(await page.getByRole("button", { name: "Open or switch workspace" }).isEnabled(), true);

@@ -25,6 +25,8 @@ export interface FunctionMenuSectionView {
   actions: FunctionMenuActionView[];
 }
 
+export const functionMenuTitleId = "function-menu-title";
+
 export const functionMenuFallbackPayload: NonNullable<FunctionMenuPayload> = {
   kind: "function-menu",
   repository: null,
@@ -150,8 +152,10 @@ export function functionMenuWindowView(payload: FunctionMenuPayload) {
     },
     panel: {
       className: "side-window-panel function-menu-panel",
-      ariaLabel: "Function menu",
+      ariaLabelledBy: functionMenuTitleId,
     },
+    titleId: functionMenuTitleId,
+    title: "Tools",
     sections: [
       { key: "workspace", label: "Workspace", actions: [openRepositoryAction] },
       { key: "git", label: "Git", actions: [pullAction, pushAction, fetchAction, refreshAction] },
