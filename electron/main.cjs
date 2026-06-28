@@ -12,7 +12,6 @@ const {
   screen,
   shell,
 } = require("electron");
-const fs = require("node:fs");
 const path = require("node:path");
 const packageMetadata = require("../package.json");
 const { createAutoUpdateController, releaseUrlForRepository } = require("./lib/autoUpdate.cjs");
@@ -1239,10 +1238,7 @@ function createTray() {
     return;
   }
 
-  const trayIconName =
-    process.platform === "win32" && fs.existsSync(assets.resolveAssetPath("tray-iconWindows.png"))
-      ? "tray-iconWindows.png"
-      : "tray-iconTemplate.png";
+  const trayIconName = process.platform === "win32" ? "app-icon.ico" : "tray-iconTemplate.png";
   const trayIcon = assets.loadImageAsset(trayIconName, { template: process.platform === "darwin" });
 
   tray = new Tray(trayIcon);
