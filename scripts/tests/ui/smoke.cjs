@@ -1352,6 +1352,12 @@ async function testFunctionMenuPanel(browser, baseUrl) {
       nodes.map((node) => Math.round(node.getBoundingClientRect().top)),
     );
     assert.equal(new Set(gitActionRows).size, 1, `git actions should fit in one row: ${JSON.stringify(gitActionRows)}`);
+    const gitActionRightGutter = await page.locator('section[aria-label="Git"] .function-menu-action').last().evaluate((node) => {
+      const panelRect = document.querySelector(".function-menu-panel").getBoundingClientRect();
+      const actionRect = node.getBoundingClientRect();
+      return Math.round(panelRect.right - actionRect.right);
+    });
+    assert.ok(gitActionRightGutter >= 18, `git actions should leave right breathing room: ${gitActionRightGutter}`);
     await page.setViewportSize({ width: 576, height: functionMenuViewport.height });
     const wideViewportPanel = await page.locator(".function-menu-panel").evaluate((node) => {
       const rect = node.getBoundingClientRect();

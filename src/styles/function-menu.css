@@ -36,6 +36,7 @@
 .function-menu-section {
   display: grid;
   gap: var(--space-xs);
+  margin-right: var(--space-xs);
 }
 
 .function-menu-section + .function-menu-section {
@@ -54,13 +55,13 @@
 
 .function-menu-tools {
   display: grid;
-  grid-template-columns: repeat(4, 44px);
-  gap: var(--space-xs);
+  grid-template-columns: repeat(4, 40px);
+  gap: var(--space-xs) var(--space-md);
   justify-content: start;
 }
 
 .function-menu-action {
-  width: 44px;
+  width: 40px;
   min-height: 44px;
   display: grid;
   align-content: center;
