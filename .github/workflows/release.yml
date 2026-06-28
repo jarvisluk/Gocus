@@ -200,6 +200,7 @@ jobs:
           unset ELECTRON_SKIP_BINARY_DOWNLOAD
           unset npm_config_electron_skip_binary_download
           npm ci --ignore-scripts=false
+          npx playwright install chromium
           node scripts/ensure-electron-runtime.cjs
           node -e 'console.log(`Electron runtime: ${require("electron")}`)'
 
