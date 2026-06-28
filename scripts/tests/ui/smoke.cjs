@@ -1388,8 +1388,27 @@ async function testFunctionMenuPanel(browser, baseUrl) {
     await page.waitForFunction(() => window.__gocusPullCount === 1);
     await page.getByRole("button", { name: "Push or publish current branch" }).click();
     await page.waitForFunction(() => window.__gocusPushCount === 1);
+
+    await page.evaluate(() => {
+      window.__gocusResolvePendingFetch = null;
+      window.gocus.fetchRemotes = async () => {
+        window.__gocusFetchCount += 1;
+        return await new Promise((resolve) => {
+          window.__gocusResolvePendingFetch = () => {
+            window.__gocusResolvePendingFetch = null;
+            resolve({ ok: true, message: "Fetched remotes." });
+          };
+        });
+      };
+    });
     await page.getByRole("button", { name: "Fetch remotes" }).click();
-    await page.waitForFunction(() => window.__gocusFetchCount === 1);
+    await page.waitForFunction(() => window.__gocusFetchCount === 1 && window.__gocusResolvePendingFetch);
+    const fetchButton = page.getByRole("button", { name: "Fetch remotes" });
+    assert.equal(await fetchButton.getAttribute("aria-busy"), "true");
+    assert.equal(await fetchButton.locator(".is-spinning").count(), 0);
+    assert.equal(await page.locator(".function-menu-panel .is-spinning").count(), 0);
+    await page.evaluate(() => window.__gocusResolvePendingFetch());
+    await page.waitForFunction(() => window.__gocusResolvePendingFetch === null);
 
     await page.getByRole("button", { name: "Open repository remote" }).click();
     await page.waitForFunction(() => window.__gocusOpenedRepositoryRemote === 1);

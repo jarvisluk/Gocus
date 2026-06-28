@@ -27,6 +27,10 @@ function functionMenuIcon(icon: FunctionMenuActionIcon, className = "") {
   return <Upload className={className} aria-hidden="true" />;
 }
 
+function functionMenuBusyIconClassName(action: FunctionMenuActionView, busy: boolean) {
+  return busy && action.icon === "refresh" ? "is-spinning" : "";
+}
+
 function FunctionMenuActionButton({
   action,
   busy,
@@ -46,7 +50,7 @@ function FunctionMenuActionButton({
       disabled={action.disabled || busy}
       onClick={onClick}
     >
-      <span className="function-menu-action-icon">{functionMenuIcon(action.icon, busy ? "is-spinning" : "")}</span>
+      <span className="function-menu-action-icon">{functionMenuIcon(action.icon, functionMenuBusyIconClassName(action, busy))}</span>
       <span className="function-menu-action-label">{action.label}</span>
     </button>
   );
