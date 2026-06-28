@@ -10,7 +10,7 @@ const desktopViewport = { width: 960, height: 720 };
 const temporaryInfoViewport = { width: 280, height: 252 };
 const changedFileInfoViewport = { width: 280, height: 252 };
 const commitInfoViewport = { width: 348, height: 240 };
-const functionMenuViewport = { width: 86, height: 158 };
+const functionMenuViewport = { width: 96, height: 260 };
 const testTimeZone = "Asia/Shanghai";
 const allWorkspaceTargets = ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"];
 const footerCommitFullHash = "d4e5f6a000000000000000000000000000000000";
@@ -256,6 +256,7 @@ function installGocusMock(config) {
   window.__gocusRemovedRecentRepositories = [];
   window.__gocusSwitchedRepositories = [];
   window.__gocusPushCount = 0;
+  window.__gocusPullCount = 0;
   window.__gocusFetchCount = 0;
   window.__gocusUpdateCheckCount = 0;
   window.__gocusOpenedGitHubReleases = 0;
@@ -467,6 +468,10 @@ function installGocusMock(config) {
     pushCurrentBranch: async () => {
       window.__gocusPushCount += 1;
       return { ok: true, message: "Pushed current branch.", snapshot: actionSnapshot };
+    },
+    pullCurrentBranch: async () => {
+      window.__gocusPullCount += 1;
+      return { ok: true, message: "Pulled current branch.", snapshot: actionSnapshot };
     },
     fetchRemotes: async () => {
       window.__gocusFetchCount += 1;
@@ -1314,21 +1319,25 @@ async function testFunctionMenuPanel(browser, baseUrl) {
     assert.match(await page.title(), /Gocus/);
     await page.locator(".function-menu-panel").waitFor();
     assert.equal(await page.locator(".function-menu-repository").count(), 0);
-    assert.equal(await page.locator(".function-menu-section").count(), 0);
+    assert.equal(await page.locator(".function-menu-section").count(), 4);
     assert.equal(await page.locator(".function-menu-action-copy").count(), 0);
-    assert.equal((await page.locator(".function-menu-panel").innerText()).trim(), "");
+    assert.equal((await page.locator(".function-menu-panel").innerText()).trim(), "Workspace\nGit\nGitHub\nApp");
     assert.equal(await page.locator(".function-menu-panel").evaluate((node) => getComputedStyle(node).overflowY), "visible");
     await page.waitForFunction(() => window.__gocusFunctionMenuPanelHeights?.length > 0);
     const reportedFunctionMenuHeight = await page.evaluate(() => window.__gocusFunctionMenuPanelHeights.at(-1));
     assert.ok(
-      reportedFunctionMenuHeight >= 72 && reportedFunctionMenuHeight <= 180,
+      reportedFunctionMenuHeight >= 180 && reportedFunctionMenuHeight <= 300,
       `function menu should report a compact toolbox height: ${reportedFunctionMenuHeight}`,
     );
     assert.equal(await page.getByRole("button", { name: "Open or switch workspace" }).isEnabled(), true);
-    assert.equal(await page.getByRole("button", { name: "Push to remote" }).isEnabled(), true);
+    assert.equal(await page.getByRole("button", { name: "Pull current branch (fast-forward only)" }).isEnabled(), true);
+    assert.equal(await page.getByRole("button", { name: "Push or publish current branch" }).isEnabled(), true);
+    assert.equal(await page.getByRole("button", { name: "Close menu" }).count(), 0);
     assert.equal(await page.getByRole("button", { name: /Cursor/ }).count(), 0);
 
-    await page.getByRole("button", { name: "Push to remote" }).click();
+    await page.getByRole("button", { name: "Pull current branch (fast-forward only)" }).click();
+    await page.waitForFunction(() => window.__gocusPullCount === 1);
+    await page.getByRole("button", { name: "Push or publish current branch" }).click();
     await page.waitForFunction(() => window.__gocusPushCount === 1);
     await page.getByRole("button", { name: "Fetch remotes" }).click();
     await page.waitForFunction(() => window.__gocusFetchCount === 1);

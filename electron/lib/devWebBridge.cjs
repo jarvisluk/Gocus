@@ -9,6 +9,7 @@ const {
   merge,
   normalizeView,
   openWorktree,
+  pullCurrentBranch,
   pushCurrentBranch,
   readGitSnapshot,
 } = require("./git.cjs");
@@ -190,6 +191,13 @@ function createDevWebBridgeMiddleware(projectRoot) {
         payload.view,
         "Pushed current branch.",
         "Unable to push current branch.",
+      ),
+    "/pullCurrentBranch": async (payload) =>
+      actionWithSnapshot(
+        (root, view) => pullCurrentBranch(root, view),
+        payload.view,
+        "Pulled current branch.",
+        "Unable to pull current branch.",
       ),
     "/fetchRemotes": async (payload) =>
       actionWithSnapshot(

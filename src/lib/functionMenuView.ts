@@ -3,12 +3,11 @@ import { defaultWorkspaceOpenTarget, defaultWorkspaceOpenTargets } from "./works
 
 export type FunctionMenuActionIcon =
   | "download"
-  | "external"
   | "folder"
   | "github"
+  | "pull"
   | "refresh"
-  | "upload"
-  | "x";
+  | "upload";
 
 export interface FunctionMenuActionView {
   key: string;
@@ -18,6 +17,12 @@ export interface FunctionMenuActionView {
   detail: string;
   disabled: boolean;
   title: string;
+}
+
+export interface FunctionMenuSectionView {
+  key: string;
+  label: string;
+  actions: FunctionMenuActionView[];
 }
 
 export const functionMenuFallbackPayload: NonNullable<FunctionMenuPayload> = {
@@ -62,9 +67,21 @@ export function functionMenuPushActionView(payload: NonNullable<FunctionMenuPayl
     className: "function-menu-action",
     icon: "upload",
     label: "Push",
-    detail: payload.repository ? "Push to remote." : "Choose a workspace first.",
+    detail: payload.repository ? "Push or publish current branch." : "Choose a workspace first.",
     disabled: !payload.repository,
-    title: payload.repository ? "Push to remote" : "Choose a workspace first",
+    title: payload.repository ? "Push or publish current branch" : "Choose a workspace first",
+  };
+}
+
+export function functionMenuPullActionView(payload: NonNullable<FunctionMenuPayload>): FunctionMenuActionView {
+  return {
+    key: "pull",
+    className: "function-menu-action",
+    icon: "pull",
+    label: "Pull",
+    detail: payload.repository ? "Pull current branch with fast-forward only." : "Choose a workspace first.",
+    disabled: !payload.repository,
+    title: payload.repository ? "Pull current branch (fast-forward only)" : "Choose a workspace first",
   };
 }
 
@@ -94,6 +111,37 @@ export function functionMenuRefreshActionView(payload: NonNullable<FunctionMenuP
 
 export function functionMenuWindowView(payload: FunctionMenuPayload) {
   const resolvedPayload = payload ?? functionMenuFallbackPayload;
+  const openRepositoryAction: FunctionMenuActionView = {
+    key: "open-repository",
+    className: "function-menu-action",
+    icon: "folder" as FunctionMenuActionIcon,
+    label: "Workspace",
+    detail: "Open or switch workspace.",
+    disabled: false,
+    title: "Open or switch workspace",
+  };
+  const pullAction = functionMenuPullActionView(resolvedPayload);
+  const pushAction = functionMenuPushActionView(resolvedPayload);
+  const fetchAction = functionMenuFetchActionView(resolvedPayload);
+  const refreshAction = functionMenuRefreshActionView(resolvedPayload);
+  const githubAction: FunctionMenuActionView = {
+    key: "github-releases",
+    className: "function-menu-action",
+    icon: "github" as FunctionMenuActionIcon,
+    label: "Releases",
+    detail: "Open the release page in browser.",
+    disabled: false,
+    title: "Open GitHub Releases",
+  };
+  const updatesAction: FunctionMenuActionView = {
+    key: "check-updates",
+    className: "function-menu-action",
+    icon: "download" as FunctionMenuActionIcon,
+    label: "Updates",
+    detail: "Check for updates.",
+    disabled: false,
+    title: "Check for updates",
+  };
 
   return {
     payload: resolvedPayload,
@@ -104,44 +152,18 @@ export function functionMenuWindowView(payload: FunctionMenuPayload) {
       className: "side-window-panel function-menu-panel",
       ariaLabel: "Function menu",
     },
-    closeButton: {
-      key: "close",
-      className: "function-menu-action",
-      icon: "x" as FunctionMenuActionIcon,
-      label: "Close",
-      detail: "Close menu.",
-      disabled: false,
-      title: "Close menu",
-    },
-    openRepositoryAction: {
-      key: "open-repository",
-      className: "function-menu-action",
-      icon: "folder" as FunctionMenuActionIcon,
-      label: "Workspace",
-      detail: "Open or switch workspace.",
-      disabled: false,
-      title: "Open or switch workspace",
-    },
-    githubAction: {
-      key: "github-releases",
-      className: "function-menu-action",
-      icon: "github" as FunctionMenuActionIcon,
-      label: "Releases",
-      detail: "Open the release page in browser.",
-      disabled: false,
-      title: "Open GitHub Releases",
-    },
-    updatesAction: {
-      key: "check-updates",
-      className: "function-menu-action",
-      icon: "download" as FunctionMenuActionIcon,
-      label: "Updates",
-      detail: "Check for updates.",
-      disabled: false,
-      title: "Check for updates",
-    },
-    pushAction: functionMenuPushActionView(resolvedPayload),
-    fetchAction: functionMenuFetchActionView(resolvedPayload),
-    refreshAction: functionMenuRefreshActionView(resolvedPayload),
+    sections: [
+      { key: "workspace", label: "Workspace", actions: [openRepositoryAction] },
+      { key: "git", label: "Git", actions: [pullAction, pushAction, fetchAction, refreshAction] },
+      { key: "github", label: "GitHub", actions: [githubAction] },
+      { key: "app", label: "App", actions: [updatesAction] },
+    ] satisfies FunctionMenuSectionView[],
+    openRepositoryAction,
+    pullAction,
+    pushAction,
+    fetchAction,
+    refreshAction,
+    githubAction,
+    updatesAction,
   };
 }

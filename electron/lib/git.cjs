@@ -698,6 +698,14 @@ async function pushCurrentBranch(repoPath, view) {
   return readGitSnapshot(root, view);
 }
 
+async function pullCurrentBranch(repoPath, view) {
+  const root = await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
+  await currentBranchName(root);
+  await assertRemoteConfigured(root);
+  await runGit(root, ["pull", "--ff-only"], { timeout: 30000 });
+  return readGitSnapshot(root, view);
+}
+
 async function fetchRemotes(repoPath, view) {
   const root = await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
   await assertRemoteConfigured(root);
@@ -844,6 +852,7 @@ module.exports = {
   normalizeCommitLogLimit,
   normalizeView,
   openWorktree,
+  pullCurrentBranch,
   pushCurrentBranch,
   readFolderWithoutGit,
   readGitSnapshot,

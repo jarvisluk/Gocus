@@ -15,6 +15,25 @@
   backdrop-filter: var(--panel-backdrop-filter);
 }
 
+.function-menu-sections {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.function-menu-section {
+  display: grid;
+  gap: 3px;
+}
+
+.function-menu-section-title {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--type-micro-size);
+  font-weight: var(--font-weight-strong);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
 .function-menu-tools {
   display: grid;
   grid-template-columns: repeat(2, var(--control-lg));

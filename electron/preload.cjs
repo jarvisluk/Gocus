@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("gocus", {
   merge: (ref, targetBranch, view, options) => ipcRenderer.invoke("git:merge", ref, targetBranch, view, options),
   checkout: (ref, view) => ipcRenderer.invoke("git:checkout", ref, view),
   pushCurrentBranch: (view) => ipcRenderer.invoke("git:pushCurrentBranch", view),
+  pullCurrentBranch: (view) => ipcRenderer.invoke("git:pullCurrentBranch", view),
   fetchRemotes: (view) => ipcRenderer.invoke("git:fetchRemotes", view),
   openWorktree: (worktreePath, view) => ipcRenderer.invoke("git:openWorktree", worktreePath, view),
   cleanupWorktree: (worktreePath, view) => ipcRenderer.invoke("git:cleanupWorktree", worktreePath, view),

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Download, ExternalLink, FolderOpen, Github, RefreshCw, Upload, X } from "lucide-react";
+import { Download, FolderOpen, Github, GitPullRequestArrow, RefreshCw, Upload } from "lucide-react";
 import { actionResponseSnapshot } from "../lib/actionResponseView";
 import { logBridgeWarning } from "../lib/errorMessages";
 import {
@@ -20,12 +20,11 @@ import { SideWindowShell } from "./SideWindowShell";
 
 function functionMenuIcon(icon: FunctionMenuActionIcon, className = "") {
   if (icon === "download") return <Download className={className} aria-hidden="true" />;
-  if (icon === "external") return <ExternalLink className={className} aria-hidden="true" />;
   if (icon === "folder") return <FolderOpen className={className} aria-hidden="true" />;
   if (icon === "github") return <Github className={className} aria-hidden="true" />;
+  if (icon === "pull") return <GitPullRequestArrow className={className} aria-hidden="true" />;
   if (icon === "refresh") return <RefreshCw className={className} aria-hidden="true" />;
-  if (icon === "upload") return <Upload className={className} aria-hidden="true" />;
-  return <X className={className} aria-hidden="true" />;
+  return <Upload className={className} aria-hidden="true" />;
 }
 
 function FunctionMenuActionButton({
@@ -120,14 +119,17 @@ export function FunctionMenuWindow() {
     }
   }
 
-  function closeMenu() {
-    window.gocus?.setFunctionMenuPanel?.(null).catch((error) => logBridgeWarning("Unable to close function menu.", error));
-  }
-
   function openRepository() {
     void runAction(
       view.openRepositoryAction.key,
       () => window.gocus?.openRepository({ mode: "all" }) ?? Promise.resolve({ ok: false, error: "Electron bridge unavailable." }),
+    );
+  }
+
+  function pullCurrentBranch() {
+    void runAction(
+      view.pullAction.key,
+      () => window.gocus?.pullCurrentBranch?.({ mode: "current" }) ?? Promise.resolve({ ok: false, error: "Pull is unavailable." }),
     );
   }
 
@@ -169,6 +171,15 @@ export function FunctionMenuWindow() {
   const resizeFunctionMenu = useCallback((height: number) => {
     return window.gocus?.setFunctionMenuPanelHeight?.(height);
   }, []);
+  const actionHandlers: Record<string, () => void> = {
+    "open-repository": openRepository,
+    pull: pullCurrentBranch,
+    push: pushCurrentBranch,
+    fetch: fetchRemotes,
+    refresh: refreshGitData,
+    "github-releases": openGitHubReleases,
+    "check-updates": checkForUpdates,
+  };
 
   return (
     <SideWindowShell
@@ -178,22 +189,22 @@ export function FunctionMenuWindow() {
       onPanelHeightChange={resizeFunctionMenu}
       resizeWarning="Unable to resize function menu."
     >
-      <div className="function-menu-tools" role="toolbar" aria-label="Function menu tools">
-        <FunctionMenuActionButton
-          action={view.openRepositoryAction}
-          busy={busyAction === view.openRepositoryAction.key}
-          onClick={openRepository}
-        />
-        <FunctionMenuActionButton action={view.pushAction} busy={busyAction === view.pushAction.key} onClick={pushCurrentBranch} />
-        <FunctionMenuActionButton action={view.fetchAction} busy={busyAction === view.fetchAction.key} onClick={fetchRemotes} />
-        <FunctionMenuActionButton
-          action={view.githubAction}
-          busy={busyAction === view.githubAction.key}
-          onClick={openGitHubReleases}
-        />
-        <FunctionMenuActionButton action={view.refreshAction} busy={busyAction === view.refreshAction.key} onClick={refreshGitData} />
-        <FunctionMenuActionButton action={view.updatesAction} busy={busyAction === view.updatesAction.key} onClick={checkForUpdates} />
-        <FunctionMenuActionButton action={view.closeButton} busy={false} onClick={closeMenu} />
+      <div className="function-menu-sections">
+        {view.sections.map((section) => (
+          <section className="function-menu-section" key={section.key} aria-label={section.label}>
+            <h2 className="function-menu-section-title">{section.label}</h2>
+            <div className="function-menu-tools" role="toolbar" aria-label={`${section.label} tools`}>
+              {section.actions.map((action) => (
+                <FunctionMenuActionButton
+                  action={action}
+                  busy={busyAction === action.key}
+                  key={action.key}
+                  onClick={actionHandlers[action.key]}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
       </div>
     </SideWindowShell>
   );

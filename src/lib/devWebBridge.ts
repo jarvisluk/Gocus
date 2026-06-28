@@ -75,6 +75,7 @@ export function installDevWebBridge() {
       requestBridge("merge", { ref, targetBranch, view, options }),
     checkout: (ref: string, view?: CommitViewSelection) => requestBridge("checkout", { ref, view }),
     pushCurrentBranch: (view?: CommitViewSelection) => requestBridge("pushCurrentBranch", { view }),
+    pullCurrentBranch: (view?: CommitViewSelection) => requestBridge("pullCurrentBranch", { view }),
     fetchRemotes: (view?: CommitViewSelection) => requestBridge("fetchRemotes", { view }),
     openWorktree: (worktreePath: string, view?: CommitViewSelection) => requestBridge("openWorktree", { worktreePath, view }),
     cleanupWorktree: (worktreePath: string, view?: CommitViewSelection) =>

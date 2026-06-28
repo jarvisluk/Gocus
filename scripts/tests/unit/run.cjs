@@ -826,7 +826,7 @@ function testWindowGeometryModule() {
   assert.deepEqual(collapsedSize, { width: 38, height: 136 });
   assert.deepEqual(changedFileInfoWindowSize, { width: 280, height: 252 });
   assert.deepEqual(commitInfoWindowSize, { width: 348, height: 132 });
-  assert.deepEqual(functionMenuWindowSize, { width: 86, height: 158 });
+  assert.deepEqual(functionMenuWindowSize, { width: 96, height: 260 });
   assert.deepEqual(expandedMinimumSize, { width: 320, height: 620 });
   assert.equal(clampCollapsedRailHeight(96, display), 136);
   assert.equal(clampCollapsedRailHeight(355, display), 355);
@@ -839,7 +839,7 @@ function testWindowGeometryModule() {
   assert.equal(clampFunctionMenuWindowHeight(48, display), 72);
   assert.equal(clampFunctionMenuWindowHeight(132, display), 132);
   assert.equal(clampFunctionMenuWindowHeight(9999, display), 860);
-  assert.equal(clampFunctionMenuWindowHeight("bad", display), 158);
+  assert.equal(clampFunctionMenuWindowHeight("bad", display), 260);
   assert.deepEqual(clampExpandedSize({ width: 1, height: 9999 }, display), { width: 320, height: 860 });
   assert.deepEqual(
     mainWindowBounds({
@@ -895,9 +895,9 @@ function testWindowGeometryModule() {
     functionMenuBounds({
       mainBounds: { x: 1070, y: 200, width: 360, height: 700 },
       display,
-      size: { width: 86, height: 154 },
+      size: { width: 96, height: 254 },
     }),
-    { x: 974, y: 200, width: 86, height: 154 },
+    { x: 964, y: 200, width: 96, height: 254 },
   );
   assert.deepEqual(
     commitInfoBounds({
@@ -1382,6 +1382,7 @@ async function testGitModule() {
     mergeArgs,
     mergeMessage,
     normalizeCommitLogLimit,
+    pullCurrentBranch,
     readGitSnapshot,
     repositoryStateForGit,
   } = require(path.join(projectRoot, "electron/lib/git.cjs"));
@@ -1464,6 +1465,39 @@ async function testGitModule() {
     assert.match(runGitFixture(dirtyMergeDir, ["status", "--porcelain=v1"]), /\?\? local-notes\.txt/);
   } finally {
     fs.rmSync(dirtyMergeDir, { force: true, recursive: true });
+  }
+
+  const pullDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-pull-current-"));
+  const pullSeed = path.join(pullDir, "seed");
+  const pullOrigin = path.join(pullDir, "origin.git");
+  const pullLocal = path.join(pullDir, "local");
+  try {
+    fs.mkdirSync(pullSeed);
+    runGitFixture(pullSeed, ["init"]);
+    runGitFixture(pullSeed, ["checkout", "-b", "main"]);
+    runGitFixture(pullSeed, ["config", "user.name", "Gocus Test"]);
+    runGitFixture(pullSeed, ["config", "user.email", "gocus@example.com"]);
+    fs.writeFileSync(path.join(pullSeed, "file.txt"), "base\n", "utf8");
+    runGitFixture(pullSeed, ["add", "file.txt"]);
+    runGitFixture(pullSeed, ["commit", "-m", "base"]);
+    runGitFixture(pullDir, ["init", "--bare", pullOrigin]);
+    runGitFixture(pullSeed, ["remote", "add", "origin", pullOrigin]);
+    runGitFixture(pullSeed, ["push", "-u", "origin", "main"]);
+    runGitFixture(pullDir, ["--git-dir", pullOrigin, "symbolic-ref", "HEAD", "refs/heads/main"]);
+    runGitFixture(pullDir, ["clone", pullOrigin, pullLocal]);
+    runGitFixture(pullLocal, ["config", "user.name", "Gocus Test"]);
+    runGitFixture(pullLocal, ["config", "user.email", "gocus@example.com"]);
+
+    fs.appendFileSync(path.join(pullSeed, "file.txt"), "remote\n", "utf8");
+    runGitFixture(pullSeed, ["commit", "-am", "remote"]);
+    runGitFixture(pullSeed, ["push"]);
+
+    const pulledSnapshot = await pullCurrentBranch(pullLocal, { mode: "current" });
+    assert.match(fs.readFileSync(path.join(pullLocal, "file.txt"), "utf8"), /remote/);
+    assert.equal(pulledSnapshot.branch.name, "main");
+    assert.equal(pulledSnapshot.branch.behind, 0);
+  } finally {
+    fs.rmSync(pullDir, { force: true, recursive: true });
   }
 
   const cleanupDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-worktree-cleanup-"));
@@ -6346,6 +6380,7 @@ function worktree(overrides = {}) {
 async function testFunctionMenuView(server) {
   const {
     functionMenuPayloadFromSnapshot,
+    functionMenuPullActionView,
     functionMenuPushActionView,
     functionMenuWindowView,
   } = await loadTsModule(server, "src/lib/functionMenuView.ts");
@@ -6376,9 +6411,18 @@ async function testFunctionMenuView(server) {
     className: "function-menu-action",
     icon: "upload",
     label: "Push",
-    detail: "Push to remote.",
+    detail: "Push or publish current branch.",
     disabled: false,
-    title: "Push to remote",
+    title: "Push or publish current branch",
+  });
+  assert.deepEqual(functionMenuPullActionView(payload), {
+    key: "pull",
+    className: "function-menu-action",
+    icon: "pull",
+    label: "Pull",
+    detail: "Pull current branch with fast-forward only.",
+    disabled: false,
+    title: "Pull current branch (fast-forward only)",
   });
 
   const publishPayload = functionMenuPayloadFromSnapshot({
@@ -6416,8 +6460,22 @@ async function testFunctionMenuView(server) {
   });
   assert.equal(functionMenuPushActionView(emptyPayload).disabled, true);
   assert.equal(functionMenuPushActionView(emptyPayload).title, "Choose a workspace first");
+  assert.equal(functionMenuPullActionView(emptyPayload).disabled, true);
   assert.equal(functionMenuWindowView(payload).panel.ariaLabel, "Function menu");
   assert.equal("repositorySummary" in functionMenuWindowView(payload), false);
+  assert.equal("closeButton" in functionMenuWindowView(payload), false);
+  assert.deepEqual(
+    functionMenuWindowView(payload).sections.map((section) => ({
+      label: section.label,
+      actions: section.actions.map((action) => action.key),
+    })),
+    [
+      { label: "Workspace", actions: ["open-repository"] },
+      { label: "Git", actions: ["pull", "push", "fetch", "refresh"] },
+      { label: "GitHub", actions: ["github-releases"] },
+      { label: "App", actions: ["check-updates"] },
+    ],
+  );
 }
 
 async function testRepositoryControlLabels(server) {

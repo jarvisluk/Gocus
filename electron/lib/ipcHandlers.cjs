@@ -34,6 +34,7 @@ function registerIpcHandlers({
   openWorkspaceFileMenu,
   openGitHubReleases,
   openWorktree,
+  pullCurrentBranch,
   pushCurrentBranch,
   readPreferences,
   readRecentRepositories,
@@ -174,6 +175,20 @@ function registerIpcHandlers({
       return { ok: true, message: `Pushed ${snapshot.branch.name}.`, snapshot };
     } catch (error) {
       return errorResponse(error, "Unable to push current branch.");
+    }
+  });
+
+  ipcMain.handle("git:pullCurrentBranch", async (_event, view) => {
+    const repositoryPath = repositoryPathForAction();
+    if (!repositoryPath) return noRepositoryResponse();
+
+    try {
+      const snapshot = await pullCurrentBranch(repositoryPath, normalizeView(view));
+      saveRepositoryPath(snapshot.repoPath, snapshot.repositoryKey);
+      sendSnapshotResponse({ ok: true, snapshot }, "action");
+      return { ok: true, message: `Pulled ${snapshot.branch.name}.`, snapshot };
+    } catch (error) {
+      return errorResponse(error, "Unable to pull current branch.");
     }
   });
 
