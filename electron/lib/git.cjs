@@ -201,6 +201,14 @@ function parseContainedBranchTips(output) {
     .filter((branch) => branch.name && branch.hash && branch.fullName.startsWith("refs/heads/"));
 }
 
+function parseMergedBranches(output) {
+  return output
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((name) => !name.endsWith("/HEAD"));
+}
+
 function defaultWorktreeCleanup(overrides = {}) {
   return {
     status: "unknown",
@@ -594,7 +602,7 @@ function annotateCommitsWithWorktrees(commits, worktrees) {
   }));
 }
 
-function graphContextForWorktrees(worktrees, status, branches = []) {
+function graphContextForWorktrees(worktrees, status, branches = [], mergedLocalBranches = []) {
   const currentWorktree = worktrees.find((worktree) => worktree.current && !worktree.bare);
   const externalWorktrees = worktrees.filter((worktree) => !worktree.current && !worktree.bare);
   const externalBranches = [
@@ -609,6 +617,7 @@ function graphContextForWorktrees(worktrees, status, branches = []) {
     currentHead: currentWorktree?.head ?? "",
     currentBranch: currentWorktree?.branch || (status.branch.detached ? "" : status.branch.name),
     localBranches,
+    mergedLocalBranches,
     externalHeads: externalWorktrees.map((worktree) => worktree.head),
     externalBranches,
   };
@@ -620,7 +629,10 @@ async function readGitSnapshot(repoPath, view = { mode: "all" }) {
   const status = parseStatus(shortStatus);
   const repositoryState = await repositoryStateForGit(root, status);
 
-  const [repositoryKey, unstagedStats, stagedStats, branchesRaw, worktreesRaw] = await Promise.all([
+  const mergedBranchesPromise = status.branch.detached
+    ? Promise.resolve("")
+    : runGit(root, ["branch", "--merged", status.branch.name, "--format=%(refname:short)"]).catch(() => "");
+  const [repositoryKey, unstagedStats, stagedStats, branchesRaw, worktreesRaw, mergedBranchesRaw] = await Promise.all([
     gitCommonDirKey(root),
     runGit(root, ["diff", "--numstat"]).catch(() => ""),
     runGit(root, ["diff", "--cached", "--numstat"]).catch(() => ""),
@@ -632,13 +644,15 @@ async function readGitSnapshot(repoPath, view = { mode: "all" }) {
       "refs/tags",
     ]).catch(() => ""),
     runGit(root, ["worktree", "list", "--porcelain"]).catch(() => ""),
+    mergedBranchesPromise,
   ]);
   const parsedWorktrees = await markCurrentWorktrees(parseWorktrees(worktreesRaw), root);
   const enrichedWorktrees = await Promise.all(parsedWorktrees.map((worktree) => enrichWorktree(root, worktree)));
   const worktrees = await Promise.all(enrichedWorktrees.map((worktree) => auditWorktreeCleanup(root, worktree)));
   const branches = parseBranches(branchesRaw, status.branch.name);
+  const mergedLocalBranches = parseMergedBranches(mergedBranchesRaw);
   const graphContext = {
-    ...graphContextForWorktrees(worktrees, status, branches),
+    ...graphContextForWorktrees(worktrees, status, branches, mergedLocalBranches),
     containedBranchTips: parseContainedBranchTips(branchesRaw),
   };
   const logRequest = logArgsForViewWithWorktrees(view, worktrees);

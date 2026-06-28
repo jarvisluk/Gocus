@@ -102,6 +102,7 @@ function commit(overrides) {
     filesChanged: overrides.filesChanged ?? 2,
     parents: overrides.parents ?? ["0000000"],
     refs: overrides.refs ?? [],
+    mergedRefs: overrides.mergedRefs ?? [],
     containedBranches: overrides.containedBranches ?? [],
     lane: overrides.lane ?? "main",
     branchColor: overrides.branchColor ?? "#2f80ed",

@@ -114,6 +114,7 @@ function commit(overrides = {}) {
     filesChanged: 2,
     parents: ["0000000"],
     refs: ["main"],
+    mergedRefs: [],
     containedBranches: [],
     lane: "main",
     branchColor: "#2f80ed",
@@ -2003,6 +2004,21 @@ function testGitGraphModule() {
   assert.equal(commits[0].graph.currentVariant, "solid");
   assert.equal(commits[0].graph.incomingVariant, "solid");
   assert.equal(commits[0].graph.isCurrentHead, true);
+
+  const commitsWithMergedLocalRefs = parseLog(rawLog, {
+    currentHead: firstHash,
+    currentBranch: "main",
+    mergedLocalBranches: ["main", "feature/base"],
+    containedBranchTips: [
+      { name: "main", hash: firstHash },
+      { name: "feature/base", hash: secondHash },
+    ],
+  });
+  assert.deepEqual(commitsWithMergedLocalRefs[0].refs, ["main"]);
+  assert.deepEqual(commitsWithMergedLocalRefs[0].mergedRefs, []);
+  assert.deepEqual(commitsWithMergedLocalRefs[1].refs, []);
+  assert.deepEqual(commitsWithMergedLocalRefs[1].mergedRefs, ["feature/base"]);
+
   const propagatedGraph = buildCommitGraph([
     {
       ...commit({ fullHash: firstHash, parents: [secondHash], refs: ["main"] }),
@@ -2307,6 +2323,7 @@ function testGitGraphModule() {
     currentHead: currentHeadHash,
     currentBranch: "refactor/current-worktree",
     localBranches: ["refactor/current-worktree", "feat/local-only"],
+    mergedLocalBranches: [],
     externalHeads: [externalHeadHash],
     externalBranches: ["feat/external-worktree"],
   });
@@ -3877,6 +3894,31 @@ async function testCommitRowView(server) {
   ]);
   assert.equal(hoverPanel.hash, "a1b2c3d");
   assert.equal(hoverPanel.fullHash, "a1b2c3d000000000000000000000000000000000");
+
+  const mergedRefHoverPanel = commitHoverPanelView(
+    commit({
+      refs: [],
+      mergedRefs: ["feat/function-menu"],
+      refColors: [],
+      branchColor: "#abcdef",
+      graph: {
+        ...commit().graph,
+        currentColor: "#abcdef",
+        currentLabel: "",
+      },
+    }),
+  );
+  assert.deepEqual(mergedRefHoverPanel.refs, [
+    {
+      key: "feat/function-menu-merged-0",
+      label: "feat/function-menu",
+      color: "#abcdef",
+      title: "feat/function-menu is a merged local branch pointer already reachable from the current branch.",
+      icon: "branch",
+      modifierClassName: "is-merged-ref",
+    },
+  ]);
+  assert.equal(mergedRefHoverPanel.showRefs, true);
 
   const inheritedLaneHoverPanel = commitHoverPanelView(
     commit({

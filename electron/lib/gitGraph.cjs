@@ -76,6 +76,7 @@ function normalizeGraphContext(context = {}) {
     currentHead: context.currentHead || "",
     currentBranch: context.currentBranch ? normalizeBranchColorKey(context.currentBranch) : "",
     localBranches: normalizeBranchSet(context.localBranches),
+    mergedLocalBranches: normalizeBranchSet(context.mergedLocalBranches),
     externalHeads: normalizeHashSet(context.externalHeads),
     externalBranches: normalizeBranchSet(context.externalBranches),
     containedBranchTips: Array.isArray(context.containedBranchTips) ? context.containedBranchTips : [],
@@ -96,6 +97,23 @@ function commitRefsIncludeAnyBranch(commit, branches) {
 
 function preferredRefIndex(commit) {
   return commit.refs.findIndex((ref) => preferredBranchColors.has(normalizeBranchColorKey(ref)));
+}
+
+function splitMergedLocalRefs(refs, context) {
+  const visibleRefs = [];
+  const mergedRefs = [];
+
+  for (const ref of refs) {
+    const branchKey = normalizeBranchColorKey(ref);
+    const isCurrentBranch = branchKey && branchKey === context.currentBranch;
+    if (!isCurrentBranch && context.mergedLocalBranches.has(branchKey)) {
+      mergedRefs.push(ref);
+    } else {
+      visibleRefs.push(ref);
+    }
+  }
+
+  return { refs: visibleRefs, mergedRefs };
 }
 
 function reachableHashesFrom(startHashes, commitsByHash) {
@@ -497,6 +515,9 @@ function parseLog(rawLog, graphContext = {}) {
         filesChanged += 1;
       }
 
+      const parsedRefs = parseRefs(refs);
+      const splitRefs = splitMergedLocalRefs(parsedRefs, context);
+
       return {
         id: fullHash,
         fullHash,
@@ -510,7 +531,8 @@ function parseLog(rawLog, graphContext = {}) {
         deletions,
         filesChanged,
         parents: parentsText.split(" ").filter(Boolean),
-        refs: parseRefs(refs),
+        refs: splitRefs.refs,
+        mergedRefs: splitRefs.mergedRefs,
         containedBranches: [],
         lane: branchKindFromRefs(refs, index),
       };

@@ -167,6 +167,7 @@ export interface CommitItem {
   filesChanged: number;
   parents: string[];
   refs: string[];
+  mergedRefs: string[];
   containedBranches: string[];
   lane: BranchKind;
   branchColor: BranchColor;
