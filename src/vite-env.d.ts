@@ -44,6 +44,7 @@ declare global {
       openGitHubReleases?: () => Promise<void>;
       getPreferences: () => Promise<UiPreferences>;
       savePreferences: (preferences: UiPreferences) => Promise<void>;
+      getCollapsed: () => Promise<boolean>;
       setCollapsed: (collapsed: boolean) => Promise<void>;
       setCollapsedRailHeight?: (height: number) => Promise<void>;
       getPinned: () => Promise<boolean>;

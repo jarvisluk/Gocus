@@ -98,6 +98,10 @@ export function useInitialGitData({
       .getRecentRepositories()
       .then((repositories) => setRecentRepositories(dedupeRecentRepositories(repositories, maxRecentRepositories)))
       .catch((error) => logBridgeWarning("Unable to load recent repositories.", error));
+    window.gocus
+      .getCollapsed()
+      .then(setCollapsed)
+      .catch((error) => logBridgeWarning("Unable to load collapsed state.", error));
 
     const unsubscribeSnapshot = window.gocus.onSnapshotUpdated((response) => {
       markGitRequest();

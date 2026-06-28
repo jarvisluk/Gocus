@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld("gocus", {
   openGitHubReleases: () => ipcRenderer.invoke("app:openGitHubReleases"),
   getPreferences: () => ipcRenderer.invoke("preferences:get"),
   savePreferences: (preferences) => ipcRenderer.invoke("preferences:save", preferences),
+  getCollapsed: () => ipcRenderer.invoke("window:getCollapsed"),
   setCollapsed: (collapsed) => ipcRenderer.invoke("window:setCollapsed", collapsed),
   setCollapsedRailHeight: (height) => ipcRenderer.invoke("window:setCollapsedRailHeight", height),
   getPinned: () => ipcRenderer.invoke("window:getPinned"),

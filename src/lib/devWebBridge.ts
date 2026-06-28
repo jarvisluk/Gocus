@@ -86,6 +86,7 @@ export function installDevWebBridge() {
     },
     getPreferences: () => requestBridge("getPreferences"),
     savePreferences: (preferences: UiPreferences) => requestBridge("savePreferences", { preferences }),
+    getCollapsed: async () => false,
     setCollapsed: async (_collapsed: boolean) => {},
     setCollapsedRailHeight: async (_height: number) => {},
     getPinned: async () => false,

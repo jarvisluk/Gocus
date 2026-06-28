@@ -271,6 +271,7 @@ function installGocusMock(config) {
       return config.preferences ?? null;
     },
     getPinned: async () => window.__gocusPinnedState,
+    getCollapsed: async () => false,
     getAvailableWorkspaceTargets: async () => {
       if (config.availableWorkspaceTargetsError) throw new Error(config.availableWorkspaceTargetsError);
       return config.availableWorkspaceTargets ?? ["cursor", "finder", "terminal"];

@@ -13,6 +13,7 @@ function registerIpcHandlers({
   getActiveWorkspaceOpenTarget,
   getAvailableWorkspaceTargets,
   getChangedFileInfoPayload,
+  getCollapsedState,
   getPinnedState,
   getCommitInfoPayload,
   holdCommitInfoPanelInteraction,
@@ -246,6 +247,8 @@ function registerIpcHandlers({
   ipcMain.handle("window:setCollapsed", (_event, collapsed) => {
     setCollapsedWindow(Boolean(collapsed));
   });
+
+  ipcMain.handle("window:getCollapsed", () => getCollapsedState());
 
   ipcMain.handle("window:setCollapsedRailHeight", (_event, height) => {
     setCollapsedRailHeight(height);

@@ -198,8 +198,8 @@ async function openGitHubReleases() {
   await shell.openExternal(releaseUrl);
 }
 
-function shouldStartInMenuBar() {
-  return launchAtLogin.shouldStartInMenuBar(config.readPreferences());
+function shouldStartCollapsedAtLogin() {
+  return launchAtLogin.shouldStartCollapsedAtLogin(config.readPreferences());
 }
 
 function shouldShowMenuBarIcon(preferences = config.readPreferences()) {
@@ -1152,9 +1152,10 @@ function showMainWindow() {
   mainWindow.focus();
 }
 
-function createWindow({ showOnReady = true } = {}) {
+function createWindow({ showOnReady = true, collapsed = false } = {}) {
   const appIcon = loadAppWindowIcon();
   const initialExpandedSize = readExpandedSize(screen.getPrimaryDisplay().workArea);
+  collapsedState = Boolean(collapsed);
 
   mainWindow = new BrowserWindow({
     ...initialExpandedSize,
@@ -1174,7 +1175,7 @@ function createWindow({ showOnReady = true } = {}) {
   });
 
   applyWindowShadow(mainWindow);
-  positionWindow(mainWindow);
+  positionWindow(mainWindow, collapsedState);
   mainWindow.once("ready-to-show", () => {
     applyWindowShadow(mainWindow);
     if (showOnReady) mainWindow.show();
@@ -1472,14 +1473,14 @@ app.whenReady().then(() => {
   currentRepository = readSavedRepositoryPath();
   const preferences = config.readPreferences();
   const menuBarModeEnabled = shouldUseMenuBarResidency(preferences);
-  const startInMenuBar = menuBarModeEnabled && shouldStartInMenuBar();
+  const startCollapsedAtLogin = shouldStartCollapsedAtLogin();
+  if (preferences.launchAtLogin) syncLaunchAtLogin(preferences);
   if (process.platform === "darwin" && app.dock) {
     app.dock.setIcon(assets.loadImageAsset("app-icon.png"));
   }
   if (menuBarModeEnabled) createTray();
   syncDockIcon(preferences);
-  if (startInMenuBar) hideDockIcon();
-  createWindow({ showOnReady: !startInMenuBar });
+  createWindow({ collapsed: startCollapsedAtLogin });
   if (currentRepository) startRepositoryWatcher(currentRepository);
   syncAutoUpdates(preferences);
 
@@ -1528,6 +1529,7 @@ registerIpcHandlers({
   getActiveWorkspaceOpenTarget: () => activeWorkspaceOpenTarget,
   getAvailableWorkspaceTargets,
   getChangedFileInfoPayload: () => changedFileInfoPayload,
+  getCollapsedState: () => collapsedState,
   getCommitInfoPayload: () => commitInfoPayload,
   getPinnedState: () => pinnedState,
   holdCommitInfoPanelInteraction,

@@ -1111,6 +1111,74 @@ function testIpcHandlersModule() {
   );
 }
 
+function testLaunchAtLoginModule() {
+  const { createLaunchAtLoginController } = require(path.join(projectRoot, "electron/lib/launchAtLogin.cjs"));
+
+  function fakeApp({ packaged = true, settings = {} } = {}) {
+    const calls = [];
+    return {
+      isPackaged: packaged,
+      calls,
+      getAppPath: () => "/app",
+      getLoginItemSettings: (options) => ({
+        ...settings,
+        matchOptions: options,
+      }),
+      setLoginItemSettings: (options) => {
+        calls.push(options);
+      },
+    };
+  }
+
+  const packagedWindowsApp = fakeApp({ packaged: true });
+  createLaunchAtLoginController(packagedWindowsApp, "--hidden", {
+    platform: "win32",
+    argv: ["Gocus.exe"],
+  }).syncLaunchAtLogin({ launchAtLogin: true });
+  assert.deepEqual(packagedWindowsApp.calls[0], {
+    openAtLogin: true,
+    args: ["--hidden"],
+  });
+
+  const devWindowsApp = fakeApp({ packaged: false });
+  createLaunchAtLoginController(devWindowsApp, "--hidden", {
+    platform: "win32",
+    execPath: "/node",
+    argv: ["/node"],
+  }).syncLaunchAtLogin({ launchAtLogin: true });
+  assert.deepEqual(devWindowsApp.calls[0], {
+    openAtLogin: true,
+    path: "/node",
+    args: ["/app", "--hidden"],
+  });
+
+  const hiddenArgController = createLaunchAtLoginController(fakeApp(), "--hidden", {
+    platform: "win32",
+    argv: ["Gocus.exe", "--hidden"],
+  });
+  assert.equal(hiddenArgController.shouldStartCollapsedAtLogin({ launchAtLogin: false }), true);
+
+  const windowsLoginController = createLaunchAtLoginController(
+    fakeApp({ settings: { wasOpenedAtLogin: true } }),
+    "--hidden",
+    { platform: "win32", argv: ["Gocus.exe"] },
+  );
+  assert.equal(windowsLoginController.shouldStartCollapsedAtLogin({ launchAtLogin: true }), true);
+
+  const darwinLoginController = createLaunchAtLoginController(
+    fakeApp({ settings: { wasOpenedAsHidden: true } }),
+    "--hidden",
+    { platform: "darwin", argv: ["Gocus"] },
+  );
+  assert.equal(darwinLoginController.shouldStartCollapsedAtLogin({ launchAtLogin: true }), true);
+
+  const manualLaunchController = createLaunchAtLoginController(fakeApp(), "--hidden", {
+    platform: "darwin",
+    argv: ["Gocus"],
+  });
+  assert.equal(manualLaunchController.shouldStartCollapsedAtLogin({ launchAtLogin: false }), false);
+}
+
 function testConfigStoreModule() {
   const {
     createConfigStore,
@@ -7687,6 +7755,7 @@ async function main() {
   testWindowAnimationModule();
   testConfigStoreModule();
   testIpcHandlersModule();
+  testLaunchAtLoginModule();
   await testAutoUpdateModule();
   testGitStatusModule();
   testGitCoreModule();
