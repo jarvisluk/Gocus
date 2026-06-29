@@ -183,7 +183,7 @@ svg {
 .nav-download {
   justify-self: end;
   justify-content: center;
-  gap: 7px;
+  gap: 0;
   width: 40px;
   min-width: 40px;
   height: 40px;
@@ -661,6 +661,7 @@ svg {
   }
 
   .nav-download {
+    gap: 7px;
     width: auto;
     min-width: 96px;
     height: 40px;
