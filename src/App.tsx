@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActionDialog } from "./components/ActionDialog";
 import { CollapsedRail } from "./components/CollapsedRail";
 import { EmptyRepositoryState } from "./components/EmptyRepositoryState";
@@ -15,10 +15,12 @@ import { useChangedNowPanel } from "./app/useChangedNowPanel";
 import {
   appEditorBackdropView,
   appChangedNowCount,
+  appFunctionMenuDismissView,
   appNativeDialogBlockerView,
   appPanelContentView,
   appPanelView,
   appScrollRegionView,
+  appShouldCloseFunctionMenuOnPointer,
   appShouldShowRepositoryControls,
   appViewportView,
 } from "./lib/appShellView";
@@ -49,6 +51,7 @@ export default function App() {
   const controller = useGocusController();
   const [workspaceOpenTarget, setWorkspaceOpenTarget] = useState<WorkspaceOpenTarget>(defaultWorkspaceOpenTarget);
   const [functionMenuOpen, setFunctionMenuOpen] = useState(false);
+  const functionMenuDismiss = useMemo(() => appFunctionMenuDismissView(), []);
   const panelContent = appPanelContentView({
     snapshot: controller.snapshot,
     settingsOpen: controller.settingsOpen,
@@ -110,6 +113,23 @@ export default function App() {
     return window.gocus?.onFunctionMenuPanelClosed?.(() => setFunctionMenuOpen(false));
   }, []);
 
+  const closeFunctionMenu = useCallback(() => {
+    setFunctionMenuOpen(false);
+    window.gocus?.setFunctionMenuPanel?.(null).catch((error) => logBridgeWarning("Unable to close function menu.", error));
+  }, []);
+
+  useEffect(() => {
+    if (!functionMenuOpen) return undefined;
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!appShouldCloseFunctionMenuOnPointer(event.target, functionMenuDismiss.exemptSelector)) return;
+      closeFunctionMenu();
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown, true);
+    return () => window.removeEventListener("pointerdown", handlePointerDown, true);
+  }, [closeFunctionMenu, functionMenuDismiss.exemptSelector, functionMenuOpen]);
+
   function updatePreferences(nextPreferences: typeof controller.preferences) {
     controller.setPreferences(nextPreferences);
   }
@@ -121,8 +141,7 @@ export default function App() {
 
   function openFunctionMenu() {
     if (functionMenuOpen) {
-      setFunctionMenuOpen(false);
-      window.gocus?.setFunctionMenuPanel?.(null).catch((error) => logBridgeWarning("Unable to close function menu.", error));
+      closeFunctionMenu();
       return;
     }
 

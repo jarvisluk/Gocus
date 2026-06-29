@@ -1434,6 +1434,12 @@ async function testFunctionMenuTriggerAndRecentRemoval(browser, baseUrl) {
     assert.equal(await page.getByRole("button", { name: "Close function menu" }).getAttribute("aria-pressed"), "true");
     assert.equal(await page.evaluate(() => window.__gocusFunctionMenuPayload.repository.repoName), "git-tree-vis");
 
+    await page.getByRole("heading", { name: "Commits" }).click();
+    await page.waitForFunction(() => window.__gocusFunctionMenuPayload === null);
+    assert.equal(await page.getByRole("button", { name: "Open function menu" }).getAttribute("aria-pressed"), "false");
+
+    await functionMenuButton.click();
+    await page.waitForFunction(() => window.__gocusFunctionMenuPayload?.kind === "function-menu");
     await page.getByRole("button", { name: "Close function menu" }).click();
     await page.waitForFunction(() => window.__gocusFunctionMenuPayload === null);
     assert.equal(await page.getByRole("button", { name: "Open function menu" }).getAttribute("aria-pressed"), "false");
