@@ -11,29 +11,8 @@ import {
 import { useEffect, useMemo, useState } from "react";
 
 const latestReleaseUrl = "https://github.com/jarvisluk/gocus/releases/latest";
+const latestReleaseApiUrl = "https://api.github.com/repos/jarvisluk/Gocus/releases/latest";
 const releasesUrl = "https://github.com/jarvisluk/gocus/releases";
-const releaseDownloads = {
-  macArm64: "https://github.com/jarvisluk/Gocus/releases/download/v0.1.3/Gocus-0.1.3-mac-arm64.zip",
-  windowsInstaller:
-    "https://github.com/jarvisluk/Gocus/releases/download/v0.1.3/Gocus-Setup-0.1.3-win-x64.exe",
-};
-
-const downloadOptions = [
-  {
-    title: "macOS build",
-    meta: "Apple Silicon zip",
-    body: "For running Gocus beside Codex, Claude Code, Antigravity, and other AI-native coding sessions on macOS.",
-    label: "Download macOS build",
-    url: releaseDownloads.macArm64,
-  },
-  {
-    title: "Windows Installer",
-    meta: "Windows x64 installer",
-    body: "Use the Installer build when your AI-native workflow runs on Windows. Portable assets stay on the release page.",
-    label: "Download Windows Installer",
-    url: releaseDownloads.windowsInstaller,
-  },
-];
 
 type DownloadPlatform = "mac" | "windows" | "other";
 type MacArchitecture = "arm64" | "x64";
@@ -42,6 +21,16 @@ type ReleaseDownloads = {
   macArm64?: string;
   macX64?: string;
   windowsInstaller?: string;
+  windowsZip?: string;
+};
+
+type GitHubReleaseAsset = {
+  name: string;
+  browser_download_url?: string;
+};
+
+type GitHubReleaseResponse = {
+  assets?: GitHubReleaseAsset[];
 };
 
 type NavigatorWithUserAgentData = Navigator & {
@@ -55,6 +44,14 @@ type DownloadTarget = {
   ariaLabel: string;
   label: string;
   navLabel: string;
+  url: string;
+};
+
+type DownloadOption = {
+  title: string;
+  meta: string;
+  body: string;
+  label: string;
   url: string;
 };
 
@@ -145,13 +142,84 @@ async function detectMacArchitecture(): Promise<MacArchitecture | null> {
   return macArchitectureFromValue(highEntropyValues?.architecture) ?? macArchitectureFromValue(nav.platform);
 }
 
+function releaseAssetUrl(assets: GitHubReleaseAsset[], pattern: RegExp) {
+  return assets.find((asset) => pattern.test(asset.name))?.browser_download_url;
+}
+
+function releaseDownloadsFromResponse(release: GitHubReleaseResponse): ReleaseDownloads {
+  const assets = release.assets ?? [];
+
+  return {
+    macArm64: releaseAssetUrl(assets, /^Gocus-.+-mac-arm64\.zip$/),
+    macX64: releaseAssetUrl(assets, /^Gocus-.+-mac-x64\.zip$/),
+    windowsInstaller: releaseAssetUrl(assets, /^Gocus-Setup-.+-win-x64\.exe$/),
+    windowsZip: releaseAssetUrl(assets, /^Gocus-.+-win-x64\.zip$/),
+  };
+}
+
+function useLatestReleaseDownloads() {
+  const [downloads, setDownloads] = useState<ReleaseDownloads>({});
+
+  useEffect(() => {
+    let isActive = true;
+
+    fetch(latestReleaseApiUrl, {
+      headers: {
+        Accept: "application/vnd.github+json",
+      },
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`GitHub latest release request failed with ${response.status}`);
+        }
+
+        return response.json() as Promise<GitHubReleaseResponse>;
+      })
+      .then((release) => {
+        if (isActive) {
+          setDownloads(releaseDownloadsFromResponse(release));
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setDownloads({});
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  return downloads;
+}
+
+function downloadOptionsForRelease(downloads: ReleaseDownloads): DownloadOption[] {
+  return [
+    {
+      title: "macOS build",
+      meta: "Latest Apple Silicon zip",
+      body: "For running Gocus beside Codex, Claude Code, Antigravity, and other AI-native coding sessions on macOS.",
+      label: "Download macOS build",
+      url: downloads.macArm64 ?? downloads.macX64 ?? latestReleaseUrl,
+    },
+    {
+      title: "Windows build",
+      meta: "Latest Windows x64 zip",
+      body: "Use the Windows x64 build when your AI-native workflow runs on Windows.",
+      label: "Download Windows build",
+      url: downloads.windowsInstaller ?? downloads.windowsZip ?? latestReleaseUrl,
+    },
+  ];
+}
+
 function downloadUrlForPlatform(
   platform: DownloadPlatform,
   downloads: ReleaseDownloads,
   macArchitecture: MacArchitecture | null,
 ) {
   if (platform === "windows") {
-    return downloads.windowsInstaller ?? latestReleaseUrl;
+    return downloads.windowsInstaller ?? downloads.windowsZip ?? latestReleaseUrl;
   }
 
   if (platform === "mac") {
@@ -178,7 +246,7 @@ function downloadTargetForPlatform(
 
   if (platform === "windows") {
     return {
-      ariaLabel: "Download Gocus Windows Installer",
+      ariaLabel: "Download Gocus for Windows",
       label: "Download for Windows",
       navLabel: "Windows",
       url,
@@ -202,7 +270,7 @@ function downloadTargetForPlatform(
   };
 }
 
-function useDownloadTarget() {
+function useDownloadTarget(downloads: ReleaseDownloads) {
   const [platform, setPlatform] = useState<DownloadPlatform>(() => detectDownloadPlatform());
   const [macArchitecture, setMacArchitecture] = useState<MacArchitecture | null>(null);
 
@@ -229,8 +297,8 @@ function useDownloadTarget() {
   }, []);
 
   return useMemo(
-    () => downloadTargetForPlatform(platform, releaseDownloads, macArchitecture),
-    [platform, macArchitecture],
+    () => downloadTargetForPlatform(platform, downloads, macArchitecture),
+    [downloads, platform, macArchitecture],
   );
 }
 
@@ -271,7 +339,9 @@ function WebsiteHeader({ downloadTarget }: { downloadTarget: DownloadTarget }) {
   );
 }
 
-function DownloadOptions() {
+function DownloadOptions({ downloads }: { downloads: ReleaseDownloads }) {
+  const downloadOptions = useMemo(() => downloadOptionsForRelease(downloads), [downloads]);
+
   return (
     <div className="download-list">
       {downloadOptions.map((option) => (
@@ -295,7 +365,8 @@ function DownloadOptions() {
 }
 
 export function WebsiteApp() {
-  const downloadTarget = useDownloadTarget();
+  const downloads = useLatestReleaseDownloads();
+  const downloadTarget = useDownloadTarget(downloads);
 
   return (
     <main className="site-shell" id="top">
@@ -377,7 +448,7 @@ export function WebsiteApp() {
           <h2 id="download-title">Download Gocus</h2>
           <p>Choose the build for the machine running your AI-native coding sessions. The header and hero CTA still adapt to your current OS.</p>
         </div>
-        <DownloadOptions />
+        <DownloadOptions downloads={downloads} />
       </section>
     </main>
   );
