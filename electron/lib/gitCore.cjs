@@ -2,6 +2,13 @@ const { execFile } = require("node:child_process");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 
+function gitUnavailableNotice(platform = process.platform) {
+  if (platform === "win32") {
+    return "Git is not installed or is not available on PATH. Install Git for Windows, then restart Gocus.";
+  }
+  return "Git is not installed or is not available on PATH. Install Git, then restart Gocus.";
+}
+
 function runGit(repoPath, args, options = {}) {
   return new Promise((resolve, reject) => {
     execFile(
@@ -14,6 +21,7 @@ function runGit(repoPath, args, options = {}) {
       (error, stdout, stderr) => {
         if (error) {
           error.stderr = stderr;
+          if (error.code === "ENOENT") error.message = gitUnavailableNotice();
           reject(error);
           return;
         }
@@ -50,6 +58,7 @@ async function gitCommonDirKey(root) {
 
 module.exports = {
   gitCommonDirKey,
+  gitUnavailableNotice,
   isNotGitRepositoryError,
   realPathForCompare,
   runGit,

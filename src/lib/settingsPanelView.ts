@@ -4,7 +4,7 @@ import { workspaceOpenTargetsSummary } from "./workspaceOpenChoices";
 import type { WorkspaceOpenOption } from "./workspaceOpenOptions";
 
 export type SettingsPage = "main" | "app" | "openIn";
-export type SettingsSegmentIcon = "monitor" | "sun" | "moon";
+export type SettingsPlatform = "darwin" | "win32" | "linux";
 
 export const settingsPanelTitleId = "settings-panel-title";
 export const settingsRefreshMenuId = "settings-refresh-menu";
@@ -15,34 +15,25 @@ interface SettingsSegmentOption<T extends string> {
   label: string;
   className: string;
   ariaPressed: boolean;
-  icon?: SettingsSegmentIcon;
-}
-
-interface SettingsSelectOption<T extends string> {
-  value: T;
-  label: string;
 }
 
 function activeSegmentClass(active: boolean) {
   return active ? "is-active" : "";
 }
 
-function settingsSegmentOption<T extends string>(
-  value: T,
-  currentValue: T,
-  label: string,
-  icon?: SettingsSegmentIcon,
-): SettingsSegmentOption<T> {
+function normalizedSettingsPlatform(platform: string | undefined): SettingsPlatform {
+  if (platform === "win32" || platform === "linux") return platform;
+  return "darwin";
+}
+
+function settingsSegmentOption<T extends string>(value: T, currentValue: T, label: string): SettingsSegmentOption<T> {
   const active = value === currentValue;
-  const option: SettingsSegmentOption<T> = {
+  return {
     value,
     label,
     className: activeSegmentClass(active),
     ariaPressed: active,
   };
-
-  if (icon) option.icon = icon;
-  return option;
 }
 
 export function settingsPreferencesView(preferences: UiPreferences) {
@@ -50,15 +41,6 @@ export function settingsPreferencesView(preferences: UiPreferences) {
     preferences.autoUpdateChannel === "develop" ? "Latest develop candidate" : "Latest stable release";
 
   return {
-    themeModeOptions: [
-      settingsSegmentOption("system", preferences.themeMode, "System", "monitor"),
-      settingsSegmentOption("light", preferences.themeMode, "Light", "sun"),
-      settingsSegmentOption("dark", preferences.themeMode, "Dark", "moon"),
-    ],
-    densityOptions: [
-      settingsSegmentOption("compact", preferences.density, "Compact"),
-      settingsSegmentOption("comfortable", preferences.density, "Comfort"),
-    ],
     graphStyleOptions: [
       settingsSegmentOption("solid", preferences.graphStyle, "Solid"),
       settingsSegmentOption("soft", preferences.graphStyle, "Soft"),
@@ -72,11 +54,6 @@ export function settingsPreferencesView(preferences: UiPreferences) {
       settingsSegmentOption("develop", preferences.autoUpdateChannel, "Develop"),
     ],
     autoUpdateChannelDetail,
-    fontFamilyOptions: [
-      { value: "system", label: "System" },
-      { value: "inter", label: "Inter" },
-      { value: "mono", label: "Mono" },
-    ] satisfies SettingsSelectOption<UiPreferences["fontFamily"]>[],
   };
 }
 
@@ -97,11 +74,16 @@ export function settingsPanelView(
   page: SettingsPage,
   availableWorkspaceOptions: readonly WorkspaceOpenOption[],
   enabledWorkspaceTargets: readonly WorkspaceOpenTarget[],
+  platform?: string,
 ) {
   const appPageActive = page === "app";
   const openInPageActive = page === "openIn";
   const secondaryPageActive = appPageActive || openInPageActive;
   const workspaceTargetsSummary = workspaceOpenTargetsSummary(availableWorkspaceOptions, enabledWorkspaceTargets);
+  const settingsPlatform = normalizedSettingsPlatform(platform);
+  const usesMacMenuBar = settingsPlatform === "darwin";
+  const usesWindowsTray = settingsPlatform === "win32";
+  const dockIconAvailable = usesMacMenuBar || usesWindowsTray;
 
   return {
     appPageActive,
@@ -191,20 +173,6 @@ export function settingsPanelView(
         releaseLinkLabel: "GitHub Releases",
         releaseLinkAriaLabel: "Open GitHub Releases",
       },
-      appearance: {
-        titleId: "settings-appearance-title",
-        title: "Appearance",
-        rows: {
-          mode: "Mode",
-          light: "Light",
-          dark: "Dark",
-          density: "Density",
-          font: "Font",
-        },
-        lightThemeAriaLabel: "Light theme preset",
-        darkThemeAriaLabel: "Dark theme preset",
-        fontFamilyAriaLabel: "Font family",
-      },
       graph: {
         titleId: "settings-graph-title",
         title: "Graph",
@@ -215,18 +183,19 @@ export function settingsPanelView(
       behavior: {
         titleId: "settings-behavior-title",
         title: "Behavior",
+        dockIconAvailable,
         rows: {
           refresh: "Refresh",
           startup: "Startup",
-          menuBar: "Menu bar",
-          dock: "Dock",
+          menuBar: usesMacMenuBar ? "Menu bar" : "Tray",
+          dock: usesWindowsTray ? "Taskbar" : "Dock",
           merge: "No-FF",
           prompt: "Prompt",
         },
         autoRefreshAriaLabel: "Auto refresh interval",
         launchAtLoginAriaLabel: "Launch at login",
-        showMenuBarIconAriaLabel: "Show menu bar icon",
-        showDockIconAriaLabel: "Show Dock icon",
+        showMenuBarIconAriaLabel: usesMacMenuBar ? "Show menu bar icon" : "Show tray icon",
+        showDockIconAriaLabel: usesWindowsTray ? "Show taskbar icon" : "Show Dock icon",
         createMergeCommitAriaLabel: "Disable fast-forward merges",
       },
       workspace: {

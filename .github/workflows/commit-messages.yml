@@ -1,0 +1,46 @@
+name: Commit Messages
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  commit-messages:
+    name: Conventional Commit Subjects
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve commit range
+        id: range
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            git fetch --no-tags origin "+refs/heads/${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
+            range="origin/${GITHUB_BASE_REF}..HEAD"
+          elif [[ "${{ github.event.before }}" =~ ^0+$ ]]; then
+            range="HEAD~1..HEAD"
+          elif git cat-file -e "${{ github.event.before }}^{commit}" 2>/dev/null; then
+            range="${{ github.event.before }}..${GITHUB_SHA}"
+          else
+            git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"
+            range="origin/main..HEAD"
+          fi
+
+          echo "range=$range" >>"$GITHUB_OUTPUT"
+          echo "Checking commit messages in $range"
+
+      - name: Check commit messages
+        run: node scripts/check-commit-messages.cjs --range "${{ steps.range.outputs.range }}"

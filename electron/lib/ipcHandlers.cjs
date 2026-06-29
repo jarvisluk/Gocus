@@ -10,15 +10,17 @@ function registerIpcHandlers({
   createBranch,
   dockWindow,
   errorResponse,
+  fetchRemotes,
   getActiveWorkspaceOpenTarget,
   getAvailableWorkspaceTargets,
   getChangedFileInfoPayload,
+  getCollapsedState,
   getPinnedState,
   getCommitInfoPayload,
+  getFunctionMenuPayload,
   holdCommitInfoPanelInteraction,
   isCommitInfoPanelActive,
   getSnapshotResponse,
-  getSystemTheme,
   getTemporaryInfoPayload,
   initializeRepository,
   ipcMain,
@@ -27,13 +29,17 @@ function registerIpcHandlers({
   normalizeRepositorySwitchView,
   normalizeView,
   openRepositoryPath,
+  openRepositoryRemote,
   openWorkspace,
   openWorkspaceFile,
   openWorkspaceFileMenu,
   openGitHubReleases,
   openWorktree,
+  pullCurrentBranch,
+  pushCurrentBranch,
   readPreferences,
   readRecentRepositories,
+  removeRecentRepository,
   repositoryPathForAction,
   saveRepositoryPath,
   sendPreferences,
@@ -45,13 +51,14 @@ function registerIpcHandlers({
   setCommitInfoPanel,
   setCommitInfoPanelHeight,
   setCurrentView,
+  setFunctionMenuPanel,
+  setFunctionMenuPanelHeight,
   setPinnedWindow,
   setTemporaryInfoPanel,
   syncAutoUpdates,
   syncDockIcon,
   syncLaunchAtLogin,
   syncMenuBarIcon,
-  syncNativeThemeSource,
 }) {
   ipcMain.handle("git:openRepository", async (_event, view) => {
     return chooseRepository(normalizeView(view));
@@ -69,6 +76,12 @@ function registerIpcHandlers({
 
   ipcMain.handle("git:getRecentRepositories", () => {
     return readRecentRepositories();
+  });
+
+  ipcMain.handle("git:removeRecentRepository", (_event, repository) => {
+    const repositories = removeRecentRepository(repository?.path, repository?.repositoryKey);
+    buildMenus();
+    return repositories;
   });
 
   ipcMain.handle("git:refresh", async (_event, view) => {
@@ -148,6 +161,59 @@ function registerIpcHandlers({
       return { ok: true, message: `Checked out ${snapshot.branch.name}.`, snapshot };
     } catch (error) {
       return errorResponse(error, "Unable to checkout ref.");
+    }
+  });
+
+  ipcMain.handle("git:pushCurrentBranch", async (_event, view) => {
+    const repositoryPath = repositoryPathForAction();
+    if (!repositoryPath) return noRepositoryResponse();
+
+    try {
+      const snapshot = await pushCurrentBranch(repositoryPath, normalizeView(view));
+      saveRepositoryPath(snapshot.repoPath, snapshot.repositoryKey);
+      sendSnapshotResponse({ ok: true, snapshot }, "action");
+      return { ok: true, message: `Pushed ${snapshot.branch.name}.`, snapshot };
+    } catch (error) {
+      return errorResponse(error, "Unable to push current branch.");
+    }
+  });
+
+  ipcMain.handle("git:pullCurrentBranch", async (_event, view) => {
+    const repositoryPath = repositoryPathForAction();
+    if (!repositoryPath) return noRepositoryResponse();
+
+    try {
+      const snapshot = await pullCurrentBranch(repositoryPath, normalizeView(view));
+      saveRepositoryPath(snapshot.repoPath, snapshot.repositoryKey);
+      sendSnapshotResponse({ ok: true, snapshot }, "action");
+      return { ok: true, message: `Pulled ${snapshot.branch.name}.`, snapshot };
+    } catch (error) {
+      return errorResponse(error, "Unable to pull current branch.");
+    }
+  });
+
+  ipcMain.handle("git:fetchRemotes", async (_event, view) => {
+    const repositoryPath = repositoryPathForAction();
+    if (!repositoryPath) return noRepositoryResponse();
+
+    try {
+      const snapshot = await fetchRemotes(repositoryPath, normalizeView(view));
+      saveRepositoryPath(snapshot.repoPath, snapshot.repositoryKey);
+      sendSnapshotResponse({ ok: true, snapshot }, "action");
+      return { ok: true, message: "Fetched remotes.", snapshot };
+    } catch (error) {
+      return errorResponse(error, "Unable to fetch remotes.");
+    }
+  });
+
+  ipcMain.handle("git:openRepositoryRemote", async () => {
+    const repositoryPath = repositoryPathForAction();
+    if (!repositoryPath) return noRepositoryResponse();
+
+    try {
+      return await openRepositoryRemote(repositoryPath);
+    } catch (error) {
+      return errorResponse(error, "Unable to open repository remote.");
     }
   });
 
@@ -242,13 +308,14 @@ function registerIpcHandlers({
     if (sideEffects.checkAutoUpdatesNow) checkForUpdates();
 
     const savedPreferences = readPreferences();
-    syncNativeThemeSource(savedPreferences);
     sendPreferences(savedPreferences);
   });
 
   ipcMain.handle("window:setCollapsed", (_event, collapsed) => {
     setCollapsedWindow(Boolean(collapsed));
   });
+
+  ipcMain.handle("window:getCollapsed", () => getCollapsedState());
 
   ipcMain.handle("window:setCollapsedRailHeight", (_event, height) => {
     setCollapsedRailHeight(height);
@@ -268,6 +335,16 @@ function registerIpcHandlers({
 
   ipcMain.handle("window:setTemporaryInfoPanel", (_event, payload) => {
     setTemporaryInfoPanel(payload);
+  });
+
+  ipcMain.handle("window:getFunctionMenuPayload", () => getFunctionMenuPayload());
+
+  ipcMain.handle("window:setFunctionMenuPanel", (_event, payload) => {
+    setFunctionMenuPanel(payload);
+  });
+
+  ipcMain.handle("window:setFunctionMenuPanelHeight", (_event, height) => {
+    setFunctionMenuPanelHeight(height);
   });
 
   ipcMain.handle("window:getChangedFileInfoPayload", () => getChangedFileInfoPayload());
@@ -297,8 +374,6 @@ function registerIpcHandlers({
   });
 
   ipcMain.handle("clipboard:readText", () => clipboard.readText());
-
-  ipcMain.handle("theme:getSystemTheme", () => getSystemTheme());
 }
 
 function preferencesSaveSideEffects(previousEffectivePreferences, previousConfigPreferences, savedConfigPreferences) {

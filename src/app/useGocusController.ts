@@ -29,17 +29,12 @@ import {
 } from "../lib/bridgeAvailability";
 import { selectedCommitFromSnapshot, selectedCommitIdAfterToggle } from "../lib/commitListView";
 import { commitViewChangeDecision, defaultCommitView } from "../lib/commitView";
-import { errorMessage, runBridgeSideEffect } from "../lib/errorMessages";
+import { errorMessage, logBridgeWarning, runBridgeSideEffect } from "../lib/errorMessages";
 import { dirtyWorkspaceMergeNotice, snapshotHasUncommittedChanges } from "../lib/mergeGuard";
 import { panelPinnedNotice, panelPinnedStateAfterToggle } from "../lib/panelHeaderView";
+import { applyPreferences, defaultPreferences, mergePreferences } from "../lib/preferences";
 import {
-  applyPreferences,
-  defaultPreferences,
-  mergePreferences,
-  preferencesDocumentThemeView,
-  systemThemeFallback,
-} from "../lib/preferences";
-import {
+  isSameRecentRepository,
   recentRepositoryFromSnapshot,
   upsertRecentRepository,
 } from "../lib/recentRepositories";
@@ -57,7 +52,6 @@ import type {
   GitSnapshot,
   RecentRepository,
   SnapshotResponse,
-  Theme,
   UiPreferences,
   WorkspaceOpenTarget,
 } from "../types";
@@ -68,7 +62,6 @@ function isElectronRuntime() {
 
 export function useGocusController() {
   const [snapshot, setSnapshot] = useState<GitSnapshot | null>(null);
-  const [systemTheme, setSystemTheme] = useState<Theme>(systemThemeFallback);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
   const [pinned, setPinned] = useState(false);
@@ -89,7 +82,6 @@ export function useGocusController() {
   const currentRepositoryPathRef = useRef("");
   const autoRefreshInFlightRef = useRef(false);
   const electron = isElectronRuntime();
-  const { theme, themePreset } = preferencesDocumentThemeView(preferences, systemTheme);
 
   function selectedCommit() {
     return selectedCommitFromSnapshot(snapshot, selectedCommitId);
@@ -230,6 +222,17 @@ export function useGocusController() {
       setNotice(errorMessage(error, "Unable to switch repository."));
     } finally {
       setRefreshing(false);
+    }
+  }
+
+  async function removeRecentRepository(repository: RecentRepository) {
+    setRecentRepositories((current) => current.filter((entry) => !isSameRecentRepository(entry, repository)));
+
+    try {
+      const repositories = await window.gocus?.removeRecentRepository(repository);
+      if (repositories) setRecentRepositories(repositories);
+    } catch (error) {
+      logBridgeWarning("Unable to remove recent repository.", error);
     }
   }
 
@@ -514,12 +517,11 @@ export function useGocusController() {
     setPreferences(defaultPreferences);
   }
 
-  usePreferenceDomEffects({ preferences, theme, themePreset });
+  usePreferenceDomEffects({ preferences });
   useRuntimePreferenceBridge({
     setAvailableWorkspaceTargets,
     setPinned,
     setPreferencesState,
-    setSystemTheme,
   });
   useInitialGitData({
     applySnapshotResponse,
@@ -552,7 +554,6 @@ export function useGocusController() {
   return {
     snapshot,
     selectedCommit: selectedCommit(),
-    theme,
     loading,
     collapsed,
     pinned,
@@ -572,6 +573,7 @@ export function useGocusController() {
     setSettingsOpen,
     openRepository,
     switchRepository,
+    removeRecentRepository,
     initializeRepository,
     refreshSnapshot,
     changeCommitView,

@@ -3,23 +3,22 @@ const {
   checkout,
   cleanupWorktree,
   createBranch,
+  fetchRemotes,
   initializeRepository,
   isNotGitRepositoryError,
   merge,
   normalizeView,
   openWorktree,
+  pullCurrentBranch,
+  pushCurrentBranch,
   readGitSnapshot,
+  repositoryRemoteWebUrl,
 } = require("./git.cjs");
 const { getAvailableWorkspaceTargets, openWorkspace, openWorkspaceFile } = require("./workspace.cjs");
 
 const bridgePrefix = "/__git_peek_dev_bridge";
 const defaultActiveWorkspaceOpenTarget = "vscode";
 const defaultPreferences = {
-  themeMode: "dark",
-  lightThemePreset: "paper",
-  darkThemePreset: "graphite",
-  density: "compact",
-  fontFamily: "system",
   graphStyle: "solid",
   workspaceOpenTargets: ["vscode", "cursor", "codex", "antigravity", "antigravityApp", "finder", "terminal", "xcode"],
   showMenuBarIcon: true,
@@ -32,6 +31,19 @@ const defaultPreferences = {
   autoRefreshInterval: "off",
   promptLanguage: "en",
 };
+
+function sanitizePreferences(preferences) {
+  const source = preferences && typeof preferences === "object" ? preferences : {};
+  const nextPreferences = { ...defaultPreferences };
+
+  for (const key of Object.keys(defaultPreferences)) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      nextPreferences[key] = source[key];
+    }
+  }
+
+  return nextPreferences;
+}
 
 function jsonResponse(response, statusCode, body) {
   response.statusCode = statusCode;
@@ -84,6 +96,7 @@ function errorResponse(error, fallbackMessage) {
 
 function createDevWebBridgeMiddleware(projectRoot) {
   let repositoryPath = path.resolve(projectRoot);
+  let recentRepositories = [repositoryEntry(repositoryPath)];
   let activeWorkspaceTarget = defaultActiveWorkspaceOpenTarget;
   let preferences = { ...defaultPreferences };
 
@@ -91,6 +104,13 @@ function createDevWebBridgeMiddleware(projectRoot) {
     try {
       const snapshot = await readGitSnapshot(repositoryPath, normalizeView(view));
       repositoryPath = snapshot.repoPath;
+      const snapshotRepository = repositoryEntry(snapshot.repoPath, snapshot.repositoryKey);
+      recentRepositories = [snapshotRepository, ...recentRepositories].filter(
+        (repository, index, repositories) =>
+          repositories.findIndex(
+            (entry) => (entry.repositoryKey || entry.path) === (repository.repositoryKey || repository.path),
+          ) === index,
+      );
       return { ok: true, snapshot };
     } catch (error) {
       return errorResponse(error, "Unable to read the dev working folder.");
@@ -119,7 +139,14 @@ function createDevWebBridgeMiddleware(projectRoot) {
       }
       return snapshotResponse(payload.view);
     },
-    "/getRecentRepositories": async () => [repositoryEntry(repositoryPath)],
+    "/getRecentRepositories": async () => recentRepositories,
+    "/removeRecentRepository": async (payload) => {
+      const repository = payload.repository ?? {};
+      recentRepositories = recentRepositories.filter(
+        (entry) => entry.path !== repository.path && (entry.repositoryKey || entry.path) !== (repository.repositoryKey || repository.path),
+      );
+      return recentRepositories;
+    },
     "/getAvailableWorkspaceTargets": async () => getAvailableWorkspaceTargets(),
     "/getActiveWorkspaceTarget": async () => activeWorkspaceTarget,
     "/setActiveWorkspaceTarget": async (payload) => {
@@ -131,10 +158,9 @@ function createDevWebBridgeMiddleware(projectRoot) {
     "/checkForUpdates": async () => ({ ok: true }),
     "/getPreferences": async () => preferences,
     "/savePreferences": async (payload) => {
-      preferences = { ...defaultPreferences, ...(payload.preferences ?? {}) };
+      preferences = sanitizePreferences(payload.preferences);
       return { ok: true };
     },
-    "/getSystemTheme": async () => "dark",
     "/clearRepository": async () => {
       repositoryPath = path.resolve(projectRoot);
       return snapshotResponse({ mode: "all" });
@@ -167,6 +193,32 @@ function createDevWebBridgeMiddleware(projectRoot) {
         `Checked out ${payload.ref}.`,
         "Unable to checkout ref.",
       ),
+    "/pushCurrentBranch": async (payload) =>
+      actionWithSnapshot(
+        (root, view) => pushCurrentBranch(root, view),
+        payload.view,
+        "Pushed current branch.",
+        "Unable to push current branch.",
+      ),
+    "/pullCurrentBranch": async (payload) =>
+      actionWithSnapshot(
+        (root, view) => pullCurrentBranch(root, view),
+        payload.view,
+        "Pulled current branch.",
+        "Unable to pull current branch.",
+      ),
+    "/fetchRemotes": async (payload) =>
+      actionWithSnapshot(
+        (root, view) => fetchRemotes(root, view),
+        payload.view,
+        "Fetched remotes.",
+        "Unable to fetch remotes.",
+      ),
+    "/openRepositoryRemote": async () => ({
+      ok: true,
+      message: "Opened repository remote.",
+      url: await repositoryRemoteWebUrl(repositoryPath),
+    }),
     "/openWorktree": async (payload) =>
       actionWithSnapshot(
         (root, view) => openWorktree(root, payload.worktreePath, view),

@@ -6,11 +6,6 @@ const workspaceOpenTargetValues = ["vscode", "cursor", "codex", "antigravity", "
 const defaultActiveWorkspaceOpenTarget = "vscode";
 
 const defaultPreferences = {
-  themeMode: "dark",
-  lightThemePreset: "paper",
-  darkThemePreset: "graphite",
-  density: "compact",
-  fontFamily: "system",
   graphStyle: "solid",
   workspaceOpenTargets: [...workspaceOpenTargetValues],
   showMenuBarIcon: true,
@@ -149,6 +144,22 @@ function addRecentRepository(config, repositoryPath, repositoryKey = "") {
   };
 }
 
+function removeRecentRepository(config, repositoryPath, repositoryKey = "") {
+  const repository = repositoryEntry(repositoryPath, repositoryKey);
+  if (!repository) return { ...config, recentRepositories: sanitizeRecentRepositories(config.recentRepositories) };
+
+  const removeKey = repository.repositoryKey || repository.path;
+  const removePath = repository.path;
+  const nextRecentRepositories = sanitizeRecentRepositories(config.recentRepositories).filter(
+    (entry) => entry.path !== removePath && (entry.repositoryKey || entry.path) !== removeKey,
+  );
+
+  return {
+    ...config,
+    recentRepositories: nextRecentRepositories,
+  };
+}
+
 function createConfigStore(app) {
   function getConfigPath() {
     return path.join(app.getPath("userData"), "config.json");
@@ -185,6 +196,11 @@ function createConfigStore(app) {
     },
     readRecentRepositories() {
       return sanitizeRecentRepositories(readConfig().recentRepositories);
+    },
+    removeRecentRepository(repositoryPath, repositoryKey) {
+      const nextConfig = removeRecentRepository(readConfig(), repositoryPath, repositoryKey);
+      writeConfig(nextConfig);
+      return sanitizeRecentRepositories(nextConfig.recentRepositories);
     },
     readPreferences() {
       return sanitizePreferences(readConfig().preferences);

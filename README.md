@@ -1,6 +1,6 @@
 # Gocus
 
-Gocus is a compact macOS Git companion that sits beside your editor and keeps the current repository, branch,
+Gocus is a compact desktop Git companion that sits beside your editor and keeps the current repository, branch,
 worktrees, changed files, and recent commits visible without opening a full Git client.
 
 It is designed for quick orientation: check what changed, search recent history, jump into another app, or start a
@@ -24,13 +24,15 @@ The screenshot below shows Gocus at its normal floating-panel size.
 
 ## Get Started
 
-1. Download the macOS build from [GitHub Releases](https://github.com/jarvisluk/gocus/releases) when a release is available.
-2. Unzip the app and move **Gocus.app** into `/Applications`.
-3. Open Gocus.
+1. Download the macOS or Windows build from [GitHub Releases](https://github.com/jarvisluk/gocus/releases).
+2. On macOS, unzip the app and move **Gocus.app** into `/Applications`.
+3. On Windows, install [Git for Windows](https://git-scm.com/download/win).
+   Then download **Gocus-...-win-... .zip**, extract it, and run **Gocus.exe**.
 4. Click **Open folder** and choose a local Git repository.
 5. Pin the floating panel if you want it to stay above your editor.
 
 If macOS blocks the app on first launch, open it from Finder with **Control-click -> Open** so Gatekeeper can confirm the app.
+If Windows SmartScreen warns on an unsigned Windows build, choose **More info** and run it only if you trust the source.
 
 ## Read The Panel
 
@@ -61,7 +63,7 @@ whether merges should create merge commits in Settings.
 ## Review Current Changes
 
 The footer changed-files button shows how many files changed right now. Open it to inspect the changed-file list, then
-open the repository or a file in an enabled external app such as Codex, VS Code, Finder, Terminal, Cursor, or Xcode.
+open the repository or a file in an enabled external app such as VS Code, Explorer/Finder, Terminal, Cursor, or Xcode.
 
 Use the external-app picker in the footer to choose the default target for workspace actions.
 
@@ -74,7 +76,7 @@ Settings are organized by task:
 - **App** controls automatic update checks and automatic update installation.
 - **Appearance** controls theme mode, light/dark presets, density, and font.
 - **Graph** controls commit graph line style.
-- **Behavior** controls auto refresh, launch at login, menu bar icon, no-fast-forward merge behavior, and prompt language.
+- **Behavior** controls auto refresh, launch at login, tray/menu bar icon, no-fast-forward merge behavior, and prompt language.
 - **Workspace** controls which external apps appear in open-in menus.
 
 ## Tips
@@ -99,6 +101,8 @@ Run the local quality gate before handing off changes:
 npm run verify
 ```
 
+This runs dependency audit, secret scan, lint, unit checks, UI smoke checks, and the production build.
+
 Build the web bundle:
 
 ```bash
@@ -109,6 +113,18 @@ Package a local macOS build:
 
 ```bash
 npm run package:mac
+```
+
+Package a local Windows portable build from Windows:
+
+```bash
+npm run package:win
+```
+
+Package the full Windows installer/update set from Windows for internal candidate builds:
+
+```bash
+npm run package:win:release
 ```
 
 Release details live in [docs/release.md](docs/release.md).

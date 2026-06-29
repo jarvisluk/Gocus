@@ -15,6 +15,10 @@ const {
 
 const projectRoot = path.resolve(__dirname, "../../..");
 
+function projectRelative(filePath) {
+  return path.relative(projectRoot, filePath).replaceAll(path.sep, "/");
+}
+
 function gitAcceptsBranchName(branchName) {
   return spawnSync("git", ["check-ref-format", "--branch", branchName], { stdio: "ignore" }).status === 0;
 }
@@ -110,6 +114,7 @@ function commit(overrides = {}) {
     filesChanged: 2,
     parents: ["0000000"],
     refs: ["main"],
+    mergedRefs: [],
     containedBranches: [],
     lane: "main",
     branchColor: "#2f80ed",
@@ -165,6 +170,7 @@ async function testRootMount(server) {
   assert.equal(rootWindowModeFromUrl("http://127.0.0.1/?window=temporary-info"), "temporary-info");
   assert.equal(rootWindowModeFromUrl("http://127.0.0.1/?window=changed-file-info"), "changed-file-info");
   assert.equal(rootWindowModeFromUrl("http://127.0.0.1/?window=commit-info"), "commit-info");
+  assert.equal(rootWindowModeFromUrl("http://127.0.0.1/?window=function-menu"), "function-menu");
   assert.equal(rootWindowModeFromUrl("http://127.0.0.1/?window=main"), "main");
   assert.equal(rootWindowModeFromUrl("not a url"), "main");
   assert.equal(
@@ -291,6 +297,49 @@ function testFileChecksUtility() {
   }
 }
 
+function testSecretScanScript() {
+  const {
+    collectSecretScanFiles,
+    findSecretFindingsInContent,
+    formatFinding,
+    lineNumberFromIndex,
+    runSecretScan,
+  } = require(path.join(projectRoot, "scripts/check-secrets.cjs"));
+
+  assert.equal(lineNumberFromIndex("one\ntwo\nthree\n", 4), 2);
+  assert.deepEqual(
+    findSecretFindingsInContent(
+      "fixture.txt",
+      [
+        "safe reference: secrets.DEVELOP_RELEASE_TOKEN",
+        `aws=${"AKIA"}${"ABCDEFGHIJKLMNOP"}`,
+        `openai=${"sk-"}${"abcdefghijklmnopqrstuvwxyz"}`,
+        `key=${"-----BEGIN OPENSSH"}${" PRIVATE KEY-----"}`,
+      ].join("\n"),
+    ),
+    [
+      { label: "AWS access key", lineNumber: 2, relativeFilePath: "fixture.txt" },
+      { label: "OpenAI-style API key", lineNumber: 3, relativeFilePath: "fixture.txt" },
+      { label: "private key", lineNumber: 4, relativeFilePath: "fixture.txt" },
+    ],
+  );
+  assert.deepEqual(findSecretFindingsInContent("workflow.yml", "token: ${{ secrets.DEVELOP_RELEASE_TOKEN }}\n"), []);
+  assert.equal(
+    formatFinding({ label: "GitHub token", lineNumber: 7, relativeFilePath: ".github/workflows/release.yml" }),
+    ".github/workflows/release.yml:7: possible GitHub token",
+  );
+
+  const secretFileLabels = collectSecretScanFiles().map((filePath) => path.relative(projectRoot, filePath));
+  assert.ok(secretFileLabels.includes(".github/workflows/release.yml"));
+  assert.ok(secretFileLabels.includes("package-lock.json"));
+  assert.ok(secretFileLabels.includes("scripts/check-secrets.cjs"));
+  assert.deepEqual(secretFileLabels, [...secretFileLabels].sort((left, right) => left.localeCompare(right)));
+
+  const currentResult = runSecretScan();
+  assert.ok(currentResult.checkedFiles.length >= secretFileLabels.length);
+  assert.deepEqual(currentResult.findings, []);
+}
+
 function testWorkspaceModule() {
   const { __private } = require(path.join(projectRoot, "electron/lib/workspace.cjs"));
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-workspace-"));
@@ -305,19 +354,50 @@ function testWorkspaceModule() {
       path.join(nodeVersionsDir, "v20.19.6", "bin", "codex"),
     ];
     assert.deepEqual(__private.nvmCodexCliCandidatePaths(tempDir), expectedNvmPaths);
-    assert.deepEqual(__private.codexCliCandidatePaths({ env: {}, homeDir: tempDir }), [
+    assert.deepEqual(__private.codexCliCandidatePaths({ env: {}, homeDir: tempDir, platform: "darwin" }), [
       "/opt/homebrew/bin/codex",
       "/usr/local/bin/codex",
       path.join(tempDir, ".local", "bin", "codex"),
       ...expectedNvmPaths,
     ]);
-    assert.deepEqual(__private.codexCliCandidatePaths({ env: { GOCUS_CODEX_CLI: "/tmp/codex" }, homeDir: tempDir }), [
+    assert.deepEqual(__private.codexCliCandidatePaths({ env: { GOCUS_CODEX_CLI: "/tmp/codex" }, homeDir: tempDir, platform: "darwin" }), [
       "/tmp/codex",
       "/opt/homebrew/bin/codex",
       "/usr/local/bin/codex",
       path.join(tempDir, ".local", "bin", "codex"),
       ...expectedNvmPaths,
     ]);
+    assert.deepEqual(
+      __private.codexCliCandidatePaths({
+        env: {
+          APPDATA: path.join(tempDir, "Roaming"),
+          LOCALAPPDATA: path.join(tempDir, "Local"),
+          GOCUS_CODEX_CLI: "C:\\Tools\\codex.exe",
+        },
+        homeDir: tempDir,
+        platform: "win32",
+      }),
+      [
+        "C:\\Tools\\codex.exe",
+        path.join(tempDir, "Roaming", "npm", "codex.exe"),
+        path.join(tempDir, "Roaming", "npm", "codex.cmd"),
+        path.join(tempDir, "Roaming", "npm", "codex"),
+      ],
+    );
+    assert.deepEqual(
+      __private.windowsCliCandidatePaths("antigravity", {
+        env: {
+          LOCALAPPDATA: path.join(tempDir, "Local"),
+          GOCUS_ANTIGRAVITY_CLI: "C:\\Tools\\antigravity.cmd",
+        },
+        homeDir: tempDir,
+      }),
+      [
+        "C:\\Tools\\antigravity.cmd",
+        path.join(tempDir, "Local", "Programs", "Antigravity", "bin", "antigravity.cmd"),
+        path.join(tempDir, "Local", "Programs", "Antigravity", "bin", "antigravity"),
+      ],
+    );
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -664,7 +744,7 @@ function testSourceHygieneScript() {
     ],
   );
 
-  const checkedFileLabels = collectCheckedFiles().map((filePath) => path.relative(projectRoot, filePath));
+  const checkedFileLabels = collectCheckedFiles().map(projectRelative);
   assert.ok(checkedFileLabels.includes("electron/main.cjs"));
   assert.ok(checkedFileLabels.includes("scripts/check-source-hygiene.cjs"));
   assert.ok(checkedFileLabels.includes("DESIGN.md"));
@@ -702,7 +782,7 @@ function testNodeSyntaxScript() {
     runNodeSyntaxCheck,
   } = require(path.join(projectRoot, "scripts/check-node-syntax.cjs"));
 
-  const nodeFileLabels = collectNodeFiles().map((filePath) => path.relative(projectRoot, filePath));
+  const nodeFileLabels = collectNodeFiles().map(projectRelative);
   assert.ok(nodeFileLabels.includes("electron/main.cjs"));
   assert.ok(nodeFileLabels.includes("scripts/check-node-syntax.cjs"));
   assert.ok(nodeFileLabels.includes("tools/stylelint/gocus-design.cjs"));
@@ -732,10 +812,12 @@ function testShellSyntaxScript() {
   const {
     checkShellFileSyntax,
     collectShellFiles,
+    isBashAvailable,
     runShellSyntaxCheck,
   } = require(path.join(projectRoot, "scripts/check-shell-syntax.cjs"));
 
-  const shellFileLabels = collectShellFiles().map((filePath) => path.relative(projectRoot, filePath));
+  const shellFileLabels = collectShellFiles().map(projectRelative);
+  const bashAvailable = isBashAvailable();
   assert.ok(shellFileLabels.includes("scripts/package-macos.sh"));
   assert.deepEqual(shellFileLabels, [...shellFileLabels].sort((left, right) => left.localeCompare(right)));
   assert.equal(checkShellFileSyntax(path.join(projectRoot, "scripts/package-macos.sh")), null);
@@ -746,10 +828,14 @@ function testShellSyntaxScript() {
 
   try {
     const failure = checkShellFileSyntax(invalidFile);
-    assert.ok(failure);
-    assert.equal(failure.filePath, invalidFile);
-    assert.equal(failure.status, 2);
-    assert.match(failure.stderr, /syntax error|unexpected end of file/i);
+    if (bashAvailable) {
+      assert.ok(failure);
+      assert.equal(failure.filePath, invalidFile);
+      assert.equal(failure.status, 2);
+      assert.match(failure.stderr, /syntax error|unexpected end of file/i);
+    } else {
+      assert.equal(failure, null);
+    }
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
@@ -757,29 +843,60 @@ function testShellSyntaxScript() {
   const currentResult = runShellSyntaxCheck();
   assert.ok(currentResult.checkedFiles.length >= shellFileLabels.length);
   assert.deepEqual(currentResult.failures, []);
+  assert.equal(currentResult.skipped, !bashAvailable);
+}
+
+function testCommitMessageScript() {
+  const {
+    commitSubject,
+    isConventionalCommitSubject,
+    validateCommitMessage,
+  } = require(path.join(projectRoot, "scripts/check-commit-messages.cjs"));
+
+  assert.equal(commitSubject("fix: handle Windows tray labels\n\nBody"), "fix: handle Windows tray labels");
+  assert.equal(isConventionalCommitSubject("feat: add release validation"), true);
+  assert.equal(isConventionalCommitSubject("fix(windows): animate collapsed window"), true);
+  assert.equal(isConventionalCommitSubject("feat!: change update metadata"), true);
+  assert.equal(isConventionalCommitSubject("Add Windows installer auto updates"), false);
+  assert.deepEqual(validateCommitMessage("docs: update release notes\n\nDetails"), {
+    subject: "docs: update release notes",
+    valid: true,
+  });
+  assert.deepEqual(validateCommitMessage("Update release notes"), {
+    subject: "Update release notes",
+    valid: false,
+  });
 }
 
 function testWindowGeometryModule() {
   const {
     clampCommitInfoWindowHeight,
     clampCollapsedRailHeight,
+    clampFunctionMenuWindowHeight,
     changedFileInfoBounds,
     changedFileInfoWindowSize,
     collapsedSize,
     expandedMinimumSize,
     clampExpandedSize,
     mainWindowBounds,
+    rightAlignedWindowBounds,
     commitInfoBounds,
     commitInfoWindowSize,
+    functionMenuBounds,
+    functionMenuWindowSize,
     temporaryInfoBounds,
     windowBoundsEqual,
+    expandedMaximumSize,
   } = require(path.join(projectRoot, "electron/lib/windowGeometry.cjs"));
   const display = { x: 0, y: 24, width: 1440, height: 876 };
 
   assert.deepEqual(collapsedSize, { width: 38, height: 136 });
   assert.deepEqual(changedFileInfoWindowSize, { width: 280, height: 252 });
   assert.deepEqual(commitInfoWindowSize, { width: 348, height: 132 });
+  assert.deepEqual(functionMenuWindowSize, { width: 218, height: 344 });
   assert.deepEqual(expandedMinimumSize, { width: 320, height: 620 });
+  assert.deepEqual(expandedMaximumSize(display), { width: 1420, height: 860 });
+  assert.deepEqual(expandedMaximumSize({ x: 0, y: 0, width: 280, height: 500 }), { width: 320, height: 620 });
   assert.equal(clampCollapsedRailHeight(96, display), 136);
   assert.equal(clampCollapsedRailHeight(355, display), 355);
   assert.equal(clampCollapsedRailHeight(9999, display), 420);
@@ -788,6 +905,10 @@ function testWindowGeometryModule() {
   assert.equal(clampCommitInfoWindowHeight(104, display), 104);
   assert.equal(clampCommitInfoWindowHeight(9999, display), 240);
   assert.equal(clampCommitInfoWindowHeight("bad", display), 132);
+  assert.equal(clampFunctionMenuWindowHeight(48, display), 72);
+  assert.equal(clampFunctionMenuWindowHeight(132, display), 132);
+  assert.equal(clampFunctionMenuWindowHeight(9999, display), 860);
+  assert.equal(clampFunctionMenuWindowHeight("bad", display), 344);
   assert.deepEqual(clampExpandedSize({ width: 1, height: 9999 }, display), { width: 320, height: 860 });
   assert.deepEqual(
     mainWindowBounds({
@@ -818,6 +939,10 @@ function testWindowGeometryModule() {
     { x: 1402, y: 284, width: 38, height: 355 },
   );
   assert.deepEqual(
+    rightAlignedWindowBounds({ x: 1402, y: 394, width: 54, height: 136 }, display),
+    { x: 1386, y: 394, width: 54, height: 136 },
+  );
+  assert.deepEqual(
     temporaryInfoBounds({
       mainBounds: { x: 1070, y: 200, width: 360, height: 700 },
       display,
@@ -838,6 +963,14 @@ function testWindowGeometryModule() {
       display,
     }),
     { x: 490, y: 640, width: 280, height: 252 },
+  );
+  assert.deepEqual(
+    functionMenuBounds({
+      mainBounds: { x: 1070, y: 200, width: 360, height: 700 },
+      display,
+      size: { width: 218, height: 338 },
+    }),
+    { x: 842, y: 200, width: 218, height: 338 },
   );
   assert.deepEqual(
     commitInfoBounds({
@@ -890,6 +1023,26 @@ function testWindowGeometryModule() {
   assert.equal(windowBoundsEqual({ x: 1, y: 2, width: 3, height: 4 }, { x: 1, y: 2, width: 3, height: 4 }), true);
   assert.equal(windowBoundsEqual({ x: 1, y: 2, width: 3, height: 4 }, { x: 1, y: 3, width: 3, height: 4 }), false);
   assert.equal(windowBoundsEqual(null, { x: 1, y: 2, width: 3, height: 4 }), false);
+}
+
+function testWindowAnimationModule() {
+  const {
+    easeOutCubic,
+    interpolatedWindowBounds,
+    windowBoundsAnimationFrameCount,
+  } = require(path.join(projectRoot, "electron/lib/windowAnimation.cjs"));
+  const fromBounds = { x: 1000, y: 80, width: 320, height: 780 };
+  const toBounds = { x: 1402, y: 394, width: 38, height: 136 };
+
+  assert.equal(easeOutCubic(-1), 0);
+  assert.equal(easeOutCubic(0), 0);
+  assert.equal(easeOutCubic(1), 1);
+  assert.equal(easeOutCubic(2), 1);
+  assert.deepEqual(interpolatedWindowBounds(fromBounds, toBounds, 0), fromBounds);
+  assert.deepEqual(interpolatedWindowBounds(fromBounds, toBounds, 1), toBounds);
+  assert.deepEqual(interpolatedWindowBounds(fromBounds, toBounds, 0.5), { x: 1352, y: 355, width: 73, height: 217 });
+  assert.equal(windowBoundsAnimationFrameCount(180, 16), 12);
+  assert.equal(windowBoundsAnimationFrameCount(1, 16), 1);
 }
 
 function testIpcHandlersModule() {
@@ -975,6 +1128,74 @@ function testIpcHandlersModule() {
   );
 }
 
+function testLaunchAtLoginModule() {
+  const { createLaunchAtLoginController } = require(path.join(projectRoot, "electron/lib/launchAtLogin.cjs"));
+
+  function fakeApp({ packaged = true, settings = {} } = {}) {
+    const calls = [];
+    return {
+      isPackaged: packaged,
+      calls,
+      getAppPath: () => "/app",
+      getLoginItemSettings: (options) => ({
+        ...settings,
+        matchOptions: options,
+      }),
+      setLoginItemSettings: (options) => {
+        calls.push(options);
+      },
+    };
+  }
+
+  const packagedWindowsApp = fakeApp({ packaged: true });
+  createLaunchAtLoginController(packagedWindowsApp, "--hidden", {
+    platform: "win32",
+    argv: ["Gocus.exe"],
+  }).syncLaunchAtLogin({ launchAtLogin: true });
+  assert.deepEqual(packagedWindowsApp.calls[0], {
+    openAtLogin: true,
+    args: ["--hidden"],
+  });
+
+  const devWindowsApp = fakeApp({ packaged: false });
+  createLaunchAtLoginController(devWindowsApp, "--hidden", {
+    platform: "win32",
+    execPath: "/node",
+    argv: ["/node"],
+  }).syncLaunchAtLogin({ launchAtLogin: true });
+  assert.deepEqual(devWindowsApp.calls[0], {
+    openAtLogin: true,
+    path: "/node",
+    args: ["/app", "--hidden"],
+  });
+
+  const hiddenArgController = createLaunchAtLoginController(fakeApp(), "--hidden", {
+    platform: "win32",
+    argv: ["Gocus.exe", "--hidden"],
+  });
+  assert.equal(hiddenArgController.shouldStartCollapsedAtLogin({ launchAtLogin: false }), true);
+
+  const windowsLoginController = createLaunchAtLoginController(
+    fakeApp({ settings: { wasOpenedAtLogin: true } }),
+    "--hidden",
+    { platform: "win32", argv: ["Gocus.exe"] },
+  );
+  assert.equal(windowsLoginController.shouldStartCollapsedAtLogin({ launchAtLogin: true }), true);
+
+  const darwinLoginController = createLaunchAtLoginController(
+    fakeApp({ settings: { wasOpenedAsHidden: true } }),
+    "--hidden",
+    { platform: "darwin", argv: ["Gocus"] },
+  );
+  assert.equal(darwinLoginController.shouldStartCollapsedAtLogin({ launchAtLogin: true }), true);
+
+  const manualLaunchController = createLaunchAtLoginController(fakeApp(), "--hidden", {
+    platform: "darwin",
+    argv: ["Gocus"],
+  });
+  assert.equal(manualLaunchController.shouldStartCollapsedAtLogin({ launchAtLogin: false }), false);
+}
+
 function testConfigStoreModule() {
   const {
     createConfigStore,
@@ -1028,7 +1249,9 @@ async function testAutoUpdateModule() {
   try {
     const {
       autoUpdateSupportReason,
+      buildUpdateFeedConfig,
       buildUpdateFeedUrl,
+      buildWindowsUpdateFeedConfig,
       createAutoUpdateController,
       defaultChannelSwitchVersion,
       normalizeUpdateChannel,
@@ -1087,6 +1310,35 @@ async function testAutoUpdateModule() {
       }),
       "https://update.electronjs.org/jarvisluk/gocus/darwin-arm64/0.2.0",
     );
+    assert.deepEqual(
+      buildUpdateFeedConfig({
+        repository: "jarvisluk/gocus",
+        platform: "darwin",
+        arch: "arm64",
+        version: "0.2.0",
+      }),
+      {
+        url: "https://update.electronjs.org/jarvisluk/gocus/darwin-arm64/0.2.0",
+      },
+    );
+    assert.deepEqual(buildWindowsUpdateFeedConfig({ repository: "https://github.com/jarvisluk/gocus.git" }), {
+      provider: "github",
+      owner: "jarvisluk",
+      repo: "gocus",
+    });
+    assert.deepEqual(
+      buildUpdateFeedConfig({
+        repository: "jarvisluk/gocus",
+        platform: "win32",
+        arch: "x64",
+        version: "0.2.0",
+      }),
+      {
+        provider: "github",
+        owner: "jarvisluk",
+        repo: "gocus",
+      },
+    );
     assert.equal(releaseUrlForRepository("jarvisluk/gocus"), "https://github.com/jarvisluk/gocus/releases");
     assert.equal(releaseUrlForRepository("https://github.com/jarvisluk/gocus.git"), "https://github.com/jarvisluk/gocus/releases");
     assert.equal(releaseUrlForRepository("https://example.com/jarvisluk/gocus"), "");
@@ -1107,6 +1359,35 @@ async function testAutoUpdateModule() {
         repository: "jarvisluk/gocus",
       }),
       "unsupported_platform",
+    );
+    assert.equal(
+      autoUpdateSupportReason({
+        platform: "win32",
+        isPackaged: true,
+        isDevRuntime: false,
+        repository: "jarvisluk/gocus",
+      }),
+      "",
+    );
+    assert.equal(
+      autoUpdateSupportReason({
+        platform: "win32",
+        isPackaged: true,
+        isDevRuntime: false,
+        isPortableRuntime: true,
+        repository: "jarvisluk/gocus",
+      }),
+      "portable",
+    );
+    assert.equal(
+      autoUpdateSupportReason({
+        platform: "win32",
+        isPackaged: true,
+        isDevRuntime: false,
+        repository: "jarvisluk/gocus",
+        hasAutoUpdater: false,
+      }),
+      "missing_updater",
     );
     assert.equal(
       autoUpdateSupportReason({
@@ -1275,6 +1556,103 @@ async function testAutoUpdateModule() {
       missingChannelDialogs.at(-1).detail,
       "The develop update channel has no GitHub Releases feed configured for this build.",
     );
+
+    const windowsEvents = new EventEmitter();
+    const windowsDialogs = [];
+    const windowsFeedOptions = [];
+    let windowsCheckedForUpdates = false;
+    let windowsInstalled = false;
+    const windowsAutoUpdater = {
+      allowDowngrade: false,
+      setFeedURL(options) {
+        windowsFeedOptions.push(options);
+      },
+      on(eventName, handler) {
+        windowsEvents.on(eventName, handler);
+      },
+      checkForUpdates() {
+        windowsCheckedForUpdates = true;
+        return Promise.resolve();
+      },
+      quitAndInstall() {
+        windowsInstalled = true;
+      },
+    };
+    const windowsController = createAutoUpdateController({
+      app: {
+        isPackaged: true,
+        getVersion: () => "0.2.0",
+      },
+      autoUpdater: windowsAutoUpdater,
+      dialog: {
+        showMessageBox(options) {
+          windowsDialogs.push(options);
+          return Promise.resolve({ response: 0 });
+        },
+      },
+      packageMetadata: {
+        updateRepository: "jarvisluk/gocus",
+        updateChannels: { develop: "jarvisluk/gocus-develop" },
+      },
+      platform: "win32",
+      arch: "x64",
+      isDevRuntime: false,
+    });
+    assert.equal(windowsController.isSupported(), true);
+    assert.equal(windowsController.checkForUpdates({ manual: true }), true);
+    assert.equal(windowsCheckedForUpdates, true);
+    assert.deepEqual(windowsFeedOptions.at(-1), {
+      provider: "github",
+      owner: "jarvisluk",
+      repo: "gocus",
+    });
+    windowsEvents.emit("update-not-available");
+    assert.equal(windowsDialogs.at(-1).message, "Gocus is up to date.");
+    windowsController.setPreferences({ autoUpdateChannel: "develop", autoUpdateChecks: true });
+    assert.equal(windowsController.checkForUpdates(), true);
+    assert.equal(windowsAutoUpdater.allowDowngrade, true);
+    assert.deepEqual(windowsFeedOptions.at(-1), {
+      provider: "github",
+      owner: "jarvisluk",
+      repo: "gocus-develop",
+    });
+    windowsController.setPreferences({ autoUpdateInstall: true, autoUpdateChannel: "develop" });
+    windowsEvents.emit("update-downloaded", { version: "0.2.1", releaseNotes: "Fixed Windows updater" });
+    assert.equal(windowsInstalled, true);
+
+    const windowsPortableDialogs = [];
+    const windowsPortableController = createAutoUpdateController({
+      app: {
+        isPackaged: true,
+        getVersion: () => "0.2.0",
+      },
+      autoUpdater: {
+        setFeedURL() {
+          throw new Error("Windows portable builds should not configure an update feed.");
+        },
+        on() {},
+        checkForUpdates() {},
+        quitAndInstall() {},
+      },
+      dialog: {
+        showMessageBox(options) {
+          windowsPortableDialogs.push(options);
+          return Promise.resolve({ response: 0 });
+        },
+      },
+      packageMetadata: { updateRepository: "jarvisluk/gocus" },
+      platform: "win32",
+      arch: "x64",
+      isDevRuntime: false,
+      isPortableRuntime: true,
+    });
+    assert.equal(windowsPortableController.isSupported(), false);
+    assert.equal(windowsPortableController.checkForUpdates({ manual: true }), false);
+    assert.equal(
+      windowsPortableDialogs.at(-1).detail,
+      "Windows portable builds do not support automatic updates. " +
+        "Install Gocus with the Windows Setup package to receive automatic updates.",
+    );
   } finally {
     for (const [name, value] of Object.entries(previousUpdateEnv)) {
       if (value === undefined) {
@@ -1312,8 +1690,23 @@ function testGitStatusModule() {
   assert.equal(status.files[2].deletions, 0);
 }
 
+function testGitCoreModule() {
+  const { gitUnavailableNotice } = require(path.join(projectRoot, "electron/lib/gitCore.cjs"));
+
+  assert.equal(
+    gitUnavailableNotice("win32"),
+    "Git is not installed or is not available on PATH. Install Git for Windows, then restart Gocus.",
+  );
+  assert.equal(
+    gitUnavailableNotice("darwin"),
+    "Git is not installed or is not available on PATH. Install Git, then restart Gocus.",
+  );
+}
+
 async function testGitModule() {
   const {
+    checkout,
+    checkoutArgsForRef,
     cleanupWorktree,
     defaultCommitLogLimit,
     dirtyWorkspaceMergeNotice,
@@ -1322,7 +1715,10 @@ async function testGitModule() {
     mergeArgs,
     mergeMessage,
     normalizeCommitLogLimit,
+    pullCurrentBranch,
     readGitSnapshot,
+    remoteWebUrlFromGitUrl,
+    repositoryRemoteWebUrl,
     repositoryStateForGit,
   } = require(path.join(projectRoot, "electron/lib/git.cjs"));
   const { parseStatus } = require(path.join(projectRoot, "electron/lib/gitStatus.cjs"));
@@ -1355,6 +1751,48 @@ async function testGitModule() {
     "chore: merge feature/footer-toggle into main",
     "feature/footer-toggle",
   ]);
+  assert.equal(remoteWebUrlFromGitUrl("git@github.com:jarvisluk/gocus.git"), "https://github.com/jarvisluk/gocus");
+  assert.equal(remoteWebUrlFromGitUrl("https://github.com/jarvisluk/gocus.git"), "https://github.com/jarvisluk/gocus");
+  assert.equal(remoteWebUrlFromGitUrl("ssh://git@github.com/jarvisluk/gocus.git"), "https://github.com/jarvisluk/gocus");
+  assert.equal(remoteWebUrlFromGitUrl(""), "");
+
+  const checkoutRemoteDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-checkout-remote-"));
+  try {
+    runGitFixture(checkoutRemoteDir, ["init", "--bare", "origin.git"]);
+    const originPath = path.join(checkoutRemoteDir, "origin.git");
+    const repoPath = path.join(checkoutRemoteDir, "repo");
+    runGitFixture(checkoutRemoteDir, ["clone", originPath, repoPath]);
+    runGitFixture(repoPath, ["config", "user.name", "Gocus Test"]);
+    runGitFixture(repoPath, ["config", "user.email", "gocus@example.com"]);
+    runGitFixture(repoPath, ["checkout", "-b", "main"]);
+    fs.writeFileSync(path.join(repoPath, "base.txt"), "base\n", "utf8");
+    runGitFixture(repoPath, ["add", "base.txt"]);
+    runGitFixture(repoPath, ["commit", "-m", "base"]);
+    runGitFixture(repoPath, ["push", "-u", "origin", "main"]);
+    runGitFixture(repoPath, ["checkout", "-b", "develop"]);
+    fs.writeFileSync(path.join(repoPath, "develop.txt"), "develop\n", "utf8");
+    runGitFixture(repoPath, ["add", "develop.txt"]);
+    runGitFixture(repoPath, ["commit", "-m", "develop"]);
+    runGitFixture(repoPath, ["push", "-u", "origin", "develop"]);
+    runGitFixture(repoPath, ["checkout", "main"]);
+    runGitFixture(repoPath, ["branch", "-D", "develop"]);
+    runGitFixture(repoPath, ["fetch", "origin"]);
+
+    assert.deepEqual(await checkoutArgsForRef(repoPath, "origin/develop"), [
+      "checkout",
+      "--track",
+      "-b",
+      "develop",
+      "origin/develop",
+    ]);
+    const snapshot = await checkout(repoPath, "origin/develop", { mode: "current" });
+    assert.equal(snapshot.branch.name, "develop");
+    assert.equal(runGitFixture(repoPath, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]), "origin/develop");
+    assert.deepEqual(await checkoutArgsForRef(repoPath, "origin/main"), ["checkout", "main"]);
+    assert.equal(snapshot.branches.some((branch) => branch.name === "origin" && branch.fullName.endsWith("/HEAD")), false);
+  } finally {
+    fs.rmSync(checkoutRemoteDir, { force: true, recursive: true });
+  }
 
   const mergeMessageDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-merge-message-"));
   try {
@@ -1404,6 +1842,48 @@ async function testGitModule() {
     assert.match(runGitFixture(dirtyMergeDir, ["status", "--porcelain=v1"]), /\?\? local-notes\.txt/);
   } finally {
     fs.rmSync(dirtyMergeDir, { force: true, recursive: true });
+  }
+
+  const remoteUrlDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-remote-url-"));
+  try {
+    runGitFixture(remoteUrlDir, ["init"]);
+    runGitFixture(remoteUrlDir, ["remote", "add", "origin", "git@github.com:jarvisluk/gocus.git"]);
+    assert.equal(await repositoryRemoteWebUrl(remoteUrlDir), "https://github.com/jarvisluk/gocus");
+  } finally {
+    fs.rmSync(remoteUrlDir, { force: true, recursive: true });
+  }
+
+  const pullDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-pull-current-"));
+  const pullSeed = path.join(pullDir, "seed");
+  const pullOrigin = path.join(pullDir, "origin.git");
+  const pullLocal = path.join(pullDir, "local");
+  try {
+    fs.mkdirSync(pullSeed);
+    runGitFixture(pullSeed, ["init"]);
+    runGitFixture(pullSeed, ["checkout", "-b", "main"]);
+    runGitFixture(pullSeed, ["config", "user.name", "Gocus Test"]);
+    runGitFixture(pullSeed, ["config", "user.email", "gocus@example.com"]);
+    fs.writeFileSync(path.join(pullSeed, "file.txt"), "base\n", "utf8");
+    runGitFixture(pullSeed, ["add", "file.txt"]);
+    runGitFixture(pullSeed, ["commit", "-m", "base"]);
+    runGitFixture(pullDir, ["init", "--bare", pullOrigin]);
+    runGitFixture(pullSeed, ["remote", "add", "origin", pullOrigin]);
+    runGitFixture(pullSeed, ["push", "-u", "origin", "main"]);
+    runGitFixture(pullDir, ["--git-dir", pullOrigin, "symbolic-ref", "HEAD", "refs/heads/main"]);
+    runGitFixture(pullDir, ["clone", pullOrigin, pullLocal]);
+    runGitFixture(pullLocal, ["config", "user.name", "Gocus Test"]);
+    runGitFixture(pullLocal, ["config", "user.email", "gocus@example.com"]);
+
+    fs.appendFileSync(path.join(pullSeed, "file.txt"), "remote\n", "utf8");
+    runGitFixture(pullSeed, ["commit", "-am", "remote"]);
+    runGitFixture(pullSeed, ["push"]);
+
+    const pulledSnapshot = await pullCurrentBranch(pullLocal, { mode: "current" });
+    assert.match(fs.readFileSync(path.join(pullLocal, "file.txt"), "utf8"), /remote/);
+    assert.equal(pulledSnapshot.branch.name, "main");
+    assert.equal(pulledSnapshot.branch.behind, 0);
+  } finally {
+    fs.rmSync(pullDir, { force: true, recursive: true });
   }
 
   const cleanupDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-worktree-cleanup-"));
@@ -1671,6 +2151,29 @@ function testGitGraphModule() {
   assert.equal(commits[0].graph.currentVariant, "solid");
   assert.equal(commits[0].graph.incomingVariant, "solid");
   assert.equal(commits[0].graph.isCurrentHead, true);
+
+  const commitsWithMergedLocalRefs = parseLog(rawLog, {
+    currentHead: firstHash,
+    currentBranch: "main",
+    mergedLocalBranches: ["feature/base"],
+    containedBranchTips: [
+      { name: "main", hash: firstHash },
+      { name: "feature/base", hash: secondHash },
+    ],
+  });
+  assert.deepEqual(commitsWithMergedLocalRefs[0].refs, ["main"]);
+  assert.deepEqual(commitsWithMergedLocalRefs[0].mergedRefs, []);
+  assert.deepEqual(commitsWithMergedLocalRefs[1].refs, []);
+  assert.deepEqual(commitsWithMergedLocalRefs[1].mergedRefs, ["feature/base"]);
+
+  const commitsWithCurrentEmptyBranch = parseLog(rawLog, {
+    currentHead: secondHash,
+    currentBranch: "feature/base",
+    mergedLocalBranches: ["feature/base"],
+  });
+  assert.deepEqual(commitsWithCurrentEmptyBranch[1].refs, []);
+  assert.deepEqual(commitsWithCurrentEmptyBranch[1].mergedRefs, ["feature/base"]);
+
   const propagatedGraph = buildCommitGraph([
     {
       ...commit({ fullHash: firstHash, parents: [secondHash], refs: ["main"] }),
@@ -1975,6 +2478,7 @@ function testGitGraphModule() {
     currentHead: currentHeadHash,
     currentBranch: "refactor/current-worktree",
     localBranches: ["refactor/current-worktree", "feat/local-only"],
+    mergedLocalBranches: [],
     externalHeads: [externalHeadHash],
     externalBranches: ["feat/external-worktree"],
   });
@@ -2946,32 +3450,37 @@ async function testCommitSearch(server) {
 }
 
 async function testCommitListView(server) {
+  const { useCommitSearch } = await loadTsModule(server, "src/lib/useCommitSearch.ts");
   const {
     commitListView,
     commitSearchClearButtonView,
     commitSearchInputKeyAction,
     commitSearchInputView,
-    commitScrollTopForSelection,
     commitSearchStateApplication,
     commitSearchStateAfterAvailability,
     commitSearchStateAfterClose,
     commitSearchStateAfterToggle,
     commitSearchToggleView,
     commitSelectionVisible,
-    commitVirtualRowOffset,
-    commitVirtualTotalHeight,
-    commitVirtualWindow,
-    commitVirtualizationThreshold,
     firstCommitId,
     recentCommitsTitleId,
     selectedCommitFromSnapshot,
     selectedCommitIdAfterToggle,
   } = await loadTsModule(server, "src/lib/commitListView.ts");
+  const {
+    commitScrollTopForMeasuredCenter,
+    commitScrollTopForSelection,
+    commitVirtualRowOffset,
+    commitVirtualTotalHeight,
+    commitVirtualWindow,
+    commitVirtualizationThreshold,
+  } = await loadTsModule(server, "src/lib/commitListGeometry.ts");
   const commits = [
     commit({ id: "search", title: "Add commit search polish", message: "Keyboard selection", author: "Codex" }),
     commit({ id: "footer", title: "Tighten footer menu", message: "Workspace app picker", author: "June", refs: ["feature/footer"] }),
   ];
 
+  assert.equal(typeof useCommitSearch, "function");
   assert.deepEqual(
     commitListView(commits, "").filteredCommits.map((item) => item.id),
     ["search", "footer"],
@@ -3331,6 +3840,50 @@ async function testCommitListView(server) {
     }),
     null,
   );
+  assert.equal(
+    commitScrollTopForMeasuredCenter({
+      selectedTop: 250,
+      selectedHeight: 100,
+      viewportTop: 100,
+      viewportHeight: 300,
+      scrollTop: 400,
+      maxScrollTop: 1000,
+    }),
+    450,
+  );
+  assert.equal(
+    commitScrollTopForMeasuredCenter({
+      selectedTop: 199.5,
+      selectedHeight: 100,
+      viewportTop: 100,
+      viewportHeight: 300,
+      scrollTop: 400,
+      maxScrollTop: 1000,
+    }),
+    null,
+  );
+  assert.equal(
+    commitScrollTopForMeasuredCenter({
+      selectedTop: 0,
+      selectedHeight: 40,
+      viewportTop: 200,
+      viewportHeight: 300,
+      scrollTop: 20,
+      maxScrollTop: 1000,
+    }),
+    0,
+  );
+  assert.equal(
+    commitScrollTopForMeasuredCenter({
+      selectedTop: 700,
+      selectedHeight: 80,
+      viewportTop: 100,
+      viewportHeight: 300,
+      scrollTop: 980,
+      maxScrollTop: 1000,
+    }),
+    1000,
+  );
   assert.deepEqual(
     commitVirtualWindow({
       itemCount: 200,
@@ -3497,6 +4050,22 @@ async function testCommitRowView(server) {
   assert.equal(hoverPanel.hash, "a1b2c3d");
   assert.equal(hoverPanel.fullHash, "a1b2c3d000000000000000000000000000000000");
 
+  const mergedRefHoverPanel = commitHoverPanelView(
+    commit({
+      refs: [],
+      mergedRefs: ["feat/function-menu"],
+      refColors: [],
+      branchColor: "#abcdef",
+      graph: {
+        ...commit().graph,
+        currentColor: "#abcdef",
+        currentLabel: "",
+      },
+    }),
+  );
+  assert.deepEqual(mergedRefHoverPanel.refs, []);
+  assert.equal(mergedRefHoverPanel.showRefs, false);
+
   const inheritedLaneHoverPanel = commitHoverPanelView(
     commit({
       refs: [],
@@ -3620,10 +4189,10 @@ async function testCommitInfoSelection(server) {
 
   assert.deepEqual(commitInfoWindowView(null), {
     viewport: {
-      className: "temporary-info-viewport is-electron",
+      className: "side-window-viewport temporary-info-viewport is-electron",
     },
     panel: {
-      className: "peek-panel temporary-info-panel is-commit",
+      className: "side-window-panel peek-panel temporary-info-panel is-commit",
       ariaLabel: "Commit details window",
     },
     emptyState: {
@@ -3638,10 +4207,10 @@ async function testCommitInfoSelection(server) {
   });
   assert.deepEqual(commitInfoWindowView({ kind: "commit", commit: hoverCommit }), {
     viewport: {
-      className: "temporary-info-viewport is-electron",
+      className: "side-window-viewport temporary-info-viewport is-electron",
     },
     panel: {
-      className: "peek-panel temporary-info-panel is-commit",
+      className: "side-window-panel peek-panel temporary-info-panel is-commit",
       ariaLabel: "Commit details window",
     },
     emptyState: {
@@ -3661,10 +4230,10 @@ async function testChangedFileInfoSelection(server) {
   const file = changedFile({ path: "src/file.ts" });
   const changedFileInfoChrome = {
     viewport: {
-      className: "temporary-info-viewport is-electron",
+      className: "side-window-viewport temporary-info-viewport is-electron",
     },
     panel: {
-      className: "peek-panel temporary-info-panel is-changed-file",
+      className: "side-window-panel peek-panel temporary-info-panel is-changed-file",
       ariaLabel: "Changed file details window",
     },
     emptyState: {
@@ -3963,11 +4532,6 @@ async function testPreferences(server) {
   const {
     defaultPreferences,
     mergePreferences,
-    preferencesDocumentThemeView,
-    resolveTheme,
-    resolveThemePreset,
-    systemThemeFallback,
-    systemThemeFromMediaMatches,
   } = preferences;
 
   assert.equal(defaultWorkspaceOpenTarget, "vscode");
@@ -4010,9 +4574,6 @@ async function testPreferences(server) {
     }),
     {
       ...defaultPreferences,
-      lightThemePreset: "paper",
-      darkThemePreset: "matte",
-      fontFamily: "mono",
       workspaceOpenTargets: ["codex", "terminal"],
       showMenuBarIcon: false,
       showDockIcon: false,
@@ -4025,32 +4586,13 @@ async function testPreferences(server) {
   assert.equal(mergePreferences({ autoUpdateChannel: "nightly" }).autoUpdateChannel, "stable");
   assert.deepEqual(mergePreferences({ workspaceOpenTargets: [] }).workspaceOpenTargets, []);
   assert.deepEqual(mergePreferences({ workspaceOpenTargets: "cursor" }).workspaceOpenTargets, defaultWorkspaceOpenTargets);
-  assert.equal(resolveThemePreset({ ...defaultPreferences, lightThemePreset: "mist", darkThemePreset: "cursor" }, "light"), "mist");
-  assert.equal(resolveThemePreset({ ...defaultPreferences, lightThemePreset: "mist", darkThemePreset: "cursor" }, "dark"), "cursor");
-  assert.equal(resolveTheme({ ...defaultPreferences, themeMode: "light" }, "dark"), "light");
-  assert.equal(resolveTheme({ ...defaultPreferences, themeMode: "dark" }, "light"), "dark");
-  assert.equal(resolveTheme({ ...defaultPreferences, themeMode: "system" }, "dark"), "dark");
-  assert.equal(systemThemeFromMediaMatches(false), "light");
-  assert.equal(systemThemeFromMediaMatches(true), "dark");
-  assert.deepEqual(preferencesDocumentThemeView({ ...defaultPreferences, themeMode: "system", darkThemePreset: "cursor" }, "dark"), {
-    theme: "dark",
-    themePreset: "cursor",
-  });
-  assert.deepEqual(
-    preferencesDocumentThemeView(
-      { ...defaultPreferences, themeMode: "light", lightThemePreset: "mist", darkThemePreset: "matte" },
-      "dark",
-    ),
-    {
-      theme: "light",
-      themePreset: "mist",
-    },
-  );
-  assert.equal(systemThemeFallback(), "light");
 }
 
 async function testWorkspaceOpenOptions(server) {
-  const { workspaceOpenOptions } = await loadTsModule(server, "src/lib/workspaceOpenOptions.ts");
+  const { fileManagerIconSrc, fileManagerLabel, workspaceOpenOptions } = await loadTsModule(
+    server,
+    "src/lib/workspaceOpenOptions.ts",
+  );
   const { workspaceOpenTargetValues } = await loadTsModule(server, "src/lib/workspaceOpenTargets.ts");
 
   assert.deepEqual(
@@ -4071,6 +4613,11 @@ async function testWorkspaceOpenOptions(server) {
     workspaceOpenOptions.find((option) => option.target === "antigravity")?.iconSrc,
     workspaceOpenOptions.find((option) => option.target === "antigravityApp")?.iconSrc,
   );
+  assert.equal(fileManagerLabel("Win32"), "Explorer");
+  assert.equal(fileManagerLabel("MacIntel"), "Finder");
+  assert.match(fileManagerIconSrc("Win32"), /\.png(?:$|\?)/);
+  assert.match(fileManagerIconSrc("MacIntel"), /\.png(?:$|\?)/);
+  assert.notEqual(fileManagerIconSrc("Win32"), fileManagerIconSrc("MacIntel"));
 }
 
 async function testCollapsedRailView(server) {
@@ -4504,20 +5051,6 @@ async function testSettingsPanelView(server) {
       releaseLinkLabel: "GitHub Releases",
       releaseLinkAriaLabel: "Open GitHub Releases",
     },
-    appearance: {
-      titleId: "settings-appearance-title",
-      title: "Appearance",
-      rows: {
-        mode: "Mode",
-        light: "Light",
-        dark: "Dark",
-        density: "Density",
-        font: "Font",
-      },
-      lightThemeAriaLabel: "Light theme preset",
-      darkThemeAriaLabel: "Dark theme preset",
-      fontFamilyAriaLabel: "Font family",
-    },
     graph: {
       titleId: "settings-graph-title",
       title: "Graph",
@@ -4528,6 +5061,7 @@ async function testSettingsPanelView(server) {
     behavior: {
       titleId: "settings-behavior-title",
       title: "Behavior",
+      dockIconAvailable: true,
       rows: {
         refresh: "Refresh",
         startup: "Startup",
@@ -4675,6 +5209,17 @@ async function testSettingsPanelView(server) {
       },
     },
   });
+  assert.deepEqual(settingsPanelView("main", options, ["cursor"], "win32").sections.behavior, {
+    ...expectedSections.behavior,
+    dockIconAvailable: true,
+    rows: {
+      ...expectedSections.behavior.rows,
+      menuBar: "Tray",
+      dock: "Taskbar",
+    },
+    showMenuBarIconAriaLabel: "Show tray icon",
+    showDockIconAriaLabel: "Show taskbar icon",
+  });
   assert.equal(settingsPanelView("main", [], ["cursor"]).workspaceTargetsSummary, "Unavailable");
   assert.equal(settingsPageAfterBack("app"), "main");
   assert.equal(settingsPageAfterBack("openIn"), "main");
@@ -4685,22 +5230,11 @@ async function testSettingsPanelView(server) {
   assert.deepEqual(
     settingsPreferencesView({
       ...defaultPreferences,
-      themeMode: "system",
-      density: "comfortable",
       graphStyle: "soft",
       autoUpdateChannel: "develop",
       promptLanguage: "zh",
     }),
     {
-      themeModeOptions: [
-        { value: "system", label: "System", className: "is-active", ariaPressed: true, icon: "monitor" },
-        { value: "light", label: "Light", className: "", ariaPressed: false, icon: "sun" },
-        { value: "dark", label: "Dark", className: "", ariaPressed: false, icon: "moon" },
-      ],
-      densityOptions: [
-        { value: "compact", label: "Compact", className: "", ariaPressed: false },
-        { value: "comfortable", label: "Comfort", className: "is-active", ariaPressed: true },
-      ],
       graphStyleOptions: [
         { value: "solid", label: "Solid", className: "", ariaPressed: false },
         { value: "soft", label: "Soft", className: "is-active", ariaPressed: true },
@@ -4714,11 +5248,6 @@ async function testSettingsPanelView(server) {
         { value: "develop", label: "Develop", className: "is-active", ariaPressed: true },
       ],
       autoUpdateChannelDetail: "Latest develop candidate",
-      fontFamilyOptions: [
-        { value: "system", label: "System" },
-        { value: "inter", label: "Inter" },
-        { value: "mono", label: "Mono" },
-      ],
     },
   );
   assert.deepEqual(settingsWorkspaceTargetItems(options, ["cursor", "terminal"]), [
@@ -5544,6 +6073,25 @@ async function testCommitInfoPanelBridge(server) {
   assert.equal(runCommitInfoPanelBridgeSideEffect("clear", undefined), true);
 }
 
+async function testCommitInfoPreviewPanel(server) {
+  const { useCommitInfoPreviewPanel } = await loadTsModule(server, "src/lib/useCommitInfoPreviewPanel.ts");
+  const {
+    commitInfoPreviewCloseDelayMs,
+    commitInfoPreviewShouldCloseAfterBlur,
+    commitInfoPreviewShouldCloseForSelection,
+  } = await loadTsModule(server, "src/lib/commitInfoPreviewPanel.ts");
+
+  assert.equal(typeof useCommitInfoPreviewPanel, "function");
+  assert.equal(commitInfoPreviewCloseDelayMs, 80);
+  assert.equal(commitInfoPreviewShouldCloseForSelection("", "hover"), true);
+  assert.equal(commitInfoPreviewShouldCloseForSelection("selected", ""), false);
+  assert.equal(commitInfoPreviewShouldCloseForSelection("selected", "selected"), false);
+  assert.equal(commitInfoPreviewShouldCloseForSelection("selected", "other"), true);
+  assert.equal(commitInfoPreviewShouldCloseAfterBlur({ closeToken: 2, currentToken: 2, commitInfoPanelActive: false }), true);
+  assert.equal(commitInfoPreviewShouldCloseAfterBlur({ closeToken: 2, currentToken: 2, commitInfoPanelActive: true }), false);
+  assert.equal(commitInfoPreviewShouldCloseAfterBlur({ closeToken: 1, currentToken: 2, commitInfoPanelActive: false }), false);
+}
+
 async function testChangedNowWindowState(server) {
   const {
     changedNowToggleResult,
@@ -5606,10 +6154,10 @@ async function testTemporaryInfoSelection(server) {
   const stagedKey = changedFileKey(staged);
   const temporaryInfoChrome = {
     viewport: {
-      className: "temporary-info-viewport is-electron",
+      className: "side-window-viewport temporary-info-viewport is-electron",
     },
     panel: {
-      className: "peek-panel temporary-info-panel",
+      className: "side-window-panel peek-panel temporary-info-panel",
       ariaLabel: "Changed files window",
     },
     emptyState: {
@@ -5972,7 +6520,7 @@ async function testPanelHeaderView(server) {
     branchPillTitle,
     panelHeaderActionsView,
     panelHeaderBranchPillView,
-    panelHeaderOpenRepositoryButtonView,
+    panelHeaderFunctionMenuButtonView,
     panelHeaderView,
     panelPinnedNotice,
     panelPinnedStateAfterToggle,
@@ -6056,8 +6604,13 @@ async function testPanelHeaderView(server) {
   assert.equal(repositoryOptionActive(sameRepositoryDifferentPath, current), true);
   assert.equal(repositoryOptionActive(other, current), false);
   assert.equal(repositoryOptionActive(current, null), false);
-  assert.deepEqual(panelHeaderOpenRepositoryButtonView(), {
-    label: "Open repository",
+  assert.deepEqual(panelHeaderFunctionMenuButtonView(false), {
+    label: "Open function menu",
+    active: false,
+  });
+  assert.deepEqual(panelHeaderFunctionMenuButtonView(true), {
+    label: "Close function menu",
+    active: true,
   });
   assert.deepEqual(panelRepositoryMenuView(), {
     className: "ui-menu repo-switch-menu",
@@ -6067,12 +6620,19 @@ async function testPanelHeaderView(server) {
   });
   assert.deepEqual(panelRepositoryMenuItemView(sameRepositoryDifferentPath, current), {
     active: true,
+    rowClassName: "repo-menu-row",
     className: "ui-menu-item repo-menu-item is-active",
     role: "menuitem",
     ariaCurrent: "true",
     showCheck: true,
     checkClassName: "repo-menu-check",
     textClassName: "repo-menu-text",
+    showRemove: false,
+    removeClassName: "repo-menu-remove",
+    removeAriaLabel: "Remove git-tree-vis-linked - codespace from recent workspaces",
+    removeTitle: "Remove from recent workspaces",
+    confirmRemove: false,
+    repository: sameRepositoryDifferentPath,
     key: "/Users/junrong/codespace/git-tree-vis-linked",
     path: "/Users/junrong/codespace/git-tree-vis-linked",
     title: "/Users/junrong/codespace/git-tree-vis-linked",
@@ -6080,12 +6640,39 @@ async function testPanelHeaderView(server) {
   });
   assert.deepEqual(panelRepositoryMenuItemView(other, current), {
     active: false,
+    rowClassName: "repo-menu-row has-remove",
     className: "ui-menu-item repo-menu-item",
     role: "menuitem",
     ariaCurrent: undefined,
     showCheck: false,
     checkClassName: "repo-menu-check",
     textClassName: "repo-menu-text",
+    showRemove: true,
+    removeClassName: "repo-menu-remove",
+    removeAriaLabel: "Remove other - codespace from recent workspaces",
+    removeTitle: "Remove from recent workspaces",
+    confirmRemove: false,
+    repository: other,
+    key: "/Users/junrong/codespace/other",
+    path: "/Users/junrong/codespace/other",
+    title: "/Users/junrong/codespace/other",
+    label: "other - codespace",
+  });
+  assert.deepEqual(panelRepositoryMenuItemView(other, current, true), {
+    active: false,
+    rowClassName: "repo-menu-row has-remove",
+    className: "ui-menu-item repo-menu-item",
+    role: "menuitem",
+    ariaCurrent: undefined,
+    showCheck: false,
+    checkClassName: "repo-menu-check",
+    textClassName: "repo-menu-text",
+    showRemove: true,
+    removeClassName: "repo-menu-remove is-confirming",
+    removeAriaLabel: "Confirm remove other - codespace from recent workspaces",
+    removeTitle: "Click again to remove",
+    confirmRemove: true,
+    repository: other,
     key: "/Users/junrong/codespace/other",
     path: "/Users/junrong/codespace/other",
     title: "/Users/junrong/codespace/other",
@@ -6196,6 +6783,118 @@ function worktree(overrides = {}) {
     counts: { modified: 0, staged: 0, untracked: 0 },
     ...overrides,
   };
+}
+
+async function testFunctionMenuView(server) {
+  const {
+    functionMenuPayloadFromSnapshot,
+    functionMenuPullActionView,
+    functionMenuPushActionView,
+    functionMenuWindowView,
+  } = await loadTsModule(server, "src/lib/functionMenuView.ts");
+
+  const snapshot = gitSnapshot({
+    repoPath: "/Users/junrong/codespace/git-tree-vis",
+    repoName: "git-tree-vis",
+    branch: { name: "feat/menu", upstream: "origin/feat/menu", ahead: 2, behind: 0, detached: false },
+    changedFiles: [{ path: "src/App.tsx" }],
+    worktrees: [{ path: "/Users/junrong/codespace/git-tree-vis" }, { path: "/Users/junrong/codespace/other" }],
+  });
+  const payload = functionMenuPayloadFromSnapshot({
+    snapshot,
+    activeWorkspaceTarget: "vscode",
+    availableWorkspaceTargets: ["vscode", "cursor", "finder"],
+    enabledWorkspaceTargets: ["vscode", "finder"],
+  });
+
+  assert.deepEqual(payload.repository, {
+    repoName: "git-tree-vis",
+    repoPath: "/Users/junrong/codespace/git-tree-vis",
+    branch: { name: "feat/menu", upstream: "origin/feat/menu", ahead: 2, behind: 0, detached: false },
+    changedFileCount: 1,
+    worktreeCount: 2,
+  });
+  assert.deepEqual(functionMenuPushActionView(payload), {
+    key: "push",
+    className: "function-menu-action",
+    icon: "upload",
+    label: "Push",
+    detail: "Push or publish current branch.",
+    disabled: false,
+    title: "Push or publish current branch",
+  });
+  assert.deepEqual(functionMenuPullActionView(payload), {
+    key: "pull",
+    className: "function-menu-action",
+    icon: "pull",
+    label: "Pull",
+    detail: "Pull current branch with fast-forward only.",
+    disabled: false,
+    title: "Pull current branch (fast-forward only)",
+  });
+
+  const publishPayload = functionMenuPayloadFromSnapshot({
+    snapshot: gitSnapshot({ branch: { name: "feat/new", upstream: "", ahead: 1, behind: 0, detached: false } }),
+    activeWorkspaceTarget: "vscode",
+    availableWorkspaceTargets: ["vscode"],
+    enabledWorkspaceTargets: ["vscode"],
+  });
+  assert.equal(functionMenuPushActionView(publishPayload).label, "Push");
+  assert.equal(functionMenuPushActionView(publishPayload).disabled, false);
+
+  const upToDatePayload = functionMenuPayloadFromSnapshot({
+    snapshot: gitSnapshot({ branch: { name: "main", upstream: "origin/main", ahead: 0, behind: 0, detached: false } }),
+    activeWorkspaceTarget: "vscode",
+    availableWorkspaceTargets: ["vscode"],
+    enabledWorkspaceTargets: ["vscode"],
+  });
+  assert.equal(functionMenuPushActionView(upToDatePayload).label, "Push");
+  assert.equal(functionMenuPushActionView(upToDatePayload).disabled, false);
+
+  const detachedPayload = functionMenuPayloadFromSnapshot({
+    snapshot: gitSnapshot({ branch: { name: "HEAD", upstream: "", ahead: 0, behind: 0, detached: true } }),
+    activeWorkspaceTarget: "vscode",
+    availableWorkspaceTargets: ["vscode"],
+    enabledWorkspaceTargets: ["vscode"],
+  });
+  assert.equal(functionMenuPushActionView(detachedPayload).label, "Push");
+  assert.equal(functionMenuPushActionView(detachedPayload).disabled, false);
+
+  const emptyPayload = functionMenuPayloadFromSnapshot({
+    snapshot: null,
+    activeWorkspaceTarget: "vscode",
+    availableWorkspaceTargets: ["vscode"],
+    enabledWorkspaceTargets: ["vscode"],
+  });
+  assert.equal(functionMenuPushActionView(emptyPayload).disabled, true);
+  assert.equal(functionMenuPushActionView(emptyPayload).title, "Choose a workspace first");
+  assert.equal(functionMenuPullActionView(emptyPayload).disabled, true);
+  assert.equal(functionMenuWindowView(payload).panel.ariaLabelledBy, "function-menu-title");
+  assert.equal(functionMenuWindowView(payload).title, "Tools");
+  assert.deepEqual(functionMenuWindowView(payload).remoteAction, {
+    key: "repository-remote",
+    className: "function-menu-action",
+    icon: "github",
+    label: "Remote",
+    detail: "Open the workspace remote repository.",
+    disabled: false,
+    title: "Open repository remote",
+  });
+  assert.equal("repositorySummary" in functionMenuWindowView(payload), false);
+  assert.equal("closeButton" in functionMenuWindowView(payload), false);
+  assert.deepEqual(
+    functionMenuWindowView(payload).sections.map((section) => ({
+      label: section.label,
+      actions: section.actions.map((action) => action.key),
+      actionLabels: section.actions.map((action) => action.label),
+    })),
+    [
+      { label: "Workspace", actions: ["open-repository"], actionLabels: ["Open"] },
+      { label: "Git", actions: ["pull", "push", "fetch", "refresh"], actionLabels: ["Pull", "Push", "Fetch", "Refresh"] },
+      { label: "GitHub", actions: ["repository-remote"], actionLabels: ["Remote"] },
+      { label: "App", actions: ["check-updates"], actionLabels: ["Update"] },
+    ],
+  );
 }
 
 async function testRepositoryControlLabels(server) {
@@ -6526,7 +7225,7 @@ async function testRepositoryControlsView(server) {
       upstream: "",
     }),
     {
-      rowClassName: "branch-ref-menu-row",
+      rowClassName: "branch-ref-menu-row has-switch",
       className: "ui-menu-item branch-ref-menu-item branch-ref-view-button",
       role: "menuitem",
       ariaCurrent: undefined,
@@ -6535,14 +7234,14 @@ async function testRepositoryControlsView(server) {
       title: "refs/remotes/origin/main",
       key: "remote-origin/main",
       switchAction: {
-        show: false,
+        show: true,
         disabled: false,
         branchName: "origin/main",
         tooltipClassName: "branch-switch-tooltip",
         className: "branch-switch-button",
         icon: "switch",
-        ariaLabel: "Switch to origin/main",
-        title: "Switch to origin/main",
+        ariaLabel: "Track and switch to main",
+        title: "Track and switch to main",
       },
     },
   );
@@ -7272,16 +7971,21 @@ async function testClassNamesAndGraph(server) {
 async function main() {
   testDevelopReleaseVersionScript();
   testFileChecksUtility();
+  testSecretScanScript();
   testWorkspaceModule();
   testSourceHygieneScript();
   testSourceHelperUnitCoverage();
   testNodeSyntaxScript();
   testShellSyntaxScript();
+  testCommitMessageScript();
   testWindowGeometryModule();
+  testWindowAnimationModule();
   testConfigStoreModule();
   testIpcHandlersModule();
+  testLaunchAtLoginModule();
   await testAutoUpdateModule();
   testGitStatusModule();
+  testGitCoreModule();
   await testGitModule();
   testGitGraphModule();
 
@@ -7332,11 +8036,13 @@ async function main() {
     await testChangedFilesTemporaryInfo(server);
     await testTemporaryInfoPanelBridge(server);
     await testCommitInfoPanelBridge(server);
+    await testCommitInfoPreviewPanel(server);
     await testChangedNowWindowState(server);
     await testTemporaryInfoSelection(server);
     await testRecentRepositories(server);
     await testEmptyRepositoryView(server);
     await testPanelHeaderView(server);
+    await testFunctionMenuView(server);
     await testRepositoryControlLabels(server);
     await testRepositoryControlsView(server);
     await testClassNamesAndGraph(server);

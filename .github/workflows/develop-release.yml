@@ -40,6 +40,8 @@ jobs:
   macos:
     name: macOS Develop Candidate
     runs-on: macos-15
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
     env:
       INPUT_VERSION: ${{ github.event.inputs.version || '' }}
       INPUT_NOTARIZE: ${{ github.event.inputs.notarize || 'auto' }}
@@ -162,14 +164,12 @@ jobs:
           unset ELECTRON_SKIP_BINARY_DOWNLOAD
           unset npm_config_electron_skip_binary_download
           npm ci --ignore-scripts=false
+          npx playwright install chromium
           node scripts/ensure-electron-runtime.cjs
           node -e 'console.log(`Electron runtime: ${require("electron")}`)'
 
       - name: Verify
-        run: |
-          npm run lint
-          npm run test:unit
-          npm run build
+        run: npm run verify
 
       - name: Import Developer ID certificate
         if: steps.release_mode.outputs.signing_enabled == 'true'
@@ -362,3 +362,119 @@ jobs:
       - name: Delete signing keychain
         if: always() && steps.release_mode.outputs.signing_enabled == 'true'
         run: /usr/bin/security delete-keychain "$RUNNER_TEMP/gocus-develop-signing.keychain-db" || true
+
+  windows:
+    name: Windows Develop Candidate
+    runs-on: windows-latest
+    needs: macos
+    env:
+      INPUT_PUBLISH_UPDATE_RELEASE: ${{ github.event.inputs.publish_update_release || 'true' }}
+      DEVELOP_UPDATE_REPOSITORY: jarvisluk/Gocus-Develop-Releases
+      DEVELOP_RELEASE_TOKEN: ${{ secrets.DEVELOP_RELEASE_TOKEN }}
+      GOCUS_PRODUCT_NAME: Gocus
+      GOCUS_UPDATE_CHANNEL: develop
+      GOCUS_UPDATE_REPO: jarvisluk/Gocus
+      GOCUS_UPDATE_DEVELOP_REPO: jarvisluk/Gocus-Develop-Releases
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          Remove-Item Env:ELECTRON_OVERRIDE_DIST_PATH -ErrorAction SilentlyContinue
+          Remove-Item Env:ELECTRON_SKIP_BINARY_DOWNLOAD -ErrorAction SilentlyContinue
+          Remove-Item Env:npm_config_electron_skip_binary_download -ErrorAction SilentlyContinue
+          npm ci --ignore-scripts
+          node scripts/ensure-electron-runtime.cjs
+          node -e "console.log('Electron runtime:', require('electron'))"
+
+      - name: Verify
+        shell: pwsh
+        run: |
+          npm run lint
+          npm run test:unit
+          npm run build
+
+      - name: Package Windows app
+        shell: pwsh
+        env:
+          GOCUS_BUILD: develop-${{ github.run_number }}-${{ github.sha }}
+          GOCUS_VERSION: ${{ needs.macos.outputs.version }}
+        run: npm run package:win:release
+
+      - name: Generate candidate metadata
+        shell: pwsh
+        run: |
+          Set-Location release/windows
+          Get-ChildItem -File | Where-Object { $_.Name -match '\.(zip|exe|blockmap|ya?ml)$' } | ForEach-Object {
+            $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant()
+            "${hash}  $($_.Name)" | Set-Content -Encoding utf8 "$($_.Name).sha256"
+          }
+
+      - name: Verify candidate artifacts
+        shell: pwsh
+        run: |
+          Set-Location release/windows
+          Get-ChildItem "*.sha256" | ForEach-Object {
+            $line = (Get-Content $_.FullName -Raw).Trim()
+            if ($line -notmatch '^([0-9a-f]{64})\s+(.+)$') {
+              throw "Invalid checksum file: $($_.Name)"
+            }
+            $expected = $Matches[1]
+            $artifact = $Matches[2]
+            $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $artifact).Hash.ToLowerInvariant()
+            if ($actual -ne $expected) {
+              throw "Checksum mismatch for $artifact"
+            }
+          }
+          Get-ChildItem | Format-Table -AutoSize
+
+      - name: Upload develop candidate artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gocus-develop-windows-${{ needs.macos.outputs.version }}
+          path: |
+            release/windows/*-win-*.zip
+            release/windows/*.exe
+            release/windows/*.blockmap
+            release/windows/latest*.yml
+            release/windows/*.sha256
+
+      - name: Publish Windows develop update assets
+        if: env.INPUT_PUBLISH_UPDATE_RELEASE == 'true' && env.DEVELOP_RELEASE_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ secrets.DEVELOP_RELEASE_TOKEN }}
+          RELEASE_TAG: v${{ needs.macos.outputs.version }}
+          RELEASE_VERSION: ${{ needs.macos.outputs.version }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $assets = @()
+          $patterns = @(
+            "release/windows/*.exe",
+            "release/windows/*.blockmap",
+            "release/windows/latest*.yml",
+            "release/windows/*.sha256"
+          )
+          foreach ($pattern in $patterns) {
+            $assets += Get-ChildItem -Path $pattern -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
+          }
+
+          if ($assets.Count -eq 0) {
+            throw "No Windows develop update assets found."
+          }
+
+          gh release upload $env:RELEASE_TAG $assets `
+            --repo $env:DEVELOP_UPDATE_REPOSITORY `
+            --clobber

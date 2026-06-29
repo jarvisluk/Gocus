@@ -4,18 +4,25 @@ const collapsedSize = { width: 38, height: 136 };
 const temporaryInfoWindowSize = { width: 280, height: 252 };
 const changedFileInfoWindowSize = { width: 280, height: 252 };
 const commitInfoWindowSize = { width: 348, height: 132 };
+const functionMenuWindowSize = { width: 218, height: 344 };
 const commitInfoWindowMinimumHeight = 92;
 const commitInfoWindowMaximumHeight = 240;
+const functionMenuWindowMinimumHeight = 72;
 const temporaryInfoWindowGap = 10;
 const collapsedRailMaximumHeight = 420;
 
 function clampExpandedSize(size, display) {
+  const maximumSize = expandedMaximumSize(display);
   return {
-    width: Math.min(Math.max(Math.round(size.width), expandedMinimumSize.width), Math.max(expandedMinimumSize.width, display.width - 20)),
-    height: Math.min(
-      Math.max(Math.round(size.height), expandedMinimumSize.height),
-      Math.max(expandedMinimumSize.height, display.height - 16),
-    ),
+    width: Math.min(Math.max(Math.round(size.width), expandedMinimumSize.width), maximumSize.width),
+    height: Math.min(Math.max(Math.round(size.height), expandedMinimumSize.height), maximumSize.height),
+  };
+}
+
+function expandedMaximumSize(display) {
+  return {
+    width: Math.max(expandedMinimumSize.width, display.width - 20),
+    height: Math.max(expandedMinimumSize.height, display.height - 16),
   };
 }
 
@@ -41,6 +48,15 @@ function clampCommitInfoWindowHeight(height, display) {
   return Math.min(Math.max(requestedHeight, commitInfoWindowMinimumHeight), maximumHeight);
 }
 
+function clampFunctionMenuWindowHeight(height, display) {
+  const requestedHeight = Math.round(Number(height));
+  const availableHeight = Number(display?.height) ? display.height - 16 : functionMenuWindowSize.height;
+  const maximumHeight = Math.max(functionMenuWindowMinimumHeight, availableHeight);
+
+  if (!Number.isFinite(requestedHeight)) return functionMenuWindowSize.height;
+  return Math.min(Math.max(requestedHeight, functionMenuWindowMinimumHeight), maximumHeight);
+}
+
 function mainWindowBounds({ currentBounds, display, collapsed, expandedSize, collapsedWindowSize = collapsedSize }) {
   const size = collapsed ? collapsedWindowSize : expandedSize;
   const edgeInset = collapsed ? 0 : 10;
@@ -52,6 +68,13 @@ function mainWindowBounds({ currentBounds, display, collapsed, expandedSize, col
   const y = Math.min(Math.max(requestedY, minY), Math.max(minY, maxY));
 
   return { x, y, width: size.width, height: size.height };
+}
+
+function rightAlignedWindowBounds(bounds, display) {
+  return {
+    ...bounds,
+    x: display.x + display.width - bounds.width,
+  };
 }
 
 function anchorTop(anchorBounds) {
@@ -77,6 +100,10 @@ function sideInfoBounds({ mainBounds, display, alignTop = false, size = temporar
 
 function temporaryInfoBounds({ mainBounds, display, alignTop = false }) {
   return sideInfoBounds({ mainBounds, display, alignTop, size: temporaryInfoWindowSize });
+}
+
+function functionMenuBounds({ mainBounds, display, size = functionMenuWindowSize }) {
+  return sideInfoBounds({ mainBounds, display, alignTop: true, size });
 }
 
 function changedFileInfoBounds({ temporaryInfoBounds, display }) {
@@ -140,16 +167,21 @@ function windowBoundsEqual(left, right) {
 module.exports = {
   clampCommitInfoWindowHeight,
   clampCollapsedRailHeight,
+  clampFunctionMenuWindowHeight,
   changedFileInfoBounds,
   changedFileInfoWindowSize,
   collapsedSize,
   commitInfoBounds,
   commitInfoWindowSize,
   defaultExpandedSize,
+  expandedMaximumSize,
   expandedMinimumSize,
   expandedSizeFromConfig,
+  functionMenuBounds,
+  functionMenuWindowSize,
   clampExpandedSize,
   mainWindowBounds,
+  rightAlignedWindowBounds,
   temporaryInfoBounds,
   temporaryInfoWindowSize,
   windowBoundsEqual,

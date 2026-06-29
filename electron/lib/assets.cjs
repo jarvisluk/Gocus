@@ -13,15 +13,21 @@ function createAssetLoader({ nativeImage, resourcesPath, electronDir }) {
 
   function loadImageAsset(fileName, { template = false } = {}) {
     const assetPath = resolveAssetPath(fileName);
+    const extension = path.extname(assetPath).toLowerCase();
     if (!fs.existsSync(assetPath)) {
       const missingImage = nativeImage.createFromPath(assetPath);
       if (template) missingImage.setTemplateImage(true);
       return missingImage;
     }
 
+    if (extension === ".ico") {
+      const image = nativeImage.createFromPath(assetPath);
+      if (template) image.setTemplateImage(true);
+      return image;
+    }
+
     const image = nativeImage.createFromBuffer(fs.readFileSync(assetPath));
 
-    const extension = path.extname(assetPath);
     const basePath = assetPath.slice(0, -extension.length);
     const highResolutionPath = `${basePath}@2x${extension}`;
     if (fs.existsSync(highResolutionPath)) {

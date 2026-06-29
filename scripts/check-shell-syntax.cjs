@@ -12,6 +12,15 @@ const projectRoot = path.resolve(__dirname, "..");
 const checkedRoots = ["scripts", "tools"];
 const checkedExtensions = new Set([".sh"]);
 
+function isBashAvailable() {
+  const result = spawnSync("bash", ["--version"], {
+    cwd: projectRoot,
+    stdio: "ignore",
+  });
+
+  return !result.error && result.status === 0;
+}
+
 function collectShellFiles() {
   return collectMatchingFiles({
     projectRoot,
@@ -21,6 +30,8 @@ function collectShellFiles() {
 }
 
 function checkShellFileSyntax(filePath) {
+  if (!isBashAvailable()) return null;
+
   const result = spawnSync("bash", ["-n", filePath], {
     cwd: projectRoot,
     encoding: "utf8",
@@ -32,14 +43,17 @@ function checkShellFileSyntax(filePath) {
 }
 
 function runShellSyntaxCheck(files = collectShellFiles()) {
+  const skipped = !isBashAvailable();
+
   return {
     checkedFiles: files,
-    failures: files.map(checkShellFileSyntax).filter(Boolean),
+    failures: skipped ? [] : files.map(checkShellFileSyntax).filter(Boolean),
+    skipped,
   };
 }
 
 function main() {
-  const { checkedFiles, failures } = runShellSyntaxCheck();
+  const { checkedFiles, failures, skipped } = runShellSyntaxCheck();
 
   if (failures.length) {
     console.error(`Shell syntax failed (${failures.length} file${failures.length === 1 ? "" : "s"}):`);
@@ -47,6 +61,8 @@ function main() {
       console.error(formatProcessFailure(failure, "bash -n"));
     }
     process.exitCode = 1;
+  } else if (skipped) {
+    console.log(`Shell syntax skipped for ${checkedFiles.length} file${checkedFiles.length === 1 ? "" : "s"}; bash is unavailable.`);
   } else {
     console.log(`Shell syntax passed for ${checkedFiles.length} file${checkedFiles.length === 1 ? "" : "s"}.`);
   }
@@ -59,5 +75,6 @@ if (require.main === module) {
 module.exports = {
   checkShellFileSyntax,
   collectShellFiles,
+  isBashAvailable,
   runShellSyntaxCheck,
 };

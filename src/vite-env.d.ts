@@ -5,6 +5,7 @@ import type {
   ChangedFileInfoPayload,
   CommitInfoPayload,
   CommitViewSelection,
+  FunctionMenuPayload,
   MergeOptions,
   RecentRepository,
   SnapshotResponse,
@@ -20,6 +21,7 @@ declare global {
       openRepository: (view?: CommitViewSelection) => Promise<SnapshotResponse>;
       switchRepository: (repositoryPath: string, view?: CommitViewSelection) => Promise<SnapshotResponse>;
       getRecentRepositories: () => Promise<RecentRepository[]>;
+      removeRecentRepository: (repository: RecentRepository) => Promise<RecentRepository[]>;
       refresh: (view?: CommitViewSelection) => Promise<SnapshotResponse>;
       getSnapshot: (view?: CommitViewSelection) => Promise<SnapshotResponse>;
       clearRepository: () => Promise<SnapshotResponse>;
@@ -32,6 +34,10 @@ declare global {
         options?: MergeOptions,
       ) => Promise<ActionResponse>;
       checkout: (ref: string, view?: CommitViewSelection) => Promise<ActionResponse>;
+      pushCurrentBranch?: (view?: CommitViewSelection) => Promise<ActionResponse>;
+      pullCurrentBranch?: (view?: CommitViewSelection) => Promise<ActionResponse>;
+      fetchRemotes?: (view?: CommitViewSelection) => Promise<ActionResponse>;
+      openRepositoryRemote?: () => Promise<ActionResponse>;
       openWorktree: (worktreePath: string, view?: CommitViewSelection) => Promise<ActionResponse>;
       cleanupWorktree: (worktreePath: string, view?: CommitViewSelection) => Promise<ActionResponse>;
       openWorkspace: (target: WorkspaceOpenTarget) => Promise<ActionResponse>;
@@ -44,6 +50,7 @@ declare global {
       openGitHubReleases?: () => Promise<void>;
       getPreferences: () => Promise<UiPreferences>;
       savePreferences: (preferences: UiPreferences) => Promise<void>;
+      getCollapsed: () => Promise<boolean>;
       setCollapsed: (collapsed: boolean) => Promise<void>;
       setCollapsedRailHeight?: (height: number) => Promise<void>;
       getPinned: () => Promise<boolean>;
@@ -51,6 +58,9 @@ declare global {
       dockToEdge: (collapsed: boolean) => Promise<void>;
       getTemporaryInfoPayload: () => Promise<TemporaryInfoPayload>;
       setTemporaryInfoPanel: (payload: TemporaryInfoPayload) => Promise<void>;
+      getFunctionMenuPayload?: () => Promise<FunctionMenuPayload>;
+      setFunctionMenuPanel?: (payload: FunctionMenuPayload) => Promise<void>;
+      setFunctionMenuPanelHeight?: (height: number) => Promise<void>;
       getChangedFileInfoPayload: () => Promise<ChangedFileInfoPayload>;
       setChangedFileInfoPanel: (payload: ChangedFileInfoPayload) => Promise<void>;
       getCommitInfoPayload: () => Promise<CommitInfoPayload>;
@@ -60,14 +70,14 @@ declare global {
       setCommitInfoPanelHeight?: (height: number) => Promise<void>;
       copyText: (text: string) => Promise<void>;
       readText?: () => Promise<string>;
-      getSystemTheme: () => Promise<"light" | "dark">;
       onTemporaryInfoPayloadUpdated: (callback: (payload: TemporaryInfoPayload) => void) => () => void;
       onTemporaryInfoPanelClosed: (callback: () => void) => () => void;
+      onFunctionMenuPayloadUpdated?: (callback: (payload: FunctionMenuPayload) => void) => () => void;
+      onFunctionMenuPanelClosed?: (callback: () => void) => () => void;
       onChangedFileInfoPayloadUpdated: (callback: (payload: ChangedFileInfoPayload) => void) => () => void;
       onChangedFileInfoPanelClosed: (callback: () => void) => () => void;
       onCommitInfoPayloadUpdated: (callback: (payload: CommitInfoPayload) => void) => () => void;
       onCommitInfoPanelClosed: (callback: () => void) => () => void;
-      onThemeChanged: (callback: (theme: "light" | "dark") => void) => () => void;
       onPreferencesChanged: (callback: (preferences: UiPreferences) => void) => () => void;
       onActiveWorkspaceTargetChanged: (callback: (target: WorkspaceOpenTarget) => void) => () => void;
       onSnapshotUpdated: (callback: (response: SnapshotResponse) => void) => () => void;

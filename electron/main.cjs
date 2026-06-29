@@ -1,6 +1,6 @@
 const {
   app,
-  autoUpdater,
+  autoUpdater: electronAutoUpdater,
   BrowserWindow,
   Menu,
   Tray,
@@ -21,17 +21,28 @@ const { registerIpcHandlers } = require("./lib/ipcHandlers.cjs");
 const { createLaunchAtLoginController } = require("./lib/launchAtLogin.cjs");
 const { installOutputErrorGuard } = require("./lib/outputGuard.cjs");
 const {
+  defaultWindowAnimationDurationMs,
+  defaultWindowAnimationFrameMs,
+  interpolatedWindowBounds,
+  windowBoundsAnimationFrameCount,
+} = require("./lib/windowAnimation.cjs");
+const {
   changedFileInfoBounds,
   changedFileInfoWindowSize,
   clampCommitInfoWindowHeight,
+  clampFunctionMenuWindowHeight,
   collapsedSize,
   commitInfoBounds,
   commitInfoWindowSize,
+  expandedMaximumSize,
   expandedMinimumSize,
   expandedSizeFromConfig,
+  functionMenuBounds,
+  functionMenuWindowSize,
   clampCollapsedRailHeight,
   clampExpandedSize,
   mainWindowBounds,
+  rightAlignedWindowBounds,
   temporaryInfoBounds,
   temporaryInfoWindowSize,
   windowBoundsEqual,
@@ -40,13 +51,17 @@ const {
   checkout,
   cleanupWorktree,
   createBranch,
+  fetchRemotes,
   initializeRepository,
   isNotGitRepositoryError,
   merge,
   normalizeView,
   openWorktree,
+  pullCurrentBranch,
+  pushCurrentBranch,
   readFolderWithoutGit,
   readGitSnapshot,
+  repositoryRemoteWebUrl,
 } = require("./lib/git.cjs");
 const { createRepositoryWatcher } = require("./lib/gitWatcher.cjs");
 const { getAvailableWorkspaceTargets, openWorkspace, openWorkspaceFile } = require("./lib/workspace.cjs");
@@ -54,6 +69,8 @@ const { getAvailableWorkspaceTargets, openWorkspace, openWorkspaceFile } = requi
 installOutputErrorGuard();
 
 const isDevRuntime = Boolean(process.env.GOCUS_DEV_SERVER_URL);
+const isWindowsRuntime = process.platform === "win32";
+const enableTrayInDev = process.env.GOCUS_ENABLE_TRAY_IN_DEV === "1";
 
 let mainWindow;
 let tray;
@@ -64,6 +81,7 @@ let pinnedState = false;
 let currentView = { mode: "all" };
 let applyingWindowBounds = false;
 let applyingWindowBoundsTimer = null;
+let windowBoundsAnimationTimer = null;
 let expandedWindowSizeSaveTimer = null;
 let realQuitRequested = false;
 let dockIconHidden = false;
@@ -73,6 +91,9 @@ let changedFileInfoWindow = null;
 let changedFileInfoPayload = null;
 let commitInfoWindow = null;
 let commitInfoPayload = null;
+let functionMenuWindow = null;
+let functionMenuPayload = null;
+let functionMenuWindowHeight = functionMenuWindowSize.height;
 let commitInfoWindowHeight = commitInfoWindowSize.height;
 let commitInfoInteractionHoldUntil = 0;
 let activeWorkspaceOpenTarget = defaultActiveWorkspaceOpenTarget;
@@ -90,16 +111,63 @@ const assets = createAssetLoader({
 });
 const autoUpdates = createAutoUpdateController({
   app,
-  autoUpdater,
+  autoUpdater: loadPlatformAutoUpdater(),
   dialog,
   isDevRuntime,
+  isPortableRuntime: isWindowsPortableRuntime(),
   packageMetadata,
   prepareForInstall: prepareForUpdateInstall,
 });
 
+function isWindowsPortableRuntime() {
+  return Boolean(process.env.PORTABLE_EXECUTABLE_DIR || process.env.PORTABLE_EXECUTABLE_FILE);
+}
+
+function loadPlatformAutoUpdater() {
+  if (!isWindowsRuntime) return electronAutoUpdater;
+
+  try {
+    return require("electron-updater").autoUpdater;
+  } catch (error) {
+    console.warn("[Gocus] Windows auto-update runtime is unavailable.", error);
+    return null;
+  }
+}
+
 function applyWindowShadow(targetWindow) {
   if (!targetWindow || targetWindow.isDestroyed() || typeof targetWindow.setHasShadow !== "function") return;
   targetWindow.setHasShadow(true);
+}
+
+function windowBackgroundColor() {
+  if (!isWindowsRuntime) return "#00000000";
+  return nativeTheme.shouldUseDarkColors ? "#1f1f1f" : "#f7f7f7";
+}
+
+function framelessWindowOptions() {
+  return {
+    frame: false,
+    transparent: !isWindowsRuntime,
+    backgroundColor: windowBackgroundColor(),
+    hasShadow: true,
+    roundedCorners: true,
+    ...(isWindowsRuntime ? { accentColor: false, thickFrame: true } : {}),
+  };
+}
+
+function loadAppWindowIcon() {
+  return assets.loadImageAsset(isWindowsRuntime ? "app-icon.ico" : "app-icon.png");
+}
+
+function syncWindowBackgroundColor(targetWindow) {
+  if (!isWindowsRuntime || !targetWindow || targetWindow.isDestroyed()) return;
+  targetWindow.setBackgroundColor(windowBackgroundColor());
+}
+
+function syncWindowBackgroundColors() {
+  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow, functionMenuWindow]) {
+    syncWindowBackgroundColor(win);
+  }
 }
 
 const workspaceOpenMenuOptions = [
@@ -108,7 +176,7 @@ const workspaceOpenMenuOptions = [
   { target: "codex", label: "Codex" },
   { target: "antigravity", label: "Antigravity IDE" },
   { target: "antigravityApp", label: "Antigravity" },
-  { target: "finder", label: "Finder" },
+  { target: "finder", label: process.platform === "win32" ? "Explorer" : "Finder" },
   { target: "terminal", label: "Terminal" },
   { target: "xcode", label: "Xcode" },
 ];
@@ -140,8 +208,14 @@ async function openGitHubReleases() {
   await shell.openExternal(releaseUrl);
 }
 
-function shouldStartInMenuBar() {
-  return launchAtLogin.shouldStartInMenuBar(config.readPreferences());
+async function openRepositoryRemote(repositoryPath) {
+  const remoteUrl = await repositoryRemoteWebUrl(repositoryPath);
+  await shell.openExternal(remoteUrl);
+  return { ok: true, message: "Opened repository remote." };
+}
+
+function shouldStartCollapsedAtLogin() {
+  return launchAtLogin.shouldStartCollapsedAtLogin(config.readPreferences());
 }
 
 function shouldShowMenuBarIcon(preferences = config.readPreferences()) {
@@ -149,21 +223,29 @@ function shouldShowMenuBarIcon(preferences = config.readPreferences()) {
 }
 
 function shouldShowDockIcon(preferences = config.readPreferences()) {
-  if (!isDevRuntime && !shouldUseMenuBarResidency(preferences)) return true;
+  if (!shouldUseMenuBarResidency(preferences)) return true;
   return preferences.showDockIcon === true;
 }
 
 function shouldUseMenuBarResidency(preferences = config.readPreferences()) {
-  return !isDevRuntime && shouldShowMenuBarIcon(preferences);
+  return (!isDevRuntime || enableTrayInDev) && shouldShowMenuBarIcon(preferences);
 }
 
 function hideDockIcon() {
+  if (isWindowsRuntime) {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setSkipTaskbar(true);
+    return;
+  }
   if (process.platform !== "darwin" || !app.dock) return;
   app.dock.hide();
   dockIconHidden = true;
 }
 
 function showDockIcon() {
+  if (isWindowsRuntime) {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setSkipTaskbar(false);
+    return;
+  }
   if (process.platform !== "darwin" || !app.dock) return;
   if (!dockIconHidden) {
     app.dock.setIcon(assets.loadImageAsset("app-icon.png"));
@@ -185,11 +267,16 @@ function softQuitToMenuBar() {
   closeTemporaryInfoWindow();
   closeChangedFileInfoWindow();
   closeCommitInfoWindow();
+  closeFunctionMenuWindow();
   if (mainWindow && !mainWindow.isDestroyed()) {
     saveCurrentExpandedWindowSize(mainWindow);
     mainWindow.hide();
   }
   syncDockIcon(preferences);
+}
+
+function shouldHideToMenuBarOnClose() {
+  return !realQuitRequested && shouldUseMenuBarResidency();
 }
 
 function requestRealQuit() {
@@ -258,6 +345,10 @@ function clearRepositoryPath() {
 
 function readRecentRepositories() {
   return config.readRecentRepositories();
+}
+
+function removeRecentRepository(repositoryPath, repositoryKey) {
+  return config.removeRecentRepository(repositoryPath, repositoryKey);
 }
 
 function noRepositoryResponse() {
@@ -423,18 +514,6 @@ function waitForDialogBlockerFrame() {
   return new Promise((resolve) => setTimeout(resolve, 32));
 }
 
-function getSystemTheme() {
-  return nativeTheme.shouldUseDarkColors ? "dark" : "light";
-}
-
-function nativeThemeSourceForPreferences(preferences = readPreferences()) {
-  return preferences.themeMode === "light" || preferences.themeMode === "dark" ? preferences.themeMode : "system";
-}
-
-function syncNativeThemeSource(preferences = readPreferences()) {
-  nativeTheme.themeSource = nativeThemeSourceForPreferences(preferences);
-}
-
 function sendToWindow(win, channel, ...args) {
   if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return;
   try {
@@ -458,20 +537,14 @@ function isCommitInfoPanelActive() {
   return isWindowFocused(commitInfoWindow) || Date.now() < commitInfoInteractionHoldUntil;
 }
 
-function sendSystemTheme() {
-  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow]) {
-    sendToWindow(win, "theme:changed", getSystemTheme());
-  }
-}
-
 function sendPreferences(preferences = readPreferences()) {
-  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow]) {
+  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow, functionMenuWindow]) {
     sendToWindow(win, "preferences:changed", preferences);
   }
 }
 
 function sendActiveWorkspaceOpenTarget() {
-  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow]) {
+  for (const win of [mainWindow, temporaryInfoWindow, changedFileInfoWindow, commitInfoWindow, functionMenuWindow]) {
     sendToWindow(win, "workspace:activeTargetChanged", activeWorkspaceOpenTarget);
   }
 }
@@ -509,13 +582,52 @@ function readExpandedSize(display) {
   return expandedSizeFromConfig(config, display);
 }
 
-function setWindowBounds(win, bounds, animated = true) {
-  applyingWindowBounds = true;
+function finishApplyingWindowBounds(delayMs = 250) {
   clearTimeout(applyingWindowBoundsTimer);
-  win.setBounds(bounds, animated);
   applyingWindowBoundsTimer = setTimeout(() => {
     applyingWindowBounds = false;
-  }, 250);
+  }, delayMs);
+}
+
+function clearWindowBoundsAnimation() {
+  if (windowBoundsAnimationTimer === null) return;
+  clearInterval(windowBoundsAnimationTimer);
+  windowBoundsAnimationTimer = null;
+}
+
+function setWindowBounds(win, bounds, animated = true, onComplete = null) {
+  applyingWindowBounds = true;
+  clearWindowBoundsAnimation();
+  clearTimeout(applyingWindowBoundsTimer);
+
+  const startBounds = win.getBounds();
+  if (!isWindowsRuntime || !animated || windowBoundsEqual(startBounds, bounds)) {
+    win.setBounds(bounds, animated);
+    if (typeof onComplete === "function") onComplete();
+    finishApplyingWindowBounds();
+    return;
+  }
+
+  const frameCount = windowBoundsAnimationFrameCount();
+  let frame = 0;
+
+  windowBoundsAnimationTimer = setInterval(() => {
+    if (!win || win.isDestroyed()) {
+      clearWindowBoundsAnimation();
+      finishApplyingWindowBounds(0);
+      return;
+    }
+
+    frame += 1;
+    const nextBounds =
+      frame >= frameCount ? bounds : interpolatedWindowBounds(startBounds, bounds, frame / frameCount);
+    win.setBounds(nextBounds, false);
+
+    if (frame < frameCount) return;
+    clearWindowBoundsAnimation();
+    if (typeof onComplete === "function") onComplete();
+    finishApplyingWindowBounds(defaultWindowAnimationDurationMs + defaultWindowAnimationFrameMs);
+  }, defaultWindowAnimationFrameMs);
 }
 
 function saveCurrentExpandedWindowSize(win) {
@@ -537,10 +649,14 @@ function positionWindow(win, collapsed = false) {
   if (!win) return;
   const display = screen.getPrimaryDisplay().workArea;
   const nextCollapsedSize = collapsed ? collapsedWindowSize : collapsedSize;
-  win.setMinimumSize(
-    collapsed ? nextCollapsedSize.width : expandedMinimumSize.width,
-    collapsed ? nextCollapsedSize.height : expandedMinimumSize.height,
-  );
+  const maximumExpandedSize = expandedMaximumSize(display);
+  if (collapsed) {
+    win.setMinimumSize(nextCollapsedSize.width, nextCollapsedSize.height);
+    win.setMaximumSize(maximumExpandedSize.width, maximumExpandedSize.height);
+  } else {
+    win.setMaximumSize(maximumExpandedSize.width, maximumExpandedSize.height);
+    win.setMinimumSize(collapsedSize.width, collapsedSize.height);
+  }
   setWindowBounds(
     win,
     mainWindowBounds({
@@ -551,6 +667,18 @@ function positionWindow(win, collapsed = false) {
       expandedSize: readExpandedSize(display),
     }),
     true,
+    () => {
+      if (!win || win.isDestroyed()) return;
+      if (collapsed) {
+        win.setMaximumSize(nextCollapsedSize.width, nextCollapsedSize.height);
+        const currentBounds = win.getBounds();
+        const alignedBounds = rightAlignedWindowBounds(currentBounds, display);
+        if (!windowBoundsEqual(currentBounds, alignedBounds)) setWindowBounds(win, alignedBounds, false);
+        return;
+      }
+
+      win.setMinimumSize(expandedMinimumSize.width, expandedMinimumSize.height);
+    },
   );
 }
 
@@ -571,6 +699,7 @@ function setCollapsedWindow(collapsed) {
     closeTemporaryInfoWindow();
     closeChangedFileInfoWindow();
     closeCommitInfoWindow();
+    closeFunctionMenuWindow();
   }
   collapsedState = nextCollapsedState;
   positionWindow(mainWindow, collapsedState);
@@ -585,6 +714,7 @@ function dockWindow(collapsed = collapsedState) {
   positionTemporaryInfoWindow({ animated: true });
   positionChangedFileInfoWindow({ animated: true });
   positionCommitInfoWindow({ animated: true });
+  positionFunctionMenuWindow({ animated: true });
 }
 
 function rendererWindowUrl(mode = "") {
@@ -642,6 +772,7 @@ function closeTemporaryInfoWindowIfAppInactive() {
   setTimeout(() => {
     const appFocused =
       isWindowFocused(mainWindow) ||
+      isWindowFocused(functionMenuWindow) ||
       isWindowFocused(temporaryInfoWindow) ||
       isWindowFocused(changedFileInfoWindow) ||
       isCommitInfoPanelActive() ||
@@ -673,10 +804,7 @@ function ensureTemporaryInfoWindow() {
   temporaryInfoWindow = new BrowserWindow({
     ...bounds,
     show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: "#00000000",
-    hasShadow: true,
+    ...framelessWindowOptions(),
     resizable: false,
     movable: false,
     minimizable: false,
@@ -728,6 +856,138 @@ function setTemporaryInfoPanel(payload) {
   positionCommitInfoWindow();
 }
 
+function functionMenuWindowBounds() {
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
+
+  const mainBounds = mainWindow.getBounds();
+  const display = screen.getDisplayMatching(mainBounds).workArea;
+  const height = clampFunctionMenuWindowHeight(functionMenuWindowHeight, display);
+  return functionMenuBounds({ mainBounds, display, size: { ...functionMenuWindowSize, height } });
+}
+
+function sendFunctionMenuPayload() {
+  if (!functionMenuWindow || functionMenuWindow.isDestroyed()) return;
+  sendToWindow(functionMenuWindow, "window:functionMenuPayload", functionMenuPayload);
+}
+
+function sendFunctionMenuPanelClosed() {
+  sendToWindow(mainWindow, "window:functionMenuPanelClosed");
+}
+
+function setFunctionMenuWindowBounds(bounds, animated = false) {
+  if (!functionMenuWindow || functionMenuWindow.isDestroyed()) return;
+  if (windowBoundsEqual(functionMenuWindow.getBounds(), bounds)) return;
+  functionMenuWindow.setBounds(bounds, animated);
+}
+
+function positionFunctionMenuWindow({ animated = false } = {}) {
+  if (!functionMenuWindow || functionMenuWindow.isDestroyed()) return;
+  const bounds = functionMenuWindowBounds();
+  if (bounds) setFunctionMenuWindowBounds(bounds, animated);
+}
+
+function syncFunctionMenuWindowLevel() {
+  if (!functionMenuWindow || functionMenuWindow.isDestroyed()) return;
+  const mainFocused = Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused());
+  functionMenuWindow.setAlwaysOnTop(pinnedState || mainFocused, "floating");
+}
+
+function closeFunctionMenuWindowIfAppInactive() {
+  setTimeout(() => {
+    const appFocused =
+      isWindowFocused(mainWindow) ||
+      isWindowFocused(functionMenuWindow) ||
+      isWindowFocused(temporaryInfoWindow) ||
+      isWindowFocused(changedFileInfoWindow) ||
+      isCommitInfoPanelActive() ||
+      workspaceOpenMenuActive;
+    if (!appFocused) closeFunctionMenuWindow();
+  }, 80);
+}
+
+function closeFunctionMenuWindow() {
+  functionMenuPayload = null;
+  functionMenuWindowHeight = functionMenuWindowSize.height;
+  if (!functionMenuWindow || functionMenuWindow.isDestroyed()) return;
+  const windowToClose = functionMenuWindow;
+  functionMenuWindow = null;
+  sendFunctionMenuPanelClosed();
+  windowToClose.close();
+}
+
+function ensureFunctionMenuWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
+  if (functionMenuWindow && !functionMenuWindow.isDestroyed()) return functionMenuWindow;
+
+  const bounds = functionMenuWindowBounds() ?? { ...functionMenuWindowSize };
+  functionMenuWindow = new BrowserWindow({
+    ...bounds,
+    show: false,
+    frame: false,
+    transparent: true,
+    backgroundColor: "#00000000",
+    hasShadow: true,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    skipTaskbar: true,
+    acceptFirstMouse: true,
+    title: "Gocus Function Menu",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  applyWindowShadow(functionMenuWindow);
+  syncFunctionMenuWindowLevel();
+  functionMenuWindow.once("ready-to-show", () => {
+    applyWindowShadow(functionMenuWindow);
+    positionFunctionMenuWindow();
+    syncFunctionMenuWindowLevel();
+    functionMenuWindow?.showInactive();
+    sendFunctionMenuPayload();
+  });
+  functionMenuWindow.webContents.on("did-finish-load", sendFunctionMenuPayload);
+  functionMenuWindow.on("blur", closeFunctionMenuWindowIfAppInactive);
+  functionMenuWindow.on("closed", () => {
+    functionMenuWindow = null;
+    functionMenuPayload = null;
+    functionMenuWindowHeight = functionMenuWindowSize.height;
+    sendFunctionMenuPanelClosed();
+  });
+  loadRendererWindow(functionMenuWindow, "function-menu");
+
+  return functionMenuWindow;
+}
+
+function setFunctionMenuPanel(payload) {
+  if (!payload) {
+    closeFunctionMenuWindow();
+    return;
+  }
+
+  functionMenuPayload = payload;
+  const menuWindow = ensureFunctionMenuWindow();
+  if (!menuWindow) return;
+  positionFunctionMenuWindow();
+  sendFunctionMenuPayload();
+}
+
+function setFunctionMenuPanelHeight(height) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  const mainBounds = mainWindow.getBounds();
+  const display = screen.getDisplayMatching(mainBounds).workArea;
+  const nextHeight = clampFunctionMenuWindowHeight(height, display);
+  if (nextHeight === functionMenuWindowHeight) return;
+
+  functionMenuWindowHeight = nextHeight;
+  positionFunctionMenuWindow({ animated: true });
+}
+
 function changedFileInfoWindowBounds() {
   if (!temporaryInfoWindow || temporaryInfoWindow.isDestroyed()) return null;
 
@@ -762,6 +1022,7 @@ function closeChangedFileInfoWindowIfAppInactive() {
   setTimeout(() => {
     const appFocused =
       isWindowFocused(mainWindow) ||
+      isWindowFocused(functionMenuWindow) ||
       isWindowFocused(temporaryInfoWindow) ||
       isWindowFocused(changedFileInfoWindow) ||
       isCommitInfoPanelActive() ||
@@ -792,10 +1053,7 @@ function ensureChangedFileInfoWindow() {
   changedFileInfoWindow = new BrowserWindow({
     ...bounds,
     show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: "#00000000",
-    hasShadow: true,
+    ...framelessWindowOptions(),
     resizable: false,
     movable: false,
     minimizable: false,
@@ -945,6 +1203,7 @@ function closeCommitInfoWindowIfAppInactive() {
   setTimeout(() => {
     const appFocused =
       isWindowFocused(mainWindow) ||
+      isWindowFocused(functionMenuWindow) ||
       isWindowFocused(temporaryInfoWindow) ||
       isWindowFocused(changedFileInfoWindow) ||
       isCommitInfoPanelActive() ||
@@ -975,10 +1234,7 @@ function ensureCommitInfoWindow() {
   commitInfoWindow = new BrowserWindow({
     ...bounds,
     show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: "#00000000",
-    hasShadow: true,
+    ...framelessWindowOptions(),
     resizable: false,
     movable: false,
     minimizable: false,
@@ -1047,6 +1303,7 @@ function setPinnedWindow(pinned) {
   syncTemporaryInfoWindowLevel();
   syncChangedFileInfoWindowLevel();
   syncCommitInfoWindowLevel();
+  syncFunctionMenuWindowLevel();
   sendPinnedChanged();
   buildMenus();
 }
@@ -1062,21 +1319,20 @@ function showMainWindow() {
   mainWindow.focus();
 }
 
-function createWindow({ showOnReady = true } = {}) {
-  const appIcon = assets.loadImageAsset("app-icon.png");
+function createWindow({ showOnReady = true, collapsed = false } = {}) {
+  const appIcon = loadAppWindowIcon();
   const initialExpandedSize = readExpandedSize(screen.getPrimaryDisplay().workArea);
+  collapsedState = Boolean(collapsed);
 
   mainWindow = new BrowserWindow({
     ...initialExpandedSize,
     minWidth: expandedMinimumSize.width,
     minHeight: expandedMinimumSize.height,
     show: false,
-    frame: false,
-    transparent: true,
-    backgroundColor: "#00000000",
-    hasShadow: true,
+    ...framelessWindowOptions(),
     icon: appIcon,
     resizable: true,
+    skipTaskbar: isWindowsRuntime ? !shouldShowDockIcon() : false,
     title: "Gocus",
     trafficLightPosition: { x: 14, y: 14 },
     webPreferences: {
@@ -1087,7 +1343,7 @@ function createWindow({ showOnReady = true } = {}) {
   });
 
   applyWindowShadow(mainWindow);
-  positionWindow(mainWindow);
+  positionWindow(mainWindow, collapsedState);
   mainWindow.once("ready-to-show", () => {
     applyWindowShadow(mainWindow);
     if (showOnReady) mainWindow.show();
@@ -1096,37 +1352,44 @@ function createWindow({ showOnReady = true } = {}) {
     positionTemporaryInfoWindow();
     positionChangedFileInfoWindow();
     positionCommitInfoWindow();
+    positionFunctionMenuWindow();
   });
   mainWindow.on("resize", () => {
     scheduleExpandedWindowSizeSave(mainWindow);
     positionTemporaryInfoWindow();
     positionChangedFileInfoWindow();
     positionCommitInfoWindow();
+    positionFunctionMenuWindow();
   });
   mainWindow.on("focus", () => {
     syncTemporaryInfoWindowLevel();
     syncChangedFileInfoWindowLevel();
     syncCommitInfoWindowLevel();
+    syncFunctionMenuWindowLevel();
   });
   mainWindow.on("blur", () => {
     syncTemporaryInfoWindowLevel();
     syncChangedFileInfoWindowLevel();
     syncCommitInfoWindowLevel();
+    syncFunctionMenuWindowLevel();
     closeTemporaryInfoWindowIfAppInactive();
     closeChangedFileInfoWindowIfAppInactive();
     closeCommitInfoWindowIfAppInactive();
+    closeFunctionMenuWindowIfAppInactive();
   });
   mainWindow.on("hide", () => {
     closeTemporaryInfoWindow();
     closeChangedFileInfoWindow();
     closeCommitInfoWindow();
+    closeFunctionMenuWindow();
   });
   mainWindow.on("close", (event) => {
     closeTemporaryInfoWindow();
     closeChangedFileInfoWindow();
     closeCommitInfoWindow();
+    closeFunctionMenuWindow();
     saveCurrentExpandedWindowSize(mainWindow);
-    if (process.platform === "darwin" && !realQuitRequested && shouldUseMenuBarResidency()) {
+    if (shouldHideToMenuBarOnClose()) {
       event.preventDefault();
       mainWindow.hide();
     }
@@ -1135,6 +1398,8 @@ function createWindow({ showOnReady = true } = {}) {
     closeTemporaryInfoWindow();
     closeChangedFileInfoWindow();
     closeCommitInfoWindow();
+    closeFunctionMenuWindow();
+    clearWindowBoundsAnimation();
     clearTimeout(applyingWindowBoundsTimer);
     clearTimeout(expandedWindowSizeSaveTimer);
     mainWindow = null;
@@ -1150,10 +1415,14 @@ function createTray() {
     return;
   }
 
-  const trayIcon = assets.loadImageAsset("tray-iconTemplate.png", { template: process.platform === "darwin" });
+  const trayIconName = process.platform === "win32" ? "app-icon.ico" : "tray-iconTemplate.png";
+  const trayIcon = assets.loadImageAsset(trayIconName, { template: process.platform === "darwin" });
 
   tray = new Tray(trayIcon);
   tray.setToolTip("Gocus");
+  if (process.platform === "win32") {
+    tray.on("click", showMainWindow);
+  }
   if (process.platform === "darwin" && process.env.GOCUS_SHOW_TRAY_TITLE === "1") {
     tray.setTitle("Gocus");
   }
@@ -1162,6 +1431,7 @@ function createTray() {
       console.info(
         "[tray]",
         JSON.stringify({
+          asset: trayIconName,
           empty: trayIcon.isEmpty(),
           template: process.platform === "darwin" ? trayIcon.isTemplateImage() : false,
           size1x: trayIcon.getSize(1),
@@ -1316,7 +1586,6 @@ function buildMenus() {
         { label: "Dock to Screen Edge", accelerator: "CmdOrCtrl+Shift+D", click: () => dockWindow(collapsedState) },
         { type: "separator" },
         { label: "Always on Top", type: "checkbox", checked: pinnedState, click: (item) => setPinnedWindow(item.checked) },
-        { label: "Follow System Appearance", type: "checkbox", checked: true, enabled: false },
         ...(app.isPackaged
           ? []
           : [
@@ -1372,19 +1641,19 @@ function buildMenus() {
 
 app.whenReady().then(() => {
   app.setName("Gocus");
-  nativeTheme.on("updated", sendSystemTheme);
+  nativeTheme.themeSource = "dark";
+  syncWindowBackgroundColors();
   currentRepository = readSavedRepositoryPath();
   const preferences = config.readPreferences();
-  syncNativeThemeSource(preferences);
   const menuBarModeEnabled = shouldUseMenuBarResidency(preferences);
-  const startInMenuBar = menuBarModeEnabled && shouldStartInMenuBar();
+  const startCollapsedAtLogin = shouldStartCollapsedAtLogin();
+  if (preferences.launchAtLogin) syncLaunchAtLogin(preferences);
   if (process.platform === "darwin" && app.dock) {
     app.dock.setIcon(assets.loadImageAsset("app-icon.png"));
   }
   if (menuBarModeEnabled) createTray();
   syncDockIcon(preferences);
-  if (startInMenuBar) hideDockIcon();
-  createWindow({ showOnReady: !startInMenuBar });
+  createWindow({ collapsed: startCollapsedAtLogin });
   if (currentRepository) startRepositoryWatcher(currentRepository);
   syncAutoUpdates(preferences);
 
@@ -1405,7 +1674,7 @@ app.whenReady().then(() => {
 });
 
 app.on("before-quit", (event) => {
-  if (process.platform !== "darwin" || realQuitRequested || !shouldUseMenuBarResidency()) {
+  if (!shouldHideToMenuBarOnClose()) {
     stopRepositoryWatcher();
     return;
   }
@@ -1415,7 +1684,7 @@ app.on("before-quit", (event) => {
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin" || !shouldUseMenuBarResidency()) app.quit();
+  if (!shouldUseMenuBarResidency()) app.quit();
 });
 
 registerIpcHandlers({
@@ -1430,15 +1699,17 @@ registerIpcHandlers({
   createBranch,
   dockWindow,
   errorResponse,
+  fetchRemotes,
   getActiveWorkspaceOpenTarget: () => activeWorkspaceOpenTarget,
   getAvailableWorkspaceTargets,
   getChangedFileInfoPayload: () => changedFileInfoPayload,
+  getCollapsedState: () => collapsedState,
   getCommitInfoPayload: () => commitInfoPayload,
+  getFunctionMenuPayload: () => functionMenuPayload,
   getPinnedState: () => pinnedState,
   holdCommitInfoPanelInteraction,
   isCommitInfoPanelActive,
   getSnapshotResponse,
-  getSystemTheme,
   getTemporaryInfoPayload: () => temporaryInfoPayload,
   initializeRepository,
   ipcMain,
@@ -1447,13 +1718,17 @@ registerIpcHandlers({
   normalizeRepositorySwitchView,
   normalizeView,
   openRepositoryPath,
+  openRepositoryRemote,
   openWorkspace,
   openWorkspaceFile,
   openWorkspaceFileMenu,
   openGitHubReleases,
   openWorktree,
+  pullCurrentBranch,
+  pushCurrentBranch,
   readPreferences,
   readRecentRepositories,
+  removeRecentRepository,
   repositoryPathForAction,
   saveRepositoryPath,
   sendPreferences,
@@ -1467,11 +1742,12 @@ registerIpcHandlers({
   setCurrentView: (view) => {
     currentView = view;
   },
+  setFunctionMenuPanel,
+  setFunctionMenuPanelHeight,
   setPinnedWindow,
   setTemporaryInfoPanel,
   syncAutoUpdates,
   syncDockIcon,
   syncLaunchAtLogin,
   syncMenuBarIcon,
-  syncNativeThemeSource,
 });

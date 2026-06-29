@@ -3,18 +3,13 @@ import { autoRefreshSchedule, shouldRunAutoRefreshTick } from "../lib/autoRefres
 import { chooseLocalWorkingFolderInElectronNotice } from "../lib/bridgeAvailability";
 import { errorMessage, logBridgeWarning } from "../lib/errorMessages";
 import type { ActionDialogState } from "../lib/actionDialogView";
-import {
-  applyPreferences,
-  mergePreferences,
-  systemThemeFromMediaMatches,
-} from "../lib/preferences";
+import { applyPreferences, mergePreferences } from "../lib/preferences";
 import { dedupeRecentRepositories, maxRecentRepositories } from "../lib/recentRepositories";
 import { sanitizeWorkspaceOpenTargets } from "../lib/workspaceOpenTargets";
 import type {
   CommitViewSelection,
   RecentRepository,
   SnapshotResponse,
-  Theme,
   UiPreferences,
   WorkspaceOpenTarget,
 } from "../types";
@@ -23,18 +18,9 @@ type RefValue<T> = { current: T };
 
 export function usePreferenceDomEffects({
   preferences,
-  theme,
-  themePreset,
 }: {
   preferences: UiPreferences;
-  theme: Theme;
-  themePreset: string;
 }) {
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.dataset.themePreset = themePreset;
-  }, [theme, themePreset]);
-
   useEffect(() => {
     applyPreferences(preferences);
   }, [preferences]);
@@ -44,16 +30,13 @@ export function useRuntimePreferenceBridge({
   setAvailableWorkspaceTargets,
   setPinned,
   setPreferencesState,
-  setSystemTheme,
 }: {
   setAvailableWorkspaceTargets: Dispatch<SetStateAction<WorkspaceOpenTarget[]>>;
   setPinned: Dispatch<SetStateAction<boolean>>;
   setPreferencesState: Dispatch<SetStateAction<UiPreferences>>;
-  setSystemTheme: Dispatch<SetStateAction<Theme>>;
 }) {
   useEffect(() => {
     if (window.gocus) {
-      window.gocus.getSystemTheme().then(setSystemTheme).catch((error) => logBridgeWarning("Unable to load system theme.", error));
       window.gocus
         .getPreferences()
         .then((value) => setPreferencesState(mergePreferences(value)))
@@ -63,22 +46,14 @@ export function useRuntimePreferenceBridge({
         .then((targets) => setAvailableWorkspaceTargets(sanitizeWorkspaceOpenTargets(targets, [])))
         .catch((error) => logBridgeWarning("Unable to load available workspace targets.", error));
       window.gocus.getPinned().then(setPinned).catch((error) => logBridgeWarning("Unable to load pinned state.", error));
-      const unsubscribeTheme = window.gocus.onThemeChanged(setSystemTheme);
       const unsubscribePreferences = window.gocus.onPreferencesChanged((value) => setPreferencesState(mergePreferences(value)));
       const unsubscribePinned = window.gocus.onPinnedChanged(setPinned);
       return () => {
-        unsubscribeTheme();
         unsubscribePreferences();
         unsubscribePinned();
       };
     }
-
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const handleThemeChange = () => setSystemTheme(systemThemeFromMediaMatches(media.matches));
-    handleThemeChange();
-    media.addEventListener("change", handleThemeChange);
-    return () => media.removeEventListener("change", handleThemeChange);
-  }, [setAvailableWorkspaceTargets, setPinned, setPreferencesState, setSystemTheme]);
+  }, [setAvailableWorkspaceTargets, setPinned, setPreferencesState]);
 }
 
 export function useInitialGitData({
@@ -123,6 +98,10 @@ export function useInitialGitData({
       .getRecentRepositories()
       .then((repositories) => setRecentRepositories(dedupeRecentRepositories(repositories, maxRecentRepositories)))
       .catch((error) => logBridgeWarning("Unable to load recent repositories.", error));
+    window.gocus
+      .getCollapsed()
+      .then(setCollapsed)
+      .catch((error) => logBridgeWarning("Unable to load collapsed state.", error));
 
     const unsubscribeSnapshot = window.gocus.onSnapshotUpdated((response) => {
       markGitRequest();

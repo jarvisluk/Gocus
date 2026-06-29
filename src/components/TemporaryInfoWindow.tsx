@@ -1,23 +1,16 @@
 import { useEffect, useState } from "react";
 import { logBridgeWarning } from "../lib/errorMessages";
-import {
-  applyPreferences,
-  defaultPreferences,
-  mergePreferences,
-  preferencesDocumentThemeView,
-  systemThemeFallback,
-} from "../lib/preferences";
+import { applyPreferences, defaultPreferences, mergePreferences } from "../lib/preferences";
 import { runTemporaryInfoPanelBridgeSideEffect } from "../lib/temporaryInfoPanelBridge";
 import { changedFilesSelectedFileKey, temporaryInfoWindowView } from "../lib/temporaryInfoSelection";
-import type { TemporaryInfoPayload, Theme, UiPreferences } from "../types";
+import type { TemporaryInfoPayload, UiPreferences } from "../types";
 import { ChangedNow } from "./ChangedNow";
+import { SideWindowShell } from "./SideWindowShell";
 
 export function TemporaryInfoWindow() {
   const [payload, setPayload] = useState<TemporaryInfoPayload>(null);
   const [selectedFileKey, setSelectedFileKey] = useState("");
   const [preferences, setPreferences] = useState<UiPreferences>(defaultPreferences);
-  const [systemTheme, setSystemTheme] = useState<Theme>(systemThemeFallback);
-  const { theme, themePreset } = preferencesDocumentThemeView(preferences, systemTheme);
   const view = temporaryInfoWindowView(payload, selectedFileKey);
 
   useEffect(() => {
@@ -33,20 +26,15 @@ export function TemporaryInfoWindow() {
       ?.getPreferences()
       .then((value) => setPreferences(mergePreferences(value)))
       .catch((error) => logBridgeWarning("Unable to load preferences.", error));
-    window.gocus?.getSystemTheme().then(setSystemTheme).catch((error) => logBridgeWarning("Unable to load system theme.", error));
-    const unsubscribeTheme = window.gocus?.onThemeChanged(setSystemTheme);
     const unsubscribePreferences = window.gocus?.onPreferencesChanged((value) => setPreferences(mergePreferences(value)));
     return () => {
-      unsubscribeTheme?.();
       unsubscribePreferences?.();
     };
   }, []);
 
   useEffect(() => {
     applyPreferences(preferences);
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.dataset.themePreset = themePreset;
-  }, [preferences, theme, themePreset]);
+  }, [preferences]);
 
   useEffect(() => {
     setSelectedFileKey((current) => changedFilesSelectedFileKey(payload, current));
@@ -73,28 +61,22 @@ export function TemporaryInfoWindow() {
   }
 
   return (
-    <main className={view.viewport.className}>
+    <SideWindowShell
+      viewportClassName={view.viewport.className}
+      panelClassName={view.panel.className}
+      panelAriaLabel={view.panel.ariaLabel}
+      emptyState={view.emptyState}
+    >
       {view.changedFilesPayload ? (
-        <section className={view.panel.className} aria-label={view.panel.ariaLabel}>
-          <ChangedNow
-            files={view.changedFilesPayload.files}
-            filter={view.changedFilesPayload.filter}
-            promptLanguage={preferences.promptLanguage}
-            selectedFileKey={selectedFileKey}
-            onClose={closeTemporaryInfoPanel}
-            onSelectFile={setSelectedFileKey}
-          />
-        </section>
-      ) : (
-        <section
-          className={view.emptyState.className}
-          aria-label={view.emptyState.ariaLabel}
-          role={view.emptyState.role}
-          aria-live={view.emptyState.ariaLive}
-        >
-          {view.emptyState.message}
-        </section>
-      )}
-    </main>
+        <ChangedNow
+          files={view.changedFilesPayload.files}
+          filter={view.changedFilesPayload.filter}
+          promptLanguage={preferences.promptLanguage}
+          selectedFileKey={selectedFileKey}
+          onClose={closeTemporaryInfoPanel}
+          onSelectFile={setSelectedFileKey}
+        />
+      ) : null}
+    </SideWindowShell>
   );
 }

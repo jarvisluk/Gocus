@@ -41,6 +41,11 @@ jobs:
   macos:
     name: macOS Release
     runs-on: macos-15
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      create_release: ${{ steps.meta.outputs.create_release }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
     env:
       INPUT_VERSION: ${{ github.event.inputs.version || '' }}
       INPUT_CREATE_RELEASE: ${{ github.event.inputs.create_release || 'false' }}
@@ -195,14 +200,12 @@ jobs:
           unset ELECTRON_SKIP_BINARY_DOWNLOAD
           unset npm_config_electron_skip_binary_download
           npm ci --ignore-scripts=false
+          npx playwright install chromium
           node scripts/ensure-electron-runtime.cjs
           node -e 'console.log(`Electron runtime: ${require("electron")}`)'
 
       - name: Verify
-        run: |
-          npm run lint
-          npm run test:unit
-          npm run build
+        run: npm run verify
 
       - name: Import Developer ID certificate
         if: steps.release_mode.outputs.signing_enabled == 'true'
@@ -308,19 +311,14 @@ jobs:
           {
             echo "# Gocus ${RELEASE_VERSION}"
             echo
-            echo "macOS release artifact:"
-            echo
-            for artifact in *-mac-*.zip; do
-              echo "- $artifact"
-            done
-            echo
             if [[ "${{ steps.release_mode.outputs.notarize_enabled }}" == "true" ]]; then
-              echo "This app bundle was Developer ID signed, notarized, stapled, and validated with Gatekeeper before packaging."
+              echo "- macOS: Developer ID signed, notarized, stapled, and validated with Gatekeeper before packaging."
             elif [[ "${{ steps.release_mode.outputs.signing_enabled }}" == "true" ]]; then
-              echo "This app bundle was Developer ID signed, but notarization was not enabled for this build."
+              echo "- macOS: Developer ID signed, but notarization was not enabled for this build."
             else
-              echo "This build uses ad hoc signing. Configure Developer ID signing and notarization secrets before treating it as a public macOS distribution build."
+              echo "- macOS: ad hoc signed. Configure Developer ID signing and notarization secrets before treating it as a public macOS distribution build."
             fi
+            echo "- Windows: published as a portable zip download. Installer and auto-update assets are withheld until Windows code signing is configured."
             echo
             echo "Changes:"
             git log --pretty="- %s (%h)" "$range"
@@ -346,27 +344,147 @@ jobs:
             release/macos/*.sha256
             release/macos/*release-notes.md
 
-      - name: Publish GitHub Release
-        if: steps.meta.outputs.create_release == 'true'
+      - name: Delete signing keychain
+        if: always() && steps.release_mode.outputs.signing_enabled == 'true'
+        run: /usr/bin/security delete-keychain "$RUNNER_TEMP/gocus-release-signing.keychain-db" || true
+
+  windows:
+    name: Windows Release
+    runs-on: windows-latest
+    needs: macos
+    env:
+      GOCUS_PRODUCT_NAME: Gocus
+      GOCUS_UPDATE_CHANNEL: stable
+      GOCUS_UPDATE_REPO: jarvisluk/Gocus
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          Remove-Item Env:ELECTRON_OVERRIDE_DIST_PATH -ErrorAction SilentlyContinue
+          Remove-Item Env:ELECTRON_SKIP_BINARY_DOWNLOAD -ErrorAction SilentlyContinue
+          Remove-Item Env:npm_config_electron_skip_binary_download -ErrorAction SilentlyContinue
+          npm ci --ignore-scripts
+          node scripts/ensure-electron-runtime.cjs
+          node -e "console.log('Electron runtime:', require('electron'))"
+
+      - name: Verify
+        shell: pwsh
+        run: |
+          npm run lint
+          npm run test:unit
+          npm run build
+
+      - name: Package Windows app
+        shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
-          RELEASE_VERSION: ${{ steps.meta.outputs.version }}
+          GOCUS_BUILD: ${{ github.run_number }}
+          GOCUS_VERSION: ${{ needs.macos.outputs.version }}
+        run: npm run package:win
+
+      - name: Generate release metadata
+        shell: pwsh
+        run: |
+          Set-Location release/windows
+          Get-ChildItem -File | Where-Object { $_.Name -match '-win-.+\.zip$' } | ForEach-Object {
+            $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant()
+            "${hash}  $($_.Name)" | Set-Content -Encoding utf8 "$($_.Name).sha256"
+          }
+
+      - name: Verify release artifacts
+        shell: pwsh
+        run: |
+          Set-Location release/windows
+          Get-ChildItem "*.sha256" | ForEach-Object {
+            $line = (Get-Content $_.FullName -Raw).Trim()
+            if ($line -notmatch '^([0-9a-f]{64})\s+(.+)$') {
+              throw "Invalid checksum file: $($_.Name)"
+            }
+            $expected = $Matches[1]
+            $artifact = $Matches[2]
+            $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $artifact).Hash.ToLowerInvariant()
+            if ($actual -ne $expected) {
+              throw "Checksum mismatch for $artifact"
+            }
+          }
+          Get-ChildItem | Format-Table -AutoSize
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gocus-windows-${{ needs.macos.outputs.version }}
+          path: |
+            release/windows/*-win-*.zip
+            release/windows/*-win-*.zip.sha256
+
+  publish:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs:
+      - macos
+      - windows
+    if: needs.macos.outputs.create_release == 'true'
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ needs.macos.outputs.tag }}
+      RELEASE_VERSION: ${{ needs.macos.outputs.version }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: gocus-*-${{ needs.macos.outputs.version }}
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish GitHub Release
         shell: bash
         run: |
           set -euo pipefail
 
-          notes_file="release/macos/Gocus-${RELEASE_VERSION}-release-notes.md"
-          assets=(
-            release/macos/*-mac-*.zip
-            release/macos/*.sha256
-          )
+          notes_file="release-assets/Gocus-${RELEASE_VERSION}-release-notes.md"
+          combined_notes="release-assets/Gocus-${RELEASE_VERSION}-combined-release-notes.md"
+          {
+            cat "$notes_file"
+            echo
+            echo "Release assets:"
+            for artifact in release-assets/*-mac-*.zip release-assets/*-win-*.zip; do
+              [[ -e "$artifact" ]] && echo "- $(basename "$artifact")"
+            done
+          } >"$combined_notes"
+          notes_file="$combined_notes"
+
+          assets=()
+          for pattern in \
+            release-assets/*-mac-*.zip \
+            release-assets/*-win-*.zip \
+            release-assets/*.sha256; do
+            for artifact in $pattern; do
+              [[ -e "$artifact" ]] && assets+=("$artifact")
+            done
+          done
 
           release_args=(
             --title "Gocus ${RELEASE_VERSION}"
             --notes-file "$notes_file"
           )
-          if [[ "${{ steps.meta.outputs.prerelease }}" == "true" ]]; then
+          if [[ "${{ needs.macos.outputs.prerelease }}" == "true" ]]; then
             release_args+=(--prerelease)
           fi
 
@@ -378,7 +496,3 @@ jobs:
               --target "$GITHUB_SHA" \
               "${release_args[@]}"
           fi
-
-      - name: Delete signing keychain
-        if: always() && steps.release_mode.outputs.signing_enabled == 'true'
-        run: /usr/bin/security delete-keychain "$RUNNER_TEMP/gocus-release-signing.keychain-db" || true

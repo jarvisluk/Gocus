@@ -1,8 +1,5 @@
 .temporary-info-viewport {
-  width: 100vw;
   height: 100vh;
-  overflow: hidden;
-  background: transparent;
 }
 
 .temporary-info-panel {
@@ -15,7 +12,6 @@
   border: 0;
   border-radius: 0;
   box-shadow: none;
-  -webkit-app-region: no-drag;
 }
 
 .temporary-info-empty {
@@ -31,6 +27,11 @@
   font-size: var(--type-body-size);
   font-weight: var(--font-weight-strong);
   backdrop-filter: var(--panel-backdrop-filter);
+}
+
+:root[data-platform="win32"] .temporary-info-panel,
+:root[data-platform="win32"] .temporary-info-empty {
+  border-radius: var(--radius-lg);
 }
 
 .notice-line {
@@ -106,6 +107,10 @@
   overflow: auto;
   border-radius: var(--radius);
   pointer-events: auto;
+}
+
+:root[data-platform="win32"] .temporary-info-panel.is-changed-file .changed-side-panel {
+  border-radius: var(--radius-lg);
 }
 
 .temporary-info-panel.is-commit {

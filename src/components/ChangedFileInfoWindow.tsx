@@ -1,16 +1,11 @@
 import { useEffect, useState } from "react";
 import { changedFileInfoWindowView } from "../lib/changedFileInfoSelection";
 import { logBridgeWarning } from "../lib/errorMessages";
-import {
-  applyPreferences,
-  defaultPreferences,
-  mergePreferences,
-  preferencesDocumentThemeView,
-  systemThemeFallback,
-} from "../lib/preferences";
+import { applyPreferences, defaultPreferences, mergePreferences } from "../lib/preferences";
 import { defaultWorkspaceOpenTarget, defaultWorkspaceOpenTargets, sanitizeWorkspaceOpenTargets } from "../lib/workspaceOpenTargets";
-import type { ChangedFileInfoPayload, Theme, UiPreferences, WorkspaceOpenMenuAnchorBounds, WorkspaceOpenTarget } from "../types";
+import type { ChangedFileInfoPayload, UiPreferences, WorkspaceOpenMenuAnchorBounds, WorkspaceOpenTarget } from "../types";
 import { ChangedFileInfoPanel } from "./ChangedNow";
+import { SideWindowShell } from "./SideWindowShell";
 import { WorkspaceOpenControl } from "./WorkspaceOpenControl";
 
 export function ChangedFileInfoWindow() {
@@ -18,8 +13,6 @@ export function ChangedFileInfoWindow() {
   const [preferences, setPreferences] = useState<UiPreferences>(defaultPreferences);
   const [availableWorkspaceTargets, setAvailableWorkspaceTargets] = useState<WorkspaceOpenTarget[]>(defaultWorkspaceOpenTargets);
   const [activeWorkspaceTarget, setActiveWorkspaceTarget] = useState<WorkspaceOpenTarget>(defaultWorkspaceOpenTarget);
-  const [systemTheme, setSystemTheme] = useState<Theme>(systemThemeFallback);
-  const { theme, themePreset } = preferencesDocumentThemeView(preferences, systemTheme);
   const view = changedFileInfoWindowView(payload);
 
   useEffect(() => {
@@ -35,11 +28,8 @@ export function ChangedFileInfoWindow() {
       ?.getPreferences()
       .then((value) => setPreferences(mergePreferences(value)))
       .catch((error) => logBridgeWarning("Unable to load preferences.", error));
-    window.gocus?.getSystemTheme().then(setSystemTheme).catch((error) => logBridgeWarning("Unable to load system theme.", error));
-    const unsubscribeTheme = window.gocus?.onThemeChanged(setSystemTheme);
     const unsubscribePreferences = window.gocus?.onPreferencesChanged((value) => setPreferences(mergePreferences(value)));
     return () => {
-      unsubscribeTheme?.();
       unsubscribePreferences?.();
     };
   }, []);
@@ -66,9 +56,7 @@ export function ChangedFileInfoWindow() {
 
   useEffect(() => {
     applyPreferences(preferences);
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.dataset.themePreset = themePreset;
-  }, [preferences, theme, themePreset]);
+  }, [preferences]);
 
   function closeChangedFileInfoPanel() {
     window.gocus?.setChangedFileInfoPanel(null).catch((error) => logBridgeWarning("Unable to close changed file info panel.", error));
@@ -111,34 +99,28 @@ export function ChangedFileInfoWindow() {
   }
 
   return (
-    <main className={view.viewport.className}>
+    <SideWindowShell
+      viewportClassName={view.viewport.className}
+      panelClassName={view.panel.className}
+      panelAriaLabel={view.panel.ariaLabel}
+      emptyState={view.emptyState}
+    >
       {view.changedFilePayload ? (
-        <section className={view.panel.className} aria-label={view.panel.ariaLabel}>
-          <ChangedFileInfoPanel
-            file={view.changedFilePayload.file}
-            actions={
-              <WorkspaceOpenControl
-                activeWorkspaceTarget={activeWorkspaceTarget}
-                availableWorkspaceTargets={availableWorkspaceTargets}
-                enabledWorkspaceTargets={preferences.workspaceOpenTargets}
-                onActiveWorkspaceTargetChange={updateActiveWorkspaceTarget}
-                onOpenExternalMenu={openChangedFileWorkspaceMenu}
-                onOpenTarget={openChangedFile}
-              />
-            }
-            onClose={closeChangedFileInfoPanel}
-          />
-        </section>
-      ) : (
-        <section
-          className={view.emptyState.className}
-          aria-label={view.emptyState.ariaLabel}
-          role={view.emptyState.role}
-          aria-live={view.emptyState.ariaLive}
-        >
-          {view.emptyState.message}
-        </section>
-      )}
-    </main>
+        <ChangedFileInfoPanel
+          file={view.changedFilePayload.file}
+          actions={
+            <WorkspaceOpenControl
+              activeWorkspaceTarget={activeWorkspaceTarget}
+              availableWorkspaceTargets={availableWorkspaceTargets}
+              enabledWorkspaceTargets={preferences.workspaceOpenTargets}
+              onActiveWorkspaceTargetChange={updateActiveWorkspaceTarget}
+              onOpenExternalMenu={openChangedFileWorkspaceMenu}
+              onOpenTarget={openChangedFile}
+            />
+          }
+          onClose={closeChangedFileInfoPanel}
+        />
+      ) : null}
+    </SideWindowShell>
   );
 }

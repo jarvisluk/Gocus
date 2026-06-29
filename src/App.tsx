@@ -24,14 +24,11 @@ import {
 } from "./lib/appShellView";
 import { collapsedRailHeightForBranchName } from "./lib/collapsedRailView";
 import { logBridgeWarning } from "./lib/errorMessages";
+import { functionMenuPayloadFromSnapshot } from "./lib/functionMenuView";
 import { activeWorkspaceOpenTarget, visibleWorkspaceOpenOptions } from "./lib/workspaceOpenChoices";
 import { workspaceOpenOptions } from "./lib/workspaceOpenOptions";
 import { defaultWorkspaceOpenTarget } from "./lib/workspaceOpenTargets";
 import type { WorkspaceOpenTarget } from "./types";
-
-function commitGraphNodeY(density: "compact" | "comfortable") {
-  return density === "comfortable" ? 27 : 22;
-}
 
 function EditorBackdrop() {
   const backdrop = appEditorBackdropView();
@@ -51,6 +48,7 @@ function EditorBackdrop() {
 export default function App() {
   const controller = useGocusController();
   const [workspaceOpenTarget, setWorkspaceOpenTarget] = useState<WorkspaceOpenTarget>(defaultWorkspaceOpenTarget);
+  const [functionMenuOpen, setFunctionMenuOpen] = useState(false);
   const panelContent = appPanelContentView({
     snapshot: controller.snapshot,
     settingsOpen: controller.settingsOpen,
@@ -62,7 +60,6 @@ export default function App() {
   const nativeDialogBlocker = appNativeDialogBlockerView();
   const changedNowCount = appChangedNowCount(controller.snapshot);
   const showRepositoryControls = appShouldShowRepositoryControls({ snapshot: repositorySnapshot });
-  const graphNodeY = commitGraphNodeY(controller.preferences.density);
   const syncedWorkspaceOpenTarget = activeWorkspaceOpenTarget(
     visibleWorkspaceOpenOptions(
       workspaceOpenOptions,
@@ -109,6 +106,10 @@ export default function App() {
     return window.gocus?.onActiveWorkspaceTargetChanged(setWorkspaceOpenTarget);
   }, []);
 
+  useEffect(() => {
+    return window.gocus?.onFunctionMenuPanelClosed?.(() => setFunctionMenuOpen(false));
+  }, []);
+
   function updatePreferences(nextPreferences: typeof controller.preferences) {
     controller.setPreferences(nextPreferences);
   }
@@ -116,6 +117,27 @@ export default function App() {
   function updateWorkspaceOpenTarget(target: WorkspaceOpenTarget) {
     setWorkspaceOpenTarget(target);
     window.gocus?.setActiveWorkspaceTarget(target).catch((error) => logBridgeWarning("Unable to save active workspace target.", error));
+  }
+
+  function openFunctionMenu() {
+    if (functionMenuOpen) {
+      setFunctionMenuOpen(false);
+      window.gocus?.setFunctionMenuPanel?.(null).catch((error) => logBridgeWarning("Unable to close function menu.", error));
+      return;
+    }
+
+    const payload = functionMenuPayloadFromSnapshot({
+      snapshot: controller.snapshot,
+      activeWorkspaceTarget: syncedWorkspaceOpenTarget || workspaceOpenTarget,
+      availableWorkspaceTargets: controller.availableWorkspaceTargets,
+      enabledWorkspaceTargets: controller.preferences.workspaceOpenTargets,
+    });
+
+    setFunctionMenuOpen(true);
+    window.gocus?.setFunctionMenuPanel?.(payload).catch((error) => {
+      setFunctionMenuOpen(false);
+      logBridgeWarning("Unable to open function menu.", error);
+    });
   }
 
   return (
@@ -148,8 +170,10 @@ export default function App() {
                 recentRepositories={controller.recentRepositories}
                 pinned={controller.pinned}
                 refreshing={controller.refreshing}
-                onOpen={controller.openRepository}
+                functionMenuOpen={functionMenuOpen}
+                onOpenFunctionMenu={openFunctionMenu}
                 onSwitchRepository={controller.switchRepository}
+                onRemoveRecentRepository={controller.removeRecentRepository}
                 onRefresh={() => controller.refreshSnapshot()}
                 onTogglePinned={controller.togglePinned}
                 onCollapse={() => controller.setCollapsedState(true)}
@@ -186,7 +210,7 @@ export default function App() {
                       commits={panelContent.snapshot.commits}
                       selectedId={controller.selectedCommitId}
                       graphStyle={controller.preferences.graphStyle}
-                      graphNodeY={graphNodeY}
+                      graphNodeY={22}
                       onSelect={controller.selectCommit}
                       onAction={controller.handleCommitAction}
                     />
