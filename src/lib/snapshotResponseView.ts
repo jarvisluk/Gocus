@@ -1,4 +1,4 @@
-import type { FolderWithoutGit, SnapshotResponse } from "../types";
+import type { CommitViewSelection, FolderWithoutGit, SnapshotResponse } from "../types";
 import { commitSelectionVisible } from "./commitListView";
 import { repositoryStateNotice } from "./repositoryStateView";
 
@@ -28,6 +28,14 @@ export function selectedCommitIdAfterSnapshotResponse(
   }
 
   return response.canceled ? currentSelectedCommitId : "";
+}
+
+export function commitViewAfterSnapshotResponse(
+  response: SnapshotResponse,
+  currentView: CommitViewSelection,
+  options: { adoptSnapshotView?: boolean } = {},
+) {
+  return response.ok && options.adoptSnapshotView ? response.snapshot.view : currentView;
 }
 
 export function folderWithoutGitAfterSnapshotResponse(response: SnapshotResponse): FolderWithoutGitDecision {

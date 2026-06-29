@@ -4270,6 +4270,7 @@ async function testChangedFileInfoSelection(server) {
 
 async function testSnapshotResponseView(server) {
   const {
+    commitViewAfterSnapshotResponse,
     defaultSnapshotFailureNotice,
     folderWithoutGitAfterSnapshotResponse,
     selectedCommitIdAfterSnapshotResponse,
@@ -4321,6 +4322,22 @@ async function testSnapshotResponseView(server) {
   assert.equal(selectedCommitIdAfterSnapshotResponse(okResponse, ""), "");
   assert.equal(selectedCommitIdAfterSnapshotResponse(canceledResponse, "keep"), "keep");
   assert.equal(selectedCommitIdAfterSnapshotResponse(readFailedResponse, "keep"), "");
+
+  assert.deepEqual(commitViewAfterSnapshotResponse(okResponse, { mode: "branch", ref: "develop" }), {
+    mode: "branch",
+    ref: "develop",
+  });
+  assert.deepEqual(
+    commitViewAfterSnapshotResponse(
+      { ok: true, snapshot: gitSnapshot({ view: { mode: "current" } }) },
+      { mode: "all" },
+      { adoptSnapshotView: true },
+    ),
+    { mode: "current" },
+  );
+  assert.deepEqual(commitViewAfterSnapshotResponse(readFailedResponse, { mode: "all" }, { adoptSnapshotView: true }), {
+    mode: "all",
+  });
 
   assert.equal(folderWithoutGitAfterSnapshotResponse(okResponse), null);
   assert.equal(folderWithoutGitAfterSnapshotResponse(canceledResponse), undefined);

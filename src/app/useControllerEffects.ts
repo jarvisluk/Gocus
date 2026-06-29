@@ -70,7 +70,7 @@ export function useInitialGitData({
   applySnapshotResponse: (
     response: SnapshotResponse,
     successNotice?: string | null,
-    options?: { requestId?: number; allowRepositoryChange?: boolean },
+    options?: { requestId?: number; allowRepositoryChange?: boolean; adoptSnapshotView?: boolean },
   ) => void;
   beginGitRequest: () => number;
   commitView: CommitViewSelection;
@@ -91,7 +91,7 @@ export function useInitialGitData({
     const requestId = beginGitRequest();
     window.gocus
       .getSnapshot(commitView)
-      .then((response) => applySnapshotResponse(response, undefined, { requestId }))
+      .then((response) => applySnapshotResponse(response, undefined, { requestId, adoptSnapshotView: true }))
       .catch((error) => setNotice(errorMessage(error, "Unable to load Git status.")))
       .finally(() => setLoading(false));
     window.gocus
@@ -107,6 +107,7 @@ export function useInitialGitData({
       markGitRequest();
       applySnapshotResponse(response, response.ok ? "Git data updated from menu." : "Working folder cleared.", {
         allowRepositoryChange: response.updateSource === "repository",
+        adoptSnapshotView: response.updateSource === "repository",
       });
       setLoading(false);
     });
@@ -141,7 +142,7 @@ export function useAutoRefreshLoop({
   applySnapshotResponse: (
     response: SnapshotResponse,
     successNotice?: string | null,
-    options?: { requestId?: number; allowRepositoryChange?: boolean },
+    options?: { requestId?: number; allowRepositoryChange?: boolean; adoptSnapshotView?: boolean },
   ) => void;
   autoRefreshInFlightRef: RefValue<boolean>;
   beginGitRequest: () => number;

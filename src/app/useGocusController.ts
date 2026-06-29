@@ -39,6 +39,7 @@ import {
   upsertRecentRepository,
 } from "../lib/recentRepositories";
 import {
+  commitViewAfterSnapshotResponse,
   folderWithoutGitAfterSnapshotResponse,
   selectedCommitIdAfterSnapshotResponse,
   snapshotResponseNotice,
@@ -105,7 +106,7 @@ export function useGocusController() {
   function applySnapshotResponse(
     response: SnapshotResponse,
     successNotice: string | null = "Live Git data connected.",
-    options: { requestId?: number; allowRepositoryChange?: boolean } = {},
+    options: { requestId?: number; allowRepositoryChange?: boolean; adoptSnapshotView?: boolean } = {},
   ) {
     if (options.requestId !== undefined && options.requestId < latestGitRequestIdRef.current) return;
     if (
@@ -125,7 +126,7 @@ export function useGocusController() {
       setSnapshot(response.snapshot);
       setFolderWithoutGit(null);
       setRecentRepositories((current) => upsertRecentRepository(current, recentRepositoryFromSnapshot(response.snapshot)));
-      setCommitViewState(response.snapshot.view);
+      setCommitViewState((current) => commitViewAfterSnapshotResponse(response, current, options));
       setSelectedCommitId((current) => selectedCommitIdAfterSnapshotResponse(response, current));
       if (nextNotice) setNotice(nextNotice);
       return;
@@ -198,6 +199,7 @@ export function useGocusController() {
       applySnapshotResponse(response, response.ok ? `Opened ${response.snapshot.repoName}.` : undefined, {
         requestId,
         allowRepositoryChange: true,
+        adoptSnapshotView: true,
       });
     } catch (error) {
       setNotice(errorMessage(error, "Unable to open repository."));
@@ -217,6 +219,7 @@ export function useGocusController() {
       applySnapshotResponse(response, response.ok ? `Switched to ${response.snapshot.repoName}.` : "Unable to switch repository.", {
         requestId,
         allowRepositoryChange: true,
+        adoptSnapshotView: true,
       });
     } catch (error) {
       setNotice(errorMessage(error, "Unable to switch repository."));
@@ -275,7 +278,10 @@ export function useGocusController() {
     setRefreshing(true);
     try {
       const response = await bridge.getSnapshot(nextView);
-      applySnapshotResponse(response, response.ok ? decision.successNotice : "Unable to change commit view.", { requestId });
+      applySnapshotResponse(response, response.ok ? decision.successNotice : "Unable to change commit view.", {
+        requestId,
+        adoptSnapshotView: true,
+      });
     } catch (error) {
       setNotice(errorMessage(error, "Unable to change commit view."));
     } finally {
@@ -438,7 +444,7 @@ export function useGocusController() {
         const response = await bridge.merge(
           confirmation.ref,
           confirmation.targetBranch,
-          { mode: "current" },
+          commitView,
           { createMergeCommit: preferences.createMergeCommit },
         );
         const nextNotice = actionResponseNotice(response, confirmation.fallbackNotice, confirmation.failureNotice);
@@ -464,7 +470,7 @@ export function useGocusController() {
 
     setActionDialog(null);
     await runAction(
-      () => bridge.checkout(confirmation.ref, { mode: "current" }),
+      () => bridge.checkout(confirmation.ref, commitView),
       confirmation.fallbackNotice,
       confirmation.failureNotice,
     );
