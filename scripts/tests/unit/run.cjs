@@ -2765,10 +2765,12 @@ async function testAppShellView(server) {
   const {
     appChangedNowCount,
     appEditorBackdropView,
+    appFunctionMenuDismissView,
     appNativeDialogBlockerView,
     appPanelContentView,
     appPanelView,
     appScrollRegionView,
+    appShouldCloseFunctionMenuOnPointer,
     appShouldCloseSettingsOnKey,
     appShouldShowRepositoryControls,
     appShouldCloseTemporaryInfoOnPointer,
@@ -2815,6 +2817,9 @@ async function testAppShellView(server) {
   assert.deepEqual(appTemporaryInfoDismissView(), {
     exemptSelector: ".footer-changed-now, .rail-count",
   });
+  assert.deepEqual(appFunctionMenuDismissView(), {
+    exemptSelector: ".function-menu-trigger",
+  });
   assert.equal(appChangedNowCount(null), 0);
   assert.equal(appChangedNowCount(gitSnapshot({ changedFiles: [] })), 0);
   assert.equal(appChangedNowCount(gitSnapshot({ changedFiles: [{ path: "src/App.tsx" }, { path: "README.md" }] })), 2);
@@ -2831,6 +2836,12 @@ async function testAppShellView(server) {
   assert.equal(appShouldCloseTemporaryInfoOnPointer(outsideTarget, exemptSelector), true);
   assert.equal(appShouldCloseTemporaryInfoOnPointer({ detail: "not an element" }, exemptSelector), true);
   assert.equal(appShouldCloseTemporaryInfoOnPointer(null, exemptSelector), true);
+
+  const functionMenuExemptSelector = appFunctionMenuDismissView().exemptSelector;
+  const functionMenuTrigger = { closest: (selector) => (selector === functionMenuExemptSelector ? { nodeType: 1 } : null) };
+  assert.equal(appShouldCloseFunctionMenuOnPointer(functionMenuTrigger, functionMenuExemptSelector), false);
+  assert.equal(appShouldCloseFunctionMenuOnPointer(outsideTarget, functionMenuExemptSelector), true);
+  assert.equal(appShouldCloseFunctionMenuOnPointer(null, functionMenuExemptSelector), true);
 }
 
 async function testActionDialogView(server) {

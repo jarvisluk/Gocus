@@ -95,7 +95,12 @@ export function PanelHeader({
 
   return (
     <header className={panelView.header.className}>
-      <IconButton label={functionMenuButton.label} active={functionMenuButton.active} onClick={onOpenFunctionMenu}>
+      <IconButton
+        className="function-menu-trigger"
+        label={functionMenuButton.label}
+        active={functionMenuButton.active}
+        onClick={onOpenFunctionMenu}
+      >
         <SlidersHorizontal aria-hidden="true" />
       </IconButton>
       <DropdownMenuHost

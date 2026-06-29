@@ -22,6 +22,10 @@ const temporaryInfoDismissView = {
   exemptSelector: ".footer-changed-now, .rail-count",
 };
 
+const functionMenuDismissView = {
+  exemptSelector: ".function-menu-trigger",
+};
+
 type ClosestTarget = EventTarget & {
   closest?: (selector: string) => unknown;
 };
@@ -96,6 +100,10 @@ export function appTemporaryInfoDismissView() {
   return temporaryInfoDismissView;
 }
 
+export function appFunctionMenuDismissView() {
+  return functionMenuDismissView;
+}
+
 export function appChangedNowCount(snapshot: GitSnapshot | null) {
   return snapshot?.changedFiles.length ?? 0;
 }
@@ -119,5 +127,9 @@ export function appShouldCloseSettingsOnKey({
 }
 
 export function appShouldCloseTemporaryInfoOnPointer(target: EventTarget | null, exemptSelector: string) {
+  return !closestTarget(target, exemptSelector);
+}
+
+export function appShouldCloseFunctionMenuOnPointer(target: EventTarget | null, exemptSelector: string) {
   return !closestTarget(target, exemptSelector);
 }

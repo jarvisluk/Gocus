@@ -1,10 +1,12 @@
 import type { ReactNode } from "react";
+import { joinClass } from "../lib/classNames";
 import { iconButtonView } from "../lib/iconButtonView";
 
 export function IconButton({
   label,
   onClick,
   children,
+  className,
   active,
   busy,
   disabled = false,
@@ -12,6 +14,7 @@ export function IconButton({
   label: string;
   onClick: () => void;
   children: ReactNode;
+  className?: string;
   active?: boolean;
   busy?: boolean;
   disabled?: boolean;
@@ -20,7 +23,7 @@ export function IconButton({
 
   return (
     <button
-      className={view.className}
+      className={joinClass(view.className, className)}
       type="button"
       aria-label={view.ariaLabel}
       aria-busy={view.ariaBusy}
