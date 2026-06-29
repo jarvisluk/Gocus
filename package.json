@@ -11,6 +11,8 @@
   "scripts": {
     "dev": "node scripts/dev.cjs",
     "dev:web": "vite --host 127.0.0.1 --port 43871",
+    "site:dev": "vite --config website/vite.config.ts --host 127.0.0.1 --port 43872",
+    "site:build": "tsc --project website/tsconfig.json --noEmit && vite build --config website/vite.config.ts",
     "audit": "npm run audit:dependencies && npm run audit:secrets",
     "audit:dependencies": "npm audit",
     "audit:secrets": "node scripts/check-secrets.cjs",

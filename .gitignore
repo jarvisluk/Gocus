@@ -3,6 +3,7 @@
 
 # Build outputs
 /dist/
+/dist-website/
 /dist-electron/
 /artifacts/
 /output/
