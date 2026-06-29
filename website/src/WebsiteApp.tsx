@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from "react";
 
 const latestReleaseUrl = "https://github.com/jarvisluk/gocus/releases/latest";
 const latestReleaseApiUrl = "https://api.github.com/repos/jarvisluk/Gocus/releases/latest";
+const repositoryUrl = "https://github.com/jarvisluk/gocus";
 const releasesUrl = "https://github.com/jarvisluk/gocus/releases";
 
 type DownloadPlatform = "mac" | "windows" | "other";
@@ -329,6 +330,7 @@ function WebsiteHeader({ downloadTarget }: { downloadTarget: DownloadTarget }) {
       <nav aria-label="Website navigation">
         <a href="#workflow">Workflow</a>
         <a href="#features">Use cases</a>
+        <a href={repositoryUrl}>GitHub</a>
         <a href={releasesUrl}>Releases</a>
       </nav>
       <a className="nav-download" href={downloadTarget.url} aria-label={downloadTarget.ariaLabel}>
