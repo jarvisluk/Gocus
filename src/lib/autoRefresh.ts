@@ -23,14 +23,18 @@ export function autoRefreshEnabled({
   hasSnapshot,
   actionDialogOpen,
   repositoryDialogOpen,
+  collapsed = false,
+  automaticGitRefresh = true,
 }: {
   intervalMs: number;
   electron: boolean;
   hasSnapshot: boolean;
   actionDialogOpen: boolean;
   repositoryDialogOpen: boolean;
+  collapsed?: boolean;
+  automaticGitRefresh?: boolean;
 }) {
-  return Boolean(intervalMs && electron && hasSnapshot && !actionDialogOpen && !repositoryDialogOpen);
+  return Boolean(intervalMs && electron && hasSnapshot && !actionDialogOpen && !repositoryDialogOpen && !collapsed && automaticGitRefresh);
 }
 
 export function autoRefreshSchedule({
@@ -39,12 +43,16 @@ export function autoRefreshSchedule({
   hasSnapshot,
   actionDialogOpen,
   repositoryDialogOpen,
+  collapsed = false,
+  automaticGitRefresh = true,
 }: {
   interval: UiPreferences["autoRefreshInterval"];
   electron: boolean;
   hasSnapshot: boolean;
   actionDialogOpen: boolean;
   repositoryDialogOpen: boolean;
+  collapsed?: boolean;
+  automaticGitRefresh?: boolean;
 }) {
   const intervalMs = autoRefreshIntervalMs(interval);
   const enabled = autoRefreshEnabled({
@@ -53,6 +61,8 @@ export function autoRefreshSchedule({
     hasSnapshot,
     actionDialogOpen,
     repositoryDialogOpen,
+    collapsed,
+    automaticGitRefresh,
   });
 
   return {

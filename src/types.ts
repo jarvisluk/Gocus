@@ -50,6 +50,7 @@ export interface UiPreferences {
   autoUpdateInstall: boolean;
   createMergeCommit: boolean;
   autoRefreshInterval: AutoRefreshInterval;
+  realtimeGitRefresh: boolean;
   promptLanguage: PromptLanguage;
 }
 

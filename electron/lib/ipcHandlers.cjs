@@ -59,6 +59,7 @@ function registerIpcHandlers({
   syncDockIcon,
   syncLaunchAtLogin,
   syncMenuBarIcon,
+  syncRepositoryWatcher,
 }) {
   ipcMain.handle("git:openRepository", async (_event, view) => {
     return chooseRepository(normalizeView(view));
@@ -305,6 +306,7 @@ function registerIpcHandlers({
     if (sideEffects.syncMenuBarIcon) syncMenuBarIcon(savedConfigPreferences);
     if (sideEffects.syncDockIcon) syncDockIcon(savedConfigPreferences);
     if (sideEffects.syncAutoUpdates) syncAutoUpdates(savedConfigPreferences);
+    if (sideEffects.syncRepositoryWatcher) syncRepositoryWatcher();
     if (sideEffects.checkAutoUpdatesNow) checkForUpdates();
 
     const savedPreferences = readPreferences();
@@ -389,6 +391,8 @@ function preferencesSaveSideEffects(previousEffectivePreferences, previousConfig
       autoUpdateChannelChanged ||
       Boolean(previousConfigPreferences.autoUpdateChecks) !== Boolean(savedConfigPreferences.autoUpdateChecks) ||
       Boolean(previousConfigPreferences.autoUpdateInstall) !== Boolean(savedConfigPreferences.autoUpdateInstall),
+    syncRepositoryWatcher:
+      Boolean(previousConfigPreferences.realtimeGitRefresh) !== Boolean(savedConfigPreferences.realtimeGitRefresh),
     checkAutoUpdatesNow: autoUpdateChannelChanged,
   };
 }

@@ -1054,6 +1054,7 @@ function testIpcHandlersModule() {
     autoUpdateChannel: "stable",
     autoUpdateChecks: true,
     autoUpdateInstall: false,
+    realtimeGitRefresh: true,
   };
 
   assert.deepEqual(
@@ -1063,6 +1064,7 @@ function testIpcHandlersModule() {
       syncMenuBarIcon: false,
       syncDockIcon: false,
       syncAutoUpdates: false,
+      syncRepositoryWatcher: false,
       checkAutoUpdatesNow: false,
     },
   );
@@ -1073,6 +1075,7 @@ function testIpcHandlersModule() {
       syncMenuBarIcon: false,
       syncDockIcon: false,
       syncAutoUpdates: false,
+      syncRepositoryWatcher: false,
       checkAutoUpdatesNow: false,
     },
   );
@@ -1083,6 +1086,7 @@ function testIpcHandlersModule() {
       syncMenuBarIcon: true,
       syncDockIcon: true,
       syncAutoUpdates: false,
+      syncRepositoryWatcher: false,
       checkAutoUpdatesNow: false,
     },
   );
@@ -1093,6 +1097,7 @@ function testIpcHandlersModule() {
       syncMenuBarIcon: false,
       syncDockIcon: true,
       syncAutoUpdates: false,
+      syncRepositoryWatcher: false,
       checkAutoUpdatesNow: false,
     },
   );
@@ -1103,6 +1108,7 @@ function testIpcHandlersModule() {
       syncMenuBarIcon: false,
       syncDockIcon: false,
       syncAutoUpdates: true,
+      syncRepositoryWatcher: false,
       checkAutoUpdatesNow: false,
     },
   );
@@ -1113,6 +1119,7 @@ function testIpcHandlersModule() {
       syncMenuBarIcon: false,
       syncDockIcon: false,
       syncAutoUpdates: true,
+      syncRepositoryWatcher: false,
       checkAutoUpdatesNow: true,
     },
   );
@@ -1123,6 +1130,18 @@ function testIpcHandlersModule() {
       syncMenuBarIcon: false,
       syncDockIcon: false,
       syncAutoUpdates: true,
+      syncRepositoryWatcher: false,
+      checkAutoUpdatesNow: false,
+    },
+  );
+  assert.deepEqual(
+    preferencesSaveSideEffects(preferences, preferences, { ...preferences, realtimeGitRefresh: false }),
+    {
+      syncLaunchAtLogin: false,
+      syncMenuBarIcon: false,
+      syncDockIcon: false,
+      syncAutoUpdates: false,
+      syncRepositoryWatcher: true,
       checkAutoUpdatesNow: false,
     },
   );
@@ -1221,6 +1240,7 @@ function testConfigStoreModule() {
     assert.equal(config.readPreferences().autoUpdateChecks, true);
     assert.equal(config.readPreferences().autoUpdateInstall, false);
     assert.equal(config.readPreferences().showDockIcon, false);
+    assert.equal(config.readPreferences().realtimeGitRefresh, true);
 
     config.saveActiveWorkspaceOpenTarget("finder");
     assert.equal(config.readActiveWorkspaceOpenTarget(), "finder");
@@ -4472,6 +4492,28 @@ async function testAutoRefresh(server) {
     }),
     false,
   );
+  assert.equal(
+    autoRefreshEnabled({
+      intervalMs: 60_000,
+      electron: true,
+      hasSnapshot: true,
+      actionDialogOpen: false,
+      repositoryDialogOpen: false,
+      collapsed: true,
+    }),
+    false,
+  );
+  assert.equal(
+    autoRefreshEnabled({
+      intervalMs: 60_000,
+      electron: true,
+      hasSnapshot: true,
+      actionDialogOpen: false,
+      repositoryDialogOpen: false,
+      automaticGitRefresh: false,
+    }),
+    false,
+  );
   assert.deepEqual(
     autoRefreshSchedule({
       interval: "1m",
@@ -4484,6 +4526,36 @@ async function testAutoRefresh(server) {
       enabled: true,
       intervalMs: 60_000,
       tickMs: 30_000,
+    },
+  );
+  assert.deepEqual(
+    autoRefreshSchedule({
+      interval: "1m",
+      electron: true,
+      hasSnapshot: true,
+      actionDialogOpen: false,
+      repositoryDialogOpen: false,
+      collapsed: true,
+    }),
+    {
+      enabled: false,
+      intervalMs: 60_000,
+      tickMs: 0,
+    },
+  );
+  assert.deepEqual(
+    autoRefreshSchedule({
+      interval: "1m",
+      electron: true,
+      hasSnapshot: true,
+      actionDialogOpen: false,
+      repositoryDialogOpen: false,
+      automaticGitRefresh: false,
+    }),
+    {
+      enabled: false,
+      intervalMs: 60_000,
+      tickMs: 0,
     },
   );
   assert.deepEqual(
@@ -4598,6 +4670,7 @@ async function testPreferences(server) {
       autoUpdateInstall: true,
       createMergeCommit: false,
       autoRefreshInterval: "2m",
+      realtimeGitRefresh: "no",
       promptLanguage: "zh",
     }),
     {
@@ -5092,6 +5165,7 @@ async function testSettingsPanelView(server) {
       dockIconAvailable: true,
       rows: {
         refresh: "Refresh",
+        realtime: "Realtime",
         startup: "Startup",
         menuBar: "Menu bar",
         dock: "Dock",
@@ -5099,6 +5173,7 @@ async function testSettingsPanelView(server) {
         prompt: "Prompt",
       },
       autoRefreshAriaLabel: "Auto refresh interval",
+      realtimeGitRefreshAriaLabel: "Refresh Git data when files change",
       launchAtLoginAriaLabel: "Launch at login",
       showMenuBarIconAriaLabel: "Show menu bar icon",
       showDockIconAriaLabel: "Show Dock icon",
@@ -5166,6 +5241,7 @@ async function testSettingsPanelView(server) {
       autoUpdateChannelDetailClassName: "ui-label settings-update-channel-detail",
       manualUpdateButtonClassName: "ui-button settings-check-updates",
       releaseLinkButtonClassName: "ui-button settings-release-link",
+      realtimeGitRefreshToggleClassName: "ui-toggle settings-realtime-git-refresh-toggle",
       menuBarIconToggleClassName: "ui-toggle settings-menu-bar-icon-toggle",
       dockIconToggleClassName: "ui-toggle settings-dock-icon-toggle",
       mergeCommitToggleClassName: "ui-toggle settings-merge-commit-toggle",

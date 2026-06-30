@@ -99,8 +99,11 @@ let commitInfoInteractionHoldUntil = 0;
 let activeWorkspaceOpenTarget = defaultActiveWorkspaceOpenTarget;
 let workspaceOpenMenuActive = false;
 let repositoryWatcher = null;
+let refreshRepositoryOnNextResume = false;
 
 const hiddenLaunchArg = "--hidden";
+const repositoryWatcherDebounceMs = 2500;
+const maxRecursiveWorktreeEntries = 15_000;
 const config = createConfigStore(app);
 activeWorkspaceOpenTarget = config.readActiveWorkspaceOpenTarget();
 const launchAtLogin = createLaunchAtLoginController(app, hiddenLaunchArg);
@@ -195,11 +198,16 @@ function syncLaunchAtLogin(preferences = config.readPreferences()) {
 
 function syncAutoUpdates(preferences = config.readPreferences()) {
   autoUpdates.setPreferences(preferences);
-  if (preferences.autoUpdateChecks === false) {
+  if (!shouldRunAutoUpdates(preferences)) {
     autoUpdates.stop();
   } else if (!autoUpdates.isStarted()) {
     autoUpdates.start();
   }
+}
+
+function shouldRunAutoUpdates(preferences = config.readPreferences()) {
+  if (preferences.autoUpdateChecks === false) return false;
+  return Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() && !collapsedState);
 }
 
 async function openGitHubReleases() {
@@ -295,6 +303,46 @@ function stopRepositoryWatcher() {
   repositoryWatcher = null;
 }
 
+function shouldRunRepositoryWatcher() {
+  const preferences = config.readPreferences();
+  return Boolean(
+    preferences.realtimeGitRefresh !== false &&
+      currentRepository &&
+      mainWindow &&
+      !mainWindow.isDestroyed() &&
+      mainWindow.isVisible() &&
+      !collapsedState,
+  );
+}
+
+function syncRepositoryWatcher() {
+  if (!shouldRunRepositoryWatcher()) {
+    stopRepositoryWatcher();
+    return;
+  }
+
+  startRepositoryWatcher(currentRepository);
+}
+
+function repositoryWatcherOptions() {
+  return {
+    logger: console,
+    debounceMs: repositoryWatcherDebounceMs,
+    maxRecursiveWorktreeEntries,
+  };
+}
+
+function markRepositoryRefreshPending() {
+  if (currentRepository) refreshRepositoryOnNextResume = true;
+}
+
+function refreshRepositoryAfterResume() {
+  if (!refreshRepositoryOnNextResume || !currentRepository || !shouldRunRepositoryWatcher()) return;
+
+  refreshRepositoryOnNextResume = false;
+  refreshAndSendSnapshot().catch((error) => console.warn("[Gocus] Unable to refresh Git data after resuming window.", error));
+}
+
 function startRepositoryWatcher(repoPath) {
   if (!repoPath) {
     stopRepositoryWatcher();
@@ -318,7 +366,7 @@ function startRepositoryWatcher(repoPath) {
         if (!latestRepository || path.resolve(latestRepository) !== path.resolve(nextWatcher.repositoryPath)) return;
         sendSnapshotResponse(response, "refresh");
       },
-      { logger: console },
+      repositoryWatcherOptions(),
     );
     repositoryWatcher = nextWatcher;
     console.info(`[Gocus] Watching repository changes in ${repositoryWatcher.repositoryPath}.`);
@@ -330,7 +378,7 @@ function startRepositoryWatcher(repoPath) {
 function saveRepositoryPath(repoPath, repositoryKey) {
   config.saveRepositoryPath(repoPath, repositoryKey);
   currentRepository = repoPath;
-  startRepositoryWatcher(repoPath);
+  syncRepositoryWatcher();
 }
 
 function readSavedRepositoryPath() {
@@ -340,6 +388,7 @@ function readSavedRepositoryPath() {
 function clearRepositoryPath() {
   config.clearRepositoryPath();
   currentRepository = null;
+  refreshRepositoryOnNextResume = false;
   stopRepositoryWatcher();
 }
 
@@ -703,6 +752,14 @@ function setCollapsedWindow(collapsed) {
   }
   collapsedState = nextCollapsedState;
   positionWindow(mainWindow, collapsedState);
+  if (collapsedState) {
+    markRepositoryRefreshPending();
+    stopRepositoryWatcher();
+  } else {
+    syncRepositoryWatcher();
+    refreshRepositoryAfterResume();
+  }
+  syncAutoUpdates();
   sendToWindow(mainWindow, "window:collapsedChanged", collapsedState);
   buildMenus();
 }
@@ -1316,6 +1373,7 @@ function showMainWindow() {
   }
 
   mainWindow.show();
+  syncRepositoryWatcher();
   mainWindow.focus();
 }
 
@@ -1377,11 +1435,19 @@ function createWindow({ showOnReady = true, collapsed = false } = {}) {
     closeCommitInfoWindowIfAppInactive();
     closeFunctionMenuWindowIfAppInactive();
   });
+  mainWindow.on("show", () => {
+    syncRepositoryWatcher();
+    refreshRepositoryAfterResume();
+    syncAutoUpdates();
+  });
   mainWindow.on("hide", () => {
     closeTemporaryInfoWindow();
     closeChangedFileInfoWindow();
     closeCommitInfoWindow();
     closeFunctionMenuWindow();
+    markRepositoryRefreshPending();
+    stopRepositoryWatcher();
+    syncAutoUpdates();
   });
   mainWindow.on("close", (event) => {
     closeTemporaryInfoWindow();
@@ -1654,7 +1720,7 @@ app.whenReady().then(() => {
   if (menuBarModeEnabled) createTray();
   syncDockIcon(preferences);
   createWindow({ collapsed: startCollapsedAtLogin });
-  if (currentRepository) startRepositoryWatcher(currentRepository);
+  syncRepositoryWatcher();
   syncAutoUpdates(preferences);
 
   app.on("activate", () => {
@@ -1750,4 +1816,5 @@ registerIpcHandlers({
   syncDockIcon,
   syncLaunchAtLogin,
   syncMenuBarIcon,
+  syncRepositoryWatcher,
 });

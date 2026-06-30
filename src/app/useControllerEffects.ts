@@ -127,6 +127,7 @@ export function useAutoRefreshLoop({
   applySnapshotResponse,
   autoRefreshInFlightRef,
   beginGitRequest,
+  collapsed,
   commitView,
   electron,
   hasSnapshot,
@@ -146,6 +147,7 @@ export function useAutoRefreshLoop({
   ) => void;
   autoRefreshInFlightRef: RefValue<boolean>;
   beginGitRequest: () => number;
+  collapsed: boolean;
   commitView: CommitViewSelection;
   electron: boolean;
   hasSnapshot: boolean;
@@ -164,6 +166,8 @@ export function useAutoRefreshLoop({
       hasSnapshot,
       actionDialogOpen: Boolean(actionDialog),
       repositoryDialogOpen,
+      collapsed,
+      automaticGitRefresh: preferences.realtimeGitRefresh,
     });
 
     if (!schedule.enabled) {
@@ -203,5 +207,15 @@ export function useAutoRefreshLoop({
     }, schedule.tickMs);
 
     return () => window.clearInterval(timer);
-  }, [actionDialog, commitView, electron, hasSnapshot, preferences.autoRefreshInterval, refreshing, repositoryDialogOpen]);
+  }, [
+    actionDialog,
+    collapsed,
+    commitView,
+    electron,
+    hasSnapshot,
+    preferences.autoRefreshInterval,
+    preferences.realtimeGitRefresh,
+    refreshing,
+    repositoryDialogOpen,
+  ]);
 }

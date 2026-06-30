@@ -545,6 +545,7 @@ export function useGocusController() {
     applySnapshotResponse,
     autoRefreshInFlightRef,
     beginGitRequest,
+    collapsed,
     commitView,
     electron,
     hasSnapshot: Boolean(snapshot),

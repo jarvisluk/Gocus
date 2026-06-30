@@ -29,6 +29,7 @@ const defaultPreferences = {
   autoUpdateInstall: false,
   createMergeCommit: true,
   autoRefreshInterval: "off",
+  realtimeGitRefresh: true,
   promptLanguage: "en",
 };
 

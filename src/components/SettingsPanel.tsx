@@ -375,6 +375,17 @@ export function SettingsPanel({
               />
             </div>
             <div className={view.mainPanel.rowClassName}>
+              <span className={view.mainPanel.labelClassName}>{sections.behavior.rows.realtime}</span>
+              <label className={view.mainPanel.realtimeGitRefreshToggleClassName}>
+                <input
+                  type="checkbox"
+                  aria-label={sections.behavior.realtimeGitRefreshAriaLabel}
+                  checked={preferences.realtimeGitRefresh}
+                  onChange={(event) => onChange({ ...preferences, realtimeGitRefresh: event.target.checked })}
+                />
+              </label>
+            </div>
+            <div className={view.mainPanel.rowClassName}>
               <span className={view.mainPanel.labelClassName}>{sections.behavior.rows.startup}</span>
               <label className={view.mainPanel.launchAtLoginToggleClassName}>
                 <input
