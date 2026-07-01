@@ -11,8 +11,10 @@ const {
   openWorktree,
   pullCurrentBranch,
   pushCurrentBranch,
+  readGitSnapshotAroundCommit,
   readGitSnapshot,
   repositoryRemoteWebUrl,
+  searchCommits,
 } = require("./git.cjs");
 const { getAvailableWorkspaceTargets, openWorkspace, openWorkspaceFile } = require("./workspace.cjs");
 
@@ -133,6 +135,22 @@ function createDevWebBridgeMiddleware(projectRoot) {
     "/health": async () => ({ ok: true, repositoryPath }),
     "/getSnapshot": async (payload) => snapshotResponse(payload.view),
     "/refresh": async (payload) => snapshotResponse(payload.view),
+    "/searchCommits": async (payload) => {
+      try {
+        return await searchCommits(repositoryPath, normalizeView(payload.view), payload.query);
+      } catch (error) {
+        return errorResponse(error, "Unable to search commits.");
+      }
+    },
+    "/loadCommitsAround": async (payload) => {
+      try {
+        const result = await readGitSnapshotAroundCommit(repositoryPath, normalizeView(payload.view), payload.commitHash);
+        repositoryPath = result.snapshot.repoPath;
+        return { ok: true, ...result };
+      } catch (error) {
+        return errorResponse(error, "Unable to load commit context.");
+      }
+    },
     "/openRepository": async (payload) => snapshotResponse(payload.view),
     "/switchRepository": async (payload) => {
       if (typeof payload.repositoryPath === "string" && payload.repositoryPath.trim()) {

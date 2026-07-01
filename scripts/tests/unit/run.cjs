@@ -1737,9 +1737,11 @@ async function testGitModule() {
     normalizeCommitLogLimit,
     pullCurrentBranch,
     readGitSnapshot,
+    readGitSnapshotAroundCommit,
     remoteWebUrlFromGitUrl,
     repositoryRemoteWebUrl,
     repositoryStateForGit,
+    searchCommits,
   } = require(path.join(projectRoot, "electron/lib/git.cjs"));
   const { parseStatus } = require(path.join(projectRoot, "electron/lib/gitStatus.cjs"));
 
@@ -1871,6 +1873,39 @@ async function testGitModule() {
     assert.equal(await repositoryRemoteWebUrl(remoteUrlDir), "https://github.com/jarvisluk/gocus");
   } finally {
     fs.rmSync(remoteUrlDir, { force: true, recursive: true });
+  }
+
+  const searchDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-commit-search-"));
+  try {
+    runGitFixture(searchDir, ["init"]);
+    runGitFixture(searchDir, ["checkout", "-b", "main"]);
+    runGitFixture(searchDir, ["config", "user.name", "Gocus Test"]);
+    runGitFixture(searchDir, ["config", "user.email", "gocus@example.com"]);
+    for (let index = 1; index <= 8; index += 1) {
+      fs.writeFileSync(path.join(searchDir, `commit-${index}.txt`), `commit ${index}\n`, "utf8");
+      runGitFixture(searchDir, ["add", `commit-${index}.txt`]);
+      runGitFixture(searchDir, ["commit", "-m", `commit ${index}`, "-m", `body marker-${index}`]);
+    }
+
+    const limitedSnapshot = await readGitSnapshot(searchDir, { mode: "all" }, { limit: 3 });
+    assert.equal(limitedSnapshot.commits.length, 3);
+    assert.equal(limitedSnapshot.commits.some((commit) => commit.message.includes("marker-1")), false);
+
+    const searchResult = await searchCommits(searchDir, { mode: "all" }, "marker-1", { limit: 2, scanLimit: 8 });
+    assert.equal(searchResult.ok, true);
+    assert.equal(searchResult.totalMatches, 1);
+    assert.equal(searchResult.scannedCommits, 8);
+    assert.equal(searchResult.commits[0].message.includes("marker-1"), true);
+
+    const targetHash = searchResult.commits[0].fullHash;
+    const contextResult = await readGitSnapshotAroundCommit(searchDir, { mode: "all" }, targetHash, { limit: 3 });
+    assert.equal(contextResult.targetHash, targetHash);
+    assert.equal(contextResult.targetIndex, 7);
+    assert.equal(contextResult.snapshot.commits.length, 3);
+    assert.equal(contextResult.snapshot.commits.some((commit) => commit.fullHash === targetHash), true);
+    assert.equal(contextResult.pageStartIndex, 5);
+  } finally {
+    fs.rmSync(searchDir, { force: true, recursive: true });
   }
 
   const pullDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-pull-current-"));

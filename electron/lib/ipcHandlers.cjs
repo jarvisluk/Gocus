@@ -39,9 +39,11 @@ function registerIpcHandlers({
   pushCurrentBranch,
   readPreferences,
   readRecentRepositories,
+  readGitSnapshotAroundCommit,
   removeRecentRepository,
   repositoryPathForAction,
   saveRepositoryPath,
+  searchCommits,
   sendPreferences,
   sendSnapshotResponse,
   setCollapsedRailHeight,
@@ -91,6 +93,29 @@ function registerIpcHandlers({
 
   ipcMain.handle("git:getSnapshot", async (_event, view) => {
     return getSnapshotResponse(normalizeView(view));
+  });
+
+  ipcMain.handle("git:searchCommits", async (_event, query, view) => {
+    const repositoryPath = repositoryPathForAction();
+    if (!repositoryPath) return noRepositoryResponse();
+
+    try {
+      return await searchCommits(repositoryPath, normalizeView(view), query);
+    } catch (error) {
+      return errorResponse(error, "Unable to search commits.");
+    }
+  });
+
+  ipcMain.handle("git:loadCommitsAround", async (_event, commitHash, view) => {
+    const repositoryPath = repositoryPathForAction();
+    if (!repositoryPath) return noRepositoryResponse();
+
+    try {
+      const result = await readGitSnapshotAroundCommit(repositoryPath, normalizeView(view), commitHash);
+      return { ok: true, ...result };
+    } catch (error) {
+      return errorResponse(error, "Unable to load commit context.");
+    }
   });
 
   ipcMain.handle("git:initializeRepository", async (_event, repositoryPath, view) => {

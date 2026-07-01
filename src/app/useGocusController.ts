@@ -48,6 +48,7 @@ import { defaultWorkspaceOpenTargets } from "../lib/workspaceOpenTargets";
 import type {
   ActionResponse,
   CommitItem,
+  CommitSearchResponse,
   CommitViewSelection,
   FolderWithoutGit,
   GitSnapshot,
@@ -78,6 +79,7 @@ export function useGocusController() {
   const [recentRepositories, setRecentRepositories] = useState<RecentRepository[]>([]);
   const [actionDialog, setActionDialog] = useState<ActionDialogState | null>(null);
   const [repositoryDialogOpen, setRepositoryDialogOpen] = useState(false);
+  const [centerSelectedCommitRequest, setCenterSelectedCommitRequest] = useState(0);
   const lastGitRequestAtRef = useRef(Date.now());
   const latestGitRequestIdRef = useRef(0);
   const currentRepositoryPathRef = useRef("");
@@ -512,6 +514,53 @@ export function useGocusController() {
     setSelectedCommitId((current) => selectedCommitIdAfterToggle(current, commitId));
   }
 
+  async function searchCommits(query: string): Promise<CommitSearchResponse> {
+    const bridge = window.gocus;
+    if (!bridge?.searchCommits) {
+      return { ok: false, reason: "action_failed", error: "Commit search is unavailable." };
+    }
+
+    try {
+      return await bridge.searchCommits(query, commitView);
+    } catch (error) {
+      return { ok: false, reason: "action_failed", error: errorMessage(error, "Unable to search commits.") };
+    }
+  }
+
+  async function selectCommitFromSearch(commit: CommitItem) {
+    if (snapshot?.commits.some((loadedCommit) => loadedCommit.id === commit.id)) {
+      setSelectedCommitId(commit.id);
+      setCenterSelectedCommitRequest((current) => current + 1);
+      return;
+    }
+
+    const bridge = window.gocus;
+    if (!bridge?.loadCommitsAround) {
+      setSelectedCommitId(commit.id);
+      setCenterSelectedCommitRequest((current) => current + 1);
+      return;
+    }
+
+    const requestId = beginGitRequest();
+    setRefreshing(true);
+
+    try {
+      const response = await bridge.loadCommitsAround(commit.fullHash, commitView);
+      if (!response.ok) {
+        setNotice(response.error || "Unable to load commit context.");
+        return;
+      }
+
+      applySnapshotResponse({ ok: true, snapshot: response.snapshot }, null, { requestId });
+      setSelectedCommitId(commit.id);
+      setCenterSelectedCommitRequest((current) => current + 1);
+    } catch (error) {
+      setNotice(errorMessage(error, "Unable to load commit context."));
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   function setPreferences(nextPreferences: UiPreferences) {
     const normalized = mergePreferences(nextPreferences);
     setPreferencesState(normalized);
@@ -567,6 +616,7 @@ export function useGocusController() {
     refreshing,
     settingsOpen,
     selectedCommitId,
+    centerSelectedCommitRequest,
     notice,
     folderWithoutGit,
     initializingRepository,
@@ -589,6 +639,8 @@ export function useGocusController() {
     dockCurrentState,
     checkForUpdates,
     selectCommit,
+    selectCommitFromSearch,
+    searchCommits,
     handleCommitAction,
     switchBranch,
     openWorktree,

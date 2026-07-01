@@ -266,6 +266,37 @@ export interface GitSnapshot {
   isSample: boolean;
 }
 
+export type CommitSearchResponse =
+  | {
+      ok: true;
+      query: string;
+      view: CommitViewSelection;
+      commits: CommitItem[];
+      totalMatches: number;
+      scannedCommits: number;
+      hasMore: boolean;
+    }
+  | {
+      ok: false;
+      reason?: "not_configured" | "invalid_repository" | "read_failed" | "action_failed";
+      error: string;
+    };
+
+export type CommitContextResponse =
+  | {
+      ok: true;
+      snapshot: GitSnapshot;
+      targetHash: string;
+      targetIndex: number;
+      pageStartIndex: number;
+      pageSize: number;
+    }
+  | {
+      ok: false;
+      reason?: "not_configured" | "invalid_repository" | "read_failed" | "action_failed";
+      error: string;
+    };
+
 export type SnapshotUpdateSource = "refresh" | "repository" | "action";
 
 export type SnapshotResponse =

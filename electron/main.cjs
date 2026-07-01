@@ -61,7 +61,9 @@ const {
   pushCurrentBranch,
   readFolderWithoutGit,
   readGitSnapshot,
+  readGitSnapshotAroundCommit,
   repositoryRemoteWebUrl,
+  searchCommits,
 } = require("./lib/git.cjs");
 const { createRepositoryWatcher } = require("./lib/gitWatcher.cjs");
 const { getAvailableWorkspaceTargets, openWorkspace, openWorkspaceFile } = require("./lib/workspace.cjs");
@@ -1797,6 +1799,8 @@ registerIpcHandlers({
   removeRecentRepository,
   repositoryPathForAction,
   saveRepositoryPath,
+  readGitSnapshotAroundCommit,
+  searchCommits,
   sendPreferences,
   sendSnapshotResponse,
   setCollapsedRailHeight,

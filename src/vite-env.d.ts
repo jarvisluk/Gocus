@@ -3,7 +3,9 @@
 import type {
   ActionResponse,
   ChangedFileInfoPayload,
+  CommitContextResponse,
   CommitInfoPayload,
+  CommitSearchResponse,
   CommitViewSelection,
   FunctionMenuPayload,
   MergeOptions,
@@ -24,6 +26,8 @@ declare global {
       removeRecentRepository: (repository: RecentRepository) => Promise<RecentRepository[]>;
       refresh: (view?: CommitViewSelection) => Promise<SnapshotResponse>;
       getSnapshot: (view?: CommitViewSelection) => Promise<SnapshotResponse>;
+      searchCommits?: (query: string, view?: CommitViewSelection) => Promise<CommitSearchResponse>;
+      loadCommitsAround?: (commitHash: string, view?: CommitViewSelection) => Promise<CommitContextResponse>;
       clearRepository: () => Promise<SnapshotResponse>;
       initializeRepository: (repositoryPath: string, view?: CommitViewSelection) => Promise<ActionResponse>;
       createBranch: (branchName: string, startPoint: string, view?: CommitViewSelection) => Promise<ActionResponse>;
