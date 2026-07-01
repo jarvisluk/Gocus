@@ -138,6 +138,7 @@ export function settingsPanelView(
       autoUpdateChannelDetailClassName: "ui-label settings-update-channel-detail",
       manualUpdateButtonClassName: "ui-button settings-check-updates",
       releaseLinkButtonClassName: "ui-button settings-release-link",
+      realtimeGitRefreshToggleClassName: "ui-toggle settings-realtime-git-refresh-toggle",
       menuBarIconToggleClassName: "ui-toggle settings-menu-bar-icon-toggle",
       dockIconToggleClassName: "ui-toggle settings-dock-icon-toggle",
       mergeCommitToggleClassName: "ui-toggle settings-merge-commit-toggle",
@@ -186,6 +187,7 @@ export function settingsPanelView(
         dockIconAvailable,
         rows: {
           refresh: "Refresh",
+          realtime: "Realtime",
           startup: "Startup",
           menuBar: usesMacMenuBar ? "Menu bar" : "Tray",
           dock: usesWindowsTray ? "Taskbar" : "Dock",
@@ -193,6 +195,7 @@ export function settingsPanelView(
           prompt: "Prompt",
         },
         autoRefreshAriaLabel: "Auto refresh interval",
+        realtimeGitRefreshAriaLabel: "Refresh Git data when files change",
         launchAtLoginAriaLabel: "Launch at login",
         showMenuBarIconAriaLabel: usesMacMenuBar ? "Show menu bar icon" : "Show tray icon",
         showDockIconAriaLabel: usesWindowsTray ? "Show taskbar icon" : "Show Dock icon",

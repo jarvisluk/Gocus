@@ -46,6 +46,8 @@ const starterGitIgnore = [
 
 const defaultCommitLogLimit = 300;
 const maxCommitLogLimit = 2000;
+const defaultCommitSearchResultLimit = 300;
+const defaultCommitContextLimit = 300;
 const dirtyWorkspaceMergeNotice = "Workspace has uncommitted changes. Commit them before merging.";
 const cleanupFallbackBaseBranchCandidates = ["main", "master", "develop", "trunk"];
 const branchLabelBaseBranchCandidates = ["develop", "dev", "main", "master", "trunk"];
@@ -54,6 +56,35 @@ function normalizeCommitLogLimit(value = process.env.GOCUS_COMMIT_LOG_LIMIT) {
   const parsed = Number.parseInt(`${value ?? ""}`, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return defaultCommitLogLimit;
   return Math.min(parsed, maxCommitLogLimit);
+}
+
+function commitSearchTerms(query) {
+  return String(query ?? "").trim().toLowerCase().split(/\s+/).filter(Boolean);
+}
+
+function commitMatchesSearch(commit, terms) {
+  if (!terms.length) return true;
+
+  const worktreeText = (commit.checkedOutWorktrees ?? [])
+    .flatMap((worktree) => [worktree.branch, worktree.path, worktree.headShortHash, worktree.headTitle])
+    .join(" ");
+  const searchableText = [
+    commit.title,
+    commit.message,
+    commit.hash,
+    commit.fullHash,
+    commit.author,
+    commit.relativeTime,
+    ...(commit.refs ?? []),
+    ...(commit.mergedRefs ?? []),
+    ...(commit.containedBranches ?? []),
+    ...(commit.parents ?? []),
+    worktreeText,
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return terms.every((term) => searchableText.includes(term));
 }
 
 async function readFolderWithoutGit(folderPath) {
@@ -116,9 +147,10 @@ function normalizeView(view) {
   return { mode: "all" };
 }
 
-function logArgsForView(view) {
+function logArgsForView(view, options = {}) {
   const normalized = normalizeView(view);
-  const commitLimit = normalizeCommitLogLimit();
+  const commitLimit = normalizeCommitLogLimit(options.limit);
+  const skip = Math.max(0, Number.parseInt(`${options.skip ?? 0}`, 10) || 0);
   const args = [
     "log",
     "--topo-order",
@@ -127,13 +159,23 @@ function logArgsForView(view) {
     "--numstat",
   ];
 
+  if (skip > 0) args.splice(3, 0, `--skip=${skip}`);
   if (normalized.mode === "all") args.push("--all");
   if (normalized.mode === "branch" && normalized.ref) args.push(normalized.ref);
   return { args, view: normalized };
 }
 
-function logArgsForViewWithWorktrees(view, worktrees) {
-  const request = logArgsForView(view);
+function logHashArgsForView(view) {
+  const normalized = normalizeView(view);
+  const args = ["log", "--topo-order", "--pretty=format:%H"];
+
+  if (normalized.mode === "all") args.push("--all");
+  if (normalized.mode === "branch" && normalized.ref) args.push(normalized.ref);
+  return { args, view: normalized };
+}
+
+function logArgsForViewWithWorktrees(view, worktrees, options = {}) {
+  const request = logArgsForView(view, options);
   if (request.view.mode !== "all") return request;
 
   const detachedHeads = [
@@ -144,6 +186,22 @@ function logArgsForViewWithWorktrees(view, worktrees) {
     ),
   ];
 
+  return { ...request, args: [...request.args, ...detachedHeads] };
+}
+
+function logHashArgsForViewWithWorktrees(view, worktrees) {
+  const request = logHashArgsForView(view);
+  if (request.view.mode !== "all") return request;
+
+  const detachedHeads = [
+    ...new Set(
+      worktrees
+        .filter((worktree) => worktree.head && worktree.detached && !worktree.bare)
+        .map((worktree) => worktree.head),
+    ),
+  ];
+
+  if (detachedHeads.length === 0) return request;
   return { ...request, args: [...request.args, ...detachedHeads] };
 }
 
@@ -662,7 +720,7 @@ function graphContextForWorktrees(worktrees, status, branches = [], mergedLocalB
   };
 }
 
-async function readGitSnapshot(repoPath, view = { mode: "all" }) {
+async function readRepositoryContext(repoPath) {
   const root = await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
   const shortStatus = await runGit(root, ["status", "--porcelain=v1", "-b"]);
   const status = parseStatus(shortStatus);
@@ -690,8 +748,6 @@ async function readGitSnapshot(repoPath, view = { mode: "all" }) {
     ...graphContextForWorktrees(worktrees, status, branches, mergedLocalBranches),
     containedBranchTips: parseContainedBranchTips(branchesRaw),
   };
-  const logRequest = logArgsForViewWithWorktrees(view, worktrees);
-  const logRaw = await runGit(root, logRequest.args, { maxBuffer: 1024 * 1024 * 64 }).catch(() => "");
 
   applyNumstat(status.files, unstagedStats);
   applyNumstat(status.files, stagedStats);
@@ -699,19 +755,90 @@ async function readGitSnapshot(repoPath, view = { mode: "all" }) {
   const rootName = path.basename(root);
 
   return {
-    repoPath: root,
-    repoName: rootName,
+    root,
+    rootName,
     repositoryKey,
-    branch: status.branch,
+    status,
     branches,
     worktrees,
-    view: logRequest.view,
-    counts: status.counts,
-    commits: annotateCommitsWithWorktrees(parseLog(logRaw, graphContext), worktrees),
+    graphContext,
     changedFiles: status.files,
     repositoryState,
+  };
+}
+
+function snapshotFromContext(context, view, commits) {
+  return {
+    repoPath: context.root,
+    repoName: context.rootName,
+    repositoryKey: context.repositoryKey,
+    branch: context.status.branch,
+    branches: context.branches,
+    worktrees: context.worktrees,
+    view,
+    counts: context.status.counts,
+    commits,
+    changedFiles: context.changedFiles,
+    repositoryState: context.repositoryState,
     lastFetchedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     isSample: false,
+  };
+}
+
+async function readGitSnapshot(repoPath, view = { mode: "all" }, options = {}) {
+  const context = await readRepositoryContext(repoPath);
+  const logRequest = logArgsForViewWithWorktrees(view, context.worktrees, options);
+  const logRaw = await runGit(context.root, logRequest.args, { maxBuffer: 1024 * 1024 * 64 }).catch(() => "");
+  const commits = annotateCommitsWithWorktrees(parseLog(logRaw, context.graphContext), context.worktrees);
+
+  return snapshotFromContext(context, logRequest.view, commits);
+}
+
+async function searchCommits(repoPath, view = { mode: "all" }, query = "", options = {}) {
+  const terms = commitSearchTerms(query);
+  const context = await readRepositoryContext(repoPath);
+  const resultLimit = normalizeCommitLogLimit(options.limit ?? defaultCommitSearchResultLimit);
+  const scanLimit = normalizeCommitLogLimit(options.scanLimit ?? maxCommitLogLimit);
+  const logRequest = logArgsForViewWithWorktrees(view, context.worktrees, { limit: scanLimit });
+  const logRaw = await runGit(context.root, logRequest.args, { maxBuffer: 1024 * 1024 * 128 }).catch(() => "");
+  const commits = annotateCommitsWithWorktrees(parseLog(logRaw, context.graphContext), context.worktrees);
+  const matches = terms.length ? commits.filter((commit) => commitMatchesSearch(commit, terms)) : commits;
+
+  return {
+    ok: true,
+    query: String(query ?? ""),
+    view: logRequest.view,
+    commits: matches.slice(0, resultLimit),
+    totalMatches: matches.length,
+    scannedCommits: commits.length,
+    hasMore: matches.length > resultLimit,
+  };
+}
+
+async function readGitSnapshotAroundCommit(repoPath, view = { mode: "all" }, commitHash, options = {}) {
+  const cleanHash = typeof commitHash === "string" ? commitHash.trim() : "";
+  if (!cleanHash) throw new Error("Choose a commit before loading context.");
+
+  const context = await readRepositoryContext(repoPath);
+  const contextLimit = normalizeCommitLogLimit(options.limit ?? defaultCommitContextLimit);
+  const hashRequest = logHashArgsForViewWithWorktrees(view, context.worktrees);
+  const hashesRaw = await runGit(context.root, hashRequest.args, { maxBuffer: 1024 * 1024 * 32 });
+  const hashes = hashesRaw.split(/\r?\n/).map((hash) => hash.trim()).filter(Boolean);
+  const targetIndex = hashes.findIndex((hash) => hash === cleanHash || hash.startsWith(cleanHash));
+  if (targetIndex === -1) throw new Error("Commit is not visible in the current view.");
+
+  const maxSkip = Math.max(0, hashes.length - contextLimit);
+  const skip = Math.min(maxSkip, Math.max(0, targetIndex - Math.floor(contextLimit / 2)));
+  const logRequest = logArgsForViewWithWorktrees(view, context.worktrees, { limit: contextLimit, skip });
+  const logRaw = await runGit(context.root, logRequest.args, { maxBuffer: 1024 * 1024 * 64 }).catch(() => "");
+  const commits = annotateCommitsWithWorktrees(parseLog(logRaw, context.graphContext), context.worktrees);
+
+  return {
+    snapshot: snapshotFromContext(context, logRequest.view, commits),
+    targetHash: hashes[targetIndex],
+    targetIndex,
+    pageStartIndex: skip,
+    pageSize: contextLimit,
   };
 }
 
@@ -977,8 +1104,10 @@ module.exports = {
   pushCurrentBranch,
   readFolderWithoutGit,
   readGitSnapshot,
+  readGitSnapshotAroundCommit,
   remoteWebUrlFromGitUrl,
   repositoryRemoteWebUrl,
   repositoryStateForGit,
   runGit,
+  searchCommits,
 };

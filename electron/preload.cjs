@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld("gocus", {
   removeRecentRepository: (repository) => ipcRenderer.invoke("git:removeRecentRepository", repository),
   refresh: (view) => ipcRenderer.invoke("git:refresh", view),
   getSnapshot: (view) => ipcRenderer.invoke("git:getSnapshot", view),
+  searchCommits: (query, view) => ipcRenderer.invoke("git:searchCommits", query, view),
+  loadCommitsAround: (commitHash, view) => ipcRenderer.invoke("git:loadCommitsAround", commitHash, view),
   clearRepository: () => ipcRenderer.invoke("git:clearRepository"),
   initializeRepository: (repositoryPath, view) => ipcRenderer.invoke("git:initializeRepository", repositoryPath, view),
   createBranch: (branchName, startPoint, view) => ipcRenderer.invoke("git:createBranch", branchName, startPoint, view),
