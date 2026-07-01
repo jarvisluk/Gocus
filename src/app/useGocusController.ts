@@ -39,6 +39,7 @@ import {
   upsertRecentRepository,
 } from "../lib/recentRepositories";
 import {
+  commitViewAfterSnapshotResponse,
   folderWithoutGitAfterSnapshotResponse,
   selectedCommitIdAfterSnapshotResponse,
   snapshotResponseNotice,
@@ -47,6 +48,7 @@ import { defaultWorkspaceOpenTargets } from "../lib/workspaceOpenTargets";
 import type {
   ActionResponse,
   CommitItem,
+  CommitSearchResponse,
   CommitViewSelection,
   FolderWithoutGit,
   GitSnapshot,
@@ -77,6 +79,7 @@ export function useGocusController() {
   const [recentRepositories, setRecentRepositories] = useState<RecentRepository[]>([]);
   const [actionDialog, setActionDialog] = useState<ActionDialogState | null>(null);
   const [repositoryDialogOpen, setRepositoryDialogOpen] = useState(false);
+  const [centerSelectedCommitRequest, setCenterSelectedCommitRequest] = useState(0);
   const lastGitRequestAtRef = useRef(Date.now());
   const latestGitRequestIdRef = useRef(0);
   const currentRepositoryPathRef = useRef("");
@@ -105,7 +108,7 @@ export function useGocusController() {
   function applySnapshotResponse(
     response: SnapshotResponse,
     successNotice: string | null = "Live Git data connected.",
-    options: { requestId?: number; allowRepositoryChange?: boolean } = {},
+    options: { requestId?: number; allowRepositoryChange?: boolean; adoptSnapshotView?: boolean } = {},
   ) {
     if (options.requestId !== undefined && options.requestId < latestGitRequestIdRef.current) return;
     if (
@@ -125,7 +128,7 @@ export function useGocusController() {
       setSnapshot(response.snapshot);
       setFolderWithoutGit(null);
       setRecentRepositories((current) => upsertRecentRepository(current, recentRepositoryFromSnapshot(response.snapshot)));
-      setCommitViewState(response.snapshot.view);
+      setCommitViewState((current) => commitViewAfterSnapshotResponse(response, current, options));
       setSelectedCommitId((current) => selectedCommitIdAfterSnapshotResponse(response, current));
       if (nextNotice) setNotice(nextNotice);
       return;
@@ -198,6 +201,7 @@ export function useGocusController() {
       applySnapshotResponse(response, response.ok ? `Opened ${response.snapshot.repoName}.` : undefined, {
         requestId,
         allowRepositoryChange: true,
+        adoptSnapshotView: true,
       });
     } catch (error) {
       setNotice(errorMessage(error, "Unable to open repository."));
@@ -217,6 +221,7 @@ export function useGocusController() {
       applySnapshotResponse(response, response.ok ? `Switched to ${response.snapshot.repoName}.` : "Unable to switch repository.", {
         requestId,
         allowRepositoryChange: true,
+        adoptSnapshotView: true,
       });
     } catch (error) {
       setNotice(errorMessage(error, "Unable to switch repository."));
@@ -275,7 +280,10 @@ export function useGocusController() {
     setRefreshing(true);
     try {
       const response = await bridge.getSnapshot(nextView);
-      applySnapshotResponse(response, response.ok ? decision.successNotice : "Unable to change commit view.", { requestId });
+      applySnapshotResponse(response, response.ok ? decision.successNotice : "Unable to change commit view.", {
+        requestId,
+        adoptSnapshotView: true,
+      });
     } catch (error) {
       setNotice(errorMessage(error, "Unable to change commit view."));
     } finally {
@@ -438,7 +446,7 @@ export function useGocusController() {
         const response = await bridge.merge(
           confirmation.ref,
           confirmation.targetBranch,
-          { mode: "current" },
+          commitView,
           { createMergeCommit: preferences.createMergeCommit },
         );
         const nextNotice = actionResponseNotice(response, confirmation.fallbackNotice, confirmation.failureNotice);
@@ -464,7 +472,7 @@ export function useGocusController() {
 
     setActionDialog(null);
     await runAction(
-      () => bridge.checkout(confirmation.ref, { mode: "current" }),
+      () => bridge.checkout(confirmation.ref, commitView),
       confirmation.fallbackNotice,
       confirmation.failureNotice,
     );
@@ -506,6 +514,53 @@ export function useGocusController() {
     setSelectedCommitId((current) => selectedCommitIdAfterToggle(current, commitId));
   }
 
+  async function searchCommits(query: string): Promise<CommitSearchResponse> {
+    const bridge = window.gocus;
+    if (!bridge?.searchCommits) {
+      return { ok: false, reason: "action_failed", error: "Commit search is unavailable." };
+    }
+
+    try {
+      return await bridge.searchCommits(query, commitView);
+    } catch (error) {
+      return { ok: false, reason: "action_failed", error: errorMessage(error, "Unable to search commits.") };
+    }
+  }
+
+  async function selectCommitFromSearch(commit: CommitItem) {
+    if (snapshot?.commits.some((loadedCommit) => loadedCommit.id === commit.id)) {
+      setSelectedCommitId(commit.id);
+      setCenterSelectedCommitRequest((current) => current + 1);
+      return;
+    }
+
+    const bridge = window.gocus;
+    if (!bridge?.loadCommitsAround) {
+      setSelectedCommitId(commit.id);
+      setCenterSelectedCommitRequest((current) => current + 1);
+      return;
+    }
+
+    const requestId = beginGitRequest();
+    setRefreshing(true);
+
+    try {
+      const response = await bridge.loadCommitsAround(commit.fullHash, commitView);
+      if (!response.ok) {
+        setNotice(response.error || "Unable to load commit context.");
+        return;
+      }
+
+      applySnapshotResponse({ ok: true, snapshot: response.snapshot }, null, { requestId });
+      setSelectedCommitId(commit.id);
+      setCenterSelectedCommitRequest((current) => current + 1);
+    } catch (error) {
+      setNotice(errorMessage(error, "Unable to load commit context."));
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   function setPreferences(nextPreferences: UiPreferences) {
     const normalized = mergePreferences(nextPreferences);
     setPreferencesState(normalized);
@@ -539,6 +594,7 @@ export function useGocusController() {
     applySnapshotResponse,
     autoRefreshInFlightRef,
     beginGitRequest,
+    collapsed,
     commitView,
     electron,
     hasSnapshot: Boolean(snapshot),
@@ -560,6 +616,7 @@ export function useGocusController() {
     refreshing,
     settingsOpen,
     selectedCommitId,
+    centerSelectedCommitRequest,
     notice,
     folderWithoutGit,
     initializingRepository,
@@ -582,6 +639,8 @@ export function useGocusController() {
     dockCurrentState,
     checkForUpdates,
     selectCommit,
+    selectCommitFromSearch,
+    searchCommits,
     handleCommitAction,
     switchBranch,
     openWorktree,

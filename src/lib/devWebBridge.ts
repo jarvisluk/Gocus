@@ -1,7 +1,9 @@
 import type {
   ActionResponse,
   ChangedFileInfoPayload,
+  CommitContextResponse,
   CommitInfoPayload,
+  CommitSearchResponse,
   CommitViewSelection,
   FunctionMenuPayload,
   GitBranchState,
@@ -89,6 +91,10 @@ export function installDevWebBridge() {
     openWorkspace: (target: WorkspaceOpenTarget) => requestBridge("openWorkspace", { target }),
     openWorkspaceFile: (target: WorkspaceOpenTarget, filePath: string) => requestBridge("openWorkspaceFile", { target, filePath }),
     checkForUpdates: () => requestBridge("checkForUpdates"),
+    searchCommits: (query: string, view?: CommitViewSelection) =>
+      requestBridge<CommitSearchResponse>("searchCommits", { query, view }),
+    loadCommitsAround: (commitHash: string, view?: CommitViewSelection) =>
+      requestBridge<CommitContextResponse>("loadCommitsAround", { commitHash, view }),
     getAvailableWorkspaceTargets: () => requestBridge("getAvailableWorkspaceTargets"),
     getActiveWorkspaceTarget: async () => requestBridge<WorkspaceOpenTarget>("getActiveWorkspaceTarget"),
     setActiveWorkspaceTarget: async (target: WorkspaceOpenTarget) => {

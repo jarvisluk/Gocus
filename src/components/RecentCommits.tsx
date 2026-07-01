@@ -7,6 +7,7 @@ import {
   getGitTreeRailWidth,
 } from "../git-tree/renderGraph";
 import {
+  commitListView,
   commitSearchInputKeyAction,
   commitSelectionVisible,
   firstCommitId,
@@ -19,7 +20,7 @@ import {
 import type { CommitRowAction } from "../lib/commitRowView";
 import { useCommitInfoPreviewPanel } from "../lib/useCommitInfoPreviewPanel";
 import { useCommitSearch } from "../lib/useCommitSearch";
-import type { CommitItem, UiPreferences } from "../types";
+import type { CommitItem, CommitSearchResponse, UiPreferences } from "../types";
 
 function commitScrollContainer(listNode: HTMLElement) {
   return listNode.closest<HTMLElement>(".scroll-region") ?? listNode;
@@ -32,17 +33,23 @@ function commitListSpacerStyle(height: number) {
 export function RecentCommits({
   commits,
   selectedId,
+  centerSelectedSignal = 0,
   expandSelectedMessage = false,
   onSelect,
+  onSelectSearchCommit,
   onAction,
+  onSearchCommits,
   graphStyle = "solid",
   graphNodeY = 22,
 }: {
   commits: CommitItem[];
   selectedId: string;
+  centerSelectedSignal?: number;
   expandSelectedMessage?: boolean;
   onSelect: (id: string) => void;
+  onSelectSearchCommit?: (commit: CommitItem) => void;
   onAction: (action: CommitRowAction, commit: CommitItem) => void;
+  onSearchCommits?: (query: string) => Promise<CommitSearchResponse>;
   graphStyle?: UiPreferences["graphStyle"];
   graphNodeY?: number;
 }) {
@@ -51,36 +58,55 @@ export function RecentCommits({
   const pendingCenterSelectedIdRef = useRef("");
   const pendingCenterAttemptsRef = useRef(0);
   const [scrollFrame, setScrollFrame] = useState({ scrollTop: 0, viewportHeight: 0 });
+  const [remoteSearch, setRemoteSearch] = useState<{
+    query: string;
+    commits: CommitItem[];
+    totalMatches: number;
+    scannedCommits: number;
+    loading: boolean;
+  } | null>(null);
   const {
     closeCommitPreview,
     previewCommit,
     scheduleCommitPreviewCloseAfterBlur,
   } = useCommitInfoPreviewPanel({ selectedId });
-  const {
-    count,
-    emptyState,
-    filteredCommits,
-    heading,
-    headingToolsClassName,
-    list,
-    searchClearButton,
-    searchForm,
-    searchInput,
-    searchTerms,
-    searchToggle,
-    section,
-    showCommits,
-    showEmptyState,
-    showSearchForm,
-    searchInputRef,
-    searchQuery,
-    searchToggleRef,
-    setSearchQuery,
-    closeSearch,
-    toggleSearch,
-    title,
-    titleId,
-  } = useCommitSearch(commits);
+  const commitSearch = useCommitSearch(commits);
+  const remoteSearchActive = Boolean(
+    remoteSearch &&
+      remoteSearch.query === commitSearch.searchQuery.trim() &&
+      commitSearch.searchTerms.length > 0 &&
+      !remoteSearch.loading,
+  );
+  const remoteSearchView = useMemo(
+    () =>
+      remoteSearchActive && remoteSearch
+        ? commitListView(remoteSearch.commits, commitSearch.searchQuery, commitSearch.searchOpen)
+        : null,
+    [commitSearch.searchOpen, commitSearch.searchQuery, remoteSearch, remoteSearchActive],
+  );
+  const count = remoteSearchView?.count ?? commitSearch.count;
+  const emptyState = remoteSearchView?.emptyState ?? commitSearch.emptyState;
+  const filteredCommits = remoteSearchView?.filteredCommits ?? commitSearch.filteredCommits;
+  const heading = commitSearch.heading;
+  const headingToolsClassName = remoteSearchView?.headingToolsClassName ?? commitSearch.headingToolsClassName;
+  const list = commitSearch.list;
+  const searchClearButton = commitSearch.searchClearButton;
+  const searchForm = commitSearch.searchForm;
+  const searchInput = commitSearch.searchInput;
+  const searchTerms = commitSearch.searchTerms;
+  const searchToggle = commitSearch.searchToggle;
+  const section = commitSearch.section;
+  const showCommits = remoteSearchView?.showCommits ?? commitSearch.showCommits;
+  const showEmptyState = remoteSearchView?.showEmptyState ?? commitSearch.showEmptyState;
+  const showSearchForm = commitSearch.showSearchForm;
+  const searchInputRef = commitSearch.searchInputRef;
+  const searchQuery = commitSearch.searchQuery;
+  const searchToggleRef = commitSearch.searchToggleRef;
+  const setSearchQuery = commitSearch.setSearchQuery;
+  const closeSearch = commitSearch.closeSearch;
+  const toggleSearch = commitSearch.toggleSearch;
+  const title = commitSearch.title;
+  const titleId = commitSearch.titleId;
   const selectedFilteredIndex = useMemo(
     () => filteredCommits.findIndex((commit) => commit.id === selectedId),
     [filteredCommits, selectedId],
@@ -107,6 +133,89 @@ export function RecentCommits({
       }) as CSSProperties & { "--git-tree-rail-width": string },
     [visibleGraphLaneCount],
   );
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (!onSearchCommits || !query) {
+      setRemoteSearch(null);
+      return undefined;
+    }
+
+    let canceled = false;
+    const timer = window.setTimeout(() => {
+      setRemoteSearch((current) =>
+        current?.query === query
+          ? { ...current, loading: true }
+          : { query, commits: [], totalMatches: 0, scannedCommits: 0, loading: true },
+      );
+
+      onSearchCommits(query)
+        .then((response) => {
+          if (canceled) return;
+          if (!response.ok || response.query.trim() !== query) {
+            setRemoteSearch({ query, commits: [], totalMatches: 0, scannedCommits: 0, loading: false });
+            return;
+          }
+
+          setRemoteSearch({
+            query,
+            commits: response.commits,
+            totalMatches: response.totalMatches,
+            scannedCommits: response.scannedCommits,
+            loading: false,
+          });
+        })
+        .catch(() => {
+          if (!canceled) setRemoteSearch({ query, commits: [], totalMatches: 0, scannedCommits: 0, loading: false });
+        });
+    }, 250);
+
+    return () => {
+      canceled = true;
+      window.clearTimeout(timer);
+    };
+  }, [onSearchCommits, searchQuery]);
+
+  function handleSelectCommit(commit: CommitItem) {
+    if (remoteSearchActive && !commits.some((loadedCommit) => loadedCommit.id === commit.id) && onSelectSearchCommit) {
+      closeSearch();
+      setSearchQuery("");
+      setRemoteSearch(null);
+      onSelectSearchCommit(commit);
+      return;
+    }
+
+    onSelect(commit.id);
+  }
+
+  useEffect(() => {
+    if (!centerSelectedSignal || !selectedId) return;
+
+    const listNode = listRef.current;
+    if (!listNode) return;
+
+    const scrollNode = commitScrollContainer(listNode);
+    const scrollRect = scrollNode.getBoundingClientRect();
+    const listRect = listNode.getBoundingClientRect();
+    const selectedIndex = filteredCommits.findIndex((commit) => commit.id === selectedId);
+    pendingCenterSelectedIdRef.current = selectedId;
+    pendingCenterAttemptsRef.current = 0;
+    const maxScrollTop = Math.max(0, scrollNode.scrollHeight - scrollNode.clientHeight);
+    const nextScrollTop = commitScrollTopForSelection({
+      itemCount: filteredCommits.length,
+      selectedIndex,
+      scrollTop: scrollNode.scrollTop,
+      viewportHeight: scrollNode.clientHeight,
+      alignment: "center",
+      listViewportTop: scrollRect.top - listRect.top,
+      maxScrollTop,
+    });
+
+    if (nextScrollTop !== null) {
+      scrollNode.scrollTo({ top: nextScrollTop, behavior: "auto" });
+      setScrollFrame({ scrollTop: nextScrollTop, viewportHeight: scrollNode.clientHeight });
+    }
+  }, [centerSelectedSignal, filteredCommits, selectedId]);
 
   useEffect(() => {
     const previousSearchTermCount = previousSearchTermCountRef.current;
@@ -251,7 +360,8 @@ export function RecentCommits({
               onSubmit={(event) => {
                 event.preventDefault();
                 const commitId = firstCommitId(filteredCommits);
-                if (commitId) onSelect(commitId);
+                const commit = filteredCommits.find((item) => item.id === commitId);
+                if (commit) handleSelectCommit(commit);
               }}
             >
               <Search aria-hidden="true" />
@@ -269,7 +379,8 @@ export function RecentCommits({
                   event.preventDefault();
                   if (keyAction === "selectFirst") {
                     const commitId = firstCommitId(filteredCommits);
-                    if (commitId) onSelect(commitId);
+                    const commit = filteredCommits.find((item) => item.id === commitId);
+                    if (commit) handleSelectCommit(commit);
                     return;
                   }
 
@@ -336,7 +447,7 @@ export function RecentCommits({
               commit={commit}
               selected={commit.id === selectedId}
               expandSelectedMessage={expandSelectedMessage}
-              onSelect={() => onSelect(commit.id)}
+              onSelect={() => handleSelectCommit(commit)}
               onAction={onAction}
               onPreview={previewCommit}
               onDismissPreview={closeCommitPreview}

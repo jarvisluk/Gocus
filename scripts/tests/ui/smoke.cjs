@@ -25,28 +25,28 @@ function expectedCreateBranchAction(name) {
   };
 }
 
-function expectedCheckoutAction() {
+function expectedCheckoutAction(view = { mode: "all" }) {
   return {
     type: "checkout",
     ref: footerCommitFullHash,
-    view: { mode: "current" },
+    view,
   };
 }
 
-function expectedSwitchBranchAction(branchName = "feature/footer-toggle") {
+function expectedSwitchBranchAction(branchName = "feature/footer-toggle", view = { mode: "all" }) {
   return {
     type: "checkout",
     ref: branchName,
-    view: { mode: "current" },
+    view,
   };
 }
 
-function expectedMergeAction(targetBranch = "main", createMergeCommit = true) {
+function expectedMergeAction(targetBranch = "main", createMergeCommit = true, view = { mode: "all" }) {
   return {
     type: "merge",
     ref: footerCommitFullHash,
     targetBranch,
-    view: { mode: "current" },
+    view,
     options: { createMergeCommit },
   };
 }
@@ -237,6 +237,7 @@ function installGocusMock(config) {
   window.__gocusTemporaryInfoListeners = [];
   window.__gocusFunctionMenuListeners = [];
   window.__gocusFunctionMenuClosedListeners = [];
+  window.__gocusSnapshotListeners = [];
   window.__gocusChangedFileInfoListeners = [];
   window.__gocusChangedFileInfoPanelClosedListeners = [];
   window.__gocusCommitInfoListeners = [];
@@ -266,6 +267,7 @@ function installGocusMock(config) {
   window.__gocusCollapsedRailHeights = [];
   window.__gocusCommitInfoPanelHeights = [];
   window.__gocusFunctionMenuPanelHeights = [];
+  window.__gocusSnapshot = actionSnapshot ?? null;
   window.__gocusRefreshCount = 0;
   if (config.clipboardAvailable) {
     Object.defineProperty(navigator, "clipboard", {
@@ -306,7 +308,8 @@ function installGocusMock(config) {
     getSnapshot: async (view) => {
       if (view) window.__gocusSnapshotRequests.push(view);
       if (!initialResponse.ok) return initialResponse;
-      return { ok: true, snapshot: { ...initialResponse.snapshot, view: view ?? initialResponse.snapshot.view } };
+      window.__gocusSnapshot = { ...initialResponse.snapshot, view: view ?? initialResponse.snapshot.view };
+      return { ok: true, snapshot: window.__gocusSnapshot };
     },
     getRecentRepositories: async () => {
       if (config.recentRepositoriesError) throw new Error(config.recentRepositoriesError);
@@ -318,7 +321,12 @@ function installGocusMock(config) {
         (entry) => entry.path !== repository.path && (entry.repositoryKey || entry.path) !== (repository.repositoryKey || repository.path),
       );
     },
-    onSnapshotUpdated: () => () => {},
+    onSnapshotUpdated: (callback) => {
+      window.__gocusSnapshotListeners.push(callback);
+      return () => {
+        window.__gocusSnapshotListeners = window.__gocusSnapshotListeners.filter((listener) => listener !== callback);
+      };
+    },
     onCollapsedChanged: () => () => {},
     onPinnedChanged: (callback) => {
       window.__gocusPinnedListeners.push(callback);
@@ -462,7 +470,8 @@ function installGocusMock(config) {
     refresh: async () => {
       window.__gocusRefreshCount += 1;
       if (config.refreshError) throw new Error(config.refreshError);
-      return actionSnapshot ? { ok: true, snapshot: actionSnapshot } : initialResponse;
+      window.__gocusSnapshot = actionSnapshot ?? window.__gocusSnapshot;
+      return actionSnapshot ? { ok: true, snapshot: window.__gocusSnapshot } : initialResponse;
     },
     pushCurrentBranch: async () => {
       window.__gocusPushCount += 1;
@@ -1493,6 +1502,24 @@ async function testCommitSearch(browser, baseUrl) {
 
     await assertHealthyPage(page, errors);
     assert.equal(await page.locator('[role="button"] button, button button').count(), 0);
+    const allViewButton = page.getByRole("button", { name: "All" });
+    const currentViewButton = page.getByRole("button", { name: "Current" });
+    await allViewButton.waitFor();
+    assert.equal(await allViewButton.getAttribute("aria-pressed"), "true");
+    await page.evaluate(() => {
+      const snapshot = {
+        ...window.__gocusSnapshot,
+        branch: { name: "feature/new-local-branch", upstream: "", ahead: 0, behind: 0, detached: false },
+        view: { mode: "current" },
+        lastFetchedAt: new Date().toISOString(),
+      };
+
+      window.__gocusSnapshot = snapshot;
+      window.__gocusSnapshotListeners.forEach((callback) => callback({ ok: true, updateSource: "refresh", snapshot }));
+    });
+    await page.getByRole("status").filter({ hasText: "Git data updated from menu." }).waitFor();
+    assert.equal(await allViewButton.getAttribute("aria-pressed"), "true");
+    assert.equal(await currentViewButton.getAttribute("aria-pressed"), "false");
 
     const searchToggle = page.getByRole("button", { name: "Search commits" });
     assert.equal(await searchToggle.getAttribute("aria-controls"), "commit-search-form");

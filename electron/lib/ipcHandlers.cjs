@@ -39,9 +39,11 @@ function registerIpcHandlers({
   pushCurrentBranch,
   readPreferences,
   readRecentRepositories,
+  readGitSnapshotAroundCommit,
   removeRecentRepository,
   repositoryPathForAction,
   saveRepositoryPath,
+  searchCommits,
   sendPreferences,
   sendSnapshotResponse,
   setCollapsedRailHeight,
@@ -59,6 +61,7 @@ function registerIpcHandlers({
   syncDockIcon,
   syncLaunchAtLogin,
   syncMenuBarIcon,
+  syncRepositoryWatcher,
 }) {
   ipcMain.handle("git:openRepository", async (_event, view) => {
     return chooseRepository(normalizeView(view));
@@ -90,6 +93,29 @@ function registerIpcHandlers({
 
   ipcMain.handle("git:getSnapshot", async (_event, view) => {
     return getSnapshotResponse(normalizeView(view));
+  });
+
+  ipcMain.handle("git:searchCommits", async (_event, query, view) => {
+    const repositoryPath = repositoryPathForAction();
+    if (!repositoryPath) return noRepositoryResponse();
+
+    try {
+      return await searchCommits(repositoryPath, normalizeView(view), query);
+    } catch (error) {
+      return errorResponse(error, "Unable to search commits.");
+    }
+  });
+
+  ipcMain.handle("git:loadCommitsAround", async (_event, commitHash, view) => {
+    const repositoryPath = repositoryPathForAction();
+    if (!repositoryPath) return noRepositoryResponse();
+
+    try {
+      const result = await readGitSnapshotAroundCommit(repositoryPath, normalizeView(view), commitHash);
+      return { ok: true, ...result };
+    } catch (error) {
+      return errorResponse(error, "Unable to load commit context.");
+    }
   });
 
   ipcMain.handle("git:initializeRepository", async (_event, repositoryPath, view) => {
@@ -305,6 +331,7 @@ function registerIpcHandlers({
     if (sideEffects.syncMenuBarIcon) syncMenuBarIcon(savedConfigPreferences);
     if (sideEffects.syncDockIcon) syncDockIcon(savedConfigPreferences);
     if (sideEffects.syncAutoUpdates) syncAutoUpdates(savedConfigPreferences);
+    if (sideEffects.syncRepositoryWatcher) syncRepositoryWatcher();
     if (sideEffects.checkAutoUpdatesNow) checkForUpdates();
 
     const savedPreferences = readPreferences();
@@ -389,6 +416,8 @@ function preferencesSaveSideEffects(previousEffectivePreferences, previousConfig
       autoUpdateChannelChanged ||
       Boolean(previousConfigPreferences.autoUpdateChecks) !== Boolean(savedConfigPreferences.autoUpdateChecks) ||
       Boolean(previousConfigPreferences.autoUpdateInstall) !== Boolean(savedConfigPreferences.autoUpdateInstall),
+    syncRepositoryWatcher:
+      Boolean(previousConfigPreferences.realtimeGitRefresh) !== Boolean(savedConfigPreferences.realtimeGitRefresh),
     checkAutoUpdatesNow: autoUpdateChannelChanged,
   };
 }

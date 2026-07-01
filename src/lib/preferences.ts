@@ -12,6 +12,7 @@ export const defaultPreferences: UiPreferences = {
   autoUpdateInstall: false,
   createMergeCommit: true,
   autoRefreshInterval: "off",
+  realtimeGitRefresh: true,
   promptLanguage: "en",
 };
 
@@ -52,6 +53,8 @@ export function mergePreferences(value: Partial<UiPreferences> | null | undefine
     autoRefreshInterval: includesValue(autoRefreshIntervalValues, candidate.autoRefreshInterval)
       ? candidate.autoRefreshInterval
       : defaultPreferences.autoRefreshInterval,
+    realtimeGitRefresh:
+      typeof candidate.realtimeGitRefresh === "boolean" ? candidate.realtimeGitRefresh : defaultPreferences.realtimeGitRefresh,
     promptLanguage: includesValue(promptLanguageValues, candidate.promptLanguage)
       ? candidate.promptLanguage
       : defaultPreferences.promptLanguage,

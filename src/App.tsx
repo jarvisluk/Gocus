@@ -228,9 +228,12 @@ export default function App() {
                     <RecentCommits
                       commits={panelContent.snapshot.commits}
                       selectedId={controller.selectedCommitId}
+                      centerSelectedSignal={controller.centerSelectedCommitRequest}
                       graphStyle={controller.preferences.graphStyle}
                       graphNodeY={22}
                       onSelect={controller.selectCommit}
+                      onSelectSearchCommit={controller.selectCommitFromSearch}
+                      onSearchCommits={controller.searchCommits}
                       onAction={controller.handleCommitAction}
                     />
                   </div>

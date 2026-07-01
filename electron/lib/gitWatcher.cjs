@@ -2,7 +2,18 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const defaultDebounceMs = 650;
+const defaultMaxRecursiveWorktreeEntries = Number.POSITIVE_INFINITY;
 const ignoredWorktreeParts = new Set([".git", "node_modules", "dist", ".vite", "coverage", ".turbo", ".next", ".DS_Store"]);
+const gitStateFilenames = new Set([
+  "BISECT_LOG",
+  "CHERRY_PICK_HEAD",
+  "HEAD",
+  "MERGE_HEAD",
+  "REBASE_HEAD",
+  "index",
+  "packed-refs",
+]);
+const gitStateDirectoryNames = new Set(["rebase-apply", "rebase-merge", "sequencer"]);
 
 function safeRealpathSync(pathValue) {
   try {
@@ -87,8 +98,36 @@ function isIgnoredWorktreePath(filename) {
     .some((part) => ignoredWorktreeParts.has(part));
 }
 
+function worktreeEntryCountExceeds(root, maximumEntries) {
+  if (!Number.isFinite(maximumEntries)) return false;
+  const stack = [root];
+  let count = 0;
+
+  while (stack.length) {
+    const currentPath = stack.pop();
+    let entries = [];
+    try {
+      entries = fs.readdirSync(currentPath, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      if (ignoredWorktreeParts.has(entry.name)) continue;
+      count += 1;
+      if (count > maximumEntries) return true;
+      if (entry.isDirectory()) stack.push(path.join(currentPath, entry.name));
+    }
+  }
+
+  return false;
+}
+
 function createRepositoryWatcher(repositoryPath, onRefresh, options = {}) {
   const debounceMs = Number.isFinite(options.debounceMs) ? options.debounceMs : defaultDebounceMs;
+  const maxRecursiveWorktreeEntries = Number.isFinite(options.maxRecursiveWorktreeEntries)
+    ? options.maxRecursiveWorktreeEntries
+    : defaultMaxRecursiveWorktreeEntries;
   const logger = options.logger ?? console;
   const watchers = [];
   const watchPaths = resolveRepositoryWatchPaths(repositoryPath);
@@ -131,7 +170,7 @@ function createRepositoryWatcher(repositoryPath, onRefresh, options = {}) {
   }
 
   function addWatcher(targetPath, label, optionsForWatch = {}, eventFilter = () => true) {
-    if (!targetPath || !pathExists(targetPath)) return;
+    if (!targetPath || !pathExists(targetPath)) return false;
 
     try {
       const watcher = fs.watch(targetPath, optionsForWatch, (_eventType, filename) => {
@@ -139,27 +178,38 @@ function createRepositoryWatcher(repositoryPath, onRefresh, options = {}) {
       });
       watcher.on("error", (error) => logger.warn(`[Gocus] Repository watcher error for ${label}.`, error));
       watchers.push(watcher);
+      return true;
     } catch (error) {
       if (optionsForWatch.recursive) {
-        addWatcher(targetPath, label, {}, eventFilter);
-        return;
+        return addWatcher(targetPath, label, {}, eventFilter);
       }
 
       logger.warn(`[Gocus] Unable to watch ${label}.`, error);
+      return false;
     }
   }
 
-  addWatcher(watchPaths.root, "working tree change", { recursive: true }, (filename) => !isIgnoredWorktreePath(filename));
-  addWatcher(watchPaths.gitDir, "git metadata change", { recursive: true });
+  function gitDirectoryEventFilter(filename) {
+    if (!filename) return true;
+    const [firstPart] = String(filename).split(/[\\/]+/);
+    return gitStateFilenames.has(firstPart) || gitStateDirectoryNames.has(firstPart);
+  }
 
-  if (watchPaths.commonDir && watchPaths.commonDir !== watchPaths.gitDir) {
-    addWatcher(watchPaths.commonDir, "git common metadata change", { recursive: true });
+  const watchWorkingTree = options.watchWorkingTree !== false && !worktreeEntryCountExceeds(watchPaths.root, maxRecursiveWorktreeEntries);
+  if (watchWorkingTree) {
+    addWatcher(watchPaths.root, "working tree change", { recursive: true }, (filename) => !isIgnoredWorktreePath(filename));
+  } else if (options.watchWorkingTree !== false) {
+    logger.info(
+      `[Gocus] Skipping recursive working tree watcher for ${watchPaths.root}; repository exceeds ${maxRecursiveWorktreeEntries} entries.`,
+    );
   }
 
   for (const gitPath of new Set([watchPaths.gitDir, watchPaths.commonDir])) {
-    addWatcher(path.join(gitPath, "refs", "heads"), "branch ref change");
-    addWatcher(path.join(gitPath, "refs", "remotes"), "remote ref change");
-    addWatcher(path.join(gitPath, "refs", "tags"), "tag ref change");
+    addWatcher(gitPath, "git state change", {}, gitDirectoryEventFilter);
+    addWatcher(path.join(gitPath, "packed-refs"), "packed ref change");
+    addWatcher(path.join(gitPath, "refs", "heads"), "branch ref change", { recursive: true });
+    addWatcher(path.join(gitPath, "refs", "remotes"), "remote ref change", { recursive: true });
+    addWatcher(path.join(gitPath, "refs", "tags"), "tag ref change", { recursive: true });
   }
 
   return {

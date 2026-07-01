@@ -1054,6 +1054,7 @@ function testIpcHandlersModule() {
     autoUpdateChannel: "stable",
     autoUpdateChecks: true,
     autoUpdateInstall: false,
+    realtimeGitRefresh: true,
   };
 
   assert.deepEqual(
@@ -1063,6 +1064,7 @@ function testIpcHandlersModule() {
       syncMenuBarIcon: false,
       syncDockIcon: false,
       syncAutoUpdates: false,
+      syncRepositoryWatcher: false,
       checkAutoUpdatesNow: false,
     },
   );
@@ -1073,6 +1075,7 @@ function testIpcHandlersModule() {
       syncMenuBarIcon: false,
       syncDockIcon: false,
       syncAutoUpdates: false,
+      syncRepositoryWatcher: false,
       checkAutoUpdatesNow: false,
     },
   );
@@ -1083,6 +1086,7 @@ function testIpcHandlersModule() {
       syncMenuBarIcon: true,
       syncDockIcon: true,
       syncAutoUpdates: false,
+      syncRepositoryWatcher: false,
       checkAutoUpdatesNow: false,
     },
   );
@@ -1093,6 +1097,7 @@ function testIpcHandlersModule() {
       syncMenuBarIcon: false,
       syncDockIcon: true,
       syncAutoUpdates: false,
+      syncRepositoryWatcher: false,
       checkAutoUpdatesNow: false,
     },
   );
@@ -1103,6 +1108,7 @@ function testIpcHandlersModule() {
       syncMenuBarIcon: false,
       syncDockIcon: false,
       syncAutoUpdates: true,
+      syncRepositoryWatcher: false,
       checkAutoUpdatesNow: false,
     },
   );
@@ -1113,6 +1119,7 @@ function testIpcHandlersModule() {
       syncMenuBarIcon: false,
       syncDockIcon: false,
       syncAutoUpdates: true,
+      syncRepositoryWatcher: false,
       checkAutoUpdatesNow: true,
     },
   );
@@ -1123,6 +1130,18 @@ function testIpcHandlersModule() {
       syncMenuBarIcon: false,
       syncDockIcon: false,
       syncAutoUpdates: true,
+      syncRepositoryWatcher: false,
+      checkAutoUpdatesNow: false,
+    },
+  );
+  assert.deepEqual(
+    preferencesSaveSideEffects(preferences, preferences, { ...preferences, realtimeGitRefresh: false }),
+    {
+      syncLaunchAtLogin: false,
+      syncMenuBarIcon: false,
+      syncDockIcon: false,
+      syncAutoUpdates: false,
+      syncRepositoryWatcher: true,
       checkAutoUpdatesNow: false,
     },
   );
@@ -1221,6 +1240,7 @@ function testConfigStoreModule() {
     assert.equal(config.readPreferences().autoUpdateChecks, true);
     assert.equal(config.readPreferences().autoUpdateInstall, false);
     assert.equal(config.readPreferences().showDockIcon, false);
+    assert.equal(config.readPreferences().realtimeGitRefresh, true);
 
     config.saveActiveWorkspaceOpenTarget("finder");
     assert.equal(config.readActiveWorkspaceOpenTarget(), "finder");
@@ -1717,9 +1737,11 @@ async function testGitModule() {
     normalizeCommitLogLimit,
     pullCurrentBranch,
     readGitSnapshot,
+    readGitSnapshotAroundCommit,
     remoteWebUrlFromGitUrl,
     repositoryRemoteWebUrl,
     repositoryStateForGit,
+    searchCommits,
   } = require(path.join(projectRoot, "electron/lib/git.cjs"));
   const { parseStatus } = require(path.join(projectRoot, "electron/lib/gitStatus.cjs"));
 
@@ -1851,6 +1873,39 @@ async function testGitModule() {
     assert.equal(await repositoryRemoteWebUrl(remoteUrlDir), "https://github.com/jarvisluk/gocus");
   } finally {
     fs.rmSync(remoteUrlDir, { force: true, recursive: true });
+  }
+
+  const searchDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-commit-search-"));
+  try {
+    runGitFixture(searchDir, ["init"]);
+    runGitFixture(searchDir, ["checkout", "-b", "main"]);
+    runGitFixture(searchDir, ["config", "user.name", "Gocus Test"]);
+    runGitFixture(searchDir, ["config", "user.email", "gocus@example.com"]);
+    for (let index = 1; index <= 8; index += 1) {
+      fs.writeFileSync(path.join(searchDir, `commit-${index}.txt`), `commit ${index}\n`, "utf8");
+      runGitFixture(searchDir, ["add", `commit-${index}.txt`]);
+      runGitFixture(searchDir, ["commit", "-m", `commit ${index}`, "-m", `body marker-${index}`]);
+    }
+
+    const limitedSnapshot = await readGitSnapshot(searchDir, { mode: "all" }, { limit: 3 });
+    assert.equal(limitedSnapshot.commits.length, 3);
+    assert.equal(limitedSnapshot.commits.some((commit) => commit.message.includes("marker-1")), false);
+
+    const searchResult = await searchCommits(searchDir, { mode: "all" }, "marker-1", { limit: 2, scanLimit: 8 });
+    assert.equal(searchResult.ok, true);
+    assert.equal(searchResult.totalMatches, 1);
+    assert.equal(searchResult.scannedCommits, 8);
+    assert.equal(searchResult.commits[0].message.includes("marker-1"), true);
+
+    const targetHash = searchResult.commits[0].fullHash;
+    const contextResult = await readGitSnapshotAroundCommit(searchDir, { mode: "all" }, targetHash, { limit: 3 });
+    assert.equal(contextResult.targetHash, targetHash);
+    assert.equal(contextResult.targetIndex, 7);
+    assert.equal(contextResult.snapshot.commits.length, 3);
+    assert.equal(contextResult.snapshot.commits.some((commit) => commit.fullHash === targetHash), true);
+    assert.equal(contextResult.pageStartIndex, 5);
+  } finally {
+    fs.rmSync(searchDir, { force: true, recursive: true });
   }
 
   const pullDir = fs.mkdtempSync(path.join(os.tmpdir(), "gocus-pull-current-"));
@@ -4270,6 +4325,7 @@ async function testChangedFileInfoSelection(server) {
 
 async function testSnapshotResponseView(server) {
   const {
+    commitViewAfterSnapshotResponse,
     defaultSnapshotFailureNotice,
     folderWithoutGitAfterSnapshotResponse,
     selectedCommitIdAfterSnapshotResponse,
@@ -4321,6 +4377,22 @@ async function testSnapshotResponseView(server) {
   assert.equal(selectedCommitIdAfterSnapshotResponse(okResponse, ""), "");
   assert.equal(selectedCommitIdAfterSnapshotResponse(canceledResponse, "keep"), "keep");
   assert.equal(selectedCommitIdAfterSnapshotResponse(readFailedResponse, "keep"), "");
+
+  assert.deepEqual(commitViewAfterSnapshotResponse(okResponse, { mode: "branch", ref: "develop" }), {
+    mode: "branch",
+    ref: "develop",
+  });
+  assert.deepEqual(
+    commitViewAfterSnapshotResponse(
+      { ok: true, snapshot: gitSnapshot({ view: { mode: "current" } }) },
+      { mode: "all" },
+      { adoptSnapshotView: true },
+    ),
+    { mode: "current" },
+  );
+  assert.deepEqual(commitViewAfterSnapshotResponse(readFailedResponse, { mode: "all" }, { adoptSnapshotView: true }), {
+    mode: "all",
+  });
 
   assert.equal(folderWithoutGitAfterSnapshotResponse(okResponse), null);
   assert.equal(folderWithoutGitAfterSnapshotResponse(canceledResponse), undefined);
@@ -4455,6 +4527,28 @@ async function testAutoRefresh(server) {
     }),
     false,
   );
+  assert.equal(
+    autoRefreshEnabled({
+      intervalMs: 60_000,
+      electron: true,
+      hasSnapshot: true,
+      actionDialogOpen: false,
+      repositoryDialogOpen: false,
+      collapsed: true,
+    }),
+    false,
+  );
+  assert.equal(
+    autoRefreshEnabled({
+      intervalMs: 60_000,
+      electron: true,
+      hasSnapshot: true,
+      actionDialogOpen: false,
+      repositoryDialogOpen: false,
+      automaticGitRefresh: false,
+    }),
+    false,
+  );
   assert.deepEqual(
     autoRefreshSchedule({
       interval: "1m",
@@ -4467,6 +4561,36 @@ async function testAutoRefresh(server) {
       enabled: true,
       intervalMs: 60_000,
       tickMs: 30_000,
+    },
+  );
+  assert.deepEqual(
+    autoRefreshSchedule({
+      interval: "1m",
+      electron: true,
+      hasSnapshot: true,
+      actionDialogOpen: false,
+      repositoryDialogOpen: false,
+      collapsed: true,
+    }),
+    {
+      enabled: false,
+      intervalMs: 60_000,
+      tickMs: 0,
+    },
+  );
+  assert.deepEqual(
+    autoRefreshSchedule({
+      interval: "1m",
+      electron: true,
+      hasSnapshot: true,
+      actionDialogOpen: false,
+      repositoryDialogOpen: false,
+      automaticGitRefresh: false,
+    }),
+    {
+      enabled: false,
+      intervalMs: 60_000,
+      tickMs: 0,
     },
   );
   assert.deepEqual(
@@ -4581,6 +4705,7 @@ async function testPreferences(server) {
       autoUpdateInstall: true,
       createMergeCommit: false,
       autoRefreshInterval: "2m",
+      realtimeGitRefresh: "no",
       promptLanguage: "zh",
     }),
     {
@@ -5075,6 +5200,7 @@ async function testSettingsPanelView(server) {
       dockIconAvailable: true,
       rows: {
         refresh: "Refresh",
+        realtime: "Realtime",
         startup: "Startup",
         menuBar: "Menu bar",
         dock: "Dock",
@@ -5082,6 +5208,7 @@ async function testSettingsPanelView(server) {
         prompt: "Prompt",
       },
       autoRefreshAriaLabel: "Auto refresh interval",
+      realtimeGitRefreshAriaLabel: "Refresh Git data when files change",
       launchAtLoginAriaLabel: "Launch at login",
       showMenuBarIconAriaLabel: "Show menu bar icon",
       showDockIconAriaLabel: "Show Dock icon",
@@ -5149,6 +5276,7 @@ async function testSettingsPanelView(server) {
       autoUpdateChannelDetailClassName: "ui-label settings-update-channel-detail",
       manualUpdateButtonClassName: "ui-button settings-check-updates",
       releaseLinkButtonClassName: "ui-button settings-release-link",
+      realtimeGitRefreshToggleClassName: "ui-toggle settings-realtime-git-refresh-toggle",
       menuBarIconToggleClassName: "ui-toggle settings-menu-bar-icon-toggle",
       dockIconToggleClassName: "ui-toggle settings-dock-icon-toggle",
       mergeCommitToggleClassName: "ui-toggle settings-merge-commit-toggle",
